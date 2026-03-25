@@ -29,8 +29,48 @@
         "command": "structuredDocEditor.exportToHtml",
         "title": "Export to HTML",
         "category": "Structured Doc"
+      },
+      {
+        "command": "structuredDocEditor.exportToAdoc",
+        "title": "Export to AsciiDoc",
+        "category": "Structured Doc"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Structured Doc Editor",
+      "properties": {
+        "structuredDocEditor.theme.companyLogo": {
+          "type": "string",
+          "default": "",
+          "description": "Company logo URL or base64 encoded image for HTML export header"
+        },
+        "structuredDocEditor.theme.companyName": {
+          "type": "string",
+          "default": "",
+          "description": "Company name to display in HTML export header"
+        },
+        "structuredDocEditor.theme.primaryColor": {
+          "type": "string",
+          "default": "#2563eb",
+          "description": "Primary color for headings and table headers in HTML export"
+        },
+        "structuredDocEditor.theme.accentColor": {
+          "type": "string",
+          "default": "#1e40af",
+          "description": "Accent color for secondary headings in HTML export"
+        },
+        "structuredDocEditor.theme.fontFamily": {
+          "type": "string",
+          "default": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif",
+          "description": "Font family for HTML export"
+        },
+        "structuredDocEditor.theme.customStyles": {
+          "type": "string",
+          "default": "",
+          "description": "Custom CSS styles for HTML export (advanced users)"
+        }
+      }
+    }
   },
   "workspaces": [
     "webview-ui"

@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import { getNonce, getWebviewUri } from './utils/webviewHelper';
-import { convertJsonToAdoc } from './converter/jsonToAdoc';
 
 export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
   public static register(context: vscode.ExtensionContext): vscode.Disposable {
@@ -99,17 +98,9 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       }
     });
 
-    // Handle save events to generate .adoc file
-    const saveDocumentSubscription = vscode.workspace.onDidSaveTextDocument(async (savedDoc) => {
-      if (savedDoc.uri.toString() === document.uri.toString()) {
-        await this.generateAdocFile(savedDoc);
-      }
-    });
-
     // Cleanup
     webviewPanel.onDidDispose(() => {
       changeDocumentSubscription.dispose();
-      saveDocumentSubscription.dispose();
     });
   }
 
@@ -144,29 +135,6 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     } catch (error) {
       vscode.window.showErrorMessage(
         `Failed to open JSON view: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
-  }
-
-  private async generateAdocFile(document: vscode.TextDocument): Promise<void> {
-    try {
-      const text = document.getText();
-      const json = JSON.parse(text);
-      const adocContent = convertJsonToAdoc(json);
-
-      // Generate .adoc file in the same directory
-      const adocUri = document.uri.with({
-        path: document.uri.path.replace(/\.sdoc$/, '.adoc'),
-      });
-
-      const encoder = new TextEncoder();
-      await vscode.workspace.fs.writeFile(
-        adocUri,
-        encoder.encode(adocContent)
-      );
-    } catch (error) {
-      vscode.window.showWarningMessage(
-        `Failed to generate .adoc file: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
     }
   }
