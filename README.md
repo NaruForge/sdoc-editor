@@ -1,17 +1,18 @@
 # Structured Doc Editor
 
-`.sdoc` 파일을 위한 WYSIWYG 에디터를 제공하고 자동으로 AsciiDoc으로 변환하는 VS Code 확장 프로그램입니다.
+`.sdoc` 파일을 위한 WYSIWYG 에디터를 제공하고 AsciiDoc/HTML로 내보낼 수 있는 VS Code 확장 프로그램입니다.
 
 ## 주요 기능
 
 - **WYSIWYG 편집**: Tiptap 기반 리치 텍스트 에디터로 구조화된 문서를 편집
 - **JSON 저장**: 문서를 pretty-printed JSON 형식으로 저장하여 Git diff 성능 최적화
-- **자동 변환**: 저장 시 자동으로 `.adoc` (AsciiDoc) 파일 생성
+- **AsciiDoc 내보내기**: Ctrl+Shift+P → "Export to AsciiDoc"으로 `.adoc` 파일 생성
+- **HTML 내보내기**: Ctrl+Shift+P → "Export to HTML"로 테마가 적용된 HTML 생성
+- **테마 커스터마이징**: 회사 로고, 색상, 폰트 등을 VS Code 설정에서 쉽게 변경
 - **VS Code 통합**: VS Code의 히스토리와 완전히 통합된 실행 취소/다시 실행 지원
 - **테마 지원**: VS Code의 라이트/다크 테마에 자동 적응
 - **표 편집**: 크기 조정, 컨텍스트 메뉴, 캡션/정렬/너비 설정
 - **이미지 지원**: 클립보드에서 이미지 붙여넣기 및 캡션 추가
-- **HTML 내보내기**: Asciidoctor를 사용한 HTML 변환 및 브라우저에서 미리보기
 
 ## 지원하는 서식
 
@@ -51,9 +52,33 @@
 2. 커스텀 에디터가 자동으로 열립니다
 3. 툴바를 사용하여 문서를 서식 지정합니다
 4. Ctrl+S (Mac: Cmd+S)를 눌러 저장합니다
-5. 같은 디렉토리에 `.adoc` 파일이 자동으로 생성됩니다
-6. 이미지를 붙여넣으려면 클립보드의 이미지를 에디터에 붙여넣기 합니다
-7. HTML로 내보내려면 `Ctrl+Shift+P`를 누르고 "Export to HTML"을 실행합니다
+5. 이미지를 붙여넣으려면 클립보드의 이미지를 에디터에 붙여넣기 합니다
+6. **AsciiDoc으로 내보내기**: `Ctrl+Shift+P` → "Structured Doc: Export to AsciiDoc"
+7. **HTML로 내보내기**: `Ctrl+Shift+P` → "Structured Doc: Export to HTML"
+
+## 테마 커스터마이징
+
+HTML 내보내기 시 회사 브랜딩을 적용하려면 VS Code 설정을 편집하세요:
+
+1. `Ctrl+,` (Mac: `Cmd+,`)로 설정 열기
+2. "Structured Doc Editor" 검색
+3. 다음 항목 설정:
+   - **Company Logo**: 로고 이미지 URL 또는 base64 인코딩된 이미지
+   - **Company Name**: 회사명
+   - **Primary Color**: 제목 및 테이블 헤더 색상 (기본: #2563eb)
+   - **Accent Color**: 부제목 색상 (기본: #1e40af)
+   - **Font Family**: 글꼴 (기본: 시스템 기본 글꼴)
+   - **Custom Styles**: 추가 CSS (고급 사용자용)
+
+또는 `.vscode/settings.json`에 직접 추가:
+```json
+{
+  "structuredDocEditor.theme.companyName": "My Company",
+  "structuredDocEditor.theme.companyLogo": "https://example.com/logo.png",
+  "structuredDocEditor.theme.primaryColor": "#1a73e8",
+  "structuredDocEditor.theme.accentColor": "#0d47a1"
+}
+```
 
 ## 개발
 
@@ -83,7 +108,7 @@
 - **에디터**: Tiptap (ProseMirror 기반)
 - **스타일링**: Tailwind CSS
 - **아이콘**: Lucide React
-- **변환**: 커스텀 JSON → AsciiDoc 변환기, Asciidoctor (AsciiDoc → HTML)
+- **변환**: JSON → AsciiDoc 변환기, JSON → HTML 직접 변환기 (테마 지원)
 
 ## 라이선스
 

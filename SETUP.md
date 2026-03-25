@@ -44,7 +44,10 @@ npx @vscode/vsce package --allow-missing-repository
 1. `.sdoc` 확장자를 가진 파일을 엽니다 (예: `sample/example.sdoc`)
 2. 자동으로 커스텀 에디터가 실행됩니다
 3. WYSIWYG 방식으로 문서를 편집합니다
-4. `Ctrl+S` (Mac: `Cmd+S`)로 저장하면 자동으로 `.adoc` 파일이 생성됩니다
+4. `Ctrl+S` (Mac: `Cmd+S`)로 저장합니다
+5. **내보내기**:
+   - AsciiDoc: `Ctrl+Shift+P` → "Structured Doc: Export to AsciiDoc"
+   - HTML: `Ctrl+Shift+P` → "Structured Doc: Export to HTML"
 
 ## 개발 워크플로우
 
@@ -81,8 +84,11 @@ npm run watch
 
 3. **저장 및 변환 테스트**
    - `Ctrl+S` (Mac: `Cmd+S`)로 저장
+   - `Ctrl+Shift+P` → "Structured Doc: Export to AsciiDoc" 실행
    - 같은 디렉토리에 `test.adoc` 파일이 생성되었는지 확인
    - `.adoc` 파일을 열어 AsciiDoc 출력 확인
+   - `Ctrl+Shift+P` → "Structured Doc: Export to HTML" 실행
+   - 생성된 HTML 파일 확인
 
 4. **실행 취소/다시 실행 테스트**
    - 편집 작업 수행
@@ -96,8 +102,23 @@ npm run watch
 
 6. **HTML 내보내기 테스트**
    - `Ctrl+Shift+P`로 명령 팔레트 열기
-   - "Export to HTML" 입력 및 실행
+   - "Structured Doc: Export to HTML" 입력 및 실행
    - 생성된 HTML 파일이 브라우저에서 열리는지 확인
+   - 회사 로고/테마 설정 테스트 (설정에서 변경 후 재시도)
+
+## 테마 설정
+
+HTML 내보내기 시 회사 브랜딩을 적용하려면:
+
+1. `Ctrl+,`로 VS Code 설정 열기
+2. "Structured Doc Editor" 검색
+3. 테마 관련 설정 변경:
+   - Company Logo
+   - Company Name  
+   - Primary Color
+   - Accent Color
+   - Font Family
+   - Custom Styles
 
 ## 검증 체크리스트
 
@@ -106,13 +127,14 @@ npm run watch
 - [ ] `.sdoc` 파일이 커스텀 에디터에서 열림
 - [ ] 툴바 버튼이 작동하고 활성 상태 표시됨
 - [ ] Ctrl+S로 문서가 저장됨
-- [ ] 저장 시 `.adoc` 파일이 생성됨
+- [ ] AsciiDoc 내보내기 명령이 작동함
+- [ ] HTML 내보내기 명령이 작동함
+- [ ] 테마 설정이 HTML 출력에 반영됨
 - [ ] 실행 취소/다시 실행이 올바르게 작동함
 - [ ] 에디터가 VS Code 테마 변경에 적응함
 - [ ] `.sdoc` 파일의 외부 변경이 에디터에 반영됨
 - [ ] 표 캡션 및 속성이 올바르게 저장됨
 - [ ] 이미지 붙여넣기가 작동함
-- [ ] HTML 내보내기가 작동함
 
 ## 문제 해결
 
@@ -133,6 +155,8 @@ npm run watch
 - VS Code 캐시 삭제: 모든 창 닫기, 작업 공간 저장소 삭제
 
 ### .adoc 파일이 생성되지 않음
+- 자동 생성은 제거되었습니다
+- `Ctrl+Shift+P` → "Structured Doc: Export to AsciiDoc" 명령을 사용하세요
 - .sdoc 파일에 유효한 JSON이 포함되어 있는지 확인
 - VS Code 알림에서 오류 메시지 확인
 - `src/converter/jsonToAdoc.ts`의 변환 로직 확인
@@ -182,10 +206,12 @@ npm run watch
 - **이미지**: 클립보드 붙여넣기, 캡션 지원
 - **실행 취소/다시 실행**: VS Code 기본 기능과 통합
 
-### 저장 및 변환
+### 저장 및 내보내기
 - `.sdoc` (JSON) 형식으로 저장
-- 저장 시 자동으로 `.adoc` (AsciiDoc) 생성
-- HTML 내보내기 (Asciidoctor 변환)
+- **AsciiDoc 내보내기**: 명령 팔레트에서 "Export to AsciiDoc" 실행
+- **HTML 내보내기**: 명령 팔레트에서 "Export to HTML" 실행
+  - 테마 커스터마이징 지원 (회사 로고, 색상, 폰트 등)
+  - VS Code 설정에서 테마 관리
 
 ### UI/UX
 - VS Code 테마 자동 적응 (라이트/다크 모드)

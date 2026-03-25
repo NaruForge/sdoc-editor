@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+  <style>
+    /* Base Styles */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+      color: #333;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 40px 20px;
+      background-color: #fff;
+    }
+
+    /* Header with Company Logo */
+    .document-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 40px;
+      padding-bottom: 20px;
+      border-bottom: 2px solid #2563eb;
+    }
+
+    .company-logo {
+      max-height: 60px;
+      max-width: 200px;
+    }
+
+    .company-name {
+      font-size: 24px;
+      font-weight: bold;
+      color: #2563eb;
+    }
+
+    /* Headings with Auto-numbering */
+    body {
+      counter-reset: h1;
+    }
+
+    h1 {
+      counter-reset: h2;
+      counter-increment: h1;
+      font-size: 2em;
+      margin-top: 1.5em;
+      margin-bottom: 0.5em;
+      color: #2563eb;
+      border-bottom: 2px solid #2563eb;
+      padding-bottom: 0.3em;
+    }
+
+    h1::before {
+      content: counter(h1) ". ";
+    }
+
+    h2 {
+      counter-reset: h3;
+      counter-increment: h2;
+      font-size: 1.5em;
+      margin-top: 1.3em;
+      margin-bottom: 0.4em;
+      color: #1e40af;
+    }
+
+    h2::before {
+      content: counter(h1) "." counter(h2) ". ";
+    }
+
+    h3 {
+      counter-reset: h4;
+      counter-increment: h3;
+      font-size: 1.25em;
+      margin-top: 1.2em;
+      margin-bottom: 0.3em;
+      color: #374151;
+    }
+
+    h3::before {
+      content: counter(h1) "." counter(h2) "." counter(h3) ". ";
+    }
+
+    h4 {
+      counter-increment: h4;
+      font-size: 1.1em;
+      margin-top: 1em;
+      margin-bottom: 0.3em;
+      color: #4b5563;
+    }
+
+    h4::before {
+      content: counter(h1) "." counter(h2) "." counter(h3) "." counter(h4) ". ";
+    }
+
+    /* Paragraphs */
+    p {
+      margin-bottom: 1em;
+      text-align: justify;
+    }
+
+    /* Lists */
+    ul, ol {
+      margin-left: 2em;
+      margin-bottom: 1em;
+    }
+
+    li {
+      margin-bottom: 0.5em;
+    }
+
+    /* Code */
+    code {
+      background-color: #f3f4f6;
+      padding: 0.2em 0.4em;
+      border-radius: 3px;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background-color: #1f2937;
+      color: #f9fafb;
+      padding: 1em;
+      border-radius: 5px;
+      overflow-x: auto;
+      margin-bottom: 1em;
+    }
+
+    pre code {
+      background-color: transparent;
+      padding: 0;
+      color: inherit;
+    }
+
+    /* Tables */
+    table.doc-table {
+      border-collapse: collapse;
+      margin: 1.5em 0;
+      width: 100%;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    table.doc-table caption {
+      font-weight: bold;
+      margin-bottom: 0.5em;
+      color: #2563eb;
+      text-align: left;
+      caption-side: top;
+    }
+
+    table.doc-table th,
+    table.doc-table td {
+      border: 1px solid #e5e7eb;
+      padding: 0.75em;
+      text-align: left;
+    }
+
+    table.doc-table thead th {
+      background-color: #2563eb;
+      color: white;
+      font-weight: bold;
+    }
+
+    table.doc-table tbody tr:nth-child(even) {
+      background-color: #f9fafb;
+    }
+
+    table.doc-table tbody tr:hover {
+      background-color: #f3f4f6;
+    }
+
+    /* Images */
+    figure.doc-image {
+      margin: 1.5em 0;
+      text-align: center;
+    }
+
+    figure.doc-image img {
+      max-width: 100%;
+      height: auto;
+      border: 1px solid #e5e7eb;
+      border-radius: 5px;
+    }
+
+    figure.doc-image figcaption {
+      margin-top: 0.5em;
+      font-style: italic;
+      color: #6b7280;
+      font-size: 0.9em;
+    }
+
+    /* Text Formatting */
+    strong {
+      font-weight: bold;
+    }
+
+    em {
+      font-style: italic;
+    }
+
+    u {
+      text-decoration: underline;
+    }
+
+    s {
+      text-decoration: line-through;
+    }
+
+    a {
+      color: #2563eb;
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    /* Print Styles */
+    @media print {
+      body {
+        max-width: 100%;
+        padding: 20px;
+      }
+
+      .document-header {
+        page-break-after: avoid;
+      }
+
+      h1, h2, h3, h4, h5, h6 {
+        page-break-after: avoid;
+      }
+
+      table, figure {
+        page-break-inside: avoid;
+      }
+    }
+
+    /* Custom Styles */
+    
+  </style>
+</head>
+<body>
+  
+  
+  <h1>Sample Structured Document</h1>
+<p>This is a sample document to test the Structured Doc Editor. It includes various formatting options.</p>
+<h2>Text Formatting</h2>
+<p>You can use <strong>bold</strong>, <em>italic</em>, and <u>underline</u> formatting.</p>
+<h2>Lists</h2>
+<p>Bullet list:</p>
+<ul>
+  <li>First item</li>
+  <li>Second item</li>
+  <li>Third item</li>
+</ul>
+<p>Ordered list:</p>
+<ol>
+  <li>Step one</li>
+  <li>Step two</li>
+  <li>Step three</li>
+  <li>오</li>
+</ol>
+<h2>Code Block</h2>
+<pre><code class="language-">function hello() {
+  console.log(&#039;Hello, world!&#039;);
+}</code></pre>
+<h2>Table</h2>
+<table style="width: 100%; text-align: center;" class="doc-table">
+  <caption>좋아요</caption>
+  <thead>
+    <tr>
+      <th>Header 1</th>
+      <th>Header 2</th>
+      <th>Header 3</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Cell 1</td>
+      <td>Cell 24123</td>
+      <td>Cell 3</td>
+    </tr>
+    <tr>
+      <td>Cell 4</td>
+      <td>Cell 5</td>
+      <td>Cell 623</td>
+    </tr>
+  </tbody>
+</table>
+<p></p>
+<p></p>
+<h2>Image</h2>
+<p><figure class="doc-image">
+  <img src="./images/image-1774410400733.png" alt="image-1774410400733">
+</figure></p>
+<p></p>
+</body>
+</html>
