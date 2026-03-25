@@ -1,158 +1,201 @@
-# Setup and Testing Guide
+# 설치 및 테스트 가이드
 
-## Prerequisites
+## 사전 요구사항
 
-- Node.js 18+ and npm
-- VS Code 1.85.0 or higher
+- Node.js 18+ 및 npm
+- VS Code 1.85.0 이상
 
-## Installation Steps
+## 설치 방법
 
-1. **Install dependencies**
+### 방법 1: VSIX 파일로 설치 (권장)
+
+프로젝트 루트에 이미 생성된 `structured-doc-editor-0.1.0.vsix` 파일을 사용하여 설치:
+
+1. VS Code를 엽니다
+2. `Ctrl+Shift+P` (Mac: `Cmd+Shift+P`)를 눌러 명령 팔레트를 엽니다
+3. "Extensions: Install from VSIX..."를 입력하고 선택합니다
+4. `structured-doc-editor-0.1.0.vsix` 파일을 선택합니다
+5. 설치 완료 후 VS Code를 다시 시작합니다
+
+**VSIX 파일 재생성이 필요한 경우:**
+```bash
+npx @vscode/vsce package --allow-missing-repository
+```
+
+### 방법 2: 개발 모드로 실행 (개발자용)
+
+1. **의존성 설치**
    ```bash
    npm install
    ```
 
-2. **Build the extension**
+2. **확장 프로그램 빌드**
    ```bash
    npm run build
    ```
 
-## Testing the Extension
+3. **Extension Development Host 실행**
+   - VS Code에서 프로젝트를 엽니다
+   - `F5`를 눌러 Extension Development Host를 실행합니다
+   - 새 VS Code 창이 열리면서 확장 프로그램이 로드됩니다
 
-### Method 1: Extension Development Host (Recommended)
+## 확장 프로그램 사용 방법
 
-1. Open the project in VS Code
-2. Press `F5` to launch the Extension Development Host
-3. In the new VS Code window:
-   - Open the `sample` folder or create a new folder
-   - Open `example.sdoc` or create a new `.sdoc` file
-   - The custom editor should appear automatically
+1. `.sdoc` 확장자를 가진 파일을 엽니다 (예: `sample/example.sdoc`)
+2. 자동으로 커스텀 에디터가 실행됩니다
+3. WYSIWYG 방식으로 문서를 편집합니다
+4. `Ctrl+S` (Mac: `Cmd+S`)로 저장하면 자동으로 `.adoc` 파일이 생성됩니다
 
-### Method 2: Manual Testing
+## 개발 워크플로우
 
-1. Build the extension: `npm run build`
-2. Install the extension:
-   - Press `Ctrl+Shift+P` (Cmd+Shift+P on Mac)
-   - Run "Extensions: Install from VSIX..."
-   - Package first with: `npx vsce package`
-   - Select the generated `.vsix` file
+### Watch 모드
 
-## Development Workflow
-
-### Watch Mode
-
-For active development, use watch mode to automatically rebuild on changes:
+개발 중 파일 변경 시 자동으로 재빌드하려면:
 
 ```bash
 npm run watch
 ```
 
-This runs both:
-- `watch:ext` - Watches extension TypeScript files
-- `watch:webview` - Watches webview React files
+다음 두 가지가 동시에 실행됩니다:
+- `watch:ext` - 확장 프로그램 TypeScript 파일 감시
+- `watch:webview` - Webview React 파일 감시
 
-### Building Individual Parts
+### 개별 빌드
 
-- Extension only: `npm run build:ext`
-- Webview only: `npm run build:webview`
+- 확장 프로그램만: `npm run build:ext`
+- Webview만: `npm run build:webview`
 
-## Testing the Editor Features
+## 에디터 기능 테스트
 
-1. **Create a new .sdoc file**
-   - Create a file named `test.sdoc`
-   - The editor should open automatically
+1. **새 .sdoc 파일 생성**
+   - `test.sdoc` 파일을 생성합니다
+   - 에디터가 자동으로 열립니다
 
-2. **Test formatting options**
-   - Click toolbar buttons: Bold, Italic, Underline
-   - Try headings: H1, H2, H3
-   - Create lists: Bullet and Ordered
-   - Insert a table
-   - Add a code block
+2. **서식 옵션 테스트**
+   - 툴바 버튼 클릭: 굵게, 기울임, 밑줄
+   - 제목 레벨: H1, H2, H3
+   - 목록: 글머리 기호, 번호 매기기
+   - 표 삽입
+   - 코드 블록 추가
+   - 이미지 붙여넣기 (클립보드에서)
 
-3. **Test save and conversion**
-   - Press `Ctrl+S` (Cmd+S on Mac)
-   - Check that a `test.adoc` file is created in the same directory
-   - Open the `.adoc` file to verify the AsciiDoc output
+3. **저장 및 변환 테스트**
+   - `Ctrl+S` (Mac: `Cmd+S`)로 저장
+   - 같은 디렉토리에 `test.adoc` 파일이 생성되었는지 확인
+   - `.adoc` 파일을 열어 AsciiDoc 출력 확인
 
-4. **Test undo/redo**
-   - Make some edits
-   - Press `Ctrl+Z` to undo
-   - Press `Ctrl+Shift+Z` to redo
-   - Verify that the `.sdoc` JSON updates correctly
+4. **실행 취소/다시 실행 테스트**
+   - 편집 작업 수행
+   - `Ctrl+Z`로 실행 취소
+   - `Ctrl+Shift+Z`로 다시 실행
+   - `.sdoc` JSON이 올바르게 업데이트되는지 확인
 
-5. **Test theme integration**
-   - Switch VS Code theme (File > Preferences > Color Theme)
-   - Verify the editor adapts to light/dark themes
+5. **테마 통합 테스트**
+   - VS Code 테마 변경 (파일 > 기본 설정 > 색 테마)
+   - 에디터가 라이트/다크 테마에 맞춰 변경되는지 확인
 
-## Verification Checklist
+6. **HTML 내보내기 테스트**
+   - `Ctrl+Shift+P`로 명령 팔레트 열기
+   - "Export to HTML" 입력 및 실행
+   - 생성된 HTML 파일이 브라우저에서 열리는지 확인
 
-- [ ] Extension builds without errors
-- [ ] Webview builds without errors
-- [ ] `.sdoc` files open in custom editor
-- [ ] Toolbar buttons work and show active state
-- [ ] Ctrl+S saves the document
-- [ ] `.adoc` file is generated on save
-- [ ] Undo/Redo works correctly
-- [ ] Editor adapts to VS Code theme changes
-- [ ] External changes to `.sdoc` file update the editor
+## 검증 체크리스트
 
-## Troubleshooting
+- [ ] 확장 프로그램이 오류 없이 빌드됨
+- [ ] Webview가 오류 없이 빌드됨
+- [ ] `.sdoc` 파일이 커스텀 에디터에서 열림
+- [ ] 툴바 버튼이 작동하고 활성 상태 표시됨
+- [ ] Ctrl+S로 문서가 저장됨
+- [ ] 저장 시 `.adoc` 파일이 생성됨
+- [ ] 실행 취소/다시 실행이 올바르게 작동함
+- [ ] 에디터가 VS Code 테마 변경에 적응함
+- [ ] `.sdoc` 파일의 외부 변경이 에디터에 반영됨
+- [ ] 표 캡션 및 속성이 올바르게 저장됨
+- [ ] 이미지 붙여넣기가 작동함
+- [ ] HTML 내보내기가 작동함
 
-### Extension doesn't activate
-- Check the Output panel (View > Output) and select "Structured Doc Editor"
-- Verify activationEvents in package.json
-- Rebuild: `npm run build`
+## 문제 해결
 
-### Webview doesn't load
-- Check browser console in webview (Help > Toggle Developer Tools)
-- Verify dist/webview/ contains index.html, index.js, index.css
-- Rebuild webview: `npm run build:webview`
+### 확장 프로그램이 활성화되지 않음
+- 출력 패널 확인 (보기 > 출력) 및 "Structured Doc Editor" 선택
+- package.json의 activationEvents 확인
+- 재빌드: `npm run build`
+- VS Code 재시작
 
-### Changes not reflected
-- If using watch mode, check that both watchers are running
-- Try stopping and restarting the Extension Development Host
-- Clear VS Code cache: Close all windows, delete workspace storage
+### Webview가 로드되지 않음
+- Webview의 브라우저 콘솔 확인 (도움말 > 개발자 도구 전환)
+- dist/webview/에 index.html, index.js, index.css가 있는지 확인
+- Webview 재빌드: `npm run build:webview`
 
-### .adoc file not generated
-- Check that the .sdoc file contains valid JSON
-- Look for error messages in VS Code notifications
-- Check the converter logic in `src/converter/jsonToAdoc.ts`
+### 변경사항이 반영되지 않음
+- Watch 모드 사용 시 두 watcher가 모두 실행 중인지 확인
+- Extension Development Host를 중지하고 다시 시작
+- VS Code 캐시 삭제: 모든 창 닫기, 작업 공간 저장소 삭제
 
-## Project Structure
+### .adoc 파일이 생성되지 않음
+- .sdoc 파일에 유효한 JSON이 포함되어 있는지 확인
+- VS Code 알림에서 오류 메시지 확인
+- `src/converter/jsonToAdoc.ts`의 변환 로직 확인
+
+## 프로젝트 구조
 
 ```
 .
 ├── .vscode/
-│   ├── launch.json         # F5 debug configuration
-│   └── tasks.json          # Build tasks
-├── dist/                   # Compiled output (git-ignored)
-│   ├── extension.js        # Extension bundle
-│   └── webview/            # Webview bundle
-├── src/                    # Extension source
-│   ├── extension.ts        # Entry point
+│   ├── launch.json         # F5 디버그 설정
+│   └── tasks.json          # 빌드 작업
+├── dist/                   # 컴파일된 출력 (git 무시)
+│   ├── extension.js        # 확장 프로그램 번들
+│   └── webview/            # Webview 번들
+├── src/                    # 확장 프로그램 소스
+│   ├── extension.ts        # 진입점
 │   ├── SdocEditorProvider.ts
+│   ├── commands/
+│   │   └── exportToHtml.ts
 │   ├── converter/
 │   │   └── jsonToAdoc.ts
 │   └── utils/
 │       └── webviewHelper.ts
 ├── webview-ui/             # React webview
 │   ├── src/
-│   │   ├── components/
-│   │   ├── context/
-│   │   ├── extensions/
-│   │   ├── hooks/
-│   │   └── styles/
+│   │   ├── components/     # UI 컴포넌트
+│   │   ├── context/        # React 컨텍스트
+│   │   ├── extensions/     # Tiptap 확장
+│   │   ├── hooks/          # React 훅
+│   │   └── styles/         # CSS 스타일
 │   ├── package.json
 │   └── vite.config.ts
 ├── sample/
-│   └── example.sdoc        # Sample document
-└── package.json            # Extension manifest
+│   ├── example.sdoc        # 샘플 문서
+│   └── images/             # 샘플 이미지
+└── package.json            # 확장 프로그램 매니페스트
 ```
 
-## Next Steps
+## 주요 기능
 
-- Add more Tiptap extensions (e.g., images, links)
-- Implement diff-based updates for large documents
-- Add configuration options for AsciiDoc output
-- Implement validation for JSON structure
-- Add tests for converter and extension logic
+### 편집 기능
+- **텍스트 서식**: 굵게, 기울임, 밑줄, 취소선, 코드
+- **제목**: H1 ~ H6 (자동 번호 매기기 지원)
+- **목록**: 글머리 기호, 번호 매기기
+- **표**: 크기 선택, 컨텍스트 메뉴, 캡션/정렬/너비 설정
+- **코드 블록**: 언어별 구문 강조
+- **이미지**: 클립보드 붙여넣기, 캡션 지원
+- **실행 취소/다시 실행**: VS Code 기본 기능과 통합
+
+### 저장 및 변환
+- `.sdoc` (JSON) 형식으로 저장
+- 저장 시 자동으로 `.adoc` (AsciiDoc) 생성
+- HTML 내보내기 (Asciidoctor 변환)
+
+### UI/UX
+- VS Code 테마 자동 적응 (라이트/다크 모드)
+- 툴바 및 버블 메뉴
+- 표/이미지 캡션 인라인 편집
+
+## 다음 단계
+
+- [ ] 더 많은 Tiptap 확장 추가 (링크, 각주 등)
+- [ ] 대용량 문서를 위한 diff 기반 업데이트 구현
+- [ ] AsciiDoc 출력 설정 옵션 추가
+- [ ] JSON 구조 유효성 검사 구현
+- [ ] 변환기 및 확장 프로그램 로직 테스트 추가
