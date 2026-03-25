@@ -1,0 +1,55 @@
+{
+  "name": "structured-doc-editor",
+  "displayName": "Structured Doc Editor",
+  "description": "WYSIWYG editor for .sdoc files with automatic AsciiDoc conversion",
+  "version": "0.1.0",
+  "publisher": "your-publisher-name",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "customEditors": [
+      {
+        "viewType": "structuredDocEditor.sdoc",
+        "displayName": "Structured Doc Editor",
+        "selector": [
+          {
+            "filenamePattern": "*.sdoc"
+          }
+        ],
+        "priority": "default"
+      }
+    ],
+    "commands": [
+      {
+        "command": "structuredDocEditor.exportToHtml",
+        "title": "Export to HTML",
+        "category": "Structured Doc"
+      }
+    ]
+  },
+  "workspaces": [
+    "webview-ui"
+  ],
+  "scripts": {
+    "build": "npm run build:ext && npm run build:webview",
+    "build:ext": "node esbuild.mjs",
+    "build:webview": "npm run build --workspace=webview-ui",
+    "watch:ext": "node esbuild.mjs --watch",
+    "watch:webview": "npm run build --workspace=webview-ui -- --watch",
+    "watch": "npm-run-all --parallel watch:ext watch:webview",
+    "vscode:prepublish": "npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "asciidoctor": "^3.0.4",
+    "esbuild": "^0.20.0",
+    "npm-run-all": "^4.1.5",
+    "typescript": "^5.3.3"
+  }
+}
