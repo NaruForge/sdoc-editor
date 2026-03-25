@@ -34,6 +34,11 @@
         "command": "structuredDocEditor.exportToAdoc",
         "title": "Export to AsciiDoc",
         "category": "Structured Doc"
+      },
+      {
+        "command": "structuredDocEditor.exportToMarkdown",
+        "title": "Export to Markdown",
+        "category": "Structured Doc"
       }
     ],
     "configuration": {

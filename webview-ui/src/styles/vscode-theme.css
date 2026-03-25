@@ -161,6 +161,22 @@ body {
   cursor: pointer;
 }
 
+/* Draw.io images get special cursor to indicate they're editable */
+.image-container img[src*=".drawio.svg"],
+.image-container img[src*="/drawio/"] {
+  cursor: copy; /* Shows a special cursor to indicate it's editable */
+  border: 2px dashed var(--vscode-input-border, #888);
+  padding: 4px;
+  background-color: var(--vscode-editor-background);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.image-container img[src*=".drawio.svg"]:hover,
+.image-container img[src*="/drawio/"]:hover {
+  border-color: var(--vscode-focusBorder, #007acc);
+  box-shadow: 0 0 0 1px var(--vscode-focusBorder, #007acc);
+}
+
 .ProseMirror img.ProseMirror-selectednode {
   outline: 2px solid var(--vscode-focusBorder);
 }
@@ -618,4 +634,19 @@ body {
 
 .btn-secondary:hover {
   background-color: var(--vscode-button-secondaryHoverBackground);
+}
+
+/* Link styles */
+.ProseMirror a,
+.ProseMirror .editor-link {
+  color: var(--vscode-textLink-foreground, #3794ff);
+  text-decoration: underline;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.ProseMirror a:hover,
+.ProseMirror .editor-link:hover {
+  color: var(--vscode-textLink-activeForeground, #4daaff);
+  text-decoration: underline;
 }

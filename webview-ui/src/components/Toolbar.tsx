@@ -14,6 +14,9 @@ import {
   Trash2,
   FileJson,
   ListOrdered as NumberIcon,
+  PenTool,
+  Image as ImageIcon,
+  Link as LinkIcon,
 } from 'lucide-react';
 
 interface ToolbarProps {
@@ -21,9 +24,12 @@ interface ToolbarProps {
   onViewJson?: () => void;
   showNumbering: boolean;
   onToggleNumbering: () => void;
+  onInsertDrawio?: () => void;
+  onInsertImage?: () => void;
+  onInsertLink?: () => void;
 }
 
-export const Toolbar: React.FC<ToolbarProps> = ({ editor, onViewJson, showNumbering, onToggleNumbering }) => {
+export const Toolbar: React.FC<ToolbarProps> = ({ editor, onViewJson, showNumbering, onToggleNumbering, onInsertDrawio, onInsertImage, onInsertLink }) => {
   const [showTablePicker, setShowTablePicker] = useState(false);
   const [showCustomSize, setShowCustomSize] = useState(false);
   const [customRows, setCustomRows] = useState('3');
@@ -82,6 +88,15 @@ export const Toolbar: React.FC<ToolbarProps> = ({ editor, onViewJson, showNumber
       >
         <UnderlineIcon size={16} />
       </Button>
+      {onInsertLink && (
+        <Button
+          onClick={onInsertLink}
+          isActive={editor.isActive('link')}
+          title="Insert Link (Ctrl+K)"
+        >
+          <LinkIcon size={16} />
+        </Button>
+      )}
 
       <div className="toolbar-separator" />
 
@@ -240,6 +255,34 @@ export const Toolbar: React.FC<ToolbarProps> = ({ editor, onViewJson, showNumber
       >
         <Trash2 size={16} />
       </Button>
+
+      {/* Insert Image */}
+      {onInsertImage && (
+        <>
+          <div className="toolbar-separator" />
+          <Button
+            onClick={onInsertImage}
+            title="Insert Image from File"
+          >
+            <ImageIcon size={16} />
+            <span style={{ marginLeft: '4px' }}>Image</span>
+          </Button>
+        </>
+      )}
+
+      {/* Draw.io */}
+      {onInsertDrawio && (
+        <>
+          <div className="toolbar-separator" />
+          <Button
+            onClick={onInsertDrawio}
+            title="Insert Draw.io Diagram"
+          >
+            <PenTool size={16} />
+            <span style={{ marginLeft: '4px' }}>Draw.io</span>
+          </Button>
+        </>
+      )}
 
       {/* View JSON */}
       {onViewJson && (

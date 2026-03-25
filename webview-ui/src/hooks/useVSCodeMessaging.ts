@@ -18,6 +18,8 @@ let vscodeApi: VSCodeAPI | undefined;
 const getVSCodeAPI = (): VSCodeAPI => {
   if (!vscodeApi) {
     vscodeApi = window.acquireVsCodeApi();
+    // Expose globally so native NodeViews (non-React) can also post messages
+    (window as any).vscode = vscodeApi;
   }
   return vscodeApi;
 };

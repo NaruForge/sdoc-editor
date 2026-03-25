@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { SdocEditorProvider } from './SdocEditorProvider';
 import { exportToHtml } from './commands/exportToHtml';
 import { exportToAdoc } from './commands/exportToAdoc';
+import { exportToMarkdown } from './commands/exportToMarkdown';
 
 export function activate(context: vscode.ExtensionContext) {
   console.log('Structured Doc Editor extension is now active');
@@ -22,6 +23,14 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand(
       'structuredDocEditor.exportToAdoc',
       () => exportToAdoc(context)
+    )
+  );
+
+  // Register export to Markdown command
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      'structuredDocEditor.exportToMarkdown',
+      () => exportToMarkdown(context)
     )
   );
 }

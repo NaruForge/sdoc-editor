@@ -97,6 +97,16 @@ export const CustomImage = Image.extend({
         img.src = src;
         img.alt = alt;
 
+        // Set title attribute to show filename and path on hover
+        if (src) {
+          const match = src.match(/images\/([^?#]+)/);
+          if (match) {
+            img.title = `Filename: ${match[1]}\nPath: ./images/${match[1]}`;
+          } else {
+            img.title = src;
+          }
+        }
+
         if (!src) {
           img.style.display = 'none';
         } else {
@@ -147,6 +157,103 @@ export const CustomImage = Image.extend({
           captionInput.focus();
           captionInput.select();
         });
+      });
+
+      // === Image double-click → open draw.io files for editing ===
+      img.addEventListener('dblclick', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const src = currentNode.attrs.src || '';
+        
+        // Only handle draw.io files on double-click
+        if (src.includes('.drawio.svg') || src.includes('/drawio/')) {
+          // Extract relative path from src
+          let drawioPath = src;
+          
+          // If it's a webview URI, extract the relative path
+          const drawioMatch = src.match(/drawio\/([^?#]+)/);
+          if (drawioMatch) {
+            drawioPath = `./drawio/${drawioMatch[1]}`;
+          }
+
+          // Send message to VS Code to open the draw.io file
+          const vscode = (window as any).vscode;
+          if (vscode) {
+            console.log('Opening draw.io file:', drawioPath);
+            vscode.postMessage({
+              type: 'openDrawio',
+              drawioPath: drawioPath,
+            });
+          } else {
+            console.error('VS Code API not available');
+          }
+        }
+        // Regular images: do nothing on double-click (use right-click context menu instead)
+      });
+
+      // === Image right-click → show context menu ===
+      img.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const src = currentNode.attrs.src || '';
+        const alt = currentNode.attrs.alt || '';
+        
+        if (typeof getPos === 'function') {
+          const pos = getPos();
+          if (typeof pos === 'number') {
+            const showContextMenu = (window as any).__showImageContextMenu;
+            if (showContextMenu) {
+              showContextMenu(e.clientX, e.clientY, pos, src, alt);
+            }
+          }
+        }
+      });
+
+      // Also handle double-click on the whole image container for better UX (draw.io only)
+      imageContainer.addEventListener('dblclick', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const src = currentNode.attrs.src || '';
+        
+        if (src.includes('.drawio.svg') || src.includes('/drawio/')) {
+          let drawioPath = src;
+          const drawioMatch = src.match(/drawio\/([^?#]+)/);
+          if (drawioMatch) {
+            drawioPath = `./drawio/${drawioMatch[1]}`;
+          }
+
+          const vscode = (window as any).vscode;
+          if (vscode) {
+            console.log('Opening draw.io file from container:', drawioPath);
+            vscode.postMessage({
+              type: 'openDrawio',
+              drawioPath: drawioPath,
+            });
+          }
+        }
+        // Regular images: do nothing on double-click (use right-click context menu instead)
+      });
+
+      // Also handle right-click on the whole image container
+      imageContainer.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const src = currentNode.attrs.src || '';
+        const alt = currentNode.attrs.alt || '';
+        
+        if (typeof getPos === 'function') {
+          const pos = getPos();
+          if (typeof pos === 'number') {
+            const showContextMenu = (window as any).__showImageContextMenu;
+            if (showContextMenu) {
+              showContextMenu(e.clientX, e.clientY, pos, src, alt);
+            }
+          }
+        }
       });
 
       // === Caption input: Enter → save, Escape → cancel ===
@@ -200,6 +307,13 @@ export const CustomImage = Image.extend({
         stopEvent(event: Event) {
           const target = event.target as HTMLElement;
           if (!target) return false;
+          
+          // Allow double-click events on image/image container to pass through
+          if (event.type === 'dblclick') {
+            // Let the event propagate so our custom handler can process it (for both draw.io and regular images)
+            return false;
+          }
+          
           // Stop ProseMirror from handling events in caption area
           return captionDisplay.contains(target) || captionInputWrapper.contains(target);
         },

@@ -1,6 +1,6 @@
 import React from 'react';
 import { BubbleMenu, Editor } from '@tiptap/react';
-import { Bold, Italic, Underline, Code } from 'lucide-react';
+import { Bold, Italic, Underline, Code, Unlink } from 'lucide-react';
 
 interface BubbleMenuBarProps {
   editor: Editor;
@@ -53,6 +53,18 @@ export const BubbleMenuBar: React.FC<BubbleMenuBarProps> = ({ editor }) => {
       >
         <Code size={14} />
       </button>
+      {editor.isActive('link') && (
+        <button
+          onMouseDown={(e) => {
+            e.preventDefault();
+            editor.chain().focus().unsetLink().run();
+          }}
+          className="unlink-button"
+          title="Remove Link"
+        >
+          <Unlink size={14} />
+        </button>
+      )}
     </BubbleMenu>
   );
 };

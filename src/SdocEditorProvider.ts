@@ -72,6 +72,21 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         case 'saveImage':
           await this.saveImage(document, webviewPanel.webview, message);
           break;
+        case 'createDrawio':
+          await this.createDrawioFile(document, webviewPanel.webview, message);
+          break;
+        case 'importDrawio':
+          await this.importDrawioFile(document, webviewPanel.webview);
+          break;
+        case 'openDrawio':
+          await this.openDrawioFile(document, message);
+          break;
+        case 'insertExistingImage':
+          await this.insertExistingImage(document, webviewPanel.webview);
+          break;
+        case 'replaceImage':
+          await this.replaceImage(document, webviewPanel.webview, message.pos);
+          break;
       }
     });
 
@@ -187,6 +202,380 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     }
   }
 
+  private async createDrawioFile(
+    document: vscode.TextDocument,
+    webview: vscode.Webview,
+    message: { fileName: string }
+  ): Promise<void> {
+    try {
+      const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
+      if (!workspaceFolder) {
+        vscode.window.showErrorMessage('No workspace folder found');
+        return;
+      }
+
+      // Create drawio directory next to the .sdoc file
+      const documentDir = vscode.Uri.joinPath(document.uri, '..');
+      const drawioDir = vscode.Uri.joinPath(documentDir, 'drawio');
+
+      // Ensure drawio directory exists
+      try {
+        await vscode.workspace.fs.stat(drawioDir);
+      } catch {
+        await vscode.workspace.fs.createDirectory(drawioDir);
+      }
+
+      // Create empty draw.io SVG file
+      const fileName = `${message.fileName}.drawio.svg`;
+      const drawioUri = vscode.Uri.joinPath(drawioDir, fileName);
+
+      // Check if file already exists
+      try {
+        await vscode.workspace.fs.stat(drawioUri);
+        vscode.window.showErrorMessage(`File already exists: ${fileName}`);
+        return;
+      } catch {
+        // File doesn't exist, proceed to create it
+      }
+
+      // Create empty draw.io SVG with basic structure
+      const emptyDrawioSvg = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" width="400px" height="300px" viewBox="-0.5 -0.5 400 300" content="&lt;mxfile&gt;&lt;diagram id=&quot;diagram&quot; name=&quot;Page-1&quot;&gt;ddHBEoIgEADQr+GOUlmdzeqSB89sEmzAnZBG+/p0YGKM6MTLsrsLLARnbTO4Tql7BHCC48gyQi+E4yRJtvNYyNORfZJ6IIbJwLYBCvMCjmlQGwNdFLQIRps2BhXWNSgbMdQddHHsDiZuaqMEC4CKkmV6M9rqQHdxvvErlFRpc7LL/E2F09IAuhqi6L4gkhOSO0QLq7acA1myY1zC3uWP7zczEGv3Y8EGPgbdG0n+AA==&lt;/diagram&gt;&lt;/mxfile&gt;">
+  <defs/>
+  <g>
+    <rect x="0" y="0" width="400" height="300" fill="none" stroke="none" pointer-events="all"/>
+  </g>
+</svg>`;
+
+      const encoder = new TextEncoder();
+      await vscode.workspace.fs.writeFile(drawioUri, encoder.encode(emptyDrawioSvg));
+
+      // Convert to webview URI for display
+      const webviewUri = webview.asWebviewUri(drawioUri);
+      const relativePath = `./drawio/${fileName}`;
+      
+      webview.postMessage({
+        type: 'drawioCreated',
+        drawioPath: relativePath, // relative path for JSON storage
+        webviewUri: webviewUri.toString(), // webview URI for display
+        fileName: message.fileName,
+      });
+
+      vscode.window.showInformationMessage(`Draw.io file created: ${fileName}`);
+    } catch (error) {
+      vscode.window.showErrorMessage(
+        `Failed to create draw.io file: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  private async openDrawioFile(
+    document: vscode.TextDocument,
+    message: { drawioPath: string }
+  ): Promise<void> {
+    try {
+      // Convert relative path to absolute URI
+      const documentDir = vscode.Uri.joinPath(document.uri, '..');
+      const drawioPath = message.drawioPath.replace('./', '');
+      const drawioUri = vscode.Uri.joinPath(documentDir, drawioPath);
+
+      // Check if file exists
+      try {
+        await vscode.workspace.fs.stat(drawioUri);
+      } catch {
+        vscode.window.showErrorMessage(`Draw.io file not found: ${message.drawioPath}`);
+        return;
+      }
+
+      // Open the draw.io file in VS Code
+      // VS Code will use the Draw.io Integration extension if installed
+      const doc = await vscode.workspace.openTextDocument(drawioUri);
+      await vscode.window.showTextDocument(doc, { viewColumn: vscode.ViewColumn.Beside, preview: false });
+    } catch (error) {
+      vscode.window.showErrorMessage(
+        `Failed to open draw.io file: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  private async importDrawioFile(
+    document: vscode.TextDocument,
+    webview: vscode.Webview
+  ): Promise<void> {
+    try {
+      // Show file picker for .drawio file selection
+      const fileUris = await vscode.window.showOpenDialog({
+        canSelectMany: false,
+        openLabel: 'Import Draw.io Diagram',
+        filters: {
+          'Draw.io Files': ['drawio.svg', 'svg']
+        }
+      });
+
+      if (!fileUris || fileUris.length === 0) {
+        return; // User cancelled
+      }
+
+      const sourceUri = fileUris[0];
+      const fileName = sourceUri.path.split('/').pop() || 'diagram.drawio.svg';
+
+      // Verify it's a .drawio.svg file
+      if (!fileName.includes('.drawio.svg')) {
+        vscode.window.showWarningMessage(
+          'Please select a .drawio.svg file. Regular SVG files are not supported.'
+        );
+        return;
+      }
+
+      // Create drawio directory next to the .sdoc file
+      const documentDir = vscode.Uri.joinPath(document.uri, '..');
+      const drawioDir = vscode.Uri.joinPath(documentDir, 'drawio');
+
+      // Ensure drawio directory exists
+      try {
+        await vscode.workspace.fs.stat(drawioDir);
+      } catch {
+        await vscode.workspace.fs.createDirectory(drawioDir);
+      }
+
+      // Check if the selected file is already in the drawio directory
+      const sourceParentPath = sourceUri.path.substring(0, sourceUri.path.lastIndexOf('/'));
+      const drawioDirPath = drawioDir.path;
+      const isAlreadyInDrawioDir = sourceParentPath === drawioDirPath;
+
+      let finalFileName = fileName;
+      let targetUri = sourceUri; // Default to source if already in drawio dir
+
+      if (isAlreadyInDrawioDir) {
+        // File is already in drawio directory, just reference it
+        finalFileName = fileName;
+        targetUri = sourceUri;
+        vscode.window.showInformationMessage(`Referencing existing diagram: ${finalFileName}`);
+      } else {
+        // File is external, copy it to drawio directory
+        // Generate unique filename if file already exists
+        let counter = 1;
+        targetUri = vscode.Uri.joinPath(drawioDir, finalFileName);
+        
+        while (true) {
+          try {
+            await vscode.workspace.fs.stat(targetUri);
+            // File exists, try with counter
+            const baseName = fileName.replace('.drawio.svg', '');
+            finalFileName = `${baseName}-${counter}.drawio.svg`;
+            targetUri = vscode.Uri.joinPath(drawioDir, finalFileName);
+            counter++;
+          } catch {
+            // File doesn't exist, use this name
+            break;
+          }
+        }
+
+        // Copy file to drawio directory
+        await vscode.workspace.fs.copy(sourceUri, targetUri, { overwrite: false });
+        vscode.window.showInformationMessage(`Diagram copied and imported: ${finalFileName}`);
+      }
+
+      // Convert to webview URI for display
+      const webviewUri = webview.asWebviewUri(targetUri);
+      const relativePath = `./drawio/${finalFileName}`;
+      
+      webview.postMessage({
+        type: 'drawioCreated',
+        drawioPath: relativePath,
+        webviewUri: webviewUri.toString(),
+        fileName: finalFileName.replace('.drawio.svg', ''),
+      });
+    } catch (error) {
+      vscode.window.showErrorMessage(
+        `Failed to import draw.io file: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  private async insertExistingImage(
+    document: vscode.TextDocument,
+    webview: vscode.Webview
+  ): Promise<void> {
+    try {
+      // Show file picker for image selection
+      const fileUris = await vscode.window.showOpenDialog({
+        canSelectMany: false,
+        openLabel: 'Insert Image',
+        filters: {
+          'Images': ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp']
+        }
+      });
+
+      if (!fileUris || fileUris.length === 0) {
+        return; // User cancelled
+      }
+
+      const sourceUri = fileUris[0];
+      const fileName = sourceUri.path.split('/').pop() || 'image.png';
+
+      // Check if it's a draw.io file - those should use "Insert Draw.io" instead
+      if (fileName.includes('.drawio.')) {
+        vscode.window.showWarningMessage(
+          'Draw.io files should be inserted using the "Insert Draw.io" button, not "Insert Image".'
+        );
+        return;
+      }
+
+      // Create images directory next to the .sdoc file
+      const documentDir = vscode.Uri.joinPath(document.uri, '..');
+      const imagesDir = vscode.Uri.joinPath(documentDir, 'images');
+
+      // Ensure images directory exists
+      try {
+        await vscode.workspace.fs.stat(imagesDir);
+      } catch {
+        await vscode.workspace.fs.createDirectory(imagesDir);
+      }
+
+      // Check if the selected file is already in the images directory
+      const sourceParentPath = sourceUri.path.substring(0, sourceUri.path.lastIndexOf('/'));
+      const imagesDirPath = imagesDir.path;
+      const isAlreadyInImagesDir = sourceParentPath === imagesDirPath;
+
+      let finalFileName = fileName;
+      let targetUri = sourceUri; // Default to source if already in images dir
+
+      if (isAlreadyInImagesDir) {
+        // File is already in images directory, just reference it
+        finalFileName = fileName;
+        targetUri = sourceUri;
+        vscode.window.showInformationMessage(`Referencing existing image: ${finalFileName}`);
+      } else {
+        // File is external, copy it to images directory
+        // Generate unique filename if file already exists
+        let counter = 1;
+        targetUri = vscode.Uri.joinPath(imagesDir, finalFileName);
+        
+        while (true) {
+          try {
+            await vscode.workspace.fs.stat(targetUri);
+            // File exists, try with counter
+            const nameParts = fileName.split('.');
+            const ext = nameParts.pop();
+            const baseName = nameParts.join('.');
+            finalFileName = `${baseName}-${counter}.${ext}`;
+            targetUri = vscode.Uri.joinPath(imagesDir, finalFileName);
+            counter++;
+          } catch {
+            // File doesn't exist, use this name
+            break;
+          }
+        }
+
+        // Copy file to images directory
+        await vscode.workspace.fs.copy(sourceUri, targetUri, { overwrite: false });
+        vscode.window.showInformationMessage(`Image copied and inserted: ${finalFileName}`);
+      }
+
+      // Convert to webview URI for display
+      const webviewUri = webview.asWebviewUri(targetUri);
+      const relativePath = `./images/${finalFileName}`;
+      
+      webview.postMessage({
+        type: 'imageInserted',
+        imagePath: relativePath,
+        webviewUri: webviewUri.toString(),
+        fileName: finalFileName,
+      });
+    } catch (error) {
+      vscode.window.showErrorMessage(
+        `Failed to insert image: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  private async replaceImage(
+    document: vscode.TextDocument,
+    webview: vscode.Webview,
+    pos: number
+  ): Promise<void> {
+    try {
+      // Show file picker for image selection
+      const fileUris = await vscode.window.showOpenDialog({
+        canSelectMany: false,
+        openLabel: 'Replace Image',
+        filters: {
+          'Images': ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp']
+        }
+      });
+
+      if (!fileUris || fileUris.length === 0) {
+        return; // User cancelled
+      }
+
+      const sourceUri = fileUris[0];
+      const fileName = sourceUri.path.split('/').pop() || 'image.png';
+
+      // Check if it's a draw.io file - those cannot be used to replace regular images
+      if (fileName.includes('.drawio.')) {
+        vscode.window.showWarningMessage(
+          'Draw.io files should be inserted using the "Insert Draw.io" button, not used to replace images.'
+        );
+        return;
+      }
+
+      // Create images directory next to the .sdoc file
+      const documentDir = vscode.Uri.joinPath(document.uri, '..');
+      const imagesDir = vscode.Uri.joinPath(documentDir, 'images');
+
+      // Ensure images directory exists
+      try {
+        await vscode.workspace.fs.stat(imagesDir);
+      } catch {
+        await vscode.workspace.fs.createDirectory(imagesDir);
+      }
+
+      // Generate unique filename if file already exists
+      let finalFileName = fileName;
+      let counter = 1;
+      let targetUri = vscode.Uri.joinPath(imagesDir, finalFileName);
+      
+      while (true) {
+        try {
+          await vscode.workspace.fs.stat(targetUri);
+          // File exists, try with counter
+          const nameParts = fileName.split('.');
+          const ext = nameParts.pop();
+          const baseName = nameParts.join('.');
+          finalFileName = `${baseName}-${counter}.${ext}`;
+          targetUri = vscode.Uri.joinPath(imagesDir, finalFileName);
+          counter++;
+        } catch {
+          // File doesn't exist, use this name
+          break;
+        }
+      }
+
+      // Copy file to images directory
+      await vscode.workspace.fs.copy(sourceUri, targetUri, { overwrite: false });
+
+      // Convert to webview URI for display
+      const webviewUri = webview.asWebviewUri(targetUri);
+      const relativePath = `./images/${finalFileName}`;
+      
+      webview.postMessage({
+        type: 'imageReplaced',
+        pos: pos,
+        imagePath: relativePath,
+        webviewUri: webviewUri.toString(),
+        fileName: finalFileName,
+      });
+
+      vscode.window.showInformationMessage(`Image replaced: ${finalFileName}`);
+    } catch (error) {
+      vscode.window.showErrorMessage(
+        `Failed to replace image: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
   // Convert relative image paths to webview URIs for display
   private convertImagePathsToWebviewUris(
     node: any,
@@ -239,13 +628,21 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       const src = cloned.attrs.src;
       // Check if it's a webview URI (contains vscode-webview-resource or similar)
       if (src.includes('vscode-webview') || src.includes('vscode-resource')) {
-        // Extract the filename from the URI
-        const match = src.match(/images\/([^?#]+)/);
-        if (match) {
-          const fileName = match[1];
+        // Extract the filename from the URI - check for images or drawio
+        const imageMatch = src.match(/images\/([^?#]+)/);
+        const drawioMatch = src.match(/drawio\/([^?#]+)/);
+        
+        if (imageMatch) {
+          const fileName = imageMatch[1];
           cloned.attrs = {
             ...cloned.attrs,
             src: `./images/${fileName}`,
+          };
+        } else if (drawioMatch) {
+          const fileName = drawioMatch[1];
+          cloned.attrs = {
+            ...cloned.attrs,
+            src: `./drawio/${fileName}`,
           };
         }
       }

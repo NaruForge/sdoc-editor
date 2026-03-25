@@ -475,21 +475,39 @@
       ]
     },
     {
-      "type": "paragraph",
+      "type": "heading",
+      "attrs": {
+        "level": 2
+      },
       "content": [
         {
-          "type": "image",
-          "attrs": {
-            "src": "./images/image-1774410400733.png",
-            "alt": "image-1774410400733",
-            "title": null,
-            "data-caption": null
-          }
+          "type": "text",
+          "marks": [
+            {
+              "type": "link",
+              "attrs": {
+                "href": "http://Draw.IO",
+                "target": "_blank",
+                "rel": "noopener noreferrer nofollow",
+                "class": "editor-link"
+              }
+            }
+          ],
+          "text": "Draw.IO"
         }
       ]
     },
     {
       "type": "paragraph"
+    },
+    {
+      "type": "image",
+      "attrs": {
+        "src": "./drawio/diagram-1774420558338.drawio.svg",
+        "alt": "diagram-1774420558338",
+        "title": "diagram-1774420558338",
+        "data-caption": null
+      }
     }
   ]
 }
