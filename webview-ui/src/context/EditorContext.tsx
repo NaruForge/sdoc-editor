@@ -6,6 +6,10 @@ export interface EditorSettings {
   tableCaptionPrefix: string;
   captionNumbering: 'simple' | 'hierarchical';
   headingNumbering: boolean;
+  headingDecoration: boolean;
+  headingH1Color: string;
+  headingH2Color: string;
+  headingH3Color: string;
   defaultImageAlignment: 'left' | 'center' | 'right';
   exportImagePath: 'relative' | 'absolute';
 }
@@ -15,6 +19,10 @@ export const defaultSettings: EditorSettings = {
   tableCaptionPrefix: 'Table',
   captionNumbering: 'simple',
   headingNumbering: true,
+  headingDecoration: true,
+  headingH1Color: '#A50034',
+  headingH2Color: '#A50034',
+  headingH3Color: '#A50034',
   defaultImageAlignment: 'center',
   exportImagePath: 'relative',
 };

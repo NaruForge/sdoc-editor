@@ -56,6 +56,10 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
           tableCaptionPrefix: config.get<string>('caption.tablePrefix', 'Table'),
           captionNumbering: config.get<string>('caption.numbering', 'simple'),
           headingNumbering: config.get<boolean>('heading.numbering', true),
+          headingDecoration: config.get<boolean>('heading.decoration', true),
+          headingH1Color: config.get<string>('heading.h1Color', '#A50034'),
+          headingH2Color: config.get<string>('heading.h2Color', '#A50034'),
+          headingH3Color: config.get<string>('heading.h3Color', '#A50034'),
           defaultImageAlignment: config.get<string>('image.defaultAlignment', 'center'),
           exportImagePath: config.get<string>('export.imagePath', 'relative'),
         },
@@ -92,7 +96,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         sendSettings();
       } catch (error) {
         vscode.window.showErrorMessage(
-          `Failed to parse .sdoc file: ${error instanceof Error ? error.message : 'Unknown error'}`
+          `Failed to parse document: ${error instanceof Error ? error.message : 'Unknown error'}`
         );
       }
     };
@@ -928,7 +932,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       }
 
       const outputUri = document.uri.with({
-        path: document.uri.path.replace(/\.sdoc$/, ext),
+        path: document.uri.path.replace(/(\.tiptap\.json|\.sdoc)$/, ext),
       });
 
       const encoder = new TextEncoder();

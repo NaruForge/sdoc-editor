@@ -1,7 +1,7 @@
 {
   "name": "structured-doc-editor",
   "displayName": "Structured Doc Editor",
-  "description": "WYSIWYG editor for .sdoc files with Markdown/AsciiDoc/HTML export",
+  "description": "WYSIWYG editor for .tiptap.json/.sdoc files with Markdown/AsciiDoc/HTML export",
   "version": "0.2.0",
   "publisher": "lgm-control-contributor-01",
   "engines": {
@@ -17,6 +17,9 @@
         "viewType": "structuredDocEditor.sdoc",
         "displayName": "Structured Doc Editor",
         "selector": [
+          {
+            "filenamePattern": "*.tiptap.json"
+          },
           {
             "filenamePattern": "*.sdoc"
           }
@@ -57,7 +60,10 @@
         "structuredDocEditor.caption.numbering": {
           "type": "string",
           "default": "simple",
-          "enum": ["simple", "hierarchical"],
+          "enum": [
+            "simple",
+            "hierarchical"
+          ],
           "enumDescriptions": [
             "Simple sequential numbering (1, 2, 3, ...)",
             "Hierarchical numbering based on heading sections (1.1, 1.2, 2.1, ...)"
@@ -69,16 +75,46 @@
           "default": true,
           "description": "Enable automatic heading numbering (1., 1.1, 1.1.1, ...)"
         },
+        "structuredDocEditor.heading.decoration": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show heading decorations (border-bottom for H1)"
+        },
+        "structuredDocEditor.heading.h1Color": {
+          "type": "string",
+          "default": "#A50034",
+          "pattern": "^#[0-9a-fA-F]{3,8}$",
+          "markdownDescription": "H1 heading numbering 및 decoration 색상 (hex 형식). 예: `#A50034` (LG RED), `#333333`, `#569cd6`"
+        },
+        "structuredDocEditor.heading.h2Color": {
+          "type": "string",
+          "default": "#A50034",
+          "pattern": "^#[0-9a-fA-F]{3,8}$",
+          "markdownDescription": "H2 heading numbering 색상 (hex 형식). 예: `#A50034` (LG RED), `#6b6b6b` (Gray)"
+        },
+        "structuredDocEditor.heading.h3Color": {
+          "type": "string",
+          "default": "#A50034",
+          "pattern": "^#[0-9a-fA-F]{3,8}$",
+          "markdownDescription": "H3 heading numbering 색상 (hex 형식). 예: `#A50034` (LG RED), `#6b6b6b` (Gray)"
+        },
         "structuredDocEditor.image.defaultAlignment": {
           "type": "string",
           "default": "center",
-          "enum": ["left", "center", "right"],
+          "enum": [
+            "left",
+            "center",
+            "right"
+          ],
           "description": "Default alignment when inserting new images"
         },
         "structuredDocEditor.export.imagePath": {
           "type": "string",
           "default": "relative",
-          "enum": ["relative", "absolute"],
+          "enum": [
+            "relative",
+            "absolute"
+          ],
           "enumDescriptions": [
             "Use relative paths for images (e.g., ./images/photo.png)",
             "Use absolute file system paths for images"
@@ -141,6 +177,7 @@
     "@types/vscode": "^1.85.0",
     "asciidoctor": "^3.0.4",
     "esbuild": "^0.20.0",
+    "highlight.js": "^11.11.1",
     "npm-run-all": "^4.1.5",
     "typescript": "^5.3.3"
   }

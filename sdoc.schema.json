@@ -53,6 +53,7 @@
         { "$ref": "#/definitions/paragraphNode" },
         { "$ref": "#/definitions/bulletListNode" },
         { "$ref": "#/definitions/orderedListNode" },
+        { "$ref": "#/definitions/taskListNode" },
         { "$ref": "#/definitions/codeBlockNode" },
         { "$ref": "#/definitions/tableNode" },
         { "$ref": "#/definitions/imageNode" },
@@ -143,6 +144,38 @@
       "required": ["type"],
       "properties": {
         "type": { "const": "listItem" },
+        "content": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/blockNode" }
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "taskListNode": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "const": "taskList" },
+        "content": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/taskItemNode" }
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "taskItemNode": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "const": "taskItem" },
+        "attrs": {
+          "type": "object",
+          "properties": {
+            "checked": { "type": "boolean" }
+          }
+        },
         "content": {
           "type": "array",
           "items": { "$ref": "#/definitions/blockNode" }

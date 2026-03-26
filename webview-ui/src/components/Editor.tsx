@@ -20,6 +20,90 @@ import { CrossReferenceDialog } from './CrossReferenceDialog';
 import { collectTargets } from '../extensions/CrossReference';
 import type { RefTarget } from '../extensions/CrossReference';
 
+/**
+ * Pre-process imported HTML to extract document body and convert
+ * exported structures back to Tiptap-compatible HTML.
+ */
+function preprocessImportedHtml(html: string): string {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+  const body = doc.body;
+
+  // Remove elements that are export-only artifacts
+  body.querySelectorAll('.document-header, .document-title, .document-meta, style, script, link').forEach(el => el.remove());
+
+  // Convert <figure class="doc-image"> → <img data-caption="..." data-align="...">
+  body.querySelectorAll('figure.doc-image').forEach(fig => {
+    const img = fig.querySelector('img');
+    if (!img) { fig.remove(); return; }
+    const figcaption = fig.querySelector('figcaption');
+    if (figcaption) {
+      // Strip prefix like "Image 1: " from caption text
+      const capText = figcaption.textContent || '';
+      const stripped = capText.replace(/^\S+\s+[\d.]+:\s*/, '');
+      if (stripped) { img.setAttribute('data-caption', stripped); }
+    }
+    // Extract alignment from figure style
+    const style = fig.getAttribute('style') || '';
+    if (style.includes('margin-left:auto') && style.includes('margin-right:0')) {
+      img.setAttribute('data-align', 'right');
+    } else if (style.includes('margin-right:auto') && style.includes('margin-left:0')) {
+      img.setAttribute('data-align', 'left');
+    } else {
+      img.setAttribute('data-align', 'center');
+    }
+    fig.replaceWith(img);
+  });
+
+  // Convert <table class="doc-table"> <caption> → data-caption attribute
+  body.querySelectorAll('table.doc-table, table').forEach(table => {
+    const caption = table.querySelector('caption');
+    if (caption) {
+      const capText = caption.textContent || '';
+      const stripped = capText.replace(/^\S+\s+[\d.]+:\s*/, '');
+      if (stripped) { table.setAttribute('data-caption', stripped); }
+      caption.remove();
+    }
+  });
+
+  // Convert task list: <ul class="task-list"> with <input type="checkbox">
+  body.querySelectorAll('ul.task-list').forEach(ul => {
+    ul.setAttribute('data-type', 'taskList');
+    ul.querySelectorAll('li.task-item').forEach(li => {
+      li.setAttribute('data-type', 'taskItem');
+      const checkbox = li.querySelector('input[type="checkbox"]');
+      if (checkbox) {
+        li.setAttribute('data-checked', (checkbox as HTMLInputElement).checked ? 'true' : 'false');
+        checkbox.remove();
+      }
+    });
+  });
+
+  // Convert math elements back to parseable format
+  body.querySelectorAll('.math-inline').forEach(el => {
+    const latex = el.getAttribute('data-latex');
+    if (latex) {
+      const span = doc.createElement('span');
+      span.setAttribute('data-type', 'mathInline');
+      span.setAttribute('data-latex', latex);
+      span.textContent = `$${latex}$`;
+      el.replaceWith(span);
+    }
+  });
+  body.querySelectorAll('.math-block').forEach(el => {
+    const latex = el.getAttribute('data-latex');
+    if (latex) {
+      const div = doc.createElement('div');
+      div.setAttribute('data-type', 'mathBlock');
+      div.setAttribute('data-latex', latex);
+      div.textContent = `$$${latex}$$`;
+      el.replaceWith(div);
+    }
+  });
+
+  return body.innerHTML;
+}
+
 export const Editor: React.FC = () => {
   const { state, dispatch } = useEditorContext();
   const [showNumbering, setShowNumbering] = useState(true);
@@ -50,6 +134,9 @@ export const Editor: React.FC = () => {
     if (proseMirrorEl) {
       proseMirrorEl.style.setProperty('--image-caption-prefix', `'${settings.imageCaptionPrefix}'`);
       proseMirrorEl.style.setProperty('--table-caption-prefix', `'${settings.tableCaptionPrefix}'`);
+      proseMirrorEl.style.setProperty('--heading-h1-color', settings.headingH1Color);
+      proseMirrorEl.style.setProperty('--heading-h2-color', settings.headingH2Color);
+      proseMirrorEl.style.setProperty('--heading-h3-color', settings.headingH3Color);
     }
 
     // Sync heading numbering toggle with settings
@@ -95,9 +182,10 @@ export const Editor: React.FC = () => {
         }
         break;
       case 'importHtml':
-        // Imported raw HTML — let Tiptap parse it
+        // Imported raw HTML — pre-process then let Tiptap parse it
         if (editor) {
-          editor.commands.setContent(message.html);
+          const cleaned = preprocessImportedHtml(message.html);
+          editor.commands.setContent(cleaned);
           flushUpdate();
         }
         break;
@@ -188,6 +276,10 @@ export const Editor: React.FC = () => {
 
   const handleToggleNumbering = () => {
     setShowNumbering(!showNumbering);
+  };
+
+  const handleToggleDecoration = () => {
+    dispatch({ type: 'SET_SETTINGS', payload: { headingDecoration: !state.settings.headingDecoration } });
   };
 
   const handleContextMenu = (event: React.MouseEvent) => {
@@ -497,12 +589,10 @@ export const Editor: React.FC = () => {
   return (
     <>
       <DocumentHeader
-        title={meta.title}
         author={meta.author}
         version={meta.version}
         created={meta.created}
         modified={meta.modified}
-        onTitleChange={(value) => handleMetaChange('title', value)}
         onAuthorChange={(value) => handleMetaChange('author', value)}
         onVersionChange={(value) => handleMetaChange('version', value)}
       />
@@ -511,6 +601,8 @@ export const Editor: React.FC = () => {
         onViewJson={handleViewJson}
         showNumbering={showNumbering}
         onToggleNumbering={handleToggleNumbering}
+        showDecoration={state.settings.headingDecoration}
+        onToggleDecoration={handleToggleDecoration}
         onInsertLink={handleInsertLink}
         onInsertMath={handleInsertMath}
         onInsertCrossRef={() => setShowCrossRefDialog(true)}
@@ -521,9 +613,17 @@ export const Editor: React.FC = () => {
       />
       {editor && <BubbleMenuBar editor={editor} />}
       <div onContextMenu={handleContextMenu}>
+        <div className="editor-title-area">
+          <input
+            className="editor-title-input"
+            value={meta.title}
+            onChange={(e) => handleMetaChange('title', e.target.value)}
+            placeholder="문서 제목을 입력하세요"
+          />
+        </div>
         <EditorContent
           editor={editor}
-          className={`${showNumbering ? 'show-numbering' : 'hide-numbering'} ${state.settings.captionNumbering === 'hierarchical' ? 'hierarchical-numbering' : 'simple-numbering'}`}
+          className={`${showNumbering ? 'show-numbering' : 'hide-numbering'} ${state.settings.headingDecoration ? 'show-heading-decoration' : ''} ${state.settings.captionNumbering === 'hierarchical' ? 'hierarchical-numbering' : 'simple-numbering'}`}
         />
       </div>
       {editorContextMenu && (

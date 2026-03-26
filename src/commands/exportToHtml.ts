@@ -25,9 +25,8 @@ export async function exportToHtml(context: vscode.ExtensionContext) {
     return;
   }
 
-  // Check if it's a .sdoc file
-  if (!documentUri.path.endsWith('.sdoc')) {
-    vscode.window.showErrorMessage('This command only works with .sdoc files');
+  if (!documentUri.path.endsWith('.sdoc') && !documentUri.path.endsWith('.tiptap.json')) {
+    vscode.window.showErrorMessage('This command only works with .sdoc or .tiptap.json files');
     return;
   }
 
@@ -83,7 +82,7 @@ export async function exportToHtml(context: vscode.ExtensionContext) {
 
     // Generate .html file in the same directory
     const htmlUri = documentUri.with({
-      path: documentUri.path.replace(/\.sdoc$/, '.html'),
+      path: documentUri.path.replace(/(\.tiptap\.json|\.sdoc)$/, '.html'),
     });
 
     const encoder = new TextEncoder();

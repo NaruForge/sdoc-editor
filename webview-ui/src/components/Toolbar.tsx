@@ -6,6 +6,7 @@ import {
   Underline as UnderlineIcon,
   List,
   ListOrdered,
+  ListChecks,
   Code,
   Heading1,
   Heading2,
@@ -23,6 +24,7 @@ import {
   Plus,
   ChevronRight,
   Hash,
+  RemoveFormatting,
 } from 'lucide-react';
 
 interface ToolbarProps {
@@ -30,6 +32,8 @@ interface ToolbarProps {
   onViewJson?: () => void;
   showNumbering: boolean;
   onToggleNumbering: () => void;
+  showDecoration: boolean;
+  onToggleDecoration: () => void;
   onInsertDrawio?: () => void;
   onInsertImage?: () => void;
   onInsertLink?: () => void;
@@ -39,7 +43,7 @@ interface ToolbarProps {
   onImport?: (format: 'markdown' | 'html') => void;
 }
 
-export const Toolbar: React.FC<ToolbarProps> = ({ editor, onViewJson, showNumbering, onToggleNumbering, onInsertDrawio, onInsertImage, onInsertLink, onInsertMath, onInsertCrossRef, onExport, onImport }) => {
+export const Toolbar: React.FC<ToolbarProps> = ({ editor, onViewJson, showNumbering, onToggleNumbering, showDecoration, onToggleDecoration, onInsertDrawio, onInsertImage, onInsertLink, onInsertMath, onInsertCrossRef, onExport, onImport }) => {
   const [showInsertMenu, setShowInsertMenu] = useState(false);
   const [showTableSub, setShowTableSub] = useState(false);
   const [showCustomSize, setShowCustomSize] = useState(false);
@@ -183,6 +187,13 @@ export const Toolbar: React.FC<ToolbarProps> = ({ editor, onViewJson, showNumber
         title="Ordered List"
       >
         <ListOrdered size={16} />
+      </Button>
+      <Button
+        onClick={() => editor.chain().focus().toggleTaskList().run()}
+        isActive={editor.isActive('taskList')}
+        title="Task List"
+      >
+        <ListChecks size={16} />
       </Button>
 
       <div className="toolbar-separator" />
@@ -393,6 +404,14 @@ export const Toolbar: React.FC<ToolbarProps> = ({ editor, onViewJson, showNumber
       >
         <NumberIcon size={16} />
         <span style={{ marginLeft: '4px' }}>1.2.3</span>
+      </Button>
+
+      <Button
+        onClick={onToggleDecoration}
+        isActive={showDecoration}
+        title={showDecoration ? "Hide Heading Decoration" : "Show Heading Decoration"}
+      >
+        <RemoveFormatting size={16} />
       </Button>
 
 

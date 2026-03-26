@@ -4,7 +4,7 @@ import { convertJsonToAdoc } from '../converter/jsonToAdoc';
 export async function exportToAdoc(context: vscode.ExtensionContext) {
   // Get the active tab's input
   const activeTab = vscode.window.tabGroups.activeTabGroup.activeTab;
-  
+
   if (!activeTab || !activeTab.input) {
     vscode.window.showErrorMessage('No active document found');
     return;
@@ -12,7 +12,7 @@ export async function exportToAdoc(context: vscode.ExtensionContext) {
 
   // Get the URI from the tab input
   let documentUri: vscode.Uri | undefined;
-  
+
   if (activeTab.input instanceof vscode.TabInputCustom) {
     documentUri = activeTab.input.uri;
   } else if (activeTab.input instanceof vscode.TabInputText) {
@@ -24,9 +24,8 @@ export async function exportToAdoc(context: vscode.ExtensionContext) {
     return;
   }
 
-  // Check if it's a .sdoc file
-  if (!documentUri.path.endsWith('.sdoc')) {
-    vscode.window.showErrorMessage('This command only works with .sdoc files');
+  if (!documentUri.path.endsWith('.sdoc') && !documentUri.path.endsWith('.tiptap.json')) {
+    vscode.window.showErrorMessage('This command only works with .sdoc or .tiptap.json files');
     return;
   }
 
@@ -34,7 +33,7 @@ export async function exportToAdoc(context: vscode.ExtensionContext) {
     // Read the document
     const documentBytes = await vscode.workspace.fs.readFile(documentUri);
     const text = new TextDecoder().decode(documentBytes);
-    
+
     // Parse JSON
     let parsed = JSON.parse(text);
 
@@ -58,7 +57,7 @@ export async function exportToAdoc(context: vscode.ExtensionContext) {
 
     // Generate .adoc file in the same directory
     const adocUri = documentUri.with({
-      path: documentUri.path.replace(/\.sdoc$/, '.adoc'),
+      path: documentUri.path.replace(/(\.tiptap\.json|\.sdoc)$/, '.adoc'),
     });
 
     const encoder = new TextEncoder();

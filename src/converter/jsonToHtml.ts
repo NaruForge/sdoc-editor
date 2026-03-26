@@ -11,6 +11,8 @@ interface TiptapMark {
   attrs?: any;
 }
 
+import hljs from 'highlight.js';
+
 interface HtmlTheme {
   companyLogo?: string; // URL or base64 encoded logo
   companyName?: string;
@@ -88,11 +90,32 @@ function convertNode(node: TiptapNode): string {
         : '';
       return `  <li>${itemContent}</li>`;
 
+    case 'taskList':
+      const taskItems = node.content ? node.content.map(convertNode).join('\n') : '';
+      return `<ul class="task-list">\n${taskItems}\n</ul>`;
+
+    case 'taskItem':
+      const checked = node.attrs?.checked ? ' checked' : '';
+      const taskContent = node.content
+        ? node.content.map((child) => {
+            if (child.type === 'paragraph') {
+              return child.content ? convertInlineContent(child.content) : '';
+            }
+            return convertNode(child);
+          }).join('\n')
+        : '';
+      return `  <li class="task-item"><input type="checkbox"${checked} disabled> ${taskContent}</li>`;
+
     case 'codeBlock':
       const language = node.attrs?.language || '';
       const code = node.content ? node.content.map((n) => n.text || '').join('\n') : '';
-      const escapedCode = escapeHtml(code);
-      return `<pre><code class="language-${language}">${escapedCode}</code></pre>`;
+      let highlightedCode: string;
+      if (language && hljs.getLanguage(language)) {
+        highlightedCode = hljs.highlight(code, { language }).value;
+      } else {
+        highlightedCode = hljs.highlightAuto(code).value;
+      }
+      return `<pre><code class="hljs language-${escapeHtml(language)}">${highlightedCode}</code></pre>`;
 
     case 'mathInline':
       // Render inline LaTeX with KaTeX-compatible placeholder; actual rendering needs client-side katex
@@ -486,6 +509,22 @@ function generateHtmlDocument(bodyContent: string, theme?: HtmlTheme, meta?: Sdo
       color: inherit;
     }
 
+    /* Syntax Highlighting (highlight.js) */
+    .hljs-comment, .hljs-quote { color: #6a9955; font-style: italic; }
+    .hljs-keyword, .hljs-selector-tag, .hljs-addition { color: #569cd6; }
+    .hljs-number, .hljs-string, .hljs-meta .hljs-meta-string,
+    .hljs-literal, .hljs-doctag, .hljs-regexp { color: #ce9178; }
+    .hljs-title, .hljs-section, .hljs-name,
+    .hljs-selector-id, .hljs-selector-class { color: #dcdcaa; }
+    .hljs-attribute, .hljs-attr, .hljs-variable,
+    .hljs-template-variable, .hljs-class .hljs-title, .hljs-type { color: #4ec9b0; }
+    .hljs-symbol, .hljs-bullet, .hljs-subst,
+    .hljs-meta, .hljs-meta .hljs-keyword, .hljs-tag { color: #d4d4d4; }
+    .hljs-built_in, .hljs-builtin-name { color: #4ec9b0; }
+    .hljs-deletion { color: #ce9178; text-decoration: line-through; }
+    .hljs-emphasis { font-style: italic; }
+    .hljs-strong { font-weight: bold; }
+
     /* Tables */
     table.doc-table {
       border-collapse: collapse;
@@ -567,6 +606,32 @@ function generateHtmlDocument(bodyContent: string, theme?: HtmlTheme, meta?: Sdo
 
     a:hover {
       text-decoration: underline;
+    }
+
+    /* Task List */
+    .task-list {
+      list-style: none;
+      padding-left: 0;
+    }
+
+    .task-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      margin: 4px 0;
+    }
+
+    .task-item input[type="checkbox"] {
+      margin-top: 3px;
+      width: 16px;
+      height: 16px;
+      accent-color: ${primaryColor};
+    }
+
+    .task-item input:checked + span,
+    .task-item input:checked ~ * {
+      text-decoration: line-through;
+      opacity: 0.6;
     }
 
     /* Print Styles */

@@ -4,11 +4,14 @@ import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import Underline from '@tiptap/extension-underline';
 import Link from '@tiptap/extension-link';
+import TaskList from '@tiptap/extension-task-list';
+import TaskItem from '@tiptap/extension-task-item';
 import TableRow from '@tiptap/extension-table-row';
 import TableCell from '@tiptap/extension-table-cell';
 import TableHeader from '@tiptap/extension-table-header';
 import { CustomTable } from './CustomTable';
 import { CustomImage } from './CustomImage';
+import { CustomCodeBlock } from './CodeBlockView';
 import { MathInline } from './MathInline';
 import { MathBlock } from './MathBlock';
 import { CrossReference } from './CrossReference';
@@ -180,9 +183,14 @@ const HeadingKeyboardShortcuts = Extension.create({
 
 export const tiptapExtensions = [
   StarterKit.configure({
-    // Use Tiptap's built-in history for undo/redo within the editor
+    codeBlock: false,
   }),
+  CustomCodeBlock,
   Underline,
+  TaskList,
+  TaskItem.configure({
+    nested: true,
+  }),
   Link.configure({
     openOnClick: false,
     autolink: false,

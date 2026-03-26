@@ -26,6 +26,10 @@ body {
   /* Caption prefix custom properties (set via JS from VS Code settings) */
   --image-caption-prefix: 'Image';
   --table-caption-prefix: 'Table';
+  /* Heading colors (set via JS from VS Code settings) */
+  --heading-h1-color: #A50034;
+  --heading-h2-color: #A50034;
+  --heading-h3-color: #A50034;
 }
 
 .ProseMirror:focus {
@@ -38,14 +42,17 @@ body {
   font-weight: bold;
   margin: 0.67em 0;
   padding-bottom: 0.3em;
-  border-bottom: 2px solid #A50034;
   counter-reset: h2-counter h3-counter;
   counter-increment: h1-counter;
 }
 
+.show-numbering.show-heading-decoration .ProseMirror h1 {
+  border-bottom: 2px solid var(--heading-h1-color, #A50034);
+}
+
 .show-numbering .ProseMirror h1::before {
   content: counter(h1-counter) ". ";
-  color: #A50034;
+  color: var(--heading-h1-color, #A50034);
   margin-right: 0.3em;
 }
 
@@ -53,15 +60,15 @@ body {
   font-size: 1.5em;
   font-weight: bold;
   margin: 0.75em 0;
-  padding-left: 0.5em;
-  border-left: 3px solid #A50034;
   counter-reset: h3-counter;
   counter-increment: h2-counter;
 }
 
+
+
 .show-numbering .ProseMirror h2::before {
   content: counter(h1-counter) "." counter(h2-counter) ". ";
-  color: var(--vscode-descriptionForeground, #6b6b6b);
+  color: var(--heading-h2-color, #A50034);
   margin-right: 0.3em;
 }
 
@@ -69,14 +76,14 @@ body {
   font-size: 1.17em;
   font-weight: bold;
   margin: 0.83em 0;
-  padding-left: 0.5em;
-  border-left: 3px solid var(--vscode-descriptionForeground, #6b6b6b);
   counter-increment: h3-counter;
 }
 
+
+
 .show-numbering .ProseMirror h3::before {
   content: counter(h1-counter) "." counter(h2-counter) "." counter(h3-counter) ". ";
-  color: var(--vscode-descriptionForeground, #6b6b6b);
+  color: var(--heading-h3-color, #A50034);
   margin-right: 0.3em;
 }
 
@@ -86,24 +93,27 @@ body {
   font-weight: bold;
   margin: 0.67em 0;
   padding-bottom: 0.3em;
-  border-bottom: 2px solid #A50034;
+}
+
+.hide-numbering.show-heading-decoration .ProseMirror h1 {
+  border-bottom: 2px solid var(--heading-h1-color, #A50034);
 }
 
 .hide-numbering .ProseMirror h2 {
   font-size: 1.5em;
   font-weight: bold;
   margin: 0.75em 0;
-  padding-left: 0.5em;
-  border-left: 3px solid #A50034;
 }
+
+
 
 .hide-numbering .ProseMirror h3 {
   font-size: 1.17em;
   font-weight: bold;
   margin: 0.83em 0;
-  padding-left: 0.5em;
-  border-left: 3px solid var(--vscode-descriptionForeground, #6b6b6b);
 }
+
+
 
 /* Lists */
 .ProseMirror ul,
@@ -134,6 +144,41 @@ body {
 }
 
 /* Code blocks */
+.code-block {
+  position: relative;
+  margin: 0.5em 0;
+}
+
+.code-block select {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  font-size: 11px;
+  font-family: var(--vscode-font-family);
+  background-color: var(--vscode-dropdown-background, var(--vscode-input-background));
+  color: var(--vscode-dropdown-foreground, var(--vscode-input-foreground));
+  border: 1px solid var(--vscode-dropdown-border, var(--vscode-panel-border));
+  border-radius: 3px;
+  padding: 1px 4px;
+  outline: none;
+  cursor: pointer;
+  z-index: 1;
+}
+
+.code-block select:focus {
+  border-color: var(--vscode-focusBorder);
+}
+
+.code-block pre {
+  background-color: var(--vscode-textCodeBlock-background);
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 4px;
+  padding: 12px;
+  padding-top: 28px;
+  margin: 0;
+  overflow-x: auto;
+}
+
 .ProseMirror pre {
   background-color: var(--vscode-textCodeBlock-background);
   border: 1px solid var(--vscode-panel-border);
@@ -154,6 +199,83 @@ body {
 .ProseMirror pre code {
   background: none;
   padding: 0;
+}
+
+/* Syntax Highlighting (lowlight / highlight.js) */
+.ProseMirror pre code .hljs-comment,
+.ProseMirror pre code .hljs-quote { color: #6a9955; font-style: italic; }
+.ProseMirror pre code .hljs-keyword,
+.ProseMirror pre code .hljs-selector-tag,
+.ProseMirror pre code .hljs-addition { color: #569cd6; }
+.ProseMirror pre code .hljs-number,
+.ProseMirror pre code .hljs-string,
+.ProseMirror pre code .hljs-meta .hljs-meta-string,
+.ProseMirror pre code .hljs-literal,
+.ProseMirror pre code .hljs-doctag,
+.ProseMirror pre code .hljs-regexp { color: #ce9178; }
+.ProseMirror pre code .hljs-title,
+.ProseMirror pre code .hljs-section,
+.ProseMirror pre code .hljs-name,
+.ProseMirror pre code .hljs-selector-id,
+.ProseMirror pre code .hljs-selector-class { color: #dcdcaa; }
+.ProseMirror pre code .hljs-attribute,
+.ProseMirror pre code .hljs-attr,
+.ProseMirror pre code .hljs-variable,
+.ProseMirror pre code .hljs-template-variable,
+.ProseMirror pre code .hljs-class .hljs-title,
+.ProseMirror pre code .hljs-type { color: #4ec9b0; }
+.ProseMirror pre code .hljs-symbol,
+.ProseMirror pre code .hljs-bullet,
+.ProseMirror pre code .hljs-subst,
+.ProseMirror pre code .hljs-meta,
+.ProseMirror pre code .hljs-meta .hljs-keyword,
+.ProseMirror pre code .hljs-tag { color: #d4d4d4; }
+.ProseMirror pre code .hljs-built_in,
+.ProseMirror pre code .hljs-builtin-name { color: #4ec9b0; }
+.ProseMirror pre code .hljs-deletion { color: #ce9178; text-decoration: line-through; }
+.ProseMirror pre code .hljs-emphasis { font-style: italic; }
+.ProseMirror pre code .hljs-strong { font-weight: bold; }
+
+/* Task List */
+.ProseMirror ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0;
+  margin: 0.5em 0;
+}
+
+.ProseMirror ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 2px 0;
+}
+
+.ProseMirror ul[data-type="taskList"] li > label {
+  flex-shrink: 0;
+  margin-top: 3px;
+  user-select: none;
+}
+
+.ProseMirror ul[data-type="taskList"] li > label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #A50034;
+  cursor: pointer;
+}
+
+.ProseMirror ul[data-type="taskList"] li > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.ProseMirror ul[data-type="taskList"] li[data-checked="true"] > div {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+
+/* Nested task lists */
+.ProseMirror ul[data-type="taskList"] ul[data-type="taskList"] {
+  padding-left: 24px;
 }
 
 /* Images */
@@ -792,45 +914,34 @@ body {
   background-color: var(--vscode-editor-background);
 }
 
-.document-header-title {
-  font-size: 2.4em;
+/* Editor Title Area */
+.editor-title-area {
+  padding: 32px 24px 24px;
+}
+
+.editor-title-input {
+  width: 100%;
+  font-size: 2.5em;
   font-weight: 700;
   color: var(--vscode-foreground);
-  margin-bottom: 8px;
-  line-height: 1.2;
-}
-
-.document-header-title-text {
-  cursor: pointer;
-  padding: 1px 4px;
-  border-radius: 3px;
-  transition: background-color 0.15s;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: block;
-}
-
-.document-header-title-text:hover {
-  background-color: var(--vscode-list-hoverBackground);
-}
-
-.document-header-title-text.placeholder {
-  font-style: italic;
-  opacity: 0.6;
-}
-
-.document-header-title-input {
-  background-color: var(--vscode-input-background);
-  color: var(--vscode-input-foreground);
-  border: 1px solid var(--vscode-focusBorder);
-  border-radius: 3px;
-  padding: 2px 6px;
-  font-size: 1em;
-  font-weight: 700;
-  font-family: var(--vscode-font-family);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
   outline: none;
-  width: 100%;
+  padding: 4px 0;
+  font-family: Georgia, 'Times New Roman', serif;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  transition: border-color 0.2s;
+}
+
+.editor-title-input:focus {
+  border-bottom-color: var(--vscode-focusBorder);
+}
+
+.editor-title-input::placeholder {
+  color: var(--vscode-disabledForeground);
+  font-style: italic;
 }
 
 .document-header-meta {

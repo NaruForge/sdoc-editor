@@ -78,6 +78,21 @@ function convertNode(node: TiptapNode): string {
       // This is handled by the list itself
       return '';
 
+    case 'taskList':
+      return node.content ? node.content.map((item) => {
+        const checked = item.attrs?.checked ? 'x' : ' ';
+        const text = item.content ? item.content.map((child) => {
+          if (child.type === 'paragraph') {
+            return child.content ? convertInlineContent(child.content) : '';
+          }
+          return convertNode(child);
+        }).join('\n') : '';
+        return `- [${checked}] ${text}\n`;
+      }).join('') : '';
+
+    case 'taskItem':
+      return '';
+
     case 'codeBlock':
       const language = node.attrs?.language || '';
       const code = node.content ? node.content.map((n) => n.text || '').join('\n') : '';
@@ -180,7 +195,7 @@ function convertTable(table: TiptapNode): string {
         headers.push(cellContent);
       }
       md += '| ' + headers.join(' | ') + ' |\n';
-      
+
       // Add separator row
       md += '|' + headers.map(() => ' --- ').join('|') + '|\n';
     }
@@ -221,7 +236,7 @@ function convertImage(node: TiptapNode): string {
   const caption = node.attrs?.caption || '';
 
   let md = `![${alt}](${src})`;
-  
+
   if (caption) {
     imageCounter++;
     const prefix = currentSettings.imageCaptionPrefix || 'Image';
@@ -230,13 +245,13 @@ function convertImage(node: TiptapNode): string {
       : `${imageCounter}`;
     md += `\n\n*${prefix} ${numbering}: ${caption}*`;
   }
-  
+
   return md + '\n';
 }
 
 function applyMarks(text: string, marks: TiptapMark[]): string {
   let result = text;
-  
+
   // Apply marks in order: bold, italic, code (innermost to outermost)
   const hasBold = marks.some(m => m.type === 'bold');
   const hasItalic = marks.some(m => m.type === 'italic');
@@ -244,7 +259,7 @@ function applyMarks(text: string, marks: TiptapMark[]): string {
   const hasStrike = marks.some(m => m.type === 'strike');
   const hasCode = marks.some(m => m.type === 'code');
   const linkMark = marks.find(m => m.type === 'link');
-  
+
   // Code takes precedence
   if (hasCode) {
     result = `\`${result}\``;
@@ -257,22 +272,22 @@ function applyMarks(text: string, marks: TiptapMark[]): string {
     } else if (hasItalic) {
       result = `*${result}*`;
     }
-    
+
     if (hasStrike) {
       result = `~~${result}~~`;
     }
-    
+
     // Note: Markdown doesn't have native underline, we'll use HTML
     if (hasUnderline) {
       result = `<u>${result}</u>`;
     }
   }
-  
+
   // Apply link last
   if (linkMark) {
     const href = linkMark.attrs?.href || '';
     result = `[${result}](${href})`;
   }
-  
+
   return result;
 }

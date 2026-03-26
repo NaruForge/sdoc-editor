@@ -2,28 +2,22 @@ import React, { useState } from 'react';
 import { User, Calendar, Clock, Tag } from 'lucide-react';
 
 interface DocumentHeaderProps {
-  title: string;
   author: string;
   version: string;
   created: string;
   modified: string;
-  onTitleChange: (value: string) => void;
   onAuthorChange: (value: string) => void;
   onVersionChange: (value: string) => void;
 }
 
 export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
-  title,
   author,
   version,
   created,
   modified,
-  onTitleChange,
   onAuthorChange,
   onVersionChange,
 }) => {
-  const [editingTitle, setEditingTitle] = useState(false);
-  const [titleDraft, setTitleDraft] = useState('');
   const [editingAuthor, setEditingAuthor] = useState(false);
   const [authorDraft, setAuthorDraft] = useState('');
   const [editingVersion, setEditingVersion] = useState(false);
@@ -81,35 +75,6 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
 
   return (
     <div className="document-header">
-      <div className="document-header-title">
-        {editingTitle ? (
-          <input
-            className="document-header-title-input"
-            value={titleDraft}
-            onChange={(e) => setTitleDraft(e.target.value)}
-            onBlur={() => {
-              setEditingTitle(false);
-              if (titleDraft !== title) onTitleChange(titleDraft);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                setEditingTitle(false);
-                if (titleDraft !== title) onTitleChange(titleDraft);
-              }
-              if (e.key === 'Escape') setEditingTitle(false);
-            }}
-            placeholder="Enter document title"
-            autoFocus
-          />
-        ) : (
-          <span
-            className={`document-header-title-text ${!title ? 'placeholder' : ''}`}
-            onClick={() => { setTitleDraft(title); setEditingTitle(true); }}
-          >
-            {title || 'Click to set title'}
-          </span>
-        )}
-      </div>
       <div className="document-header-meta">
         <div className="document-header-field" title="Author">
           <User size={14} />

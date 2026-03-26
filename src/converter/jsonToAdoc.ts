@@ -76,6 +76,21 @@ function convertNode(node: TiptapNode): string {
       // This is handled by the list itself
       return '';
 
+    case 'taskList':
+      return node.content ? node.content.map((item) => {
+        const checked = item.attrs?.checked ? 'x' : ' ';
+        const text = item.content ? item.content.map((child) => {
+          if (child.type === 'paragraph') {
+            return child.content ? convertInlineContent(child.content) : '';
+          }
+          return convertNode(child);
+        }).join('\n') : '';
+        return `* [${checked}] ${text}\n`;
+      }).join('') : '';
+
+    case 'taskItem':
+      return '';
+
     case 'codeBlock':
       const language = node.attrs?.language || '';
       const code = node.content ? node.content.map((n) => n.text || '').join('\n') : '';
@@ -165,21 +180,21 @@ function convertTable(table: TiptapNode): string {
   // Add table options
   const align = table.attrs?.align;
   const width = table.attrs?.width;
-  
+
   let tableOptions: string[] = [];
-  
+
   if (hasHeader) {
     tableOptions.push('header');
   }
-  
+
   if (align && align !== 'left') {
     tableOptions.push(`align="${align}"`);
   }
-  
+
   if (width && width !== '100%') {
     tableOptions.push(`width="${width}"`);
   }
-  
+
   if (tableOptions.length > 0) {
     adoc += `[${tableOptions.join(',')}]\n`;
   }
@@ -227,17 +242,17 @@ function convertImage(node: TiptapNode): string {
 
   // AsciiDoc image syntax: image::path[alt text, title]
   adoc += `image::${src}[`;
-  
+
   if (alt) {
     adoc += alt;
   }
-  
+
   if (title) {
     adoc += `, ${title}`;
   }
-  
+
   adoc += ']\n';
-  
+
   return adoc;
 }
 

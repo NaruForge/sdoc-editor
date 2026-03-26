@@ -16,7 +16,15 @@ interface TiptapMark {
  * Self-contained parser — no external dependencies required.
  */
 export function convertMarkdownToJson(markdown: string): TiptapNode {
-  const lines = markdown.split('\n');
+  let text = markdown;
+
+  // Skip YAML frontmatter (---...---)
+  const fmMatch = text.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n/);
+  if (fmMatch) {
+    text = text.slice(fmMatch[0].length);
+  }
+
+  const lines = text.split('\n');
   const doc: TiptapNode = { type: 'doc', content: [] };
   let i = 0;
 
@@ -64,15 +72,23 @@ export function convertMarkdownToJson(markdown: string): TiptapNode {
       continue;
     }
 
-    // Heading
+    // Heading (strip anchor tags like <a id="..."></a>)
     const headingMatch = line.match(/^(#{1,6})\s+(.*)/);
     if (headingMatch) {
       const level = headingMatch[1].length;
-      const text = headingMatch[2];
+      let rawText = headingMatch[2];
+      let headingId: string | undefined;
+      const anchorMatch = rawText.match(/^<a\s+id="([^"]+)">\s*<\/a>\s*/);
+      if (anchorMatch) {
+        headingId = anchorMatch[1];
+        rawText = rawText.slice(anchorMatch[0].length);
+      }
+      const attrs: any = { level };
+      if (headingId) { attrs.id = headingId; }
       doc.content!.push({
         type: 'heading',
-        attrs: { level },
-        content: parseInline(text),
+        attrs,
+        content: parseInline(rawText),
       });
       i++;
       continue;
@@ -85,7 +101,7 @@ export function convertMarkdownToJson(markdown: string): TiptapNode {
       continue;
     }
 
-    // Table (lines starting with |)
+    // Table (lines starting with |), with optional caption before it
     if (line.trim().startsWith('|')) {
       const tableLines: string[] = [];
       while (i < lines.length && lines[i].trim().startsWith('|')) {
@@ -94,8 +110,28 @@ export function convertMarkdownToJson(markdown: string): TiptapNode {
       }
       const tableNode = parseTable(tableLines);
       if (tableNode) {
+        // Check if previous node is a bold caption like "**Table 1: caption**"
+        const prev = doc.content!.length > 0 ? doc.content![doc.content!.length - 1] : null;
+        if (prev && prev.type === 'paragraph' && prev.content?.length === 1) {
+          const child = prev.content[0];
+          if (child.type === 'text' && child.marks?.length === 1 && child.marks[0].type === 'bold') {
+            const capMatch = child.text?.match(/^(?:\S+)\s+[\d.]+:\s*(.+)$/);
+            if (capMatch) {
+              tableNode.attrs = { ...tableNode.attrs, caption: capMatch[1] };
+              doc.content!.pop(); // remove the caption paragraph
+            }
+          }
+        }
         doc.content!.push(tableNode);
       }
+      continue;
+    }
+
+    // Task list (must check before bullet list)
+    if (/^\s*[-*+]\s\[[ xX]\]\s/.test(line)) {
+      const { node, nextIndex } = parseTaskList(lines, i);
+      doc.content!.push(node);
+      i = nextIndex;
       continue;
     }
 
@@ -120,11 +156,29 @@ export function convertMarkdownToJson(markdown: string): TiptapNode {
     if (imgMatch) {
       const alt = imgMatch[1];
       const src = imgMatch[2];
+      const imgAttrs: any = { src, alt };
+
+      // Look ahead for italic caption like "*Image 1: caption*"
+      let nextNonEmpty = i + 1;
+      while (nextNonEmpty < lines.length && lines[nextNonEmpty].trim() === '') {
+        nextNonEmpty++;
+      }
+      if (nextNonEmpty < lines.length) {
+        const capLineMatch = lines[nextNonEmpty].trim().match(/^\*(?:\S+)\s+[\d.]+:\s*(.+)\*$/);
+        if (capLineMatch) {
+          imgAttrs.caption = capLineMatch[1];
+          i = nextNonEmpty + 1;
+        } else {
+          i++;
+        }
+      } else {
+        i++;
+      }
+
       doc.content!.push({
         type: 'image',
-        attrs: { src, alt },
+        attrs: imgAttrs,
       });
-      i++;
       continue;
     }
 
@@ -376,6 +430,40 @@ function parseList(
 
   return {
     node: { type: listType, content: items },
+    nextIndex: i,
+  };
+}
+
+/**
+ * Parse a markdown task list starting at index `start`.
+ */
+function parseTaskList(
+  lines: string[],
+  start: number
+): { node: TiptapNode; nextIndex: number } {
+  const items: TiptapNode[] = [];
+  let i = start;
+  const pattern = /^\s*[-*+]\s\[([xX ])\]\s(.*)/;
+
+  while (i < lines.length) {
+    const match = lines[i].match(pattern);
+    if (!match) break;
+
+    const checked = match[1].toLowerCase() === 'x';
+    const itemText = match[2];
+    items.push({
+      type: 'taskItem',
+      attrs: { checked },
+      content: [{
+        type: 'paragraph',
+        content: parseInline(itemText),
+      }],
+    });
+    i++;
+  }
+
+  return {
+    node: { type: 'taskList', content: items },
     nextIndex: i,
   };
 }
