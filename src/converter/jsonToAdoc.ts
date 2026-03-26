@@ -17,6 +17,14 @@ interface ExportSettings {
   captionNumbering?: 'simple' | 'hierarchical';
 }
 
+export interface SdocMeta {
+  title?: string;
+  author?: string;
+  version?: string;
+  created?: string;
+  modified?: string;
+}
+
 let currentSettings: ExportSettings = {};
 let imageCounter = 0;
 let tableCounter = 0;
@@ -25,13 +33,19 @@ let h1Counter = 0;
 /**
  * Converts Tiptap JSON to AsciiDoc format
  */
-export function convertJsonToAdoc(json: TiptapNode, settings?: ExportSettings): string {
+export function convertJsonToAdoc(json: TiptapNode, settings?: ExportSettings, meta?: SdocMeta): string {
   currentSettings = settings || {};
   imageCounter = 0;
   tableCounter = 0;
   h1Counter = 0;
   // Add AsciiDoc document attributes
-  const docAttributes = ':sectnums:\n:sectnumlevels: 4\n\n';
+  let docAttributes = ':sectnums:\n:sectnumlevels: 4\n';
+  if (meta?.title) { docAttributes += `= ${meta.title}\n`; }
+  if (meta?.author) { docAttributes += `:author: ${meta.author}\n`; }
+  if (meta?.version) { docAttributes += `:revnumber: ${meta.version}\n`; }
+  if (meta?.modified) { docAttributes += `:revdate: ${meta.modified}\n`; }
+  if (meta?.created) { docAttributes += `:created: ${meta.created}\n`; }
+  docAttributes += '\n';
   return docAttributes + convertNode(json).trim() + '\n';
 }
 
@@ -45,7 +59,8 @@ function convertNode(node: TiptapNode): string {
       const headingPrefix = '='.repeat(level + 1);
       const headingText = node.content ? convertInlineContent(node.content) : '';
       if (level === 1) { h1Counter++; imageCounter = 0; tableCounter = 0; }
-      return `${headingPrefix} ${headingText}\n`;
+      const hAnchor = node.attrs?.id ? `[[${node.attrs.id}]]\n` : '';
+      return `${hAnchor}${headingPrefix} ${headingText}\n`;
 
     case 'paragraph':
       const paragraphText = node.content ? convertInlineContent(node.content) : '';
@@ -245,7 +260,11 @@ function applyMarks(text: string, marks: TiptapMark[]): string {
         break;
       case 'link':
         const href = mark.attrs?.href || '';
-        result = `${href}[${result}]`;
+        if (href.startsWith('#')) {
+          result = `<<${href.slice(1)},${result}>>`;
+        } else {
+          result = `${href}[${result}]`;
+        }
         break;
     }
   }

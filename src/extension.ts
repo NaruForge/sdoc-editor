@@ -3,9 +3,13 @@ import { SdocEditorProvider } from './SdocEditorProvider';
 import { exportToHtml } from './commands/exportToHtml';
 import { exportToAdoc } from './commands/exportToAdoc';
 import { exportToMarkdown } from './commands/exportToMarkdown';
+import { checkForUpdate } from './updateChecker';
 
 export function activate(context: vscode.ExtensionContext) {
   console.log('Structured Doc Editor extension is now active');
+
+  // Check for updates from shared folder
+  checkForUpdate(context);
 
   // Register the custom editor provider
   context.subscriptions.push(SdocEditorProvider.register(context));

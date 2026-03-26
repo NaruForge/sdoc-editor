@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { EditorContent } from '@tiptap/react';
 import { useTiptapEditor } from '../hooks/useTiptapEditor';
 import { useEditorContext } from '../context/EditorContext';
 import { useVSCodeMessaging } from '../hooks/useVSCodeMessaging';
 import { Toolbar } from './Toolbar';
 import { BubbleMenuBar } from './BubbleMenuBar';
+import { DocumentHeader } from './DocumentHeader';
 import { TableContextMenu } from './TableContextMenu';
 import { TablePropertiesModal } from './TablePropertiesModal';
 import { ImageNameDialog } from './ImageNameDialog';
@@ -15,6 +16,9 @@ import { ImagePropertiesDialog } from './ImagePropertiesDialog';
 import { ImageContextMenu } from './ImageContextMenu';
 import { MathDialog } from './MathDialog';
 import { EditorContextMenu } from './EditorContextMenu';
+import { CrossReferenceDialog } from './CrossReferenceDialog';
+import { collectTargets } from '../extensions/CrossReference';
+import type { RefTarget } from '../extensions/CrossReference';
 
 export const Editor: React.FC = () => {
   const { state, dispatch } = useEditorContext();
@@ -28,7 +32,12 @@ export const Editor: React.FC = () => {
   const [imageProperties, setImageProperties] = useState<{ pos: number; src: string; alt: string; align: string; isDrawio: boolean } | null>(null);
   const [imageContextMenu, setImageContextMenu] = useState<{ x: number; y: number; pos: number; src: string; isDrawio: boolean } | null>(null);
   const [mathDialog, setMathDialog] = useState<{ latex: string; isBlock: boolean; pos: number | null } | null>(null);
+  const [meta, setMeta] = useState<{ title: string; author: string; version: string; created: string; modified: string }>({ title: '', author: '', version: '', created: '', modified: '' });
   const [editorContextMenu, setEditorContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [showCrossRefDialog, setShowCrossRefDialog] = useState(false);
+  const pendingEditRef = useRef(false);
+  const setContentRef = useRef<((content: any) => void) | null>(null);
+  const initDoneRef = useRef(false);
 
   // Apply settings to CSS custom properties and global state
   useEffect(() => {
@@ -50,18 +59,54 @@ export const Editor: React.FC = () => {
   const { postMessage } = useVSCodeMessaging((message) => {
     switch (message.type) {
       case 'init':
+        if (setContentRef.current) {
+          setContentRef.current(message.content);
+          if (!initDoneRef.current) {
+            initDoneRef.current = true;
+            dispatch({ type: 'SET_READY', payload: true });
+          }
+        } else {
+          // editor not ready yet, store for later
+          dispatch({ type: 'SET_DOC', payload: message.content });
+        }
+        break;
       case 'update':
-        dispatch({ type: 'SET_DOC', payload: message.content });
+        // Skip echo from our own edit
+        if (pendingEditRef.current) {
+          pendingEditRef.current = false;
+          break;
+        }
+        // External change — apply it
+        if (setContentRef.current) {
+          setContentRef.current(message.content);
+        }
         break;
       case 'settingsChanged':
         dispatch({ type: 'SET_SETTINGS', payload: message.settings });
         break;
+      case 'metaUpdate':
+        setMeta(prev => ({ ...prev, ...message.meta }));
+        break;
+      case 'importContent':
+        // Imported JSON content (e.g., from Markdown)
+        if (editor) {
+          editor.commands.setContent(message.content);
+          flushUpdate();
+        }
+        break;
+      case 'importHtml':
+        // Imported raw HTML — let Tiptap parse it
+        if (editor) {
+          editor.commands.setContent(message.html);
+          flushUpdate();
+        }
+        break;
       case 'imageSaved':
         // Image was saved, insert it with the webview URI for display
         if (editor && message.webviewUri) {
-          editor.chain().focus().setImage({ 
-            src: message.webviewUri, 
-            alt: message.imageName || '' 
+          editor.chain().focus().setImage({
+            src: message.webviewUri,
+            alt: message.imageName || ''
           }).run();
           flushUpdate();
         }
@@ -69,8 +114,8 @@ export const Editor: React.FC = () => {
       case 'drawioCreated':
         // Draw.io file was created, insert it as an image
         if (editor && message.webviewUri) {
-          editor.chain().focus().setImage({ 
-            src: message.webviewUri, 
+          editor.chain().focus().setImage({
+            src: message.webviewUri,
             alt: message.fileName || 'diagram',
             title: message.fileName || 'diagram'
           }).run();
@@ -80,8 +125,8 @@ export const Editor: React.FC = () => {
       case 'imageInserted':
         // Existing image was inserted, add it to editor
         if (editor && message.webviewUri) {
-          editor.chain().focus().setImage({ 
-            src: message.webviewUri, 
+          editor.chain().focus().setImage({
+            src: message.webviewUri,
             alt: message.fileName || 'image'
           }).run();
           flushUpdate();
@@ -132,6 +177,15 @@ export const Editor: React.FC = () => {
     postMessage({ type: 'export', format });
   };
 
+  const handleImport = (format: 'markdown' | 'html') => {
+    postMessage({ type: format === 'markdown' ? 'importMarkdown' : 'importHtml' });
+  };
+
+  const handleMetaChange = (field: string, value: string) => {
+    setMeta(prev => ({ ...prev, [field]: value }));
+    postMessage({ type: 'updateMeta', meta: { [field]: value } });
+  };
+
   const handleToggleNumbering = () => {
     setShowNumbering(!showNumbering);
   };
@@ -179,7 +233,7 @@ export const Editor: React.FC = () => {
     reader.onload = () => {
       const base64 = (reader.result as string).split(',')[1];
       const extension = pendingImage.blob.type.split('/')[1] || 'png';
-      
+
       // Send to VS Code to save
       postMessage({
         type: 'saveImage',
@@ -187,7 +241,7 @@ export const Editor: React.FC = () => {
         imageData: base64,
         extension: extension,
       });
-      
+
       setPendingImage(null);
     };
     reader.readAsDataURL(pendingImage.blob);
@@ -306,10 +360,10 @@ export const Editor: React.FC = () => {
 
   const handleImageReplace = () => {
     if (!imageProperties) return;
-    
+
     // Close the properties dialog
     setImageProperties(null);
-    
+
     // Send message to VS Code to open file picker
     postMessage({
       type: 'replaceImage',
@@ -324,7 +378,7 @@ export const Editor: React.FC = () => {
 
   const handleImageContextMenuProperties = () => {
     if (!imageContextMenu || !editor) return;
-    
+
     const node = editor.state.doc.nodeAt(imageContextMenu.pos);
     if (node) {
       setImageProperties({
@@ -340,7 +394,7 @@ export const Editor: React.FC = () => {
 
   const handleImageContextMenuReplace = () => {
     if (!imageContextMenu) return;
-    
+
     postMessage({
       type: 'replaceImage',
       pos: imageContextMenu.pos,
@@ -350,11 +404,11 @@ export const Editor: React.FC = () => {
 
   const handleImageContextMenuCopyPath = () => {
     if (!imageContextMenu) return;
-    
+
     // Extract relative path from src
     const match = imageContextMenu.src.match(/((?:images|drawio)\/[^?#]+)/);
     const path = match ? './' + match[1] : imageContextMenu.src;
-    
+
     navigator.clipboard.writeText(path).then(() => {
       // Show a brief feedback (could use a toast notification if available)
       console.log('Path copied to clipboard:', path);
@@ -364,13 +418,13 @@ export const Editor: React.FC = () => {
 
   const handleImageContextMenuDelete = () => {
     if (!imageContextMenu || !editor) return;
-    
+
     // Delete the image node
     editor.chain().focus().command(({ tr }) => {
       tr.delete(imageContextMenu.pos, imageContextMenu.pos + 1);
       return true;
     }).run();
-    
+
     setImageContextMenu(null);
     flushUpdate();
   };
@@ -379,7 +433,21 @@ export const Editor: React.FC = () => {
     onUpdate: (content) => {
       postMessage({ type: 'edit', content });
     },
+    pendingEditRef,
   });
+
+  // Keep setContentRef in sync so message handler can call setContent
+  useEffect(() => {
+    if (editor && setContent) {
+      setContentRef.current = setContent;
+      // If init message arrived before editor was ready, apply stored doc now
+      if (state.doc && !initDoneRef.current) {
+        setContent(state.doc);
+        initDoneRef.current = true;
+        dispatch({ type: 'SET_READY', payload: true });
+      }
+    }
+  }, [editor, setContent]);
 
   // Expose flushUpdate to window for NodeView access
   useEffect(() => {
@@ -407,25 +475,16 @@ export const Editor: React.FC = () => {
   // Add paste event listener for clipboard images
   useEffect(() => {
     if (!editor) return;
-    
+
     const editorElement = editor.view.dom;
     editorElement.addEventListener('paste', handlePaste as any);
-    
+
     return () => {
       editorElement.removeEventListener('paste', handlePaste as any);
     };
   }, [editor]);
 
-  // Update editor content when document changes
-  useEffect(() => {
-    if (state.doc && editor) {
-      setContent(state.doc);
-      
-      if (!state.isReady) {
-        dispatch({ type: 'SET_READY', payload: true });
-      }
-    }
-  }, [state.doc, editor]);
+  // No longer need useEffect([state.doc]) for content sync — handled directly in message handler
 
   if (!editor) {
     return (
@@ -437,21 +496,33 @@ export const Editor: React.FC = () => {
 
   return (
     <>
-      <Toolbar 
-        editor={editor} 
+      <DocumentHeader
+        title={meta.title}
+        author={meta.author}
+        version={meta.version}
+        created={meta.created}
+        modified={meta.modified}
+        onTitleChange={(value) => handleMetaChange('title', value)}
+        onAuthorChange={(value) => handleMetaChange('author', value)}
+        onVersionChange={(value) => handleMetaChange('version', value)}
+      />
+      <Toolbar
+        editor={editor}
         onViewJson={handleViewJson}
         showNumbering={showNumbering}
         onToggleNumbering={handleToggleNumbering}
         onInsertLink={handleInsertLink}
         onInsertMath={handleInsertMath}
+        onInsertCrossRef={() => setShowCrossRefDialog(true)}
         onInsertImage={handleInsertImage}
         onInsertDrawio={handleInsertDrawio}
         onExport={handleExport}
+        onImport={handleImport}
       />
       {editor && <BubbleMenuBar editor={editor} />}
       <div onContextMenu={handleContextMenu}>
-        <EditorContent 
-          editor={editor} 
+        <EditorContent
+          editor={editor}
           className={`${showNumbering ? 'show-numbering' : 'hide-numbering'} ${state.settings.captionNumbering === 'hierarchical' ? 'hierarchical-numbering' : 'simple-numbering'}`}
         />
       </div>
@@ -461,6 +532,8 @@ export const Editor: React.FC = () => {
           onInsertImage={handleInsertImage}
           onInsertDrawio={handleInsertDrawio}
           onInsertEquation={handleInsertMath}
+          isLinkActive={editor?.isActive('link') ?? false}
+          onRemoveLink={() => editor?.chain().focus().unsetLink().run()}
           onClose={() => setEditorContextMenu(null)}
         />
       )}
@@ -541,6 +614,26 @@ export const Editor: React.FC = () => {
           isBlock={mathDialog.isBlock}
           onConfirm={handleMathConfirm}
           onCancel={() => setMathDialog(null)}
+        />
+      )}
+      {showCrossRefDialog && editor && (
+        <CrossReferenceDialog
+          targets={collectTargets(editor)}
+          onSelect={(target: RefTarget) => {
+            setShowCrossRefDialog(false);
+            editor.chain().focus().insertContent([
+              {
+                type: 'text',
+                marks: [{ type: 'link', attrs: { href: `#${target.id}` } }],
+                text: target.label,
+              },
+              {
+                type: 'text',
+                text: ' ',
+              },
+            ]).run();
+          }}
+          onClose={() => setShowCrossRefDialog(false)}
         />
       )}
     </>

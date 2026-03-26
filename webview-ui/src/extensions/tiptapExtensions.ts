@@ -1,5 +1,7 @@
 import StarterKit from '@tiptap/starter-kit';
 import { Extension } from '@tiptap/core';
+import { Plugin, PluginKey } from '@tiptap/pm/state';
+import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import Underline from '@tiptap/extension-underline';
 import Link from '@tiptap/extension-link';
 import TableRow from '@tiptap/extension-table-row';
@@ -9,12 +11,115 @@ import { CustomTable } from './CustomTable';
 import { CustomImage } from './CustomImage';
 import { MathInline } from './MathInline';
 import { MathBlock } from './MathBlock';
+import { CrossReference } from './CrossReference';
 
-/**
- * Custom keyboard shortcuts for heading level changes:
- * - Tab: increase heading level (h1→h2→h3) or convert paragraph to h1
- * - Shift+Tab: decrease heading level (h3→h2→h1) or convert h1 to paragraph
- */
+/* ===== Section Fold (Collapse) ===== */
+const sectionFoldKey = new PluginKey<Set<number>>('sectionFold');
+
+const SectionFold = Extension.create({
+  name: 'sectionFold',
+
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        key: sectionFoldKey,
+        state: {
+          init(): Set<number> {
+            return new Set();
+          },
+          apply(tr, oldSet: Set<number>): Set<number> {
+            const meta = tr.getMeta(sectionFoldKey);
+            if (meta !== undefined) {
+              const next = new Set(oldSet);
+              if (next.has(meta)) {
+                next.delete(meta);
+              } else {
+                next.add(meta);
+              }
+              return next;
+            }
+            if (tr.docChanged) {
+              const next = new Set<number>();
+              oldSet.forEach((pos) => {
+                const mapped = tr.mapping.map(pos, 1);
+                const node = tr.doc.nodeAt(mapped);
+                if (node && node.type.name === 'heading') {
+                  next.add(mapped);
+                }
+              });
+              return next;
+            }
+            return oldSet;
+          },
+        },
+        props: {
+          decorations(state) {
+            const collapsed = sectionFoldKey.getState(state)!;
+            const decorations: Decoration[] = [];
+
+            state.doc.forEach((node, offset) => {
+              if (node.type.name === 'heading' && (node.attrs.level as number) <= 3) {
+                const isCollapsed = collapsed.has(offset);
+
+                const widget = Decoration.widget(
+                  offset + 1,
+                  () => {
+                    const span = document.createElement('span');
+                    span.className = 'fold-toggle';
+                    span.textContent = isCollapsed ? '▸' : '▾';
+                    span.setAttribute('contenteditable', 'false');
+                    return span;
+                  },
+                  { side: -1, key: `fold-${offset}-${isCollapsed ? 'c' : 'o'}` },
+                );
+                decorations.push(widget);
+
+                if (isCollapsed) {
+                  const headingLevel = node.attrs.level as number;
+                  let nextOffset = offset + node.nodeSize;
+                  while (nextOffset < state.doc.content.size) {
+                    const nextNode = state.doc.nodeAt(nextOffset);
+                    if (!nextNode) break;
+                    if (nextNode.type.name === 'heading' && (nextNode.attrs.level as number) <= headingLevel) break;
+                    decorations.push(
+                      Decoration.node(nextOffset, nextOffset + nextNode.nodeSize, {
+                        class: 'section-collapsed',
+                      }),
+                    );
+                    nextOffset += nextNode.nodeSize;
+                  }
+                }
+              }
+            });
+
+            return DecorationSet.create(state.doc, decorations);
+          },
+          handleDOMEvents: {
+            mousedown(view, event) {
+              const target = event.target as HTMLElement;
+              if (!target.classList.contains('fold-toggle')) return false;
+
+              event.preventDefault();
+              event.stopPropagation();
+
+              const heading = target.parentElement;
+              if (!heading || !/^H[1-3]$/i.test(heading.tagName)) return false;
+
+              const pos = view.posAtDOM(heading, 0);
+              const resolved = view.state.doc.resolve(pos);
+              const headingPos = resolved.before(resolved.depth);
+
+              const tr = view.state.tr.setMeta(sectionFoldKey, headingPos);
+              view.dispatch(tr);
+              return true;
+            },
+          },
+        },
+      }),
+    ];
+  },
+});
+
 const HeadingKeyboardShortcuts = Extension.create({
   name: 'headingKeyboardShortcuts',
 
@@ -75,11 +180,12 @@ const HeadingKeyboardShortcuts = Extension.create({
 
 export const tiptapExtensions = [
   StarterKit.configure({
-    history: false, // Disable Tiptap's built-in history (using VS Code undo)
+    // Use Tiptap's built-in history for undo/redo within the editor
   }),
   Underline,
   Link.configure({
-    openOnClick: false, // Don't open links on click in editor
+    openOnClick: false,
+    autolink: false,
     HTMLAttributes: {
       class: 'editor-link',
     },
@@ -92,4 +198,81 @@ export const tiptapExtensions = [
   MathInline,
   MathBlock,
   HeadingKeyboardShortcuts,
+  CrossReference,
+  SectionFold,
+  Extension.create({
+    name: 'internalLinkClick',
+    addProseMirrorPlugins() {
+      return [
+        new Plugin({
+          props: {
+            handleDOMEvents: {
+              click(view, event) {
+                const anchor = (event.target as HTMLElement).closest('a[href^="#"]');
+                if (!anchor) return false;
+                const href = anchor.getAttribute('href');
+                if (!href) return false;
+                const targetId = href.slice(1);
+
+                // Search by persisted id attr OR by on-the-fly generated id
+                let targetPos: number | null = null;
+                const slugify = (text: string) => text.toLowerCase()
+                  .replace(/[^\w\s가-힣-]/g, '').replace(/\s+/g, '-')
+                  .replace(/-+/g, '-').replace(/^-|-$/g, '') || 'untitled';
+                const getText = (n: any): string => {
+                  if (n.isText) return n.text || '';
+                  let t = '';
+                  n.content?.forEach((c: any) => { t += getText(c); });
+                  return t;
+                };
+
+                let imgCnt = 0;
+                let tblCnt = 0;
+                view.state.doc.descendants((node, pos) => {
+                  if (targetPos !== null) return false;
+                  // Check persisted id first
+                  if (node.attrs?.id === targetId) {
+                    targetPos = pos;
+                    return false;
+                  }
+                  // Generate on-the-fly id and check
+                  if (node.type.name === 'heading') {
+                    const text = getText(node);
+                    if (slugify(text) === targetId) {
+                      targetPos = pos;
+                      return false;
+                    }
+                  }
+                  if (node.type.name === 'image') {
+                    imgCnt++;
+                    if (`figure-${imgCnt}` === targetId) {
+                      targetPos = pos;
+                      return false;
+                    }
+                  }
+                  if (node.type.name === 'table') {
+                    tblCnt++;
+                    if (`table-${tblCnt}` === targetId) {
+                      targetPos = pos;
+                      return false;
+                    }
+                  }
+                });
+
+                if (targetPos !== null) {
+                  event.preventDefault();
+                  const dom = view.nodeDOM(targetPos);
+                  if (dom && dom instanceof HTMLElement) {
+                    dom.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  }
+                  return true;
+                }
+                return false;
+              },
+            },
+          },
+        }),
+      ];
+    },
+  }),
 ];

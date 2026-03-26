@@ -9,17 +9,19 @@
 
 ### 방법 1: VSIX 파일로 설치 (권장)
 
-프로젝트 루트에 이미 생성된 `structured-doc-editor-0.1.0.vsix` 파일을 사용하여 설치:
+`.vsix` 파일을 사용하여 설치:
 
 1. VS Code를 엽니다
 2. `Ctrl+Shift+P` (Mac: `Cmd+Shift+P`)를 눌러 명령 팔레트를 엽니다
 3. "Extensions: Install from VSIX..."를 입력하고 선택합니다
-4. `structured-doc-editor-0.1.0.vsix` 파일을 선택합니다
+4. `.vsix` 파일을 선택합니다
 5. 설치 완료 후 VS Code를 다시 시작합니다
+
+> **사내 사용자**: `structuredDocEditor.update.sharedFolder` 설정으로 공유 폴더 자동 업데이트를 받을 수 있습니다.
 
 **VSIX 파일 재생성이 필요한 경우:**
 ```bash
-npx @vscode/vsce package --allow-missing-repository
+npx @vscode/vsce package --allow-missing-repository --no-dependencies
 ```
 
 ### 방법 2: 개발 모드로 실행 (개발자용)
@@ -46,6 +48,7 @@ npx @vscode/vsce package --allow-missing-repository
 3. WYSIWYG 방식으로 문서를 편집합니다
 4. `Ctrl+S` (Mac: `Cmd+S`)로 저장합니다
 5. **내보내기**:
+   - Markdown: `Ctrl+Shift+P` → "Structured Doc: Export to Markdown"
    - AsciiDoc: `Ctrl+Shift+P` → "Structured Doc: Export to AsciiDoc"
    - HTML: `Ctrl+Shift+P` → "Structured Doc: Export to HTML"
 
@@ -114,7 +117,7 @@ HTML 내보내기 시 회사 브랜딩을 적용하려면:
 2. "Structured Doc Editor" 검색
 3. 테마 관련 설정 변경:
    - Company Logo
-   - Company Name  
+   - Company Name
    - Primary Color
    - Accent Color
    - Font Family
@@ -127,6 +130,7 @@ HTML 내보내기 시 회사 브랜딩을 적용하려면:
 - [ ] `.sdoc` 파일이 커스텀 에디터에서 열림
 - [ ] 툴바 버튼이 작동하고 활성 상태 표시됨
 - [ ] Ctrl+S로 문서가 저장됨
+- [ ] Markdown 내보내기 명령이 작동함
 - [ ] AsciiDoc 내보내기 명령이 작동함
 - [ ] HTML 내보내기 명령이 작동함
 - [ ] 테마 설정이 HTML 출력에 반영됨
@@ -175,9 +179,15 @@ HTML 내보내기 시 회사 브랜딩을 적용하려면:
 │   ├── extension.ts        # 진입점
 │   ├── SdocEditorProvider.ts
 │   ├── commands/
-│   │   └── exportToHtml.ts
+│   │   ├── exportToHtml.ts
+│   │   ├── exportToAdoc.ts
+│   │   └── exportToMarkdown.ts
 │   ├── converter/
-│   │   └── jsonToAdoc.ts
+│   │   ├── jsonToAdoc.ts
+│   │   ├── jsonToHtml.ts
+│   │   ├── jsonToMarkdown.ts
+│   │   └── markdownToJson.ts
+│   ├── updateChecker.ts
 │   └── utils/
 │       └── webviewHelper.ts
 ├── webview-ui/             # React webview
@@ -199,29 +209,29 @@ HTML 내보내기 시 회사 브랜딩을 적용하려면:
 
 ### 편집 기능
 - **텍스트 서식**: 굵게, 기울임, 밑줄, 취소선, 코드
-- **제목**: H1 ~ H6 (자동 번호 매기기 지원)
+- **제목**: H1 ~ H3 (자동 번호 매기기 토글 가능)
 - **목록**: 글머리 기호, 번호 매기기
 - **표**: 크기 선택, 컨텍스트 메뉴, 캡션/정렬/너비 설정
 - **코드 블록**: 언어별 구문 강조
 - **이미지**: 클립보드 붙여넣기, 캡션 지원
+- **수학 수식**: KaTeX 인라인/블록 수식
+- **교차 참조**: `@` 입력으로 heading, figure, table 참조 삽입
+- **섹션 접기**: heading 옆 토글로 섹션별 접기/펼치기
+- **문서 메타데이터**: Title, Author, Version 인라인 편집
 - **실행 취소/다시 실행**: VS Code 기본 기능과 통합
 
 ### 저장 및 내보내기
 - `.sdoc` (JSON) 형식으로 저장
+- **Markdown 내보내기**: 명령 팔레트에서 "Export to Markdown" 실행
 - **AsciiDoc 내보내기**: 명령 팔레트에서 "Export to AsciiDoc" 실행
 - **HTML 내보내기**: 명령 팔레트에서 "Export to HTML" 실행
   - 테마 커스터마이징 지원 (회사 로고, 색상, 폰트 등)
   - VS Code 설정에서 테마 관리
+- **Markdown/HTML 가져오기**: 툴바 Import 버튼으로 기존 문서를 `.sdoc`로 변환
 
 ### UI/UX
 - VS Code 테마 자동 적응 (라이트/다크 모드)
 - 툴바 및 버블 메뉴
 - 표/이미지 캡션 인라인 편집
 
-## 다음 단계
 
-- [ ] 더 많은 Tiptap 확장 추가 (링크, 각주 등)
-- [ ] 대용량 문서를 위한 diff 기반 업데이트 구현
-- [ ] AsciiDoc 출력 설정 옵션 추가
-- [ ] JSON 구조 유효성 검사 구현
-- [ ] 변환기 및 확장 프로그램 로직 테스트 추가

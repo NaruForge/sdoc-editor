@@ -39,6 +39,7 @@ export async function exportToMarkdown(context: vscode.ExtensionContext) {
     let parsed = JSON.parse(text);
 
     // Unwrap sdoc envelope if present
+    const meta = (parsed.sdoc && parsed.meta) ? parsed.meta : undefined;
     let json = (parsed.sdoc && parsed.doc) ? parsed.doc : parsed;
 
     // Convert webview URIs back to relative paths for export
@@ -53,7 +54,7 @@ export async function exportToMarkdown(context: vscode.ExtensionContext) {
     };
 
     // Convert to Markdown
-    const markdownContent = convertJsonToMarkdown(json, exportSettings);
+    const markdownContent = convertJsonToMarkdown(json, exportSettings, meta);
 
     // Generate .md file in the same directory
     const markdownUri = documentUri.with({

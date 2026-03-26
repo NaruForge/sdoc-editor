@@ -1,10 +1,11 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { convertJsonToHtml } from '../converter/jsonToHtml';
 
 export async function exportToHtml(context: vscode.ExtensionContext) {
   // Get the active tab's input
   const activeTab = vscode.window.tabGroups.activeTabGroup.activeTab;
-  
+
   if (!activeTab || !activeTab.input) {
     vscode.window.showErrorMessage('No active document found');
     return;
@@ -12,7 +13,7 @@ export async function exportToHtml(context: vscode.ExtensionContext) {
 
   // Get the URI from the tab input
   let documentUri: vscode.Uri | undefined;
-  
+
   if (activeTab.input instanceof vscode.TabInputCustom) {
     documentUri = activeTab.input.uri;
   } else if (activeTab.input instanceof vscode.TabInputText) {
@@ -34,11 +35,12 @@ export async function exportToHtml(context: vscode.ExtensionContext) {
     // Read the document
     const documentBytes = await vscode.workspace.fs.readFile(documentUri);
     const text = new TextDecoder().decode(documentBytes);
-    
+
     // Parse JSON
     let parsed = JSON.parse(text);
 
     // Unwrap sdoc envelope if present
+    const meta = (parsed.sdoc && parsed.meta) ? parsed.meta : undefined;
     let json = (parsed.sdoc && parsed.doc) ? parsed.doc : parsed;
 
     // Convert webview URIs back to relative paths for export
@@ -46,11 +48,25 @@ export async function exportToHtml(context: vscode.ExtensionContext) {
 
     // Get theme configuration from VS Code settings
     const config = vscode.workspace.getConfiguration('structuredDocEditor');
+    let companyLogo = config.get<string>('theme.companyLogo') || '';
+    if (companyLogo && !companyLogo.startsWith('data:') && !companyLogo.startsWith('http')) {
+      try {
+        const logoPath = path.join(context.extensionPath, 'media', companyLogo);
+        const logoUri = vscode.Uri.file(logoPath);
+        const logoData = await vscode.workspace.fs.readFile(logoUri);
+        const base64 = Buffer.from(logoData).toString('base64');
+        const ext = path.extname(companyLogo).toLowerCase().replace('.', '');
+        const mime = ext === 'svg' ? 'image/svg+xml' : `image/${ext || 'png'}`;
+        companyLogo = `data:${mime};base64,${base64}`;
+      } catch {
+        companyLogo = '';
+      }
+    }
     const theme = {
-      companyLogo: config.get<string>('theme.companyLogo'),
+      companyLogo,
       companyName: config.get<string>('theme.companyName') || '',
-      primaryColor: config.get<string>('theme.primaryColor') || '#2563eb',
-      accentColor: config.get<string>('theme.accentColor') || '#1e40af',
+      primaryColor: config.get<string>('theme.primaryColor') || '#A50034',
+      accentColor: config.get<string>('theme.accentColor') || '#6b6b6b',
       fontFamily: config.get<string>('theme.fontFamily') || '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       customStyles: config.get<string>('theme.customStyles') || '',
     };
@@ -63,7 +79,7 @@ export async function exportToHtml(context: vscode.ExtensionContext) {
     };
 
     // Convert JSON to HTML directly
-    const htmlContent = convertJsonToHtml(json, theme, exportSettings);
+    const htmlContent = convertJsonToHtml(json, theme, exportSettings, meta);
 
     // Generate .html file in the same directory
     const htmlUri = documentUri.with({

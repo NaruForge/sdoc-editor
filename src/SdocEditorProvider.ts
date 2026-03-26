@@ -1,8 +1,10 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { getNonce, getWebviewUri } from './utils/webviewHelper';
 import { convertJsonToHtml } from './converter/jsonToHtml';
 import { convertJsonToAdoc } from './converter/jsonToAdoc';
 import { convertJsonToMarkdown } from './converter/jsonToMarkdown';
+import { convertMarkdownToJson } from './converter/markdownToJson';
 
 export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
   private static readonly SDOC_VERSION = '1.0';
@@ -22,7 +24,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     return providerRegistration;
   }
 
-  private isApplyingEdit = false;
+  private pendingApplyEdits = 0;
 
   constructor(private readonly context: vscode.ExtensionContext) {}
 
@@ -33,7 +35,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
   ): Promise<void> {
     // Setup webview
     const documentDir = vscode.Uri.joinPath(document.uri, '..');
-    
+
     webviewPanel.webview.options = {
       enableScripts: true,
       localResourceRoots: [
@@ -60,20 +62,33 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       });
     };
 
+    // Send metadata to webview
+    const sendMeta = () => {
+      try {
+        const text = document.getText();
+        const parsed = text.trim() ? JSON.parse(text) : {};
+        const { meta } = SdocEditorProvider.unwrapSdoc(parsed);
+        webviewPanel.webview.postMessage({ type: 'metaUpdate', meta });
+      } catch {
+        // Ignore parse errors
+      }
+    };
+
     // Send initial document content with image paths converted
     const sendUpdate = () => {
       try {
         const text = document.getText();
         const parsed = text.trim() ? JSON.parse(text) : { sdoc: SdocEditorProvider.SDOC_VERSION, meta: {}, doc: { type: 'doc', content: [] } };
         // Unwrap sdoc envelope → extract doc node
-        const { doc } = SdocEditorProvider.unwrapSdoc(parsed);
+        const { doc, meta } = SdocEditorProvider.unwrapSdoc(parsed);
         // Convert image paths to webview URIs
         const convertedJson = this.convertImagePathsToWebviewUris(doc, documentDir, webviewPanel.webview);
         webviewPanel.webview.postMessage({
           type: 'init',
           content: convertedJson,
         });
-        // Also send current settings
+        // Send metadata and settings
+        webviewPanel.webview.postMessage({ type: 'metaUpdate', meta });
         sendSettings();
       } catch (error) {
         vscode.window.showErrorMessage(
@@ -115,6 +130,15 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         case 'export':
           await this.exportDocument(document, message.format);
           break;
+        case 'importMarkdown':
+          await this.importMarkdown(document, webviewPanel);
+          break;
+        case 'importHtml':
+          await this.importHtml(document, webviewPanel);
+          break;
+        case 'updateMeta':
+          await this.updateMeta(document, message.meta);
+          break;
       }
     });
 
@@ -122,7 +146,8 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     const changeDocumentSubscription = vscode.workspace.onDidChangeTextDocument((e) => {
       if (e.document.uri.toString() === document.uri.toString()) {
         // Don't send update if we caused the change
-        if (this.isApplyingEdit) {
+        if (this.pendingApplyEdits > 0) {
+          this.pendingApplyEdits--;
           return;
         }
 
@@ -188,6 +213,13 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     // Convert webview URIs back to relative paths before saving
     const convertedContent = this.convertWebviewUrisToRelativePaths(content);
 
+    // Clean up text nodes (trim trailing whitespace, remove empty text nodes)
+    const cleaned = SdocEditorProvider.cleanTextNodes(convertedContent);
+
+    // Assign auto-ids and sync cross-reference text
+    const withIds = SdocEditorProvider.assignAutoIds(cleaned);
+    const synced = SdocEditorProvider.syncCrossReferences(withIds);
+
     // Read existing file to preserve metadata
     const existingText = document.getText();
     let existingMeta: any = {};
@@ -200,32 +232,25 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       // Ignore parse errors
     }
 
-    // Extract title from first heading
-    const title = SdocEditorProvider.extractTitle(convertedContent);
-
-    // Read default author from settings
-    const config = vscode.workspace.getConfiguration('structuredDocEditor');
-    const defaultAuthor = config.get<string>('document.defaultAuthor', '');
-
     // Wrap in sdoc envelope
     const sdocFile = {
       sdoc: SdocEditorProvider.SDOC_VERSION,
       meta: {
-        title: title || existingMeta.title || '',
-        author: existingMeta.author || defaultAuthor,
+        title: existingMeta.title || '',
+        author: existingMeta.author || '',
+        version: existingMeta.version || '0.1',
         created: existingMeta.created || new Date().toISOString(),
         modified: new Date().toISOString(),
       },
-      doc: convertedContent,
+      doc: synced,
     };
 
     // Pretty-print JSON for better git diffs
     const json = JSON.stringify(sdocFile, null, 2);
     edit.replace(document.uri, fullRange, json);
 
-    this.isApplyingEdit = true;
+    this.pendingApplyEdits++;
     await vscode.workspace.applyEdit(edit);
-    this.isApplyingEdit = false;
   }
 
   private async openJsonView(document: vscode.TextDocument): Promise<void> {
@@ -276,7 +301,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       // Convert to webview URI for display
       const webviewUri = webview.asWebviewUri(imageUri);
       const relativePath = `./images/${fileName}`;
-      
+
       webview.postMessage({
         type: 'imageSaved',
         imagePath: relativePath, // relative path for JSON storage
@@ -334,7 +359,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       // Convert to webview URI for display
       const webviewUri = webview.asWebviewUri(drawioUri);
       const relativePath = `./drawio/${fileName}`;
-      
+
       webview.postMessage({
         type: 'drawioCreated',
         drawioPath: relativePath, // relative path for JSON storage
@@ -440,7 +465,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         // Generate unique filename if file already exists
         let counter = 1;
         targetUri = vscode.Uri.joinPath(drawioDir, finalFileName);
-        
+
         while (true) {
           try {
             await vscode.workspace.fs.stat(targetUri);
@@ -463,7 +488,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       // Convert to webview URI for display
       const webviewUri = webview.asWebviewUri(targetUri);
       const relativePath = `./drawio/${finalFileName}`;
-      
+
       webview.postMessage({
         type: 'drawioCreated',
         drawioPath: relativePath,
@@ -535,7 +560,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         // Generate unique filename if file already exists
         let counter = 1;
         targetUri = vscode.Uri.joinPath(imagesDir, finalFileName);
-        
+
         while (true) {
           try {
             await vscode.workspace.fs.stat(targetUri);
@@ -560,7 +585,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       // Convert to webview URI for display
       const webviewUri = webview.asWebviewUri(targetUri);
       const relativePath = `./images/${finalFileName}`;
-      
+
       webview.postMessage({
         type: 'imageInserted',
         imagePath: relativePath,
@@ -619,7 +644,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       let finalFileName = fileName;
       let counter = 1;
       let targetUri = vscode.Uri.joinPath(imagesDir, finalFileName);
-      
+
       while (true) {
         try {
           await vscode.workspace.fs.stat(targetUri);
@@ -642,7 +667,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       // Convert to webview URI for display
       const webviewUri = webview.asWebviewUri(targetUri);
       const relativePath = `./images/${finalFileName}`;
-      
+
       webview.postMessage({
         type: 'imageReplaced',
         pos: pos,
@@ -657,6 +682,98 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         `Failed to replace image: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
     }
+  }
+
+  private async importMarkdown(
+    document: vscode.TextDocument,
+    webviewPanel: vscode.WebviewPanel
+  ): Promise<void> {
+    try {
+      const fileUris = await vscode.window.showOpenDialog({
+        canSelectMany: false,
+        openLabel: 'Import Markdown',
+        filters: { 'Markdown Files': ['md', 'markdown'] },
+      });
+      if (!fileUris || fileUris.length === 0) return;
+
+      const mdBytes = await vscode.workspace.fs.readFile(fileUris[0]);
+      const mdText = new TextDecoder('utf-8').decode(mdBytes);
+      const doc = convertMarkdownToJson(mdText);
+
+      // Convert image paths to webview URIs
+      const documentDir = vscode.Uri.joinPath(document.uri, '..');
+      const convertedDoc = this.convertImagePathsToWebviewUris(doc, documentDir, webviewPanel.webview);
+
+      webviewPanel.webview.postMessage({ type: 'importContent', content: convertedDoc });
+      vscode.window.showInformationMessage('Markdown imported successfully');
+    } catch (error) {
+      vscode.window.showErrorMessage(
+        `Failed to import Markdown: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  private async importHtml(
+    document: vscode.TextDocument,
+    webviewPanel: vscode.WebviewPanel
+  ): Promise<void> {
+    try {
+      const fileUris = await vscode.window.showOpenDialog({
+        canSelectMany: false,
+        openLabel: 'Import HTML',
+        filters: { 'HTML Files': ['html', 'htm'] },
+      });
+      if (!fileUris || fileUris.length === 0) return;
+
+      const htmlBytes = await vscode.workspace.fs.readFile(fileUris[0]);
+      const htmlText = new TextDecoder('utf-8').decode(htmlBytes);
+
+      // Send raw HTML to webview — Tiptap's setContent(htmlString) will parse it
+      webviewPanel.webview.postMessage({ type: 'importHtml', html: htmlText });
+      vscode.window.showInformationMessage('HTML imported successfully');
+    } catch (error) {
+      vscode.window.showErrorMessage(
+        `Failed to import HTML: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  private async updateMeta(
+    document: vscode.TextDocument,
+    meta: { title?: string; author?: string; version?: string }
+  ): Promise<void> {
+    const edit = new vscode.WorkspaceEdit();
+    const fullRange = new vscode.Range(
+      document.positionAt(0),
+      document.positionAt(document.getText().length)
+    );
+
+    const existingText = document.getText();
+    let parsed: any;
+    try {
+      parsed = existingText.trim() ? JSON.parse(existingText) : {};
+    } catch {
+      return;
+    }
+
+    if (parsed.sdoc && parsed.meta) {
+      if (meta.title !== undefined) {
+        parsed.meta.title = meta.title;
+      }
+      if (meta.author !== undefined) {
+        parsed.meta.author = meta.author;
+      }
+      if (meta.version !== undefined) {
+        parsed.meta.version = meta.version;
+      }
+      parsed.meta.modified = new Date().toISOString();
+    }
+
+    const json = JSON.stringify(parsed, null, 2);
+    edit.replace(document.uri, fullRange, json);
+
+    this.pendingApplyEdits++;
+    await vscode.workspace.applyEdit(edit);
   }
 
   // Convert relative image paths to webview URIs for display
@@ -714,7 +831,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         // Extract the filename from the URI - check for images or drawio
         const imageMatch = src.match(/images\/([^?#]+)/);
         const drawioMatch = src.match(/drawio\/([^?#]+)/);
-        
+
         if (imageMatch) {
           const fileName = imageMatch[1];
           cloned.attrs = {
@@ -750,7 +867,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       let parsed = text.trim() ? JSON.parse(text) : { sdoc: SdocEditorProvider.SDOC_VERSION, meta: {}, doc: { type: 'doc', content: [] } };
 
       // Unwrap envelope
-      const { doc } = SdocEditorProvider.unwrapSdoc(parsed);
+      const { doc, meta } = SdocEditorProvider.unwrapSdoc(parsed);
 
       // Convert webview URIs back to relative paths
       const convertedDoc = this.convertWebviewUrisToRelativePaths(doc);
@@ -770,26 +887,41 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
 
       switch (format) {
         case 'html': {
+          let companyLogo = config.get<string>('theme.companyLogo') || '';
+          // Resolve logo file to data URI if it's a filename (not URL or data URI)
+          if (companyLogo && !companyLogo.startsWith('data:') && !companyLogo.startsWith('http')) {
+            try {
+              const logoPath = path.join(this.context.extensionPath, 'media', companyLogo);
+              const logoUri = vscode.Uri.file(logoPath);
+              const logoData = await vscode.workspace.fs.readFile(logoUri);
+              const base64 = Buffer.from(logoData).toString('base64');
+              const ext2 = path.extname(companyLogo).toLowerCase().replace('.', '');
+              const mime = ext2 === 'svg' ? 'image/svg+xml' : `image/${ext2 || 'png'}`;
+              companyLogo = `data:${mime};base64,${base64}`;
+            } catch {
+              companyLogo = '';
+            }
+          }
           const theme = {
-            companyLogo: config.get<string>('theme.companyLogo'),
+            companyLogo,
             companyName: config.get<string>('theme.companyName') || '',
-            primaryColor: config.get<string>('theme.primaryColor') || '#2563eb',
-            accentColor: config.get<string>('theme.accentColor') || '#1e40af',
+            primaryColor: config.get<string>('theme.primaryColor') || '#A50034',
+            accentColor: config.get<string>('theme.accentColor') || '#6b6b6b',
             fontFamily: config.get<string>('theme.fontFamily') || '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
             customStyles: config.get<string>('theme.customStyles') || '',
           };
-          content = convertJsonToHtml(convertedDoc, theme, exportSettings);
+          content = convertJsonToHtml(convertedDoc, theme, exportSettings, meta);
           ext = '.html';
           label = 'HTML';
           break;
         }
         case 'adoc':
-          content = convertJsonToAdoc(convertedDoc, exportSettings);
+          content = convertJsonToAdoc(convertedDoc, exportSettings, meta);
           ext = '.adoc';
           label = 'AsciiDoc';
           break;
         case 'markdown':
-          content = convertJsonToMarkdown(convertedDoc, exportSettings);
+          content = convertJsonToMarkdown(convertedDoc, exportSettings, meta);
           ext = '.md';
           label = 'Markdown';
           break;
@@ -884,6 +1016,175 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       }
     }
     return '';
+  }
+
+  private static slugify(text: string): string {
+    return text
+      .toLowerCase()
+      .replace(/[^\w\s가-힣-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '')
+      || 'untitled';
+  }
+
+  private static getNodeText(node: any): string {
+    if (!node?.content) return '';
+    return node.content
+      .filter((c: any) => c.type === 'text')
+      .map((c: any) => c.text || '')
+      .join('');
+  }
+
+  /**
+   * Clean text nodes: trim trailing whitespace from the last text node of each
+   * block-level parent and remove resulting empty text nodes.
+   * Intermediate text nodes keep their trailing space (e.g., "Hello " before bold).
+   */
+  private static cleanTextNodes(node: any): any {
+    if (!node || typeof node !== 'object') return node;
+
+    if (!node.content) return node;
+
+    // Recurse into children first
+    const cleaned = node.content
+      .map((child: any) => SdocEditorProvider.cleanTextNodes(child))
+      .filter((child: any) => child !== null);
+
+    // Only trim the very last text node in the content array
+    for (let i = cleaned.length - 1; i >= 0; i--) {
+      if (cleaned[i]?.type === 'text' && typeof cleaned[i].text === 'string') {
+        const trimmed = cleaned[i].text.replace(/\s+$/, '');
+        if (!trimmed) {
+          cleaned.splice(i, 1);
+        } else {
+          cleaned[i] = { ...cleaned[i], text: trimmed };
+        }
+        break;
+      }
+      // Stop at the last inline-level node (don't look past non-text inlines)
+      if (cleaned[i]?.type && cleaned[i].type !== 'text') break;
+    }
+
+    return { ...node, content: cleaned };
+  }
+
+  /**
+   * Assign auto-generated `id` to headings, captioned images, and captioned tables.
+   * Preserves existing ids if present.
+   */
+  private static assignAutoIds(doc: any): any {
+    if (!doc?.content) return doc;
+
+    const usedIds = new Set<string>();
+    let imageCounter = 0;
+    let tableCounter = 0;
+
+    const uniqueId = (base: string): string => {
+      let id = base;
+      let i = 2;
+      while (usedIds.has(id)) { id = `${base}-${i}`; i++; }
+      usedIds.add(id);
+      return id;
+    };
+
+    const cloned = { ...doc, content: doc.content.map((node: any) => {
+      if (node.type === 'heading') {
+        const text = SdocEditorProvider.getNodeText(node);
+        const existing = node.attrs?.id;
+        const id = existing || uniqueId(SdocEditorProvider.slugify(text));
+        if (!existing) usedIds.add(id);
+        else usedIds.add(existing);
+        return { ...node, attrs: { ...node.attrs, id } };
+      }
+      if (node.type === 'image') {
+        imageCounter++;
+        const existing = node.attrs?.id;
+        const id = existing || uniqueId(`figure-${imageCounter}`);
+        if (!existing) usedIds.add(id);
+        else usedIds.add(existing);
+        return { ...node, attrs: { ...node.attrs, id } };
+      }
+      if (node.type === 'table') {
+        tableCounter++;
+        const existing = node.attrs?.id;
+        const id = existing || uniqueId(`table-${tableCounter}`);
+        if (!existing) usedIds.add(id);
+        else usedIds.add(existing);
+        return { ...node, attrs: { ...node.attrs, id } };
+      }
+      return node;
+    })};
+
+    return cloned;
+  }
+
+  /**
+   * Scan all internal links (href starts with #) and update their text
+   * to reflect the current numbering of the target node.
+   */
+  private static syncCrossReferences(doc: any): any {
+    if (!doc?.content) return doc;
+
+    // Build a map: id → label
+    const idMap = new Map<string, string>();
+    let h1 = 0; let imgCnt = 0; let tblCnt = 0;
+    const h = [0, 0, 0, 0, 0, 0]; // h1–h6 counters
+
+    for (const node of doc.content) {
+      if (node.type === 'heading') {
+        const level: number = node.attrs?.level || 1;
+        h[level - 1]++;
+        for (let j = level; j < 6; j++) h[j] = 0;
+        if (level === 1) { h1++; imgCnt = 0; tblCnt = 0; }
+        const nums = h.slice(0, level).join('.') + '.';
+        const text = SdocEditorProvider.getNodeText(node);
+        if (node.attrs?.id) {
+          idMap.set(node.attrs.id, `${nums} ${text}`);
+        }
+      }
+      if (node.type === 'image') {
+        imgCnt++;
+        const caption = node.attrs?.caption || '';
+        const label = caption ? `Figure ${imgCnt}: ${caption}` : `Figure ${imgCnt}`;
+        if (node.attrs?.id) {
+          idMap.set(node.attrs.id, label);
+        }
+      }
+      if (node.type === 'table') {
+        tblCnt++;
+        const caption = node.attrs?.caption || '';
+        const label = caption ? `Table ${tblCnt}: ${caption}` : `Table ${tblCnt}`;
+        if (node.attrs?.id) {
+          idMap.set(node.attrs.id, label);
+        }
+      }
+    }
+
+    // Recursively update link text for internal references
+    const updateRefs = (node: any): any => {
+      if (!node || typeof node !== 'object') return node;
+      const cloned = Array.isArray(node) ? [...node] : { ...node };
+
+      // Text node with a link mark pointing to #id
+      if (cloned.type === 'text' && cloned.marks) {
+        const linkMark = cloned.marks.find((m: any) => m.type === 'link' && m.attrs?.href?.startsWith('#'));
+        if (linkMark) {
+          const targetId = linkMark.attrs.href.slice(1);
+          const newLabel = idMap.get(targetId);
+          if (newLabel && cloned.text !== newLabel) {
+            return { ...cloned, text: newLabel };
+          }
+        }
+      }
+
+      if (cloned.content && Array.isArray(cloned.content)) {
+        cloned.content = cloned.content.map(updateRefs);
+      }
+      return cloned;
+    };
+
+    return updateRefs(doc);
   }
 
   private getHtmlForWebview(webview: vscode.Webview): string {

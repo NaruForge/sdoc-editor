@@ -28,6 +28,14 @@ interface ExportSettings {
   documentDir?: string;
 }
 
+export interface SdocMeta {
+  title?: string;
+  author?: string;
+  version?: string;
+  created?: string;
+  modified?: string;
+}
+
 let currentSettings: ExportSettings = {};
 let imageCounter = 0;
 let tableCounter = 0;
@@ -36,13 +44,13 @@ let h1Counter = 0;
 /**
  * Converts Tiptap JSON to HTML format
  */
-export function convertJsonToHtml(json: TiptapNode, theme?: HtmlTheme, settings?: ExportSettings): string {
+export function convertJsonToHtml(json: TiptapNode, theme?: HtmlTheme, settings?: ExportSettings, meta?: SdocMeta): string {
   currentSettings = settings || {};
   imageCounter = 0;
   tableCounter = 0;
   h1Counter = 0;
   const bodyContent = convertNode(json);
-  return generateHtmlDocument(bodyContent, theme);
+  return generateHtmlDocument(bodyContent, theme, meta);
 }
 
 function convertNode(node: TiptapNode): string {
@@ -54,7 +62,8 @@ function convertNode(node: TiptapNode): string {
       const level = node.attrs?.level || 1;
       const headingText = node.content ? convertInlineContent(node.content) : '';
       if (level === 1) { h1Counter++; imageCounter = 0; tableCounter = 0; }
-      return `<h${level}>${headingText}</h${level}>`;
+      const hId = node.attrs?.id ? ` id="${escapeHtml(node.attrs.id)}"` : '';
+      return `<h${level}${hId}>${headingText}</h${level}>`;
 
     case 'paragraph':
       const paragraphText = node.content ? convertInlineContent(node.content) : '';
@@ -156,7 +165,8 @@ function convertTable(table: TiptapNode): string {
   );
 
   // Start table with attributes
-  html += `<table style="width: ${width}; text-align: ${align};" class="doc-table">`;
+  const tId = table.attrs?.id ? ` id="${escapeHtml(table.attrs.id)}"` : '';
+  html += `<table${tId} style="width: ${width}; text-align: ${align};" class="doc-table">`;
 
   // Add caption if present
   if (caption) {
@@ -231,25 +241,26 @@ function convertImage(node: TiptapNode): string {
       ? ' style="display:block; margin-right:0; margin-left:auto;"'
       : ' style="display:block; margin:0 auto; text-align:center;"';
 
-  let html = `<figure class="doc-image"${alignStyle}>`;
-  
+  const figId = node.attrs?.id ? ` id="${escapeHtml(node.attrs.id)}"` : '';
+  let html = `<figure class="doc-image"${figId}${alignStyle}>`;
+
   if (title) {
     html += `\n  <img src="${escapeHtml(src)}" alt="${escapeHtml(alt)}" title="${escapeHtml(title)}">`;
   } else {
     html += `\n  <img src="${escapeHtml(src)}" alt="${escapeHtml(alt)}">`;
   }
-  
+
   if (caption) {
     html += `\n  <figcaption>${prefix} ${numbering}: ${escapeHtml(caption)}</figcaption>`;
   }
-  
+
   html += '\n</figure>';
   return html;
 }
 
 function applyMarks(text: string, marks: TiptapMark[]): string {
   let result = text;
-  
+
   for (const mark of marks) {
     switch (mark.type) {
       case 'bold':
@@ -273,7 +284,7 @@ function applyMarks(text: string, marks: TiptapMark[]): string {
         break;
     }
   }
-  
+
   return result;
 }
 
@@ -286,11 +297,11 @@ function escapeHtml(text: string): string {
     .replace(/'/g, '&#039;');
 }
 
-function generateHtmlDocument(bodyContent: string, theme?: HtmlTheme): string {
+function generateHtmlDocument(bodyContent: string, theme?: HtmlTheme, meta?: SdocMeta): string {
   const companyLogo = theme?.companyLogo || '';
   const companyName = theme?.companyName || '';
-  const primaryColor = theme?.primaryColor || '#2563eb';
-  const accentColor = theme?.accentColor || '#1e40af';
+  const primaryColor = theme?.primaryColor || '#A50034';
+  const accentColor = theme?.accentColor || '#6b6b6b';
   const fontFamily = theme?.fontFamily || '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
   const customStyles = theme?.customStyles || '';
 
@@ -299,7 +310,8 @@ function generateHtmlDocument(bodyContent: string, theme?: HtmlTheme): string {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Document</title>
+  <title>${meta?.title ? escapeHtml(meta.title) : 'Document'}</title>
+  ${meta?.author ? `<meta name="author" content="${escapeHtml(meta.author)}">` : ''}
   <style>
     /* Base Styles */
     * {
@@ -316,7 +328,7 @@ function generateHtmlDocument(bodyContent: string, theme?: HtmlTheme): string {
       max-width: 900px;
       margin: 0 auto;
       padding: 40px 20px;
-      background-color: #fff;
+      background-color: #FFFFFF;
     }
 
     /* Header with Company Logo */
@@ -338,6 +350,22 @@ function generateHtmlDocument(bodyContent: string, theme?: HtmlTheme): string {
       font-size: 24px;
       font-weight: bold;
       color: ${primaryColor};
+    }
+
+    .document-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.5em;
+      margin-bottom: 2em;
+      padding: 1em;
+      background-color: #f9fafb;
+      border-left: 3px solid ${primaryColor};
+      font-size: 0.9em;
+      color: #6b6b6b;
+    }
+
+    .document-meta .meta-item strong {
+      color: #6b6b6b;
     }
 
     /* Headings with Auto-numbering */
@@ -379,7 +407,7 @@ function generateHtmlDocument(bodyContent: string, theme?: HtmlTheme): string {
       font-size: 1.25em;
       margin-top: 1.2em;
       margin-bottom: 0.3em;
-      color: #374151;
+      color: #6b6b6b;
     }
 
     h3::before {
@@ -391,7 +419,7 @@ function generateHtmlDocument(bodyContent: string, theme?: HtmlTheme): string {
       font-size: 1.1em;
       margin-top: 1em;
       margin-bottom: 0.3em;
-      color: #4b5563;
+      color: #6b6b6b;
     }
 
     h4::before {
@@ -491,7 +519,7 @@ function generateHtmlDocument(bodyContent: string, theme?: HtmlTheme): string {
     figure.doc-image figcaption {
       margin-top: 0.5em;
       font-style: italic;
-      color: #6b7280;
+      color: #6b6b6b;
       font-size: 0.9em;
     }
 
@@ -563,7 +591,15 @@ function generateHtmlDocument(bodyContent: string, theme?: HtmlTheme): string {
     ${companyName ? `<div class="company-name">${escapeHtml(companyName)}</div>` : ''}
   </header>
   ` : ''}
-  
+  ${meta && (meta.author || meta.version || meta.created || meta.modified) ? `
+  <div class="document-meta">
+    ${meta.author ? `<span class="meta-item"><strong>Author:</strong> ${escapeHtml(meta.author)}</span>` : ''}
+    ${meta.version ? `<span class="meta-item"><strong>Version:</strong> ${escapeHtml(meta.version)}</span>` : ''}
+    ${meta.created ? `<span class="meta-item"><strong>Created:</strong> ${escapeHtml(meta.created)}</span>` : ''}
+    ${meta.modified ? `<span class="meta-item"><strong>Modified:</strong> ${escapeHtml(meta.modified)}</span>` : ''}
+  </div>
+  ` : ''}
+
   ${bodyContent}
 </body>
 </html>`;

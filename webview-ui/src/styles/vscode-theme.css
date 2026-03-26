@@ -37,41 +37,47 @@ body {
   font-size: 2em;
   font-weight: bold;
   margin: 0.67em 0;
+  padding-bottom: 0.3em;
+  border-bottom: 2px solid #A50034;
   counter-reset: h2-counter h3-counter;
   counter-increment: h1-counter;
 }
 
 .show-numbering .ProseMirror h1::before {
   content: counter(h1-counter) ". ";
-  color: var(--vscode-descriptionForeground, #888);
-  margin-right: 0.5em;
+  color: #A50034;
+  margin-right: 0.3em;
 }
 
 .show-numbering .ProseMirror h2 {
   font-size: 1.5em;
   font-weight: bold;
   margin: 0.75em 0;
+  padding-left: 0.5em;
+  border-left: 3px solid #A50034;
   counter-reset: h3-counter;
   counter-increment: h2-counter;
 }
 
 .show-numbering .ProseMirror h2::before {
-  content: counter(h1-counter) "." counter(h2-counter) " ";
-  color: var(--vscode-descriptionForeground, #888);
-  margin-right: 0.5em;
+  content: counter(h1-counter) "." counter(h2-counter) ". ";
+  color: var(--vscode-descriptionForeground, #6b6b6b);
+  margin-right: 0.3em;
 }
 
 .show-numbering .ProseMirror h3 {
   font-size: 1.17em;
   font-weight: bold;
   margin: 0.83em 0;
+  padding-left: 0.5em;
+  border-left: 3px solid var(--vscode-descriptionForeground, #6b6b6b);
   counter-increment: h3-counter;
 }
 
 .show-numbering .ProseMirror h3::before {
-  content: counter(h1-counter) "." counter(h2-counter) "." counter(h3-counter) " ";
-  color: var(--vscode-descriptionForeground, #888);
-  margin-right: 0.5em;
+  content: counter(h1-counter) "." counter(h2-counter) "." counter(h3-counter) ". ";
+  color: var(--vscode-descriptionForeground, #6b6b6b);
+  margin-right: 0.3em;
 }
 
 /* Headings without numbering */
@@ -79,18 +85,24 @@ body {
   font-size: 2em;
   font-weight: bold;
   margin: 0.67em 0;
+  padding-bottom: 0.3em;
+  border-bottom: 2px solid #A50034;
 }
 
 .hide-numbering .ProseMirror h2 {
   font-size: 1.5em;
   font-weight: bold;
   margin: 0.75em 0;
+  padding-left: 0.5em;
+  border-left: 3px solid #A50034;
 }
 
 .hide-numbering .ProseMirror h3 {
   font-size: 1.17em;
   font-weight: bold;
   margin: 0.83em 0;
+  padding-left: 0.5em;
+  border-left: 3px solid var(--vscode-descriptionForeground, #6b6b6b);
 }
 
 /* Lists */
@@ -232,7 +244,7 @@ body {
 .image-container img[src*=".drawio.svg"],
 .image-container img[src*="/drawio/"] {
   cursor: copy; /* Shows a special cursor to indicate it's editable */
-  border: 2px dashed var(--vscode-input-border, #888);
+  border: 2px dashed var(--vscode-input-border, #6b6b6b);
   padding: 4px;
   background-color: var(--vscode-editor-background);
   transition: border-color 0.2s, box-shadow 0.2s;
@@ -486,37 +498,76 @@ body {
   margin: 0 4px;
 }
 
-/* Table Picker */
-.table-picker {
+/* Insert Menu & Dropdown Panels */
+.insert-menu {
   position: absolute;
   top: 100%;
   left: 0;
   margin-top: 4px;
-  background-color: var(--vscode-dropdown-background);
-  border: 1px solid var(--vscode-dropdown-border);
-  border-radius: 4px;
-  padding: 8px;
+  background-color: var(--vscode-menu-background, #252526);
+  border: 1px solid var(--vscode-menu-border, #454545);
+  border-radius: 6px;
+  padding: 4px;
   z-index: 100;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-  min-width: 150px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+  min-width: 180px;
 }
 
-.table-picker-option {
-  display: block;
+.insert-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   width: 100%;
-  padding: 6px 12px;
-  margin: 2px 0;
-  background-color: var(--vscode-button-secondaryBackground);
-  color: var(--vscode-button-secondaryForeground);
+  padding: 7px 12px;
+  background: transparent;
+  color: var(--vscode-menu-foreground, #ccc);
   border: none;
-  border-radius: 3px;
+  border-radius: 4px;
   cursor: pointer;
   text-align: left;
   font-size: 13px;
+  font-family: var(--vscode-font-family);
+  position: relative;
+  transition: background-color 0.1s;
 }
 
-.table-picker-option:hover {
-  background-color: var(--vscode-button-secondaryHoverBackground);
+.insert-menu-item:hover {
+  background-color: var(--vscode-menu-selectionBackground, rgba(255,255,255,0.08));
+  color: var(--vscode-menu-selectionForeground, #fff);
+}
+
+.insert-menu-item.has-sub {
+  cursor: default;
+}
+
+.insert-menu-arrow {
+  margin-left: auto;
+  opacity: 0.5;
+}
+
+.insert-submenu {
+  position: absolute;
+  left: 100%;
+  top: -4px;
+  margin-left: 4px;
+  background-color: var(--vscode-menu-background, #252526);
+  border: 1px solid var(--vscode-menu-border, #454545);
+  border-radius: 6px;
+  padding: 4px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+  min-width: 140px;
+  z-index: 101;
+}
+
+.insert-size-input {
+  width: 44px;
+  padding: 2px 4px;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border);
+  border-radius: 3px;
+  font-size: 12px;
+  font-family: var(--vscode-font-family);
 }
 
 /* Bubble Menu */
@@ -722,7 +773,7 @@ body {
 /* Link styles */
 .ProseMirror a,
 .ProseMirror .editor-link {
-  color: var(--vscode-textLink-foreground, #3794ff);
+  color: #A50034;
   text-decoration: underline;
   cursor: pointer;
   transition: color 0.2s;
@@ -730,6 +781,258 @@ body {
 
 .ProseMirror a:hover,
 .ProseMirror .editor-link:hover {
-  color: var(--vscode-textLink-activeForeground, #4daaff);
+  color: #A50034;
   text-decoration: underline;
+}
+
+/* Document Header (Metadata Bar) */
+.document-header {
+  border-bottom: 1px solid var(--vscode-panel-border);
+  padding: 12px 16px 10px;
+  background-color: var(--vscode-editor-background);
+}
+
+.document-header-title {
+  font-size: 1.1em;
+  font-weight: 600;
+  color: var(--vscode-foreground);
+  margin-bottom: 6px;
+}
+
+.document-header-title-text {
+  cursor: pointer;
+  padding: 1px 4px;
+  border-radius: 3px;
+  transition: background-color 0.15s;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+}
+
+.document-header-title-text:hover {
+  background-color: var(--vscode-list-hoverBackground);
+}
+
+.document-header-title-text.placeholder {
+  font-style: italic;
+  opacity: 0.6;
+}
+
+.document-header-title-input {
+  background-color: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-focusBorder);
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-size: 1em;
+  font-weight: 600;
+  font-family: var(--vscode-font-family);
+  outline: none;
+  width: 100%;
+}
+
+.document-header-meta {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.document-header-field {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.document-header-value {
+  color: var(--vscode-descriptionForeground);
+}
+
+.document-header-value.editable {
+  cursor: pointer;
+  padding: 1px 4px;
+  border-radius: 3px;
+  transition: background-color 0.15s;
+}
+
+.document-header-value.editable:hover {
+  background-color: var(--vscode-list-hoverBackground);
+}
+
+.document-header-value.placeholder {
+  font-style: italic;
+  opacity: 0.6;
+}
+
+.document-header-input {
+  background-color: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-focusBorder);
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-size: 12px;
+  font-family: var(--vscode-font-family);
+  outline: none;
+  width: 180px;
+}
+
+/* Cross-Reference Popup (@mention) */
+.crossref-popup {
+  position: fixed;
+  z-index: 200;
+  background-color: var(--vscode-menu-background, #252526);
+  border: 1px solid var(--vscode-menu-border, #454545);
+  border-radius: 6px;
+  padding: 4px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  min-width: 240px;
+  max-width: 400px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.crossref-category {
+  padding: 6px 10px 3px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--vscode-descriptionForeground, #6b6b6b);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.crossref-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--vscode-menu-foreground, #ccc);
+  transition: background-color 0.1s;
+}
+
+.crossref-item:hover,
+.crossref-item.focused {
+  background-color: var(--vscode-menu-selectionBackground, rgba(255,255,255,0.08));
+  color: var(--vscode-menu-selectionForeground, #fff);
+}
+
+.crossref-icon {
+  flex-shrink: 0;
+  width: 18px;
+  text-align: center;
+  font-size: 14px;
+}
+
+.crossref-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Internal reference link styling (href starts with #) */
+.ProseMirror a[href^="#"] {
+  color: #A50034;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.ProseMirror a[href^="#"]:hover {
+  text-decoration: underline;
+}
+
+/* Cross Reference Dialog */
+.crossref-dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 300;
+  background-color: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 15vh;
+}
+
+.crossref-dialog {
+  background-color: var(--vscode-menu-background, #252526);
+  border: 1px solid var(--vscode-menu-border, #454545);
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  width: 420px;
+  max-height: 400px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.crossref-dialog-header {
+  padding: 12px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--vscode-foreground, #ccc);
+  border-bottom: 1px solid var(--vscode-menu-border, #454545);
+}
+
+.crossref-dialog-search {
+  margin: 8px 12px;
+  padding: 6px 10px;
+  border: 1px solid var(--vscode-input-border, #3c3c3c);
+  border-radius: 4px;
+  background-color: var(--vscode-input-background, #3c3c3c);
+  color: var(--vscode-input-foreground, #ccc);
+  font-size: 13px;
+  outline: none;
+}
+
+.crossref-dialog-search:focus {
+  border-color: var(--vscode-focusBorder, #007acc);
+}
+
+.crossref-dialog-list {
+  overflow-y: auto;
+  padding: 4px;
+  flex: 1;
+}
+
+.crossref-dialog-empty {
+  padding: 16px;
+  text-align: center;
+  color: var(--vscode-descriptionForeground, #6b6b6b);
+  font-size: 13px;
+}
+
+/* ===== Section Collapse (Folding) ===== */
+.ProseMirror .fold-toggle {
+  display: inline-block;
+  width: 1em;
+  cursor: pointer;
+  user-select: none;
+  color: var(--vscode-descriptionForeground, #6b6b6b);
+  font-size: 0.6em;
+  vertical-align: middle;
+  opacity: 0.3;
+  transition: opacity 0.15s;
+  margin-right: 0.2em;
+}
+
+.ProseMirror h1:hover .fold-toggle,
+.ProseMirror h2:hover .fold-toggle,
+.ProseMirror h3:hover .fold-toggle {
+  opacity: 0.8;
+}
+
+.ProseMirror h1.collapsed .fold-toggle,
+.ProseMirror h2.collapsed .fold-toggle,
+.ProseMirror h3.collapsed .fold-toggle {
+  opacity: 0.8;
+}
+
+.ProseMirror .section-collapsed {
+  display: none;
 }

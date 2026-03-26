@@ -39,6 +39,7 @@ export async function exportToAdoc(context: vscode.ExtensionContext) {
     let parsed = JSON.parse(text);
 
     // Unwrap sdoc envelope if present
+    const meta = (parsed.sdoc && parsed.meta) ? parsed.meta : undefined;
     let json = (parsed.sdoc && parsed.doc) ? parsed.doc : parsed;
 
     // Convert webview URIs back to relative paths for export
@@ -53,7 +54,7 @@ export async function exportToAdoc(context: vscode.ExtensionContext) {
     };
 
     // Convert to AsciiDoc
-    const adocContent = convertJsonToAdoc(json, exportSettings);
+    const adocContent = convertJsonToAdoc(json, exportSettings, meta);
 
     // Generate .adoc file in the same directory
     const adocUri = documentUri.with({

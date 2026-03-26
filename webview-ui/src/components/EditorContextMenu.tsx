@@ -1,11 +1,13 @@
 import React, { useEffect, useRef } from 'react';
-import { Image, Box, Sigma } from 'lucide-react';
+import { Image, Box, Sigma, Unlink } from 'lucide-react';
 
 interface EditorContextMenuProps {
   position: { x: number; y: number };
   onInsertImage: () => void;
   onInsertDrawio: () => void;
   onInsertEquation: () => void;
+  onRemoveLink?: () => void;
+  isLinkActive?: boolean;
   onClose: () => void;
 }
 
@@ -14,6 +16,8 @@ export const EditorContextMenu: React.FC<EditorContextMenuProps> = ({
   onInsertImage,
   onInsertDrawio,
   onInsertEquation,
+  onRemoveLink,
+  isLinkActive,
   onClose,
 }) => {
   const menuRef = useRef<HTMLDivElement>(null);
@@ -81,6 +85,21 @@ export const EditorContextMenu: React.FC<EditorContextMenuProps> = ({
 
   return (
     <div ref={menuRef} style={style}>
+      {isLinkActive && onRemoveLink && (
+        <>
+          <div
+            style={itemStyle}
+            onMouseEnter={e => (e.currentTarget.style.background = 'var(--vscode-menu-selectionBackground, #094771)')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+            onMouseDown={e => e.preventDefault()}
+            onClick={() => handleItem(onRemoveLink)}
+          >
+            <Unlink size={14} />
+            <span>Remove Link</span>
+          </div>
+          <div style={{ height: '1px', background: 'var(--vscode-menu-separatorBackground, #454545)', margin: '4px 0' }} />
+        </>
+      )}
       <div
         style={itemStyle}
         onMouseEnter={e => (e.currentTarget.style.background = 'var(--vscode-menu-selectionBackground, #094771)')}

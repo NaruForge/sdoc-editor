@@ -27,6 +27,7 @@
       "properties": {
         "title": { "type": "string", "description": "Document title." },
         "author": { "type": "string", "description": "Author name or identifier." },
+        "version": { "type": "string", "description": "Document version string (e.g. '1.0', '2.3')." },
         "created": { "type": "string", "format": "date-time", "description": "ISO 8601 creation timestamp." },
         "modified": { "type": "string", "format": "date-time", "description": "ISO 8601 last-modified timestamp." }
       },
@@ -77,7 +78,8 @@
           "type": "object",
           "required": ["level"],
           "properties": {
-            "level": { "type": "integer", "minimum": 1, "maximum": 6 }
+            "level": { "type": "integer", "minimum": 1, "maximum": 6 },
+            "id": { "type": ["string", "null"], "description": "Anchor id for cross-references." }
           },
           "additionalProperties": false
         },
@@ -179,7 +181,8 @@
           "properties": {
             "caption": { "type": ["string", "null"], "description": "Table caption text." },
             "align": { "type": "string", "enum": ["left", "center", "right"], "default": "left" },
-            "width": { "type": "string", "description": "CSS width value (e.g., '100%', '50%', 'auto').", "default": "100%" }
+            "width": { "type": "string", "description": "CSS width value (e.g., '100%', '50%', 'auto').", "default": "100%" },
+            "id": { "type": ["string", "null"], "description": "Anchor id for cross-references." }
           },
           "additionalProperties": false
         },
@@ -265,7 +268,8 @@
             "alt": { "type": ["string", "null"], "description": "Alternative text for accessibility." },
             "title": { "type": ["string", "null"], "description": "Image title (tooltip)." },
             "caption": { "type": ["string", "null"], "description": "Image caption text." },
-            "align": { "type": "string", "enum": ["left", "center", "right"], "default": "center" }
+            "align": { "type": "string", "enum": ["left", "center", "right"], "default": "center" },
+            "id": { "type": ["string", "null"], "description": "Anchor id for cross-references." }
           },
           "additionalProperties": false
         }

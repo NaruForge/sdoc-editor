@@ -1,5 +1,9 @@
 # Structured Doc Editor — Copilot Instructions
 
+## Communication
+
+- **All conversations with the user MUST be in Korean (한글).**
+
 ## Project Overview
 
 This is a VS Code custom editor extension for `.sdoc` (Structured Document) files.
@@ -18,6 +22,7 @@ Every `.sdoc` file MUST follow this envelope:
   "meta": {
     "title": "...",
     "author": "...",
+    "version": "1.0",
     "created": "ISO 8601",
     "modified": "ISO 8601"
   },
@@ -29,7 +34,7 @@ Every `.sdoc` file MUST follow this envelope:
 ```
 
 - `sdoc` — **Required**. Schema version string.
-- `meta` — **Required**. Must include `title`, `author`, `created`, `modified`.
+- `meta` — **Required**. Must include `title`, `author`, `version`, `created`, `modified`.
 - `doc` — **Required**. The Tiptap document tree.
 - The authoritative schema is defined in `sdoc.schema.json` at the project root.
 
@@ -87,7 +92,9 @@ Supported node types (see `sdoc.schema.json` for full definition):
 
 ### Webview Side (`webview-ui/`)
 
-- The webview receives and sends **only the `doc` tree** — it never sees the envelope or metadata.
+- The webview receives the `doc` tree for editing and `meta` object for display.
+- `DocumentHeader` component displays metadata (title, author, dates) above the editor.
+- Author and version are editable inline in DocumentHeader; title is auto-synced from H1; dates are auto-managed.
 - `EditorContext` holds the document state and user settings.
 - Global `window.__editorSettings` exposes settings for non-React NodeViews.
 - `window.__editorFlushUpdate()` forces immediate save (bypass debounce).
@@ -110,7 +117,7 @@ Supported node types (see `sdoc.schema.json` for full definition):
 
 1. Define the Tiptap extension in `webview-ui/src/extensions/`.
 2. Register it in `tiptapExtensions.ts`.
-3. Add conversion logic in all 3 converters (HTML, AsciiDoc, Markdown).
+3. Add conversion logic in all converters (HTML, AsciiDoc, Markdown export + Markdown import).
 4. Update `sdoc.schema.json` with the new node definition.
 5. Use clean attribute names (no `data-*` prefix in JSON).
 6. Add migration logic in `SdocEditorProvider.migrateAttributes()` if renaming.
@@ -119,13 +126,38 @@ Supported node types (see `sdoc.schema.json` for full definition):
 
 All settings live under `structuredDocEditor.*`:
 
-- `document.defaultAuthor` — default author name for new documents
 - `caption.imagePrefix` / `caption.tablePrefix` — caption label text
 - `caption.numbering` — `simple` or `hierarchical`
 - `heading.numbering` — boolean
 - `image.defaultAlignment` — `left`, `center`, `right`
 - `export.imagePath` — `relative`, `absolute`
 - `theme.*` — HTML export theming
+
+### Metadata Management
+
+- Author is managed **in-editor** via `DocumentHeader`, NOT in VS Code settings.
+- Version is managed **in-editor** via `DocumentHeader` (defaults to `0.1` for new documents).
+- `updateMeta` message from webview updates the envelope's `meta` in the `.sdoc` file.
+- `metaUpdate` message from provider sends current metadata to webview on init.
+- Title is auto-extracted from the first H1 heading on every save.
+- Dates (`created`, `modified`) are managed automatically by `SdocEditorProvider`.
+
+### Import / Export
+
+- **Export**: HTML, AsciiDoc, Markdown via `src/converter/jsonTo*.ts`.
+- **Import**: Markdown (`src/converter/markdownToJson.ts`), HTML (via Tiptap's built-in `setContent(htmlString)`).
+- Import replaces the current editor content. The user triggers it from the toolbar Import button.
+- Converters operate on the `doc` tree only — never the envelope.
+
+### Cross-References
+
+- Headings, images, and tables auto-receive an `id` attribute on save (`assignAutoIds()`).
+- Heading ids are slugified from text; images get `figure-N`; tables get `table-N`.
+- Users type `@` in the editor to trigger a suggestion popup listing all referenceable targets.
+- Selecting a target inserts a `link` mark with `href="#target-id"` and the target's label as text.
+- On save, `syncCrossReferences()` updates all internal link texts to match current numbering.
+- Internal links (`href` starting with `#`) render as styled chips in the editor via CSS.
+- Converters output: HTML `id` attrs + `<a href="#...">`, Markdown `<a id="...">` + `[text](#id)`, AsciiDoc `[[id]]` + `<<id,text>>`.
 
 ### Context Menus
 

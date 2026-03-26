@@ -19,6 +19,7 @@
     "@tiptap/pm": "^2.1.13",
     "@tiptap/react": "^2.1.13",
     "@tiptap/starter-kit": "^2.1.13",
+    "@tiptap/suggestion": "^3.20.5",
     "katex": "^0.16.42",
     "lucide-react": "^0.321.0",
     "react": "^18.2.0",

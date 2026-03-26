@@ -17,6 +17,14 @@ interface ExportSettings {
   captionNumbering?: 'simple' | 'hierarchical';
 }
 
+export interface SdocMeta {
+  title?: string;
+  author?: string;
+  version?: string;
+  created?: string;
+  modified?: string;
+}
+
 let currentSettings: ExportSettings = {};
 let imageCounter = 0;
 let tableCounter = 0;
@@ -25,12 +33,22 @@ let h1Counter = 0;
 /**
  * Converts Tiptap JSON to Markdown format
  */
-export function convertJsonToMarkdown(json: TiptapNode, settings?: ExportSettings): string {
+export function convertJsonToMarkdown(json: TiptapNode, settings?: ExportSettings, meta?: SdocMeta): string {
   currentSettings = settings || {};
   imageCounter = 0;
   tableCounter = 0;
   h1Counter = 0;
-  return convertNode(json).trim() + '\n';
+  let frontMatter = '';
+  if (meta && (meta.title || meta.author || meta.version || meta.created || meta.modified)) {
+    frontMatter = '---\n';
+    if (meta.title) { frontMatter += `title: "${meta.title}"\n`; }
+    if (meta.author) { frontMatter += `author: "${meta.author}"\n`; }
+    if (meta.version) { frontMatter += `version: "${meta.version}"\n`; }
+    if (meta.created) { frontMatter += `created: "${meta.created}"\n`; }
+    if (meta.modified) { frontMatter += `modified: "${meta.modified}"\n`; }
+    frontMatter += '---\n\n';
+  }
+  return frontMatter + convertNode(json).trim() + '\n';
 }
 
 function convertNode(node: TiptapNode): string {
@@ -43,7 +61,8 @@ function convertNode(node: TiptapNode): string {
       const headingPrefix = '#'.repeat(level);
       const headingText = node.content ? convertInlineContent(node.content) : '';
       if (level === 1) { h1Counter++; imageCounter = 0; tableCounter = 0; }
-      return `${headingPrefix} ${headingText}\n`;
+      const anchor = node.attrs?.id ? `<a id="${node.attrs.id}"></a>` : '';
+      return `${headingPrefix} ${anchor}${headingText}\n`;
 
     case 'paragraph':
       const paragraphText = node.content ? convertInlineContent(node.content) : '';

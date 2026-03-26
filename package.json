@@ -44,11 +44,6 @@
     "configuration": {
       "title": "Structured Doc Editor",
       "properties": {
-        "structuredDocEditor.document.defaultAuthor": {
-          "type": "string",
-          "default": "",
-          "description": "Default author name for new .sdoc documents (used in metadata)"
-        },
         "structuredDocEditor.caption.imagePrefix": {
           "type": "string",
           "default": "Image",
@@ -92,22 +87,22 @@
         },
         "structuredDocEditor.theme.companyLogo": {
           "type": "string",
-          "default": "",
-          "description": "Company logo URL or base64 encoded image for HTML export header"
+          "default": "legacy-brand-logo.png",
+          "description": "Company logo filename in extension media/ folder, URL, or base64 data URI for HTML export header"
         },
         "structuredDocEditor.theme.companyName": {
           "type": "string",
-          "default": "",
+          "default": "LG Magna e-Powertrain",
           "description": "Company name to display in HTML export header"
         },
         "structuredDocEditor.theme.primaryColor": {
           "type": "string",
-          "default": "#2563eb",
+          "default": "#A50034",
           "description": "Primary color for headings and table headers in HTML export"
         },
         "structuredDocEditor.theme.accentColor": {
           "type": "string",
-          "default": "#1e40af",
+          "default": "#6b6b6b",
           "description": "Accent color for secondary headings in HTML export"
         },
         "structuredDocEditor.theme.fontFamily": {
@@ -119,6 +114,11 @@
           "type": "string",
           "default": "",
           "description": "Custom CSS styles for HTML export (advanced users)"
+        },
+        "structuredDocEditor.update.sharedFolder": {
+          "type": "string",
+          "default": "\\\\ctrl-ws-a\\CONTROL_NAS\\VsCode-Extension\\sdoc-editor",
+          "description": "Shared folder path for auto-update (e.g. \\\\server\\share\\sdoc-editor)"
         }
       }
     }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Editor as TiptapEditor } from '@tiptap/react';
 import {
   Bold,
@@ -19,6 +19,10 @@ import {
   Link as LinkIcon,
   Sigma,
   Download,
+  Upload,
+  Plus,
+  ChevronRight,
+  Hash,
 } from 'lucide-react';
 
 interface ToolbarProps {
@@ -30,16 +34,42 @@ interface ToolbarProps {
   onInsertImage?: () => void;
   onInsertLink?: () => void;
   onInsertMath?: () => void;
+  onInsertCrossRef?: () => void;
   onExport?: (format: 'html' | 'adoc' | 'markdown') => void;
+  onImport?: (format: 'markdown' | 'html') => void;
 }
 
-export const Toolbar: React.FC<ToolbarProps> = ({ editor, onViewJson, showNumbering, onToggleNumbering, onInsertDrawio, onInsertImage, onInsertLink, onInsertMath, onExport }) => {
-  const [showTablePicker, setShowTablePicker] = useState(false);
+export const Toolbar: React.FC<ToolbarProps> = ({ editor, onViewJson, showNumbering, onToggleNumbering, onInsertDrawio, onInsertImage, onInsertLink, onInsertMath, onInsertCrossRef, onExport, onImport }) => {
+  const [showInsertMenu, setShowInsertMenu] = useState(false);
+  const [showTableSub, setShowTableSub] = useState(false);
   const [showCustomSize, setShowCustomSize] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [showImportMenu, setShowImportMenu] = useState(false);
   const [customRows, setCustomRows] = useState('3');
   const [customCols, setCustomCols] = useState('3');
-  const exportMenuRef = React.useRef<HTMLDivElement>(null);
+  const insertMenuRef = useRef<HTMLDivElement>(null);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
+  const importMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close insert menu when clicking outside
+  useEffect(() => {
+    if (!showInsertMenu) return;
+    const handleClick = (e: MouseEvent) => {
+      if (insertMenuRef.current && !insertMenuRef.current.contains(e.target as Node)) {
+        setShowInsertMenu(false);
+        setShowTableSub(false);
+        setShowCustomSize(false);
+      }
+    };
+    // Defer listener to next tick so the opening mousedown doesn't immediately close it
+    const id = requestAnimationFrame(() => {
+      document.addEventListener('mousedown', handleClick);
+    });
+    return () => {
+      cancelAnimationFrame(id);
+      document.removeEventListener('mousedown', handleClick);
+    };
+  }, [showInsertMenu]);
 
   if (!editor) {
     return null;
@@ -67,7 +97,15 @@ export const Toolbar: React.FC<ToolbarProps> = ({ editor, onViewJson, showNumber
 
   const insertTable = (rows: number, cols: number) => {
     editor.chain().focus().insertTable({ rows, cols, withHeaderRow: true }).run();
-    setShowTablePicker(false);
+    setShowInsertMenu(false);
+    setShowTableSub(false);
+    setShowCustomSize(false);
+  };
+
+  const closeInsertMenu = () => {
+    setShowInsertMenu(false);
+    setShowTableSub(false);
+    setShowCustomSize(false);
   };
 
   return (
@@ -149,222 +187,201 @@ export const Toolbar: React.FC<ToolbarProps> = ({ editor, onViewJson, showNumber
 
       <div className="toolbar-separator" />
 
-      {/* Code block */}
-      <Button
-        onClick={() => editor.chain().focus().toggleCodeBlock().run()}
-        isActive={editor.isActive('codeBlock')}
-        title="Code Block"
-      >
-        <Code size={16} />
-      </Button>
-
-      <div className="toolbar-separator" />
-
-      {/* Table with picker */}
-      <div style={{ position: 'relative', display: 'inline-block' }}>
+      {/* Unified Insert Menu */}
+      <div ref={insertMenuRef} style={{ position: 'relative', display: 'inline-block' }}>
         <Button
-          onClick={() => setShowTablePicker(!showTablePicker)}
-          title="Insert Table"
+          onClick={() => setShowInsertMenu(!showInsertMenu)}
+          title="Insert..."
         >
-          <Table2 size={16} />
+          <Plus size={16} />
+          <span style={{ marginLeft: '4px' }}>Insert</span>
         </Button>
-        {showTablePicker && (
-          <div className="table-picker">
-            <div style={{ marginBottom: '8px', fontSize: '12px', color: 'var(--vscode-descriptionForeground)' }}>
-              Select table size:
-            </div>
-            {[3, 5, 7, 10].map(size => (
-              <button
-                key={size}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  insertTable(size, size);
-                }}
-                className="table-picker-option"
-              >
-                {size} × {size}
-              </button>
-            ))}
-            <button
-              onMouseDown={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setShowCustomSize(true);
-              }}
-              className="table-picker-option"
+        {showInsertMenu && (
+          <div className="insert-menu">
+            {/* Table — with sub-menu */}
+            <div
+              className="insert-menu-item has-sub"
+              onMouseEnter={() => setShowTableSub(true)}
+              onMouseLeave={() => { setShowTableSub(false); setShowCustomSize(false); }}
             >
-              Custom...
-            </button>
-            {showCustomSize && (
-              <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                  <input
-                    type="number"
-                    min="1"
-                    max="50"
-                    value={customRows}
-                    onChange={(e) => setCustomRows(e.target.value)}
-                    style={{
-                      width: '50px',
-                      padding: '2px 4px',
-                      background: 'var(--vscode-input-background)',
-                      color: 'var(--vscode-input-foreground)',
-                      border: '1px solid var(--vscode-input-border)',
-                      borderRadius: '3px',
-                      fontSize: '12px',
-                    }}
-                    placeholder="Rows"
-                  />
-                  <span style={{ fontSize: '12px' }}>×</span>
-                  <input
-                    type="number"
-                    min="1"
-                    max="50"
-                    value={customCols}
-                    onChange={(e) => setCustomCols(e.target.value)}
-                    style={{
-                      width: '50px',
-                      padding: '2px 4px',
-                      background: 'var(--vscode-input-background)',
-                      color: 'var(--vscode-input-foreground)',
-                      border: '1px solid var(--vscode-input-border)',
-                      borderRadius: '3px',
-                      fontSize: '12px',
-                    }}
-                    placeholder="Cols"
-                  />
+              <Table2 size={15} />
+              <span>Table</span>
+              <ChevronRight size={14} className="insert-menu-arrow" />
+              {showTableSub && (
+                <div className="insert-submenu">
+                  <div style={{ padding: '4px 10px', fontSize: '11px', color: 'var(--vscode-descriptionForeground)' }}>
+                    Select size
+                  </div>
+                  {[3, 5, 7, 10].map(size => (
+                    <button
+                      key={size}
+                      className="insert-menu-item"
+                      onMouseDown={(e) => { e.preventDefault(); insertTable(size, size); }}
+                    >
+                      {size} × {size}
+                    </button>
+                  ))}
+                  <button
+                    className="insert-menu-item"
+                    onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); setShowCustomSize(true); }}
+                  >
+                    Custom...
+                  </button>
+                  {showCustomSize && (
+                    <div style={{ padding: '6px 10px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                        <input type="number" min="1" max="50" value={customRows}
+                          onChange={(e) => setCustomRows(e.target.value)}
+                          className="insert-size-input" placeholder="R" />
+                        <span style={{ fontSize: '12px' }}>×</span>
+                        <input type="number" min="1" max="50" value={customCols}
+                          onChange={(e) => setCustomCols(e.target.value)}
+                          className="insert-size-input" placeholder="C" />
+                      </div>
+                      <button
+                        className="insert-menu-item"
+                        style={{ textAlign: 'center', fontWeight: 'bold' }}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          const r = parseInt(customRows);
+                          const c = parseInt(customCols);
+                          if (!isNaN(r) && !isNaN(c) && r > 0 && c > 0 && r <= 50 && c <= 50) {
+                            insertTable(r, c);
+                          }
+                        }}
+                      >
+                        Insert
+                      </button>
+                    </div>
+                  )}
                 </div>
-                <button
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    const r = parseInt(customRows);
-                    const c = parseInt(customCols);
-                    if (!isNaN(r) && !isNaN(c) && r > 0 && c > 0 && r <= 50 && c <= 50) {
-                      insertTable(r, c);
-                      setShowCustomSize(false);
-                    }
-                  }}
-                  className="table-picker-option"
-                  style={{ textAlign: 'center', fontWeight: 'bold' }}
-                >
-                  Insert
-                </button>
-              </div>
+              )}
+            </div>
+
+            {/* Image */}
+            {onInsertImage && (
+              <button className="insert-menu-item" onMouseDown={(e) => { e.preventDefault(); closeInsertMenu(); onInsertImage(); }}>
+                <ImageIcon size={15} />
+                <span>Image</span>
+              </button>
+            )}
+
+            {/* Draw.io */}
+            {onInsertDrawio && (
+              <button className="insert-menu-item" onMouseDown={(e) => { e.preventDefault(); closeInsertMenu(); onInsertDrawio(); }}>
+                <PenTool size={15} />
+                <span>Draw.io Diagram</span>
+              </button>
+            )}
+
+            {/* Math */}
+            {onInsertMath && (
+              <button className="insert-menu-item" onMouseDown={(e) => { e.preventDefault(); closeInsertMenu(); onInsertMath(); }}>
+                <Sigma size={15} />
+                <span>Math Formula</span>
+              </button>
+            )}
+
+            {/* Code Block */}
+            <button className="insert-menu-item" onMouseDown={(e) => {
+              e.preventDefault();
+              closeInsertMenu();
+              editor.chain().focus().toggleCodeBlock().run();
+            }}>
+              <Code size={15} />
+              <span>Code Block</span>
+            </button>
+
+            {/* Horizontal Rule */}
+            <button className="insert-menu-item" onMouseDown={(e) => {
+              e.preventDefault();
+              closeInsertMenu();
+              editor.chain().focus().setHorizontalRule().run();
+            }}>
+              <span style={{ fontSize: '15px', lineHeight: '15px', width: '15px', textAlign: 'center' }}>—</span>
+              <span>Horizontal Rule</span>
+            </button>
+
+            {/* Cross Reference */}
+            {onInsertCrossRef && (
+              <button className="insert-menu-item" onMouseDown={(e) => { e.preventDefault(); closeInsertMenu(); onInsertCrossRef(); }}>
+                <Hash size={15} />
+                <span>Cross Reference</span>
+              </button>
             )}
           </div>
         )}
       </div>
-      <Button
-        onClick={() => editor.chain().focus().deleteTable().run()}
-        disabled={!editor.isActive('table')}
-        title="Delete Table"
-      >
-        <Trash2 size={16} />
-      </Button>
 
-      {/* Math formula */}
-      {onInsertMath && (
-        <>
-          <div className="toolbar-separator" />
-          <Button
-            onClick={onInsertMath}
-            title="Insert Math Formula (LaTeX)"
-          >
-            <Sigma size={16} />
-          </Button>
-        </>
+      {/* Delete Table (contextual — only shown when inside a table) */}
+      {editor.isActive('table') && (
+        <Button
+          onClick={() => editor.chain().focus().deleteTable().run()}
+          title="Delete Table"
+        >
+          <Trash2 size={16} />
+        </Button>
       )}
 
-      {/* Insert Image */}
-      {onInsertImage && (
-        <>
-          <div className="toolbar-separator" />
-          <Button
-            onClick={onInsertImage}
-            title="Insert Image from File"
-          >
-            <ImageIcon size={16} />
-            <span style={{ marginLeft: '4px' }}>Image</span>
-          </Button>
-        </>
-      )}
-
-      {/* Draw.io */}
-      {onInsertDrawio && (
-        <>
-          <div className="toolbar-separator" />
-          <Button
-            onClick={onInsertDrawio}
-            title="Insert Draw.io Diagram"
-          >
-            <PenTool size={16} />
-            <span style={{ marginLeft: '4px' }}>Draw.io</span>
-          </Button>
-        </>
-      )}
+      <div className="toolbar-separator" />
 
       {/* View JSON */}
       {onViewJson && (
-        <>
-          <div className="toolbar-separator" />
-          <Button
-            onClick={onViewJson}
-            title="View JSON Source"
-          >
-            <FileJson size={16} />
-            <span style={{ marginLeft: '4px' }}>JSON</span>
-          </Button>
-        </>
+        <Button
+          onClick={onViewJson}
+          title="View JSON Source"
+        >
+          <FileJson size={16} />
+        </Button>
       )}
 
       {/* Export */}
       {onExport && (
-        <>
-          <div className="toolbar-separator" />
-          <div ref={exportMenuRef} style={{ position: 'relative', display: 'inline-block' }}>
-            <Button
-              onClick={() => setShowExportMenu(!showExportMenu)}
-              title="Export Document"
-            >
-              <Download size={16} />
-              <span style={{ marginLeft: '4px' }}>Export</span>
-            </Button>
-            {showExportMenu && (
-              <div className="table-picker" style={{ minWidth: '140px' }}>
-                <button
-                  className="table-picker-option"
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    setShowExportMenu(false);
-                    onExport('html');
-                  }}
-                >
-                  HTML
-                </button>
-                <button
-                  className="table-picker-option"
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    setShowExportMenu(false);
-                    onExport('markdown');
-                  }}
-                >
-                  Markdown
-                </button>
-                <button
-                  className="table-picker-option"
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    setShowExportMenu(false);
-                    onExport('adoc');
-                  }}
-                >
-                  AsciiDoc
-                </button>
-              </div>
-            )}
-          </div>
-        </>
+        <div ref={exportMenuRef} style={{ position: 'relative', display: 'inline-block' }}>
+          <Button
+            onClick={() => setShowExportMenu(!showExportMenu)}
+            title="Export Document"
+          >
+            <Download size={16} />
+            <span style={{ marginLeft: '4px' }}>Export</span>
+          </Button>
+          {showExportMenu && (
+            <div className="insert-menu" style={{ minWidth: '140px' }}>
+              <button className="insert-menu-item" onMouseDown={(e) => { e.preventDefault(); setShowExportMenu(false); onExport('html'); }}>
+                HTML
+              </button>
+              <button className="insert-menu-item" onMouseDown={(e) => { e.preventDefault(); setShowExportMenu(false); onExport('markdown'); }}>
+                Markdown
+              </button>
+              <button className="insert-menu-item" onMouseDown={(e) => { e.preventDefault(); setShowExportMenu(false); onExport('adoc'); }}>
+                AsciiDoc
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Import */}
+      {onImport && (
+        <div ref={importMenuRef} style={{ position: 'relative', display: 'inline-block' }}>
+          <Button
+            onClick={() => setShowImportMenu(!showImportMenu)}
+            title="Import Document"
+          >
+            <Upload size={16} />
+            <span style={{ marginLeft: '4px' }}>Import</span>
+          </Button>
+          {showImportMenu && (
+            <div className="insert-menu" style={{ minWidth: '140px' }}>
+              <button className="insert-menu-item" onMouseDown={(e) => { e.preventDefault(); setShowImportMenu(false); onImport('markdown'); }}>
+                Markdown
+              </button>
+              <button className="insert-menu-item" onMouseDown={(e) => { e.preventDefault(); setShowImportMenu(false); onImport('html'); }}>
+                HTML
+              </button>
+            </div>
+          )}
+        </div>
       )}
 
       {/* Toggle Numbering */}
@@ -377,6 +394,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({ editor, onViewJson, showNumber
         <NumberIcon size={16} />
         <span style={{ marginLeft: '4px' }}>1.2.3</span>
       </Button>
+
+
     </div>
   );
 };
