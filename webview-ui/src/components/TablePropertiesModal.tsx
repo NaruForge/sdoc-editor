@@ -20,18 +20,18 @@ export const TablePropertiesModal: React.FC<TablePropertiesModalProps> = ({
     const attrs = editor.getAttributes('table');
     console.log('Current table attributes:', attrs);
     
-    setCaption(attrs['data-caption'] || '');
-    setAlign(attrs['data-align'] || 'left');
-    setWidth(attrs['data-width'] || '100%');
+    setCaption(attrs.caption || '');
+    setAlign(attrs.align || 'left');
+    setWidth(attrs.width || '100%');
   }, [editor]);
 
   const handleSave = () => {
     console.log('Saving table properties:', { caption, align, width });
     
     editor.chain().focus().updateAttributes('table', {
-      'data-caption': caption || null,
-      'data-align': align,
-      'data-width': width,
+      caption: caption || null,
+      align: align,
+      width: width,
     }).run();
     
     // Verify the update

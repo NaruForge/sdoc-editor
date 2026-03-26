@@ -1,0 +1,356 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sdoc.dev/schema/v1.0.json",
+  "title": "Structured Document (.sdoc)",
+  "description": "Schema for .sdoc files — a structured document format based on a tree of typed nodes with optional marks and attributes.",
+  "type": "object",
+  "required": ["sdoc", "doc"],
+  "properties": {
+    "sdoc": {
+      "type": "string",
+      "description": "Schema version of this .sdoc file.",
+      "enum": ["1.0"]
+    },
+    "meta": {
+      "$ref": "#/definitions/metadata"
+    },
+    "doc": {
+      "$ref": "#/definitions/docNode"
+    }
+  },
+  "additionalProperties": false,
+
+  "definitions": {
+    "metadata": {
+      "type": "object",
+      "description": "Document metadata for management and traceability.",
+      "properties": {
+        "title": { "type": "string", "description": "Document title." },
+        "author": { "type": "string", "description": "Author name or identifier." },
+        "created": { "type": "string", "format": "date-time", "description": "ISO 8601 creation timestamp." },
+        "modified": { "type": "string", "format": "date-time", "description": "ISO 8601 last-modified timestamp." }
+      },
+      "additionalProperties": true
+    },
+
+    "docNode": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "const": "doc" },
+        "content": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/blockNode" }
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "blockNode": {
+      "oneOf": [
+        { "$ref": "#/definitions/headingNode" },
+        { "$ref": "#/definitions/paragraphNode" },
+        { "$ref": "#/definitions/bulletListNode" },
+        { "$ref": "#/definitions/orderedListNode" },
+        { "$ref": "#/definitions/codeBlockNode" },
+        { "$ref": "#/definitions/tableNode" },
+        { "$ref": "#/definitions/imageNode" },
+        { "$ref": "#/definitions/mathBlockNode" },
+        { "$ref": "#/definitions/hardBreakNode" }
+      ]
+    },
+
+    "inlineNode": {
+      "oneOf": [
+        { "$ref": "#/definitions/textNode" },
+        { "$ref": "#/definitions/mathInlineNode" },
+        { "$ref": "#/definitions/hardBreakNode" }
+      ]
+    },
+
+    "headingNode": {
+      "type": "object",
+      "required": ["type", "attrs"],
+      "properties": {
+        "type": { "const": "heading" },
+        "attrs": {
+          "type": "object",
+          "required": ["level"],
+          "properties": {
+            "level": { "type": "integer", "minimum": 1, "maximum": 6 }
+          },
+          "additionalProperties": false
+        },
+        "content": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/inlineNode" }
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "paragraphNode": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "const": "paragraph" },
+        "content": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/inlineNode" }
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "bulletListNode": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "const": "bulletList" },
+        "content": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/listItemNode" }
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "orderedListNode": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "const": "orderedList" },
+        "attrs": {
+          "type": "object",
+          "properties": {
+            "start": { "type": ["integer", "null"], "default": 1 },
+            "type": { "type": ["string", "null"] }
+          },
+          "additionalProperties": false
+        },
+        "content": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/listItemNode" }
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "listItemNode": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "const": "listItem" },
+        "content": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/blockNode" }
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "codeBlockNode": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "const": "codeBlock" },
+        "attrs": {
+          "type": "object",
+          "properties": {
+            "language": { "type": ["string", "null"] }
+          },
+          "additionalProperties": false
+        },
+        "content": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/textNode" }
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "tableNode": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "const": "table" },
+        "attrs": {
+          "type": "object",
+          "properties": {
+            "caption": { "type": ["string", "null"], "description": "Table caption text." },
+            "align": { "type": "string", "enum": ["left", "center", "right"], "default": "left" },
+            "width": { "type": "string", "description": "CSS width value (e.g., '100%', '50%', 'auto').", "default": "100%" }
+          },
+          "additionalProperties": false
+        },
+        "content": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/tableRowNode" }
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "tableRowNode": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "const": "tableRow" },
+        "content": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              { "$ref": "#/definitions/tableCellNode" },
+              { "$ref": "#/definitions/tableHeaderNode" }
+            ]
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "tableCellNode": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "const": "tableCell" },
+        "attrs": {
+          "type": "object",
+          "properties": {
+            "colspan": { "type": "integer", "minimum": 1, "default": 1 },
+            "rowspan": { "type": "integer", "minimum": 1, "default": 1 },
+            "colwidth": { "type": ["array", "null"], "items": { "type": "integer" } }
+          },
+          "additionalProperties": false
+        },
+        "content": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/blockNode" }
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "tableHeaderNode": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "const": "tableHeader" },
+        "attrs": {
+          "type": "object",
+          "properties": {
+            "colspan": { "type": "integer", "minimum": 1, "default": 1 },
+            "rowspan": { "type": "integer", "minimum": 1, "default": 1 },
+            "colwidth": { "type": ["array", "null"], "items": { "type": "integer" } }
+          },
+          "additionalProperties": false
+        },
+        "content": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/blockNode" }
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "imageNode": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "const": "image" },
+        "attrs": {
+          "type": "object",
+          "properties": {
+            "src": { "type": "string", "description": "Relative path to the image file (e.g., './images/photo.png')." },
+            "alt": { "type": ["string", "null"], "description": "Alternative text for accessibility." },
+            "title": { "type": ["string", "null"], "description": "Image title (tooltip)." },
+            "caption": { "type": ["string", "null"], "description": "Image caption text." },
+            "align": { "type": "string", "enum": ["left", "center", "right"], "default": "center" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "mathBlockNode": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "const": "mathBlock" },
+        "attrs": {
+          "type": "object",
+          "required": ["latex"],
+          "properties": {
+            "latex": { "type": "string", "description": "LaTeX math expression." }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "mathInlineNode": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "const": "mathInline" },
+        "attrs": {
+          "type": "object",
+          "required": ["latex"],
+          "properties": {
+            "latex": { "type": "string", "description": "LaTeX math expression." }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "hardBreakNode": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "const": "hardBreak" }
+      },
+      "additionalProperties": false
+    },
+
+    "textNode": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "const": "text" },
+        "text": { "type": "string" },
+        "marks": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/mark" }
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "mark": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["bold", "italic", "underline", "strike", "code", "link"]
+        },
+        "attrs": {
+          "type": "object",
+          "description": "Mark-specific attributes (e.g., href for link).",
+          "properties": {
+            "href": { "type": "string" },
+            "target": { "type": "string" },
+            "rel": { "type": "string" },
+            "class": { "type": "string" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

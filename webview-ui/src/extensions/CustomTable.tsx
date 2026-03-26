@@ -4,28 +4,28 @@ export const CustomTable = Table.extend({
   addAttributes() {
     return {
       ...this.parent?.(),
-      'data-caption': {
+      caption: {
         default: null,
         parseHTML: (element: HTMLElement) => element.getAttribute('data-caption'),
         renderHTML: (attributes: Record<string, any>) => {
-          if (!attributes['data-caption']) return {};
-          return { 'data-caption': attributes['data-caption'] };
+          if (!attributes.caption) return {};
+          return { 'data-caption': attributes.caption };
         },
       },
-      'data-align': {
+      align: {
         default: 'left',
         parseHTML: (element: HTMLElement) => element.getAttribute('data-align'),
         renderHTML: (attributes: Record<string, any>) => {
-          if (!attributes['data-align']) return {};
-          return { 'data-align': attributes['data-align'] };
+          if (!attributes.align) return {};
+          return { 'data-align': attributes.align };
         },
       },
-      'data-width': {
+      width: {
         default: '100%',
         parseHTML: (element: HTMLElement) => element.getAttribute('data-width'),
         renderHTML: (attributes: Record<string, any>) => {
-          if (!attributes['data-width']) return {};
-          return { 'data-width': attributes['data-width'] };
+          if (!attributes.width) return {};
+          return { 'data-width': attributes.width };
         },
       },
     };
@@ -74,7 +74,7 @@ export const CustomTable = Table.extend({
       function refreshCaption() {
         if (isEditingCaption) return; // don't touch display while editing
 
-        const cap = currentNode.attrs['data-caption'];
+        const cap = currentNode.attrs.caption;
         captionDisplay.innerHTML = '';
 
         if (cap) {
@@ -107,8 +107,8 @@ export const CustomTable = Table.extend({
 
       // === Helper: update table styles ===
       function refreshStyles() {
-        const w = currentNode.attrs['data-width'] || '100%';
-        const a = currentNode.attrs['data-align'] || 'left';
+        const w = currentNode.attrs.width || '100%';
+        const a = currentNode.attrs.align || 'left';
 
         if (w === 'auto') {
           tableContainer.style.width = 'fit-content';
@@ -142,7 +142,7 @@ export const CustomTable = Table.extend({
             editor.chain().focus().command(({ tr }) => {
               tr.setNodeMarkup(pos, undefined, {
                 ...currentNode.attrs,
-                'data-caption': newValue,
+                caption: newValue,
               });
               return true;
             }).run();
@@ -163,7 +163,7 @@ export const CustomTable = Table.extend({
         isEditingCaption = true;
         captionDisplay.style.display = 'none';
         captionInputWrapper.style.display = '';
-        captionInput.value = currentNode.attrs['data-caption'] || '';
+        captionInput.value = currentNode.attrs.caption || '';
 
         // Focus input after a microtask to avoid PM interference
         requestAnimationFrame(() => {

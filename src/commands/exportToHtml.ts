@@ -36,7 +36,10 @@ export async function exportToHtml(context: vscode.ExtensionContext) {
     const text = new TextDecoder().decode(documentBytes);
     
     // Parse JSON
-    let json = JSON.parse(text);
+    let parsed = JSON.parse(text);
+
+    // Unwrap sdoc envelope if present
+    let json = (parsed.sdoc && parsed.doc) ? parsed.doc : parsed;
 
     // Convert webview URIs back to relative paths for export
     json = convertWebviewUrisToRelativePaths(json);

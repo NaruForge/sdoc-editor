@@ -2,6 +2,8 @@ import * as vscode from 'vscode';
 import { getNonce, getWebviewUri } from './utils/webviewHelper';
 
 export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
+  private static readonly SDOC_VERSION = '1.0';
+
   public static register(context: vscode.ExtensionContext): vscode.Disposable {
     const provider = new SdocEditorProvider(context);
     const providerRegistration = vscode.window.registerCustomEditorProvider(
@@ -59,9 +61,11 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     const sendUpdate = () => {
       try {
         const text = document.getText();
-        const json = text.trim() ? JSON.parse(text) : { type: 'doc', content: [] };
+        const parsed = text.trim() ? JSON.parse(text) : { sdoc: SdocEditorProvider.SDOC_VERSION, meta: {}, doc: { type: 'doc', content: [] } };
+        // Unwrap sdoc envelope → extract doc node
+        const { doc } = SdocEditorProvider.unwrapSdoc(parsed);
         // Convert image paths to webview URIs
-        const convertedJson = this.convertImagePathsToWebviewUris(json, documentDir, webviewPanel.webview);
+        const convertedJson = this.convertImagePathsToWebviewUris(doc, documentDir, webviewPanel.webview);
         webviewPanel.webview.postMessage({
           type: 'init',
           content: convertedJson,
@@ -119,8 +123,9 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         // Send updated content to webview
         try {
           const text = e.document.getText();
-          const json = text.trim() ? JSON.parse(text) : { type: 'doc', content: [] };
-          const convertedJson = this.convertImagePathsToWebviewUris(json, documentDir, webviewPanel.webview);
+          const parsed = text.trim() ? JSON.parse(text) : { sdoc: SdocEditorProvider.SDOC_VERSION, meta: {}, doc: { type: 'doc', content: [] } };
+          const { doc } = SdocEditorProvider.unwrapSdoc(parsed);
+          const convertedJson = this.convertImagePathsToWebviewUris(doc, documentDir, webviewPanel.webview);
           webviewPanel.webview.postMessage({
             type: 'update',
             content: convertedJson,
@@ -177,8 +182,35 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     // Convert webview URIs back to relative paths before saving
     const convertedContent = this.convertWebviewUrisToRelativePaths(content);
 
+    // Read existing file to preserve metadata
+    const existingText = document.getText();
+    let existingMeta: any = {};
+    try {
+      const existing = existingText.trim() ? JSON.parse(existingText) : {};
+      if (existing.sdoc && existing.meta) {
+        existingMeta = existing.meta;
+      }
+    } catch {
+      // Ignore parse errors
+    }
+
+    // Extract title from first heading
+    const title = SdocEditorProvider.extractTitle(convertedContent);
+
+    // Wrap in sdoc envelope
+    const sdocFile = {
+      sdoc: SdocEditorProvider.SDOC_VERSION,
+      meta: {
+        title: title || existingMeta.title || '',
+        author: existingMeta.author || '',
+        created: existingMeta.created || new Date().toISOString(),
+        modified: new Date().toISOString(),
+      },
+      doc: convertedContent,
+    };
+
     // Pretty-print JSON for better git diffs
-    const json = JSON.stringify(convertedContent, null, 2);
+    const json = JSON.stringify(sdocFile, null, 2);
     edit.replace(document.uri, fullRange, json);
 
     this.isApplyingEdit = true;
@@ -697,6 +729,70 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     }
 
     return cloned;
+  }
+
+  /**
+   * Unwrap an .sdoc file: supports both the new envelope format and legacy (bare doc).
+   * Also migrates legacy attribute names (data-caption → caption, etc.).
+   */
+  private static unwrapSdoc(parsed: any): { meta: any; doc: any } {
+    let doc: any;
+    let meta: any = {};
+
+    if (parsed.sdoc && parsed.doc) {
+      // New envelope format
+      doc = parsed.doc;
+      meta = parsed.meta || {};
+    } else if (parsed.type === 'doc') {
+      // Legacy format: bare Tiptap doc
+      doc = parsed;
+    } else {
+      doc = { type: 'doc', content: [] };
+    }
+
+    // Migrate legacy attribute names
+    doc = SdocEditorProvider.migrateAttributes(doc);
+    return { meta, doc };
+  }
+
+  /**
+   * Recursively rename data-caption→caption, data-align→align, data-width→width
+   * in node attrs for backward compatibility with legacy .sdoc files.
+   */
+  private static migrateAttributes(node: any): any {
+    if (!node || typeof node !== 'object') {
+      return node;
+    }
+    const cloned = Array.isArray(node) ? [...node] : { ...node };
+
+    if (cloned.attrs) {
+      const a = { ...cloned.attrs };
+      if ('data-caption' in a) { a.caption = a['data-caption']; delete a['data-caption']; }
+      if ('data-align' in a) { a.align = a['data-align']; delete a['data-align']; }
+      if ('data-width' in a) { a.width = a['data-width']; delete a['data-width']; }
+      cloned.attrs = a;
+    }
+
+    if (cloned.content && Array.isArray(cloned.content)) {
+      cloned.content = cloned.content.map((child: any) => SdocEditorProvider.migrateAttributes(child));
+    }
+    return cloned;
+  }
+
+  /**
+   * Extract the document title from the first heading node.
+   */
+  private static extractTitle(doc: any): string {
+    if (!doc?.content) { return ''; }
+    for (const node of doc.content) {
+      if (node.type === 'heading' && node.content) {
+        return node.content
+          .filter((c: any) => c.type === 'text')
+          .map((c: any) => c.text || '')
+          .join('');
+      }
+    }
+    return '';
   }
 
   private getHtmlForWebview(webview: vscode.Webview): string {

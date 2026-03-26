@@ -132,7 +132,7 @@ function convertTable(table: TiptapNode): string {
   let adoc = '';
 
   // Add caption if present
-  const caption = table.attrs?.['data-caption'];
+  const caption = table.attrs?.caption;
   if (caption) {
     tableCounter++;
     const prefix = currentSettings.tableCaptionPrefix || 'Table';
@@ -148,8 +148,8 @@ function convertTable(table: TiptapNode): string {
   );
 
   // Add table options
-  const align = table.attrs?.['data-align'];
-  const width = table.attrs?.['data-width'];
+  const align = table.attrs?.align;
+  const width = table.attrs?.width;
   
   let tableOptions: string[] = [];
   
@@ -192,7 +192,7 @@ function convertImage(node: TiptapNode): string {
   const src = node.attrs?.src || '';
   const alt = node.attrs?.alt || '';
   const title = node.attrs?.title || '';
-  const caption = node.attrs?.['data-caption'];
+  const caption = node.attrs?.caption;
 
   if (!src) {
     return '';

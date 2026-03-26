@@ -3,16 +3,16 @@ import { NodeViewWrapper, NodeViewContent } from '@tiptap/react';
 import { Edit2 } from 'lucide-react';
 
 const TableNodeView = ({ node, updateAttributes }: any) => {
-  const caption = node.attrs['data-caption'];
-  const align = node.attrs['data-align'] || 'left';
-  const width = node.attrs['data-width'] || '100%';
+  const caption = node.attrs.caption;
+  const align = node.attrs.align || 'left';
+  const width = node.attrs.width || '100%';
   const [isHovering, setIsHovering] = useState(false);
 
   const handleCaptionClick = () => {
     const newCaption = window.prompt('Enter table caption:', caption || '');
     if (newCaption !== null) {
       updateAttributes({
-        'data-caption': newCaption || null,
+        caption: newCaption || null,
       });
     }
   };

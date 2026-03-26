@@ -9,12 +9,12 @@ export const CustomImage = Image.extend({
   addAttributes() {
     return {
       ...this.parent?.(),
-      'data-caption': {
+      caption: {
         default: null,
         parseHTML: (element: HTMLElement) => element.getAttribute('data-caption'),
         renderHTML: (attributes: Record<string, any>) => {
-          if (!attributes['data-caption']) return {};
-          return { 'data-caption': attributes['data-caption'] };
+          if (!attributes.caption) return {};
+          return { 'data-caption': attributes.caption };
         },
       },
       align: {
@@ -92,7 +92,7 @@ export const CustomImage = Image.extend({
       function refreshCaption() {
         if (isEditingCaption) return;
 
-        const cap = currentNode.attrs['data-caption'];
+        const cap = currentNode.attrs.caption;
         captionDisplay.innerHTML = '';
 
         if (cap) {
@@ -191,7 +191,7 @@ export const CustomImage = Image.extend({
             editor.chain().focus().command(({ tr }) => {
               tr.setNodeMarkup(pos, undefined, {
                 ...currentNode.attrs,
-                'data-caption': newValue,
+                caption: newValue,
               });
               return true;
             }).run();
@@ -212,7 +212,7 @@ export const CustomImage = Image.extend({
         isEditingCaption = true;
         captionDisplay.style.display = 'none';
         captionInputWrapper.style.display = '';
-        captionInput.value = currentNode.attrs['data-caption'] || '';
+        captionInput.value = currentNode.attrs.caption || '';
 
         requestAnimationFrame(() => {
           captionInput.focus();

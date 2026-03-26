@@ -136,7 +136,7 @@ function convertTable(table: TiptapNode): string {
   let md = '';
 
   // Add caption if present
-  const caption = table.attrs?.['data-caption'];
+  const caption = table.attrs?.caption;
   if (caption) {
     tableCounter++;
     const prefix = currentSettings.tableCaptionPrefix || 'Table';
@@ -199,7 +199,7 @@ function convertTable(table: TiptapNode): string {
 function convertImage(node: TiptapNode): string {
   const src = node.attrs?.src || '';
   const alt = node.attrs?.alt || '';
-  const caption = node.attrs?.['data-caption'] || '';
+  const caption = node.attrs?.caption || '';
 
   let md = `![${alt}](${src})`;
   

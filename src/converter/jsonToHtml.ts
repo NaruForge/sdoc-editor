@@ -142,9 +142,9 @@ function convertTable(table: TiptapNode): string {
   let html = '';
 
   // Get table attributes
-  const caption = table.attrs?.['data-caption'];
-  const align = table.attrs?.['data-align'] || 'left';
-  const width = table.attrs?.['data-width'] || '100%';
+  const caption = table.attrs?.caption;
+  const align = table.attrs?.align || 'left';
+  const width = table.attrs?.width || '100%';
   const prefix = currentSettings.tableCaptionPrefix || 'Table';
   const numbering = currentSettings.captionNumbering === 'hierarchical'
     ? `${h1Counter}.${tableCounter}`
@@ -217,7 +217,7 @@ function convertImage(node: TiptapNode): string {
   const src = node.attrs?.src || '';
   const alt = node.attrs?.alt || '';
   const title = node.attrs?.title || '';
-  const caption = node.attrs?.['data-caption'] || '';
+  const caption = node.attrs?.caption || '';
   const align = node.attrs?.align || 'center';
   imageCounter++;
   const prefix = currentSettings.imageCaptionPrefix || 'Image';
