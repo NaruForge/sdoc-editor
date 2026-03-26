@@ -113,9 +113,31 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       }
     });
 
+    // drawio.svg 파일 변경 감시 — draw.io 확장이 저장하면 웹뷰 이미지를 갱신
+    const drawioWatcher = vscode.workspace.createFileSystemWatcher(
+      new vscode.RelativePattern(documentDir, 'drawio/**/*.drawio.svg')
+    );
+
+    const notifyDrawioUpdated = (uri: vscode.Uri) => {
+      const fileName = uri.path.split('/').pop()!;
+      const relativePath = `./drawio/${fileName}`;
+      const webviewUri = webviewPanel.webview.asWebviewUri(uri);
+      // 캐시 버스팅: 타임스탬프를 쿼리 파라미터로 추가
+      const cacheBustedUri = `${webviewUri.toString()}?t=${Date.now()}`;
+      webviewPanel.webview.postMessage({
+        type: 'drawioFileUpdated',
+        relativePath,
+        newWebviewUri: cacheBustedUri,
+      });
+    };
+
+    drawioWatcher.onDidChange(notifyDrawioUpdated);
+    drawioWatcher.onDidCreate(notifyDrawioUpdated);
+
     // Cleanup
     webviewPanel.onDidDispose(() => {
       changeDocumentSubscription.dispose();
+      drawioWatcher.dispose();
     });
   }
 
@@ -238,18 +260,8 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         // File doesn't exist, proceed to create it
       }
 
-      // Create empty draw.io SVG with basic structure
-      const emptyDrawioSvg = `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" width="400px" height="300px" viewBox="-0.5 -0.5 400 300" content="&lt;mxfile&gt;&lt;diagram id=&quot;diagram&quot; name=&quot;Page-1&quot;&gt;ddHBEoIgEADQr+GOUlmdzeqSB89sEmzAnZBG+/p0YGKM6MTLsrsLLARnbTO4Tql7BHCC48gyQi+E4yRJtvNYyNORfZJ6IIbJwLYBCvMCjmlQGwNdFLQIRps2BhXWNSgbMdQddHHsDiZuaqMEC4CKkmV6M9rqQHdxvvErlFRpc7LL/E2F09IAuhqi6L4gkhOSO0QLq7acA1myY1zC3uWP7zczEGv3Y8EGPgbdG0n+AA==&lt;/diagram&gt;&lt;/mxfile&gt;">
-  <defs/>
-  <g>
-    <rect x="0" y="0" width="400" height="300" fill="none" stroke="none" pointer-events="all"/>
-  </g>
-</svg>`;
-
-      const encoder = new TextEncoder();
-      await vscode.workspace.fs.writeFile(drawioUri, encoder.encode(emptyDrawioSvg));
+      // 빈 파일로 생성 — draw.io extension이 열 때 빈 캔버스로 초기화함
+      await vscode.workspace.fs.writeFile(drawioUri, new Uint8Array(0));
 
       // Convert to webview URI for display
       const webviewUri = webview.asWebviewUri(drawioUri);
@@ -288,10 +300,13 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         return;
       }
 
-      // Open the draw.io file in VS Code
-      // VS Code will use the Draw.io Integration extension if installed
-      const doc = await vscode.workspace.openTextDocument(drawioUri);
-      await vscode.window.showTextDocument(doc, { viewColumn: vscode.ViewColumn.Beside, preview: false });
+      // vscode.open을 사용하면 파일 연결(.drawio.svg → draw.io extension)을
+      // 그대로 따르므로, 탐색기에서 직접 여는 것과 동일하게 동작함
+      await vscode.commands.executeCommand(
+        'vscode.open',
+        drawioUri,
+        vscode.ViewColumn.Beside
+      );
     } catch (error) {
       vscode.window.showErrorMessage(
         `Failed to open draw.io file: ${error instanceof Error ? error.message : 'Unknown error'}`

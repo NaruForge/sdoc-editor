@@ -475,6 +475,19 @@
       ]
     },
     {
+      "type": "paragraph"
+    },
+    {
+      "type": "image",
+      "attrs": {
+        "src": "./images/image-1774410400733-1.png",
+        "alt": "image-1774410400733-1.png",
+        "title": null,
+        "data-caption": null,
+        "align": "center"
+      }
+    },
+    {
       "type": "heading",
       "attrs": {
         "level": 2
@@ -503,10 +516,11 @@
     {
       "type": "image",
       "attrs": {
-        "src": "./drawio/diagram-1774420558338.drawio.svg",
-        "alt": "diagram-1774420558338",
-        "title": "diagram-1774420558338",
-        "data-caption": null
+        "src": "./drawio/diagram-1774488262073.drawio.svg",
+        "alt": "diagram-1774488262073",
+        "title": "diagram-1774488262073",
+        "data-caption": null,
+        "align": "center"
       }
     }
   ]

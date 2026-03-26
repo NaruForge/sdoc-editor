@@ -6,6 +6,8 @@ import TableCell from '@tiptap/extension-table-cell';
 import TableHeader from '@tiptap/extension-table-header';
 import { CustomTable } from './CustomTable';
 import { CustomImage } from './CustomImage';
+import { MathInline } from './MathInline';
+import { MathBlock } from './MathBlock';
 
 export const tiptapExtensions = [
   StarterKit.configure({
@@ -23,4 +25,6 @@ export const tiptapExtensions = [
   TableRow,
   TableHeader,
   TableCell,
+  MathInline,
+  MathBlock,
 ];

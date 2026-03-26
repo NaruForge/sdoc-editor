@@ -13,6 +13,8 @@ import { DrawioActionDialog } from './DrawioActionDialog';
 import { LinkDialog } from './LinkDialog';
 import { ImagePropertiesDialog } from './ImagePropertiesDialog';
 import { ImageContextMenu } from './ImageContextMenu';
+import { MathDialog } from './MathDialog';
+import { EditorContextMenu } from './EditorContextMenu';
 
 export const Editor: React.FC = () => {
   const { state, dispatch } = useEditorContext();
@@ -23,8 +25,10 @@ export const Editor: React.FC = () => {
   const [showDrawioActionDialog, setShowDrawioActionDialog] = useState(false);
   const [showDrawioDialog, setShowDrawioDialog] = useState(false);
   const [showLinkDialog, setShowLinkDialog] = useState(false);
-  const [imageProperties, setImageProperties] = useState<{ pos: number; src: string; alt: string; isDrawio: boolean } | null>(null);
+  const [imageProperties, setImageProperties] = useState<{ pos: number; src: string; alt: string; align: string; isDrawio: boolean } | null>(null);
   const [imageContextMenu, setImageContextMenu] = useState<{ x: number; y: number; pos: number; src: string; isDrawio: boolean } | null>(null);
+  const [mathDialog, setMathDialog] = useState<{ latex: string; isBlock: boolean; pos: number | null } | null>(null);
+  const [editorContextMenu, setEditorContextMenu] = useState<{ x: number; y: number } | null>(null);
 
   const { postMessage } = useVSCodeMessaging((message) => {
     switch (message.type) {
@@ -63,6 +67,24 @@ export const Editor: React.FC = () => {
           flushUpdate();
         }
         break;
+      case 'drawioFileUpdated':
+        // draw.io 확장이 파일을 저장했으므로 해당 이미지 src를 캐시 버스팅 URI로 교체
+        if (editor && message.relativePath && message.newWebviewUri) {
+          const fileName = (message.relativePath as string).split('/').pop()!;
+          editor.chain().command(({ tr }) => {
+            tr.doc.descendants((node, pos) => {
+              if (node.type.name === 'image' && node.attrs.src) {
+                const src: string = node.attrs.src;
+                if (src.includes(fileName)) {
+                  tr.setNodeMarkup(pos, undefined, { ...node.attrs, src: message.newWebviewUri });
+                }
+              }
+            });
+            return true;
+          }).run();
+          // flushUpdate 미호출: 파일 경로 변경이 아니라 화면 갱신만 필요
+        }
+        break;
       case 'imageReplaced':
         // Image was replaced, update the node at the given position
         if (editor && message.webviewUri && typeof message.pos === 'number') {
@@ -91,10 +113,13 @@ export const Editor: React.FC = () => {
   };
 
   const handleContextMenu = (event: React.MouseEvent) => {
-    // Check if we're in a table
+    event.preventDefault();
     if (editor && editor.isActive('table')) {
-      event.preventDefault();
+      // 테이블 안: 테이블 컨텍스트 메뉴
       setContextMenu({ x: event.clientX, y: event.clientY });
+    } else {
+      // 일반 편집 영역: 삽입 컨텍스트 메뉴
+      setEditorContextMenu({ x: event.clientX, y: event.clientY });
     }
   };
 
@@ -181,6 +206,33 @@ export const Editor: React.FC = () => {
     setShowLinkDialog(true);
   };
 
+  const handleInsertMath = () => {
+    setMathDialog({ latex: '', isBlock: false, pos: null });
+  };
+
+  const handleMathConfirm = (latex: string, isBlock: boolean) => {
+    if (!editor) return;
+
+    if (mathDialog?.pos !== null && mathDialog?.pos !== undefined) {
+      // Editing existing math node
+      const pos = mathDialog.pos;
+      editor.chain().focus().command(({ tr }) => {
+        const nodeType = isBlock
+          ? editor.schema.nodes.mathBlock
+          : editor.schema.nodes.mathInline;
+        tr.setNodeMarkup(pos, nodeType, { latex });
+        return true;
+      }).run();
+    } else if (isBlock) {
+      (editor.chain().focus() as any).insertMathBlock(latex).run();
+    } else {
+      (editor.chain().focus() as any).insertMathInline(latex).run();
+    }
+
+    setMathDialog(null);
+    flushUpdate();
+  };
+
   const handleLinkConfirm = (url: string, text: string) => {
     if (!editor) return;
 
@@ -211,14 +263,15 @@ export const Editor: React.FC = () => {
     flushUpdate();
   };
 
-  const handleImagePropertiesConfirm = (altText: string) => {
+  const handleImagePropertiesConfirm = (altText: string, align: string) => {
     if (!editor || !imageProperties) return;
 
-    // Update the image node's alt attribute
+    // Update the image node's alt and align attributes
     editor.chain().focus().command(({ tr }) => {
       tr.setNodeMarkup(imageProperties.pos, undefined, {
         ...editor.state.doc.nodeAt(imageProperties.pos)?.attrs,
         alt: altText,
+        align,
       });
       return true;
     }).run();
@@ -254,6 +307,7 @@ export const Editor: React.FC = () => {
         pos: imageContextMenu.pos,
         src: imageContextMenu.src,
         alt: node.attrs.alt || '',
+        align: node.attrs.align || 'center',
         isDrawio: imageContextMenu.isDrawio,
       });
     }
@@ -309,16 +363,20 @@ export const Editor: React.FC = () => {
       (window as any).__editorFlushUpdate = flushUpdate;
       (window as any).__showImageProperties = (pos: number, src: string, alt: string) => {
         const isDrawio = src.includes('.drawio.svg') || src.includes('/drawio/');
-        setImageProperties({ pos, src, alt, isDrawio });
+        setImageProperties({ pos, src, alt, align: 'center', isDrawio });
       };
       (window as any).__showImageContextMenu = (x: number, y: number, pos: number, src: string, alt: string) => {
         handleImageContextMenuOpen(x, y, pos, src, alt);
+      };
+      (window as any).__showMathDialog = (latex: string, isBlock: boolean, pos: number) => {
+        setMathDialog({ latex, isBlock, pos });
       };
     }
     return () => {
       delete (window as any).__editorFlushUpdate;
       delete (window as any).__showImageProperties;
       delete (window as any).__showImageContextMenu;
+      delete (window as any).__showMathDialog;
     };
   }, [editor, flushUpdate]);
 
@@ -361,6 +419,7 @@ export const Editor: React.FC = () => {
         showNumbering={showNumbering}
         onToggleNumbering={handleToggleNumbering}
         onInsertLink={handleInsertLink}
+        onInsertMath={handleInsertMath}
         onInsertImage={handleInsertImage}
         onInsertDrawio={handleInsertDrawio}
       />
@@ -371,6 +430,15 @@ export const Editor: React.FC = () => {
           className={showNumbering ? 'show-numbering' : 'hide-numbering'}
         />
       </div>
+      {editorContextMenu && (
+        <EditorContextMenu
+          position={editorContextMenu}
+          onInsertImage={handleInsertImage}
+          onInsertDrawio={handleInsertDrawio}
+          onInsertEquation={handleInsertMath}
+          onClose={() => setEditorContextMenu(null)}
+        />
+      )}
       {contextMenu && editor && (
         <TableContextMenu
           editor={editor}
@@ -424,6 +492,7 @@ export const Editor: React.FC = () => {
         <ImagePropertiesDialog
           src={imageProperties.src}
           alt={imageProperties.alt}
+          align={imageProperties.align}
           onConfirm={handleImagePropertiesConfirm}
           onReplace={handleImageReplace}
           onCancel={() => setImageProperties(null)}
@@ -439,6 +508,14 @@ export const Editor: React.FC = () => {
           onCopyPath={handleImageContextMenuCopyPath}
           onDelete={handleImageContextMenuDelete}
           isDrawio={imageContextMenu.isDrawio}
+        />
+      )}
+      {mathDialog && (
+        <MathDialog
+          initialLatex={mathDialog.latex}
+          isBlock={mathDialog.isBlock}
+          onConfirm={handleMathConfirm}
+          onCancel={() => setMathDialog(null)}
         />
       )}
     </>

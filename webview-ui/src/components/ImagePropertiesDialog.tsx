@@ -3,7 +3,8 @@ import React, { useState, useEffect } from 'react';
 interface ImagePropertiesDialogProps {
   src: string;
   alt: string;
-  onConfirm: (alt: string) => void;
+  align?: string;
+  onConfirm: (alt: string, align: string) => void;
   onReplace: () => void;
   onCancel: () => void;
   isDrawio?: boolean;
@@ -12,20 +13,23 @@ interface ImagePropertiesDialogProps {
 export const ImagePropertiesDialog: React.FC<ImagePropertiesDialogProps> = ({
   src,
   alt,
+  align = 'center',
   onConfirm,
   onReplace,
   onCancel,
   isDrawio = false,
 }) => {
   const [altText, setAltText] = useState(alt);
+  const [alignValue, setAlignValue] = useState(align);
 
   useEffect(() => {
     setAltText(alt);
-  }, [alt]);
+    setAlignValue(align);
+  }, [alt, align]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onConfirm(altText.trim());
+    onConfirm(altText.trim(), alignValue);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -118,8 +122,46 @@ export const ImagePropertiesDialog: React.FC<ImagePropertiesDialogProps> = ({
           </div>
 
           <div style={{ marginBottom: '16px' }}>
-            <label 
-              htmlFor="image-alt" 
+            <label
+              style={{
+                display: 'block',
+                marginBottom: '8px',
+                fontSize: '13px',
+                color: 'var(--vscode-descriptionForeground)'
+              }}
+            >
+              Alignment:
+            </label>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              {(['left', 'center', 'right'] as const).map((a) => (
+                <button
+                  key={a}
+                  type="button"
+                  onClick={() => setAlignValue(a)}
+                  style={{
+                    flex: 1,
+                    padding: '5px 8px',
+                    border: '1px solid var(--vscode-input-border)',
+                    borderRadius: '3px',
+                    cursor: 'pointer',
+                    fontSize: '13px',
+                    background: alignValue === a
+                      ? 'var(--vscode-button-background)'
+                      : 'var(--vscode-input-background)',
+                    color: alignValue === a
+                      ? 'var(--vscode-button-foreground)'
+                      : 'var(--vscode-input-foreground)',
+                  }}
+                >
+                  {a === 'left' ? '← Left' : a === 'center' ? '↔ Center' : 'Right →'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ marginBottom: '16px' }}>
+            <label
+              htmlFor="image-alt"
               style={{ 
                 display: 'block',
                 marginBottom: '6px',

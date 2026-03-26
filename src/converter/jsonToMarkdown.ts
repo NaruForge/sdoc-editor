@@ -48,6 +48,12 @@ function convertNode(node: TiptapNode): string {
       const code = node.content ? node.content.map((n) => n.text || '').join('\n') : '';
       return `\`\`\`${language}\n${code}\n\`\`\`\n`;
 
+    case 'mathInline':
+      return `$${node.attrs?.latex || ''}$`;
+
+    case 'mathBlock':
+      return `$$\n${node.attrs?.latex || ''}\n$$\n`;
+
     case 'table':
       return convertTable(node);
 

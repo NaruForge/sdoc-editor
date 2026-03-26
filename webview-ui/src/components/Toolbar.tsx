@@ -17,6 +17,7 @@ import {
   PenTool,
   Image as ImageIcon,
   Link as LinkIcon,
+  Sigma,
 } from 'lucide-react';
 
 interface ToolbarProps {
@@ -27,9 +28,10 @@ interface ToolbarProps {
   onInsertDrawio?: () => void;
   onInsertImage?: () => void;
   onInsertLink?: () => void;
+  onInsertMath?: () => void;
 }
 
-export const Toolbar: React.FC<ToolbarProps> = ({ editor, onViewJson, showNumbering, onToggleNumbering, onInsertDrawio, onInsertImage, onInsertLink }) => {
+export const Toolbar: React.FC<ToolbarProps> = ({ editor, onViewJson, showNumbering, onToggleNumbering, onInsertDrawio, onInsertImage, onInsertLink, onInsertMath }) => {
   const [showTablePicker, setShowTablePicker] = useState(false);
   const [showCustomSize, setShowCustomSize] = useState(false);
   const [customRows, setCustomRows] = useState('3');
@@ -255,6 +257,19 @@ export const Toolbar: React.FC<ToolbarProps> = ({ editor, onViewJson, showNumber
       >
         <Trash2 size={16} />
       </Button>
+
+      {/* Math formula */}
+      {onInsertMath && (
+        <>
+          <div className="toolbar-separator" />
+          <Button
+            onClick={onInsertMath}
+            title="Insert Math Formula (LaTeX)"
+          >
+            <Sigma size={16} />
+          </Button>
+        </>
+      )}
 
       {/* Insert Image */}
       {onInsertImage && (

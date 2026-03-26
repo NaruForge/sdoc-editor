@@ -67,6 +67,13 @@ function convertNode(node: TiptapNode): string {
       const escapedCode = escapeHtml(code);
       return `<pre><code class="language-${language}">${escapedCode}</code></pre>`;
 
+    case 'mathInline':
+      // Render inline LaTeX with KaTeX-compatible placeholder; actual rendering needs client-side katex
+      return `<span class="math-inline" data-latex="${escapeHtml(node.attrs?.latex || '')}">\\(${escapeHtml(node.attrs?.latex || '')}\\)</span>`;
+
+    case 'mathBlock':
+      return `<div class="math-block" data-latex="${escapeHtml(node.attrs?.latex || '')}">\\[${escapeHtml(node.attrs?.latex || '')}\\]</div>`;
+
     case 'table':
       return convertTable(node);
 
@@ -188,8 +195,15 @@ function convertImage(node: TiptapNode): string {
   const alt = node.attrs?.alt || '';
   const title = node.attrs?.title || '';
   const caption = node.attrs?.['data-caption'] || '';
+  const align = node.attrs?.align || 'center';
 
-  let html = '<figure class="doc-image">';
+  const alignStyle = align === 'left'
+    ? ' style="display:block; margin-right:auto; margin-left:0;"'
+    : align === 'right'
+      ? ' style="display:block; margin-right:0; margin-left:auto;"'
+      : ' style="display:block; margin:0 auto; text-align:center;"';
+
+  let html = `<figure class="doc-image"${alignStyle}>`;
   
   if (title) {
     html += `\n  <img src="${escapeHtml(src)}" alt="${escapeHtml(alt)}" title="${escapeHtml(title)}">`;
@@ -501,7 +515,18 @@ function generateHtmlDocument(bodyContent: string, theme?: HtmlTheme): string {
 
     /* Custom Styles */
     ${customStyles}
+
+    /* Math Styles */
+    .math-inline { display: inline; }
+    .math-block { display: block; text-align: center; margin: 1em 0; overflow-x: auto; }
   </style>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
+    onload="renderMathInElement(document.body, { delimiters: [
+      {left: '\\\\[', right: '\\\\]', display: true},
+      {left: '\\\\(', right: '\\\\)', display: false}
+    ]})"></script>
 </head>
 <body>
   ${companyLogo || companyName ? `

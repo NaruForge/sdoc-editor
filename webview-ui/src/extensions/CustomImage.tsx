@@ -12,6 +12,13 @@ export const CustomImage = Image.extend({
           return { 'data-caption': attributes['data-caption'] };
         },
       },
+      align: {
+        default: 'center',
+        parseHTML: (element: HTMLElement) => element.getAttribute('data-align') || 'center',
+        renderHTML: (attributes: Record<string, any>) => ({
+          'data-align': attributes.align || 'center',
+        }),
+      },
     };
   },
 
@@ -23,6 +30,27 @@ export const CustomImage = Image.extend({
       // === Build DOM ===
       const wrapper = document.createElement('div');
       wrapper.classList.add('image-node-wrapper');
+
+      // -- Alignment toolbar (shown on image click) --
+      const alignToolbar = document.createElement('div');
+      alignToolbar.classList.add('image-align-toolbar');
+      const alignDefs = [
+        { value: 'left', label: '← Left' },
+        { value: 'center', label: '↔ Center' },
+        { value: 'right', label: 'Right →' },
+      ];
+      alignDefs.forEach(({ value, label }) => {
+        const btn = document.createElement('button');
+        btn.classList.add('image-align-btn');
+        btn.textContent = label;
+        btn.dataset.alignValue = value;
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          applyAlign(value);
+          alignToolbar.classList.remove('visible');
+        });
+        alignToolbar.appendChild(btn);
+      });
 
       // -- Caption display (visible when not editing) --
       const captionDisplay = document.createElement('div');
@@ -49,7 +77,8 @@ export const CustomImage = Image.extend({
       captionInput.placeholder = 'Enter image caption...';
       captionInputWrapper.appendChild(captionInput);
 
-      // Order: image first, then captions
+      // Order: toolbar, image, then captions
+      wrapper.appendChild(alignToolbar);
       wrapper.appendChild(imageContainer);
       wrapper.appendChild(captionDisplay);
       wrapper.appendChild(captionInputWrapper);
@@ -112,6 +141,33 @@ export const CustomImage = Image.extend({
         } else {
           img.style.display = 'block';
         }
+      }
+
+      // === Helper: apply alignment to node ===
+      function applyAlign(alignValue: string) {
+        wrapper.dataset.align = alignValue;
+        if (typeof getPos === 'function') {
+          const pos = getPos();
+          if (typeof pos === 'number') {
+            const tr = editor.state.tr.setNodeMarkup(pos, undefined, {
+              ...currentNode.attrs,
+              align: alignValue,
+            });
+            editor.view.dispatch(tr);
+            if ((window as any).__editorFlushUpdate) {
+              (window as any).__editorFlushUpdate();
+            }
+          }
+        }
+      }
+
+      // === Helper: refresh alignment toolbar state ===
+      function refreshAlign() {
+        const align = currentNode.attrs.align || 'center';
+        wrapper.dataset.align = align;
+        alignToolbar.querySelectorAll<HTMLButtonElement>('.image-align-btn').forEach(btn => {
+          btn.classList.toggle('active', btn.dataset.alignValue === align);
+        });
       }
 
       // === Helper: commit caption value from input ===
@@ -256,6 +312,19 @@ export const CustomImage = Image.extend({
         }
       });
 
+      // === Image click → show alignment toolbar ===
+      imageContainer.addEventListener('click', () => {
+        alignToolbar.classList.add('visible');
+      });
+
+      // Hide toolbar when clicking outside the wrapper
+      const handleOutsideClick = (e: MouseEvent) => {
+        if (!wrapper.contains(e.target as Node)) {
+          alignToolbar.classList.remove('visible');
+        }
+      };
+      document.addEventListener('click', handleOutsideClick);
+
       // === Caption input: Enter → save, Escape → cancel ===
       captionInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
@@ -283,6 +352,7 @@ export const CustomImage = Image.extend({
       // === Initial render ===
       refreshCaption();
       refreshImage();
+      refreshAlign();
 
       // === NodeView interface ===
       return {
@@ -293,6 +363,7 @@ export const CustomImage = Image.extend({
           currentNode = updatedNode;
           refreshCaption();
           refreshImage();
+          refreshAlign();
           return true;
         },
 
@@ -314,11 +385,14 @@ export const CustomImage = Image.extend({
             return false;
           }
           
-          // Stop ProseMirror from handling events in caption area
+          // Stop ProseMirror from handling events in caption/toolbar area
+          if (alignToolbar.contains(target)) return true;
           return captionDisplay.contains(target) || captionInputWrapper.contains(target);
         },
 
-        destroy() {},
+        destroy() {
+          document.removeEventListener('click', handleOutsideClick);
+        },
       };
     };
   },
