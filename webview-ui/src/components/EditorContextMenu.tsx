@@ -35,6 +35,20 @@ export const EditorContextMenu: React.FC<EditorContextMenuProps> = ({
     };
   }, [onClose]);
 
+  // Adjust position so the menu doesn't overflow the viewport
+  useEffect(() => {
+    if (!menuRef.current) return;
+    const rect = menuRef.current.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    if (rect.bottom > vh) {
+      menuRef.current.style.top = `${Math.max(4, position.y - rect.height)}px`;
+    }
+    if (rect.right > vw) {
+      menuRef.current.style.left = `${Math.max(4, vw - rect.width - 4)}px`;
+    }
+  }, [position]);
+
   // 메뉴가 화면 밖으로 나가지 않도록 위치 조정
   const style: React.CSSProperties = {
     position: 'fixed',

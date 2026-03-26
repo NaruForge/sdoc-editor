@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { 
   Settings, 
   RefreshCw, 
@@ -25,6 +25,8 @@ export const ImageContextMenu: React.FC<ImageContextMenuProps> = ({
   onDelete,
   isDrawio
 }) => {
+  const menuRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     const handleClickOutside = () => onClose();
     const handleEscape = (e: KeyboardEvent) => {
@@ -39,6 +41,20 @@ export const ImageContextMenu: React.FC<ImageContextMenuProps> = ({
       document.removeEventListener('keydown', handleEscape);
     };
   }, [onClose]);
+
+  // Adjust position so the menu doesn't overflow the viewport
+  useEffect(() => {
+    if (!menuRef.current) return;
+    const rect = menuRef.current.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    if (rect.bottom > vh) {
+      menuRef.current.style.top = `${Math.max(4, position.y - rect.height)}px`;
+    }
+    if (rect.right > vw) {
+      menuRef.current.style.left = `${Math.max(4, vw - rect.width - 4)}px`;
+    }
+  }, [position]);
 
   const MenuItem: React.FC<{
     icon: React.ReactNode;
@@ -62,6 +78,7 @@ export const ImageContextMenu: React.FC<ImageContextMenuProps> = ({
 
   return (
     <div 
+      ref={menuRef}
       className="table-context-menu"
       style={{ 
         position: 'fixed',

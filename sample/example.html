@@ -30,7 +30,7 @@
       justify-content: space-between;
       margin-bottom: 40px;
       padding-bottom: 20px;
-      border-bottom: 2px solid #A50034;
+      border-bottom: 2px solid #2563eb;
     }
 
     .company-logo {
@@ -41,7 +41,7 @@
     .company-name {
       font-size: 24px;
       font-weight: bold;
-      color: #A50034;
+      color: #2563eb;
     }
 
     /* Headings with Auto-numbering */
@@ -55,8 +55,8 @@
       font-size: 2em;
       margin-top: 1.5em;
       margin-bottom: 0.5em;
-      color: #A50034;
-      border-bottom: 2px solid #A50034;
+      color: #2563eb;
+      border-bottom: 2px solid #2563eb;
       padding-bottom: 0.3em;
     }
 
@@ -70,7 +70,7 @@
       font-size: 1.5em;
       margin-top: 1.3em;
       margin-bottom: 0.4em;
-      color: #A50034;
+      color: #1e40af;
     }
 
     h2::before {
@@ -153,7 +153,7 @@
     table.doc-table caption {
       font-weight: bold;
       margin-bottom: 0.5em;
-      color: #A50034;
+      color: #2563eb;
       text-align: left;
       caption-side: top;
     }
@@ -166,7 +166,7 @@
     }
 
     table.doc-table thead th {
-      background-color: #A50034;
+      background-color: #2563eb;
       color: white;
       font-weight: bold;
     }
@@ -217,7 +217,7 @@
     }
 
     a {
-      color: #A50034;
+      color: #2563eb;
       text-decoration: none;
     }
 
@@ -247,14 +247,20 @@
 
     /* Custom Styles */
     
+
+    /* Math Styles */
+    .math-inline { display: inline; }
+    .math-block { display: block; text-align: center; margin: 1em 0; overflow-x: auto; }
   </style>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
+    onload="renderMathInElement(document.body, { delimiters: [
+      {left: '\\[', right: '\\]', display: true},
+      {left: '\\(', right: '\\)', display: false}
+    ]})"></script>
 </head>
 <body>
-  
-  <header class="document-header">
-    <img src="https://lgmagna.com/wp-content/uploads/2024/04/logo_lg_magna_2x.png" alt="Company Logo" class="company-logo">
-    <div class="company-name">LG Magna e-Powertrain</div>
-  </header>
   
   
   <h1>Sample Structured Document</h1>
@@ -281,7 +287,7 @@
 }</code></pre>
 <h2>Table</h2>
 <table style="width: 100%; text-align: center;" class="doc-table">
-  <caption>좋아요</caption>
+  <caption>Table 1: 좋아요</caption>
   <thead>
     <tr>
       <th>Header 1</th>
@@ -305,9 +311,19 @@
 <p></p>
 <p></p>
 <h2>Image</h2>
-<p><figure class="doc-image">
-  <img src="./images/image-1774410400733.png" alt="image-1774410400733">
-</figure></p>
 <p></p>
+<figure class="doc-image" style="display:block; margin:0 auto; text-align:center;">
+  <img src="./images/image-1774410400733-1.png" alt="image-1774410400733-1.png">
+  <figcaption>Fig. 1: 123</figcaption>
+</figure>
+<figure class="doc-image" style="display:block; margin:0 auto; text-align:center;">
+  <img src="./images/image-1774410610267.png" alt="image-1774410610267.png">
+  <figcaption>Fig. 2: 346345</figcaption>
+</figure>
+<h2><a href="http://Draw.IO">Draw.IO</a></h2>
+<p></p>
+<figure class="doc-image" style="display:block; margin:0 auto; text-align:center;">
+  <img src="./drawio/diagram-1774488262073.drawio.svg" alt="diagram-1774488262073" title="diagram-1774488262073">
+</figure>
 </body>
 </html>

@@ -483,7 +483,17 @@
         "src": "./images/image-1774410400733-1.png",
         "alt": "image-1774410400733-1.png",
         "title": null,
-        "data-caption": null,
+        "data-caption": "123",
+        "align": "center"
+      }
+    },
+    {
+      "type": "image",
+      "attrs": {
+        "src": "./images/image-1774410610267.png",
+        "alt": "image-1774410610267.png",
+        "title": null,
+        "data-caption": "346345",
         "align": "center"
       }
     },
