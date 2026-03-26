@@ -11,10 +11,25 @@ interface TiptapMark {
   attrs?: any;
 }
 
+interface ExportSettings {
+  imageCaptionPrefix?: string;
+  tableCaptionPrefix?: string;
+  captionNumbering?: 'simple' | 'hierarchical';
+}
+
+let currentSettings: ExportSettings = {};
+let imageCounter = 0;
+let tableCounter = 0;
+let h1Counter = 0;
+
 /**
  * Converts Tiptap JSON to Markdown format
  */
-export function convertJsonToMarkdown(json: TiptapNode): string {
+export function convertJsonToMarkdown(json: TiptapNode, settings?: ExportSettings): string {
+  currentSettings = settings || {};
+  imageCounter = 0;
+  tableCounter = 0;
+  h1Counter = 0;
   return convertNode(json).trim() + '\n';
 }
 
@@ -27,6 +42,7 @@ function convertNode(node: TiptapNode): string {
       const level = node.attrs?.level || 1;
       const headingPrefix = '#'.repeat(level);
       const headingText = node.content ? convertInlineContent(node.content) : '';
+      if (level === 1) { h1Counter++; imageCounter = 0; tableCounter = 0; }
       return `${headingPrefix} ${headingText}\n`;
 
     case 'paragraph':
@@ -122,7 +138,12 @@ function convertTable(table: TiptapNode): string {
   // Add caption if present
   const caption = table.attrs?.['data-caption'];
   if (caption) {
-    md += `**${caption}**\n\n`;
+    tableCounter++;
+    const prefix = currentSettings.tableCaptionPrefix || 'Table';
+    const numbering = currentSettings.captionNumbering === 'hierarchical'
+      ? `${h1Counter}.${tableCounter}`
+      : `${tableCounter}`;
+    md += `**${prefix} ${numbering}: ${caption}**\n\n`;
   }
 
   // Check if first row has headers
@@ -183,7 +204,12 @@ function convertImage(node: TiptapNode): string {
   let md = `![${alt}](${src})`;
   
   if (caption) {
-    md += `\n\n*${caption}*`;
+    imageCounter++;
+    const prefix = currentSettings.imageCaptionPrefix || 'Image';
+    const numbering = currentSettings.captionNumbering === 'hierarchical'
+      ? `${h1Counter}.${imageCounter}`
+      : `${imageCounter}`;
+    md += `\n\n*${prefix} ${numbering}: ${caption}*`;
   }
   
   return md + '\n';

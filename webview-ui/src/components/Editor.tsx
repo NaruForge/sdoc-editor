@@ -30,11 +30,31 @@ export const Editor: React.FC = () => {
   const [mathDialog, setMathDialog] = useState<{ latex: string; isBlock: boolean; pos: number | null } | null>(null);
   const [editorContextMenu, setEditorContextMenu] = useState<{ x: number; y: number } | null>(null);
 
+  // Apply settings to CSS custom properties and global state
+  useEffect(() => {
+    const { settings } = state;
+    // Expose settings globally for NodeViews (CustomImage, CustomTable)
+    (window as any).__editorSettings = settings;
+
+    // Apply CSS custom properties for caption prefixes
+    const proseMirrorEl = document.querySelector('.ProseMirror') as HTMLElement;
+    if (proseMirrorEl) {
+      proseMirrorEl.style.setProperty('--image-caption-prefix', `'${settings.imageCaptionPrefix}'`);
+      proseMirrorEl.style.setProperty('--table-caption-prefix', `'${settings.tableCaptionPrefix}'`);
+    }
+
+    // Sync heading numbering toggle with settings
+    setShowNumbering(settings.headingNumbering);
+  }, [state.settings]);
+
   const { postMessage } = useVSCodeMessaging((message) => {
     switch (message.type) {
       case 'init':
       case 'update':
         dispatch({ type: 'SET_DOC', payload: message.content });
+        break;
+      case 'settingsChanged':
+        dispatch({ type: 'SET_SETTINGS', payload: message.settings });
         break;
       case 'imageSaved':
         // Image was saved, insert it with the webview URI for display
@@ -427,7 +447,7 @@ export const Editor: React.FC = () => {
       <div onContextMenu={handleContextMenu}>
         <EditorContent 
           editor={editor} 
-          className={showNumbering ? 'show-numbering' : 'hide-numbering'}
+          className={`${showNumbering ? 'show-numbering' : 'hide-numbering'} ${state.settings.captionNumbering === 'hierarchical' ? 'hierarchical-numbering' : 'simple-numbering'}`}
         />
       </div>
       {editorContextMenu && (

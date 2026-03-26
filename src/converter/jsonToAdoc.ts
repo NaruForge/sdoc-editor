@@ -11,10 +11,25 @@ interface TiptapMark {
   attrs?: any;
 }
 
+interface ExportSettings {
+  imageCaptionPrefix?: string;
+  tableCaptionPrefix?: string;
+  captionNumbering?: 'simple' | 'hierarchical';
+}
+
+let currentSettings: ExportSettings = {};
+let imageCounter = 0;
+let tableCounter = 0;
+let h1Counter = 0;
+
 /**
  * Converts Tiptap JSON to AsciiDoc format
  */
-export function convertJsonToAdoc(json: TiptapNode): string {
+export function convertJsonToAdoc(json: TiptapNode, settings?: ExportSettings): string {
+  currentSettings = settings || {};
+  imageCounter = 0;
+  tableCounter = 0;
+  h1Counter = 0;
   // Add AsciiDoc document attributes
   const docAttributes = ':sectnums:\n:sectnumlevels: 4\n\n';
   return docAttributes + convertNode(json).trim() + '\n';
@@ -29,6 +44,7 @@ function convertNode(node: TiptapNode): string {
       const level = node.attrs?.level || 1;
       const headingPrefix = '='.repeat(level + 1);
       const headingText = node.content ? convertInlineContent(node.content) : '';
+      if (level === 1) { h1Counter++; imageCounter = 0; tableCounter = 0; }
       return `${headingPrefix} ${headingText}\n`;
 
     case 'paragraph':
@@ -118,7 +134,12 @@ function convertTable(table: TiptapNode): string {
   // Add caption if present
   const caption = table.attrs?.['data-caption'];
   if (caption) {
-    adoc += `.${caption}\n`;
+    tableCounter++;
+    const prefix = currentSettings.tableCaptionPrefix || 'Table';
+    const numbering = currentSettings.captionNumbering === 'hierarchical'
+      ? `${h1Counter}.${tableCounter}`
+      : `${tableCounter}`;
+    adoc += `.${prefix} ${numbering}: ${caption}\n`;
   }
 
   // Check if first row has headers
@@ -181,7 +202,12 @@ function convertImage(node: TiptapNode): string {
 
   // Add caption if present (displayed above image in AsciiDoc)
   if (caption) {
-    adoc += `.${caption}\n`;
+    imageCounter++;
+    const prefix = currentSettings.imageCaptionPrefix || 'Image';
+    const numbering = currentSettings.captionNumbering === 'hierarchical'
+      ? `${h1Counter}.${imageCounter}`
+      : `${imageCounter}`;
+    adoc += `.${prefix} ${numbering}: ${caption}\n`;
   }
 
   // AsciiDoc image syntax: image::path[alt text, title]

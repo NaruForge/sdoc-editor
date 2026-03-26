@@ -39,6 +39,22 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
 
     webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview);
 
+    // Read and send editor settings to webview
+    const sendSettings = () => {
+      const config = vscode.workspace.getConfiguration('structuredDocEditor');
+      webviewPanel.webview.postMessage({
+        type: 'settingsChanged',
+        settings: {
+          imageCaptionPrefix: config.get<string>('caption.imagePrefix', 'Image'),
+          tableCaptionPrefix: config.get<string>('caption.tablePrefix', 'Table'),
+          captionNumbering: config.get<string>('caption.numbering', 'simple'),
+          headingNumbering: config.get<boolean>('heading.numbering', true),
+          defaultImageAlignment: config.get<string>('image.defaultAlignment', 'center'),
+          exportImagePath: config.get<string>('export.imagePath', 'relative'),
+        },
+      });
+    };
+
     // Send initial document content with image paths converted
     const sendUpdate = () => {
       try {
@@ -50,6 +66,8 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
           type: 'init',
           content: convertedJson,
         });
+        // Also send current settings
+        sendSettings();
       } catch (error) {
         vscode.window.showErrorMessage(
           `Failed to parse .sdoc file: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -134,10 +152,18 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     drawioWatcher.onDidChange(notifyDrawioUpdated);
     drawioWatcher.onDidCreate(notifyDrawioUpdated);
 
+    // Watch for settings changes
+    const settingsSubscription = vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration('structuredDocEditor')) {
+        sendSettings();
+      }
+    });
+
     // Cleanup
     webviewPanel.onDidDispose(() => {
       changeDocumentSubscription.dispose();
       drawioWatcher.dispose();
+      settingsSubscription.dispose();
     });
   }
 

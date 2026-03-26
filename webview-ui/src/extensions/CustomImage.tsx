@@ -1,5 +1,10 @@
 import Image from '@tiptap/extension-image';
 
+// Read default alignment from global settings (set by Editor.tsx)
+function getDefaultAlignment(): string {
+  return (window as any).__editorSettings?.defaultImageAlignment || 'center';
+}
+
 export const CustomImage = Image.extend({
   addAttributes() {
     return {
@@ -14,9 +19,9 @@ export const CustomImage = Image.extend({
       },
       align: {
         default: 'center',
-        parseHTML: (element: HTMLElement) => element.getAttribute('data-align') || 'center',
+        parseHTML: (element: HTMLElement) => element.getAttribute('data-align') || getDefaultAlignment(),
         renderHTML: (attributes: Record<string, any>) => ({
-          'data-align': attributes.align || 'center',
+          'data-align': attributes.align || getDefaultAlignment(),
         }),
       },
     };

@@ -52,8 +52,15 @@ export async function exportToHtml(context: vscode.ExtensionContext) {
       customStyles: config.get<string>('theme.customStyles') || '',
     };
 
+    const exportSettings = {
+      imageCaptionPrefix: config.get<string>('caption.imagePrefix', 'Image'),
+      tableCaptionPrefix: config.get<string>('caption.tablePrefix', 'Table'),
+      captionNumbering: config.get<'simple' | 'hierarchical'>('caption.numbering', 'simple'),
+      exportImagePath: config.get<'relative' | 'absolute'>('export.imagePath', 'relative'),
+    };
+
     // Convert JSON to HTML directly
-    const htmlContent = convertJsonToHtml(json, theme);
+    const htmlContent = convertJsonToHtml(json, theme, exportSettings);
 
     // Generate .html file in the same directory
     const htmlUri = documentUri.with({

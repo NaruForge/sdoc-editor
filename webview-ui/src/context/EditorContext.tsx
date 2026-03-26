@@ -1,18 +1,39 @@
 import React, { createContext, useContext, useReducer, ReactNode } from 'react';
 import { JSONContent } from '@tiptap/react';
 
+export interface EditorSettings {
+  imageCaptionPrefix: string;
+  tableCaptionPrefix: string;
+  captionNumbering: 'simple' | 'hierarchical';
+  headingNumbering: boolean;
+  defaultImageAlignment: 'left' | 'center' | 'right';
+  exportImagePath: 'relative' | 'absolute';
+}
+
+export const defaultSettings: EditorSettings = {
+  imageCaptionPrefix: 'Image',
+  tableCaptionPrefix: 'Table',
+  captionNumbering: 'simple',
+  headingNumbering: true,
+  defaultImageAlignment: 'center',
+  exportImagePath: 'relative',
+};
+
 interface EditorState {
   doc: JSONContent | null;
   isReady: boolean;
+  settings: EditorSettings;
 }
 
 type EditorAction =
   | { type: 'SET_DOC'; payload: JSONContent }
-  | { type: 'SET_READY'; payload: boolean };
+  | { type: 'SET_READY'; payload: boolean }
+  | { type: 'SET_SETTINGS'; payload: Partial<EditorSettings> };
 
 const initialState: EditorState = {
   doc: null,
   isReady: false,
+  settings: defaultSettings,
 };
 
 const editorReducer = (state: EditorState, action: EditorAction): EditorState => {
@@ -21,6 +42,8 @@ const editorReducer = (state: EditorState, action: EditorAction): EditorState =>
       return { ...state, doc: action.payload };
     case 'SET_READY':
       return { ...state, isReady: action.payload };
+    case 'SET_SETTINGS':
+      return { ...state, settings: { ...state.settings, ...action.payload } };
     default:
       return state;
   }

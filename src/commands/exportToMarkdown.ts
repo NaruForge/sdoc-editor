@@ -41,8 +41,16 @@ export async function exportToMarkdown(context: vscode.ExtensionContext) {
     // Convert webview URIs back to relative paths for export
     json = convertWebviewUrisToRelativePaths(json);
 
+    // Get caption settings
+    const config = vscode.workspace.getConfiguration('structuredDocEditor');
+    const exportSettings = {
+      imageCaptionPrefix: config.get<string>('caption.imagePrefix', 'Image'),
+      tableCaptionPrefix: config.get<string>('caption.tablePrefix', 'Table'),
+      captionNumbering: config.get<'simple' | 'hierarchical'>('caption.numbering', 'simple'),
+    };
+
     // Convert to Markdown
-    const markdownContent = convertJsonToMarkdown(json);
+    const markdownContent = convertJsonToMarkdown(json, exportSettings);
 
     // Generate .md file in the same directory
     const markdownUri = documentUri.with({

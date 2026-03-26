@@ -44,6 +44,47 @@
     "configuration": {
       "title": "Structured Doc Editor",
       "properties": {
+        "structuredDocEditor.caption.imagePrefix": {
+          "type": "string",
+          "default": "Image",
+          "description": "Prefix for image captions (e.g., 'Image', 'Figure', 'Fig.', '그림')"
+        },
+        "structuredDocEditor.caption.tablePrefix": {
+          "type": "string",
+          "default": "Table",
+          "description": "Prefix for table captions (e.g., 'Table', '표')"
+        },
+        "structuredDocEditor.caption.numbering": {
+          "type": "string",
+          "default": "simple",
+          "enum": ["simple", "hierarchical"],
+          "enumDescriptions": [
+            "Simple sequential numbering (1, 2, 3, ...)",
+            "Hierarchical numbering based on heading sections (1.1, 1.2, 2.1, ...)"
+          ],
+          "description": "Caption numbering style for images and tables"
+        },
+        "structuredDocEditor.heading.numbering": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable automatic heading numbering (1., 1.1, 1.1.1, ...)"
+        },
+        "structuredDocEditor.image.defaultAlignment": {
+          "type": "string",
+          "default": "center",
+          "enum": ["left", "center", "right"],
+          "description": "Default alignment when inserting new images"
+        },
+        "structuredDocEditor.export.imagePath": {
+          "type": "string",
+          "default": "relative",
+          "enum": ["relative", "absolute"],
+          "enumDescriptions": [
+            "Use relative paths for images (e.g., ./images/photo.png)",
+            "Use absolute file system paths for images"
+          ],
+          "description": "Image path format in exported documents"
+        },
         "structuredDocEditor.theme.companyLogo": {
           "type": "string",
           "default": "",

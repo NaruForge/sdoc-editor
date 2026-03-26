@@ -20,10 +20,27 @@ interface HtmlTheme {
   customStyles?: string; // Additional custom CSS
 }
 
+interface ExportSettings {
+  imageCaptionPrefix?: string;
+  tableCaptionPrefix?: string;
+  captionNumbering?: 'simple' | 'hierarchical';
+  exportImagePath?: 'relative' | 'absolute';
+  documentDir?: string;
+}
+
+let currentSettings: ExportSettings = {};
+let imageCounter = 0;
+let tableCounter = 0;
+let h1Counter = 0;
+
 /**
  * Converts Tiptap JSON to HTML format
  */
-export function convertJsonToHtml(json: TiptapNode, theme?: HtmlTheme): string {
+export function convertJsonToHtml(json: TiptapNode, theme?: HtmlTheme, settings?: ExportSettings): string {
+  currentSettings = settings || {};
+  imageCounter = 0;
+  tableCounter = 0;
+  h1Counter = 0;
   const bodyContent = convertNode(json);
   return generateHtmlDocument(bodyContent, theme);
 }
@@ -36,6 +53,7 @@ function convertNode(node: TiptapNode): string {
     case 'heading':
       const level = node.attrs?.level || 1;
       const headingText = node.content ? convertInlineContent(node.content) : '';
+      if (level === 1) { h1Counter++; imageCounter = 0; tableCounter = 0; }
       return `<h${level}>${headingText}</h${level}>`;
 
     case 'paragraph':
@@ -120,12 +138,17 @@ function convertTable(table: TiptapNode): string {
     return '';
   }
 
+  tableCounter++;
   let html = '';
 
   // Get table attributes
   const caption = table.attrs?.['data-caption'];
   const align = table.attrs?.['data-align'] || 'left';
   const width = table.attrs?.['data-width'] || '100%';
+  const prefix = currentSettings.tableCaptionPrefix || 'Table';
+  const numbering = currentSettings.captionNumbering === 'hierarchical'
+    ? `${h1Counter}.${tableCounter}`
+    : `${tableCounter}`;
 
   // Check if first row has headers
   const hasHeader = table.content[0]?.content?.some(
@@ -137,7 +160,7 @@ function convertTable(table: TiptapNode): string {
 
   // Add caption if present
   if (caption) {
-    html += `\n  <caption>${escapeHtml(caption)}</caption>`;
+    html += `\n  <caption>${prefix} ${numbering}: ${escapeHtml(caption)}</caption>`;
   }
 
   // Process rows
@@ -196,6 +219,11 @@ function convertImage(node: TiptapNode): string {
   const title = node.attrs?.title || '';
   const caption = node.attrs?.['data-caption'] || '';
   const align = node.attrs?.align || 'center';
+  imageCounter++;
+  const prefix = currentSettings.imageCaptionPrefix || 'Image';
+  const numbering = currentSettings.captionNumbering === 'hierarchical'
+    ? `${h1Counter}.${imageCounter}`
+    : `${imageCounter}`;
 
   const alignStyle = align === 'left'
     ? ' style="display:block; margin-right:auto; margin-left:0;"'
@@ -212,7 +240,7 @@ function convertImage(node: TiptapNode): string {
   }
   
   if (caption) {
-    html += `\n  <figcaption>${escapeHtml(caption)}</figcaption>`;
+    html += `\n  <figcaption>${prefix} ${numbering}: ${escapeHtml(caption)}</figcaption>`;
   }
   
   html += '\n</figure>';

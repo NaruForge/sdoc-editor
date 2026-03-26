@@ -41,8 +41,16 @@ export async function exportToAdoc(context: vscode.ExtensionContext) {
     // Convert webview URIs back to relative paths for export
     json = convertWebviewUrisToRelativePaths(json);
 
+    // Get caption settings
+    const config = vscode.workspace.getConfiguration('structuredDocEditor');
+    const exportSettings = {
+      imageCaptionPrefix: config.get<string>('caption.imagePrefix', 'Image'),
+      tableCaptionPrefix: config.get<string>('caption.tablePrefix', 'Table'),
+      captionNumbering: config.get<'simple' | 'hierarchical'>('caption.numbering', 'simple'),
+    };
+
     // Convert to AsciiDoc
-    const adocContent = convertJsonToAdoc(json);
+    const adocContent = convertJsonToAdoc(json, exportSettings);
 
     // Generate .adoc file in the same directory
     const adocUri = documentUri.with({

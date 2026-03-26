@@ -23,6 +23,9 @@ body {
   outline: none;
   /* Reset counters at document level */
   counter-reset: h1-counter h2-counter h3-counter table-counter image-counter;
+  /* Caption prefix custom properties (set via JS from VS Code settings) */
+  --image-caption-prefix: 'Image';
+  --table-caption-prefix: 'Table';
 }
 
 .ProseMirror:focus {
@@ -273,8 +276,16 @@ body {
   opacity: 1;
 }
 
-.image-caption-display .caption-label::after {
-  content: "Image " counter(image-counter) ": ";
+/* Simple numbering (default) */
+.simple-numbering .image-caption-display .caption-label::after {
+  content: var(--image-caption-prefix) " " counter(image-counter) ": ";
+  font-weight: bold;
+  font-size: 0.95em;
+}
+
+/* Hierarchical numbering: uses h1-counter prefix */
+.hierarchical-numbering .image-caption-display .caption-label::after {
+  content: var(--image-caption-prefix) " " counter(h1-counter) "." counter(image-counter) ": ";
   font-weight: bold;
   font-size: 0.95em;
 }
@@ -335,8 +346,16 @@ body {
   opacity: 1;
 }
 
-.caption-label::after {
-  content: "Table " counter(table-counter) ": ";
+/* Simple numbering (default) */
+.simple-numbering .table-caption-display .caption-label::after {
+  content: var(--table-caption-prefix) " " counter(table-counter) ": ";
+  font-weight: bold;
+  font-size: 0.95em;
+}
+
+/* Hierarchical numbering */
+.hierarchical-numbering .table-caption-display .caption-label::after {
+  content: var(--table-caption-prefix) " " counter(h1-counter) "." counter(table-counter) ": ";
   font-weight: bold;
   font-size: 0.95em;
 }
