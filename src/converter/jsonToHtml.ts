@@ -352,6 +352,13 @@ function generateHtmlDocument(bodyContent: string, theme?: HtmlTheme, meta?: Sdo
       color: ${primaryColor};
     }
 
+    .document-title {
+      font-size: 2.4em;
+      font-weight: 700;
+      color: #333;
+      margin-bottom: 0.3em;
+    }
+
     .document-meta {
       display: flex;
       flex-wrap: wrap;
@@ -382,6 +389,19 @@ function generateHtmlDocument(bodyContent: string, theme?: HtmlTheme, meta?: Sdo
       color: ${primaryColor};
       border-bottom: 2px solid ${primaryColor};
       padding-bottom: 0.3em;
+    }
+
+    h1.document-title {
+      counter-increment: none;
+      font-size: 2.4em;
+      color: #333;
+      border-bottom: none;
+      padding-bottom: 0;
+      margin-top: 0;
+    }
+
+    h1.document-title::before {
+      content: none;
     }
 
     h1::before {
@@ -591,6 +611,7 @@ function generateHtmlDocument(bodyContent: string, theme?: HtmlTheme, meta?: Sdo
     ${companyName ? `<div class="company-name">${escapeHtml(companyName)}</div>` : ''}
   </header>
   ` : ''}
+  ${meta?.title ? `<h1 class="document-title">${escapeHtml(meta.title)}</h1>` : ''}
   ${meta && (meta.author || meta.version || meta.created || meta.modified) ? `
   <div class="document-meta">
     ${meta.author ? `<span class="meta-item"><strong>Author:</strong> ${escapeHtml(meta.author)}</span>` : ''}

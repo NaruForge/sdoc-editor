@@ -793,10 +793,11 @@ body {
 }
 
 .document-header-title {
-  font-size: 1.1em;
-  font-weight: 600;
+  font-size: 2.4em;
+  font-weight: 700;
   color: var(--vscode-foreground);
-  margin-bottom: 6px;
+  margin-bottom: 8px;
+  line-height: 1.2;
 }
 
 .document-header-title-text {
@@ -824,9 +825,9 @@ body {
   color: var(--vscode-input-foreground);
   border: 1px solid var(--vscode-focusBorder);
   border-radius: 3px;
-  padding: 1px 4px;
+  padding: 2px 6px;
   font-size: 1em;
-  font-weight: 600;
+  font-weight: 700;
   font-family: var(--vscode-font-family);
   outline: none;
   width: 100%;
