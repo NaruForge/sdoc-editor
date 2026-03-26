@@ -1,9 +1,9 @@
 {
   "name": "structured-doc-editor",
   "displayName": "Structured Doc Editor",
-  "description": "WYSIWYG editor for .sdoc files with automatic AsciiDoc conversion",
-  "version": "0.1.0",
-  "publisher": "your-publisher-name",
+  "description": "WYSIWYG editor for .sdoc files with Markdown/AsciiDoc/HTML export",
+  "version": "0.2.0",
+  "publisher": "lgm-control-contributor-01",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -130,6 +130,7 @@
     "build": "npm run build:ext && npm run build:webview",
     "build:ext": "node esbuild.mjs",
     "build:webview": "npm run build --workspace=webview-ui",
+    "package": "npm run build && node scripts/postpackage.mjs",
     "watch:ext": "node esbuild.mjs --watch",
     "watch:webview": "npm run build --workspace=webview-ui -- --watch",
     "watch": "npm-run-all --parallel watch:ext watch:webview",

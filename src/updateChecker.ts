@@ -1,5 +1,4 @@
 import * as vscode from 'vscode';
-import * as fs from 'fs';
 import * as path from 'path';
 
 interface VersionInfo {
@@ -12,20 +11,52 @@ export async function checkForUpdate(context: vscode.ExtensionContext): Promise<
   const sharedFolder = config.get<string>('update.sharedFolder', '');
 
   if (!sharedFolder) {
+    console.log('[sdoc-editor] Update check skipped: no sharedFolder configured');
     return;
   }
 
   try {
-    const versionFilePath = path.join(sharedFolder, 'version.json');
+    const versionFileUri = vscode.Uri.file(path.join(sharedFolder, 'version.json'));
+    console.log('[sdoc-editor] Checking for updates at:', versionFileUri.fsPath);
 
-    if (!fs.existsSync(versionFilePath)) {
+    let raw: string;
+    try {
+      const data = await vscode.workspace.fs.readFile(versionFileUri);
+      raw = Buffer.from(data).toString('utf-8');
+    } catch (e) {
+      const msg = (e as Error).message || '';
+      console.log('[sdoc-editor] Cannot read version.json:', msg);
+
+      if (msg.includes('UNC host') && msg.includes('not allowed')) {
+        const hostname = sharedFolder.replace(/^\\\\/, '').split('\\')[0];
+        const action = await vscode.window.showWarningMessage(
+          `자동 업데이트를 위해 UNC 호스트 '${hostname}' 접근을 허용해야 합니다.`,
+          '설정 열기'
+        );
+        if (action === '설정 열기') {
+          const config = vscode.workspace.getConfiguration('security');
+          const hosts = config.get<string[]>('allowedUNCHosts', []);
+          if (!hosts.includes(hostname)) {
+            hosts.push(hostname);
+            await config.update('allowedUNCHosts', hosts, vscode.ConfigurationTarget.Global);
+            vscode.window.showInformationMessage(
+              `'${hostname}'이(가) 허용 목록에 추가되었습니다. VS Code를 리로드하면 자동 업데이트가 작동합니다.`,
+              '리로드'
+            ).then(r => {
+              if (r === '리로드') {
+                vscode.commands.executeCommand('workbench.action.reloadWindow');
+              }
+            });
+          }
+        }
+      }
       return;
     }
 
-    const raw = fs.readFileSync(versionFilePath, 'utf-8');
     const remote: VersionInfo = JSON.parse(raw);
 
     const currentVersion = context.extension.packageJSON.version as string;
+    console.log(`[sdoc-editor] Current: v${currentVersion}, Remote: v${remote.version}`);
 
     if (!remote.version || remote.version === currentVersion) {
       return;
@@ -36,9 +67,11 @@ export async function checkForUpdate(context: vscode.ExtensionContext): Promise<
     }
 
     const vsixName = remote.filename || `sdoc-editor-${remote.version}.vsix`;
-    const vsixPath = path.join(sharedFolder, vsixName);
+    const vsixUri = vscode.Uri.file(path.join(sharedFolder, vsixName));
 
-    if (!fs.existsSync(vsixPath)) {
+    try {
+      await vscode.workspace.fs.stat(vsixUri);
+    } catch {
       vscode.window.showWarningMessage(
         `sdoc-editor v${remote.version} 업데이트가 있지만, VSIX 파일을 찾을 수 없습니다: ${vsixName}`
       );
@@ -57,7 +90,7 @@ export async function checkForUpdate(context: vscode.ExtensionContext): Promise<
 
     await vscode.commands.executeCommand(
       'workbench.extensions.installExtension',
-      vscode.Uri.file(vsixPath)
+      vsixUri
     );
 
     const reload = await vscode.window.showInformationMessage(
@@ -68,8 +101,8 @@ export async function checkForUpdate(context: vscode.ExtensionContext): Promise<
     if (reload === '리로드') {
       vscode.commands.executeCommand('workbench.action.reloadWindow');
     }
-  } catch {
-    // Silently ignore — shared folder not accessible, network down, etc.
+  } catch (err) {
+    console.warn('[sdoc-editor] Update check failed:', err);
   }
 }
 
