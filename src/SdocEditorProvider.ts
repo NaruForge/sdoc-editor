@@ -1,5 +1,8 @@
 import * as vscode from 'vscode';
 import { getNonce, getWebviewUri } from './utils/webviewHelper';
+import { convertJsonToHtml } from './converter/jsonToHtml';
+import { convertJsonToAdoc } from './converter/jsonToAdoc';
+import { convertJsonToMarkdown } from './converter/jsonToMarkdown';
 
 export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
   private static readonly SDOC_VERSION = '1.0';
@@ -109,6 +112,9 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         case 'replaceImage':
           await this.replaceImage(document, webviewPanel.webview, message.pos);
           break;
+        case 'export':
+          await this.exportDocument(document, message.format);
+          break;
       }
     });
 
@@ -197,12 +203,16 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     // Extract title from first heading
     const title = SdocEditorProvider.extractTitle(convertedContent);
 
+    // Read default author from settings
+    const config = vscode.workspace.getConfiguration('structuredDocEditor');
+    const defaultAuthor = config.get<string>('document.defaultAuthor', '');
+
     // Wrap in sdoc envelope
     const sdocFile = {
       sdoc: SdocEditorProvider.SDOC_VERSION,
       meta: {
         title: title || existingMeta.title || '',
-        author: existingMeta.author || '',
+        author: existingMeta.author || defaultAuthor,
         created: existingMeta.created || new Date().toISOString(),
         modified: new Date().toISOString(),
       },
@@ -729,6 +739,87 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     }
 
     return cloned;
+  }
+
+  private async exportDocument(
+    document: vscode.TextDocument,
+    format: 'html' | 'adoc' | 'markdown'
+  ): Promise<void> {
+    try {
+      const text = document.getText();
+      let parsed = text.trim() ? JSON.parse(text) : { sdoc: SdocEditorProvider.SDOC_VERSION, meta: {}, doc: { type: 'doc', content: [] } };
+
+      // Unwrap envelope
+      const { doc } = SdocEditorProvider.unwrapSdoc(parsed);
+
+      // Convert webview URIs back to relative paths
+      const convertedDoc = this.convertWebviewUrisToRelativePaths(doc);
+
+      // Read export settings
+      const config = vscode.workspace.getConfiguration('structuredDocEditor');
+      const exportSettings = {
+        imageCaptionPrefix: config.get<string>('caption.imagePrefix', 'Image'),
+        tableCaptionPrefix: config.get<string>('caption.tablePrefix', 'Table'),
+        captionNumbering: config.get<'simple' | 'hierarchical'>('caption.numbering', 'simple'),
+        exportImagePath: config.get<'relative' | 'absolute'>('export.imagePath', 'relative'),
+      };
+
+      let content: string;
+      let ext: string;
+      let label: string;
+
+      switch (format) {
+        case 'html': {
+          const theme = {
+            companyLogo: config.get<string>('theme.companyLogo'),
+            companyName: config.get<string>('theme.companyName') || '',
+            primaryColor: config.get<string>('theme.primaryColor') || '#2563eb',
+            accentColor: config.get<string>('theme.accentColor') || '#1e40af',
+            fontFamily: config.get<string>('theme.fontFamily') || '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+            customStyles: config.get<string>('theme.customStyles') || '',
+          };
+          content = convertJsonToHtml(convertedDoc, theme, exportSettings);
+          ext = '.html';
+          label = 'HTML';
+          break;
+        }
+        case 'adoc':
+          content = convertJsonToAdoc(convertedDoc, exportSettings);
+          ext = '.adoc';
+          label = 'AsciiDoc';
+          break;
+        case 'markdown':
+          content = convertJsonToMarkdown(convertedDoc, exportSettings);
+          ext = '.md';
+          label = 'Markdown';
+          break;
+      }
+
+      const outputUri = document.uri.with({
+        path: document.uri.path.replace(/\.sdoc$/, ext),
+      });
+
+      const encoder = new TextEncoder();
+      await vscode.workspace.fs.writeFile(outputUri, encoder.encode(content));
+
+      const action = await vscode.window.showInformationMessage(
+        `${label} exported: ${outputUri.fsPath}`,
+        'Open File'
+      );
+
+      if (action === 'Open File') {
+        if (format === 'html') {
+          await vscode.commands.executeCommand('vscode.open', outputUri);
+        } else {
+          const openedDoc = await vscode.workspace.openTextDocument(outputUri);
+          await vscode.window.showTextDocument(openedDoc, { preview: false });
+        }
+      }
+    } catch (error) {
+      vscode.window.showErrorMessage(
+        `Failed to export: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
   }
 
   /**

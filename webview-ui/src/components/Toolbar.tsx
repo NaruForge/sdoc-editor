@@ -18,6 +18,7 @@ import {
   Image as ImageIcon,
   Link as LinkIcon,
   Sigma,
+  Download,
 } from 'lucide-react';
 
 interface ToolbarProps {
@@ -29,13 +30,16 @@ interface ToolbarProps {
   onInsertImage?: () => void;
   onInsertLink?: () => void;
   onInsertMath?: () => void;
+  onExport?: (format: 'html' | 'adoc' | 'markdown') => void;
 }
 
-export const Toolbar: React.FC<ToolbarProps> = ({ editor, onViewJson, showNumbering, onToggleNumbering, onInsertDrawio, onInsertImage, onInsertLink, onInsertMath }) => {
+export const Toolbar: React.FC<ToolbarProps> = ({ editor, onViewJson, showNumbering, onToggleNumbering, onInsertDrawio, onInsertImage, onInsertLink, onInsertMath, onExport }) => {
   const [showTablePicker, setShowTablePicker] = useState(false);
   const [showCustomSize, setShowCustomSize] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
   const [customRows, setCustomRows] = useState('3');
   const [customCols, setCustomCols] = useState('3');
+  const exportMenuRef = React.useRef<HTMLDivElement>(null);
 
   if (!editor) {
     return null;
@@ -310,6 +314,56 @@ export const Toolbar: React.FC<ToolbarProps> = ({ editor, onViewJson, showNumber
             <FileJson size={16} />
             <span style={{ marginLeft: '4px' }}>JSON</span>
           </Button>
+        </>
+      )}
+
+      {/* Export */}
+      {onExport && (
+        <>
+          <div className="toolbar-separator" />
+          <div ref={exportMenuRef} style={{ position: 'relative', display: 'inline-block' }}>
+            <Button
+              onClick={() => setShowExportMenu(!showExportMenu)}
+              title="Export Document"
+            >
+              <Download size={16} />
+              <span style={{ marginLeft: '4px' }}>Export</span>
+            </Button>
+            {showExportMenu && (
+              <div className="table-picker" style={{ minWidth: '140px' }}>
+                <button
+                  className="table-picker-option"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    setShowExportMenu(false);
+                    onExport('html');
+                  }}
+                >
+                  HTML
+                </button>
+                <button
+                  className="table-picker-option"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    setShowExportMenu(false);
+                    onExport('markdown');
+                  }}
+                >
+                  Markdown
+                </button>
+                <button
+                  className="table-picker-option"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    setShowExportMenu(false);
+                    onExport('adoc');
+                  }}
+                >
+                  AsciiDoc
+                </button>
+              </div>
+            )}
+          </div>
         </>
       )}
 

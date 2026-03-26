@@ -128,6 +128,10 @@ export const Editor: React.FC = () => {
     postMessage({ type: 'viewJson' });
   };
 
+  const handleExport = (format: 'html' | 'adoc' | 'markdown') => {
+    postMessage({ type: 'export', format });
+  };
+
   const handleToggleNumbering = () => {
     setShowNumbering(!showNumbering);
   };
@@ -442,6 +446,7 @@ export const Editor: React.FC = () => {
         onInsertMath={handleInsertMath}
         onInsertImage={handleInsertImage}
         onInsertDrawio={handleInsertDrawio}
+        onExport={handleExport}
       />
       {editor && <BubbleMenuBar editor={editor} />}
       <div onContextMenu={handleContextMenu}>

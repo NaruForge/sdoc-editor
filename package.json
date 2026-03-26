@@ -44,6 +44,11 @@
     "configuration": {
       "title": "Structured Doc Editor",
       "properties": {
+        "structuredDocEditor.document.defaultAuthor": {
+          "type": "string",
+          "default": "",
+          "description": "Default author name for new .sdoc documents (used in metadata)"
+        },
         "structuredDocEditor.caption.imagePrefix": {
           "type": "string",
           "default": "Image",

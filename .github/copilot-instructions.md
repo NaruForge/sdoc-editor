@@ -119,6 +119,7 @@ Supported node types (see `sdoc.schema.json` for full definition):
 
 All settings live under `structuredDocEditor.*`:
 
+- `document.defaultAuthor` — default author name for new documents
 - `caption.imagePrefix` / `caption.tablePrefix` — caption label text
 - `caption.numbering` — `simple` or `hierarchical`
 - `heading.numbering` — boolean
