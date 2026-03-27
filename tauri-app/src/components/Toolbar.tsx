@@ -1,0 +1,420 @@
+import React, { useState, useRef, useEffect } from 'react';
+import { Editor as TiptapEditor } from '@tiptap/react';
+import {
+  Bold,
+  Italic,
+  Underline as UnderlineIcon,
+  List,
+  ListOrdered,
+  ListChecks,
+  Code,
+  Heading1,
+  Heading2,
+  Heading3,
+  Table2,
+  Trash2,
+  FileJson,
+  ListOrdered as NumberIcon,
+  PenTool,
+  Image as ImageIcon,
+  Link as LinkIcon,
+  Sigma,
+  Download,
+  Upload,
+  Plus,
+  ChevronRight,
+  Hash,
+  RemoveFormatting,
+} from 'lucide-react';
+
+interface ToolbarProps {
+  editor: TiptapEditor | null;
+  onViewJson?: () => void;
+  showNumbering: boolean;
+  onToggleNumbering: () => void;
+  showDecoration: boolean;
+  onToggleDecoration: () => void;
+  onInsertDrawio?: () => void;
+  onInsertImage?: () => void;
+  onInsertLink?: () => void;
+  onInsertMath?: () => void;
+  onInsertCrossRef?: () => void;
+  onExport?: (format: 'html' | 'adoc' | 'markdown') => void;
+  onImport?: (format: 'markdown' | 'html') => void;
+}
+
+export const Toolbar: React.FC<ToolbarProps> = ({ editor, onViewJson, showNumbering, onToggleNumbering, showDecoration, onToggleDecoration, onInsertDrawio, onInsertImage, onInsertLink, onInsertMath, onInsertCrossRef, onExport, onImport }) => {
+  const [showInsertMenu, setShowInsertMenu] = useState(false);
+  const [showTableSub, setShowTableSub] = useState(false);
+  const [showCustomSize, setShowCustomSize] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [showImportMenu, setShowImportMenu] = useState(false);
+  const [customRows, setCustomRows] = useState('3');
+  const [customCols, setCustomCols] = useState('3');
+  const insertMenuRef = useRef<HTMLDivElement>(null);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
+  const importMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close insert menu when clicking outside
+  useEffect(() => {
+    if (!showInsertMenu) return;
+    const handleClick = (e: MouseEvent) => {
+      if (insertMenuRef.current && !insertMenuRef.current.contains(e.target as Node)) {
+        setShowInsertMenu(false);
+        setShowTableSub(false);
+        setShowCustomSize(false);
+      }
+    };
+    // Defer listener to next tick so the opening mousedown doesn't immediately close it
+    const id = requestAnimationFrame(() => {
+      document.addEventListener('mousedown', handleClick);
+    });
+    return () => {
+      cancelAnimationFrame(id);
+      document.removeEventListener('mousedown', handleClick);
+    };
+  }, [showInsertMenu]);
+
+  if (!editor) {
+    return null;
+  }
+
+  const Button: React.FC<{
+    onClick: () => void;
+    isActive?: boolean;
+    disabled?: boolean;
+    children: React.ReactNode;
+    title?: string;
+  }> = ({ onClick, isActive, disabled, children, title }) => (
+    <button
+      onMouseDown={(e) => {
+        e.preventDefault(); // Prevent focus loss
+        onClick();
+      }}
+      disabled={disabled}
+      title={title}
+      className={`toolbar-button ${isActive ? 'is-active' : ''}`}
+    >
+      {children}
+    </button>
+  );
+
+  const insertTable = (rows: number, cols: number) => {
+    editor.chain().focus().insertTable({ rows, cols, withHeaderRow: true }).run();
+    setShowInsertMenu(false);
+    setShowTableSub(false);
+    setShowCustomSize(false);
+  };
+
+  const closeInsertMenu = () => {
+    setShowInsertMenu(false);
+    setShowTableSub(false);
+    setShowCustomSize(false);
+  };
+
+  return (
+    <div className="toolbar">
+      {/* Text formatting */}
+      <Button
+        onClick={() => editor.chain().focus().toggleBold().run()}
+        isActive={editor.isActive('bold')}
+        title="Bold (Ctrl+B)"
+      >
+        <Bold size={16} />
+      </Button>
+      <Button
+        onClick={() => editor.chain().focus().toggleItalic().run()}
+        isActive={editor.isActive('italic')}
+        title="Italic (Ctrl+I)"
+      >
+        <Italic size={16} />
+      </Button>
+      <Button
+        onClick={() => editor.chain().focus().toggleUnderline().run()}
+        isActive={editor.isActive('underline')}
+        title="Underline (Ctrl+U)"
+      >
+        <UnderlineIcon size={16} />
+      </Button>
+      {onInsertLink && (
+        <Button
+          onClick={onInsertLink}
+          isActive={editor.isActive('link')}
+          title="Insert Link (Ctrl+K)"
+        >
+          <LinkIcon size={16} />
+        </Button>
+      )}
+
+      <div className="toolbar-separator" />
+
+      {/* Headings */}
+      <Button
+        onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
+        isActive={editor.isActive('heading', { level: 1 })}
+        title="Heading 1"
+      >
+        <Heading1 size={16} />
+      </Button>
+      <Button
+        onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+        isActive={editor.isActive('heading', { level: 2 })}
+        title="Heading 2"
+      >
+        <Heading2 size={16} />
+      </Button>
+      <Button
+        onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+        isActive={editor.isActive('heading', { level: 3 })}
+        title="Heading 3"
+      >
+        <Heading3 size={16} />
+      </Button>
+
+      <div className="toolbar-separator" />
+
+      {/* Lists */}
+      <Button
+        onClick={() => editor.chain().focus().toggleBulletList().run()}
+        isActive={editor.isActive('bulletList')}
+        title="Bullet List"
+      >
+        <List size={16} />
+      </Button>
+      <Button
+        onClick={() => editor.chain().focus().toggleOrderedList().run()}
+        isActive={editor.isActive('orderedList')}
+        title="Ordered List"
+      >
+        <ListOrdered size={16} />
+      </Button>
+      <Button
+        onClick={() => editor.chain().focus().toggleTaskList().run()}
+        isActive={editor.isActive('taskList')}
+        title="Task List"
+      >
+        <ListChecks size={16} />
+      </Button>
+
+      <div className="toolbar-separator" />
+
+      {/* Unified Insert Menu */}
+      <div ref={insertMenuRef} style={{ position: 'relative', display: 'inline-block' }}>
+        <Button
+          onClick={() => setShowInsertMenu(!showInsertMenu)}
+          title="Insert..."
+        >
+          <Plus size={16} />
+          <span style={{ marginLeft: '4px' }}>Insert</span>
+        </Button>
+        {showInsertMenu && (
+          <div className="insert-menu">
+            {/* Table — with sub-menu */}
+            <div
+              className="insert-menu-item has-sub"
+              onMouseEnter={() => setShowTableSub(true)}
+              onMouseLeave={() => { setShowTableSub(false); setShowCustomSize(false); }}
+            >
+              <Table2 size={15} />
+              <span>Table</span>
+              <ChevronRight size={14} className="insert-menu-arrow" />
+              {showTableSub && (
+                <div className="insert-submenu">
+                  <div style={{ padding: '4px 10px', fontSize: '11px', color: 'var(--vscode-descriptionForeground)' }}>
+                    Select size
+                  </div>
+                  {[3, 5, 7, 10].map(size => (
+                    <button
+                      key={size}
+                      className="insert-menu-item"
+                      onMouseDown={(e) => { e.preventDefault(); insertTable(size, size); }}
+                    >
+                      {size} × {size}
+                    </button>
+                  ))}
+                  <button
+                    className="insert-menu-item"
+                    onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); setShowCustomSize(true); }}
+                  >
+                    Custom...
+                  </button>
+                  {showCustomSize && (
+                    <div style={{ padding: '6px 10px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                        <input type="number" min="1" max="50" value={customRows}
+                          onChange={(e) => setCustomRows(e.target.value)}
+                          className="insert-size-input" placeholder="R" />
+                        <span style={{ fontSize: '12px' }}>×</span>
+                        <input type="number" min="1" max="50" value={customCols}
+                          onChange={(e) => setCustomCols(e.target.value)}
+                          className="insert-size-input" placeholder="C" />
+                      </div>
+                      <button
+                        className="insert-menu-item"
+                        style={{ textAlign: 'center', fontWeight: 'bold' }}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          const r = parseInt(customRows);
+                          const c = parseInt(customCols);
+                          if (!isNaN(r) && !isNaN(c) && r > 0 && c > 0 && r <= 50 && c <= 50) {
+                            insertTable(r, c);
+                          }
+                        }}
+                      >
+                        Insert
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Image */}
+            {onInsertImage && (
+              <button className="insert-menu-item" onMouseDown={(e) => { e.preventDefault(); closeInsertMenu(); onInsertImage(); }}>
+                <ImageIcon size={15} />
+                <span>Image</span>
+              </button>
+            )}
+
+            {/* Draw.io */}
+            {onInsertDrawio && (
+              <button className="insert-menu-item" onMouseDown={(e) => { e.preventDefault(); closeInsertMenu(); onInsertDrawio(); }}>
+                <PenTool size={15} />
+                <span>Draw.io Diagram</span>
+              </button>
+            )}
+
+            {/* Math */}
+            {onInsertMath && (
+              <button className="insert-menu-item" onMouseDown={(e) => { e.preventDefault(); closeInsertMenu(); onInsertMath(); }}>
+                <Sigma size={15} />
+                <span>Math Formula</span>
+              </button>
+            )}
+
+            {/* Code Block */}
+            <button className="insert-menu-item" onMouseDown={(e) => {
+              e.preventDefault();
+              closeInsertMenu();
+              editor.chain().focus().toggleCodeBlock().run();
+            }}>
+              <Code size={15} />
+              <span>Code Block</span>
+            </button>
+
+            {/* Horizontal Rule */}
+            <button className="insert-menu-item" onMouseDown={(e) => {
+              e.preventDefault();
+              closeInsertMenu();
+              editor.chain().focus().setHorizontalRule().run();
+            }}>
+              <span style={{ fontSize: '15px', lineHeight: '15px', width: '15px', textAlign: 'center' }}>—</span>
+              <span>Horizontal Rule</span>
+            </button>
+
+            {/* Cross Reference */}
+            {onInsertCrossRef && (
+              <button className="insert-menu-item" onMouseDown={(e) => { e.preventDefault(); closeInsertMenu(); onInsertCrossRef(); }}>
+                <Hash size={15} />
+                <span>Cross Reference</span>
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Delete Table (contextual — only shown when inside a table) */}
+      {editor.isActive('table') && (
+        <Button
+          onClick={() => editor.chain().focus().deleteTable().run()}
+          title="Delete Table"
+        >
+          <Trash2 size={16} />
+        </Button>
+      )}
+
+      <div className="toolbar-separator" />
+
+      {/* View JSON */}
+      {onViewJson && (
+        <Button
+          onClick={onViewJson}
+          title="View JSON Source"
+        >
+          <FileJson size={16} />
+        </Button>
+      )}
+
+      {/* Export */}
+      {onExport && (
+        <div ref={exportMenuRef} style={{ position: 'relative', display: 'inline-block' }}>
+          <Button
+            onClick={() => setShowExportMenu(!showExportMenu)}
+            title="Export Document"
+          >
+            <Download size={16} />
+            <span style={{ marginLeft: '4px' }}>Export</span>
+          </Button>
+          {showExportMenu && (
+            <div className="insert-menu" style={{ minWidth: '140px' }}>
+              <button className="insert-menu-item" onMouseDown={(e) => { e.preventDefault(); setShowExportMenu(false); onExport('html'); }}>
+                HTML
+              </button>
+              <button className="insert-menu-item" onMouseDown={(e) => { e.preventDefault(); setShowExportMenu(false); onExport('markdown'); }}>
+                Markdown
+              </button>
+              <button className="insert-menu-item" onMouseDown={(e) => { e.preventDefault(); setShowExportMenu(false); onExport('adoc'); }}>
+                AsciiDoc
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Import */}
+      {onImport && (
+        <div ref={importMenuRef} style={{ position: 'relative', display: 'inline-block' }}>
+          <Button
+            onClick={() => setShowImportMenu(!showImportMenu)}
+            title="Import Document"
+          >
+            <Upload size={16} />
+            <span style={{ marginLeft: '4px' }}>Import</span>
+          </Button>
+          {showImportMenu && (
+            <div className="insert-menu" style={{ minWidth: '140px' }}>
+              <button className="insert-menu-item" onMouseDown={(e) => { e.preventDefault(); setShowImportMenu(false); onImport('markdown'); }}>
+                Markdown
+              </button>
+              <button className="insert-menu-item" onMouseDown={(e) => { e.preventDefault(); setShowImportMenu(false); onImport('html'); }}>
+                HTML
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Toggle Numbering */}
+      <div className="toolbar-separator" />
+      <Button
+        onClick={onToggleNumbering}
+        isActive={showNumbering}
+        title={showNumbering ? "Hide Numbering" : "Show Numbering"}
+      >
+        <NumberIcon size={16} />
+        <span style={{ marginLeft: '4px' }}>1.2.3</span>
+      </Button>
+
+      <Button
+        onClick={onToggleDecoration}
+        isActive={showDecoration}
+        title={showDecoration ? "Hide Heading Decoration" : "Show Heading Decoration"}
+      >
+        <RemoveFormatting size={16} />
+      </Button>
+
+
+    </div>
+  );
+};

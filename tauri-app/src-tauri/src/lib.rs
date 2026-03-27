@@ -1,0 +1,55 @@
+mod commands;
+mod document;
+mod settings;
+
+use commands::DocState;
+use settings::load_settings;
+use std::sync::Mutex;
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    let settings = load_settings();
+
+    // Check CLI arguments for file path (e.g. double-click on .sdoc file)
+    let initial_file: Option<std::path::PathBuf> = std::env::args()
+        .nth(1)
+        .map(std::path::PathBuf::from)
+        .filter(|p| p.exists() && p.extension().map_or(false, |e| {
+            let ext = e.to_string_lossy().to_lowercase();
+            ext == "sdoc" || ext == "json"
+        }));
+
+    tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_process::init())
+        .manage(DocState {
+            file_path: Mutex::new(initial_file),
+            settings: Mutex::new(settings),
+        })
+        .invoke_handler(tauri::generate_handler![
+            commands::open_document,
+            commands::save_document,
+            commands::new_document,
+            commands::get_current_file_path,
+            commands::save_image,
+            commands::copy_image_to_doc,
+            commands::create_drawio_file,
+            commands::open_drawio_external,
+            commands::copy_drawio_to_doc,
+            commands::start_file_watcher,
+            commands::get_settings,
+            commands::get_editor_settings,
+            commands::update_settings,
+            commands::get_recent_files,
+            commands::write_export_file,
+            commands::read_import_file,
+            commands::resolve_asset_path,
+        ])
+        .setup(|_app| {
+            Ok(())
+        })
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+}
