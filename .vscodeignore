@@ -6,8 +6,13 @@ webview-ui/src/**
 webview-ui/node_modules/**
 **/.DS_Store
 
+# Tauri desktop app (separate build)
+tauri-app/**
+shared/**
+
 # Development files
 .gitignore
+.github/**
 tsconfig.json
 esbuild.mjs
 webview-ui/tsconfig.json
@@ -22,9 +27,14 @@ webview-ui/index.html
 Prompt.md
 plan.md
 TEST-GUIDE.md
+SETUP.md
 
 # Sample files
 sample/**
+
+# Build scripts
+scripts/**
+output/**
 
 # Dependencies (excluded because we bundle everything)
 node_modules/**

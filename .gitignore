@@ -1,6 +1,7 @@
 node_modules
 dist
 output
+target
 *.vsix
 .vscode-test
 *.log
