@@ -9,7 +9,7 @@ interface UseTiptapEditorOptions {
 
 export const useTiptapEditor = ({ onUpdate, pendingEditRef }: UseTiptapEditorOptions) => {
   const skipUpdateRef = useRef(false);
-  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const editor = useEditor({
     extensions: tiptapExtensions,

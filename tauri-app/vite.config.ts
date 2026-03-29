@@ -9,6 +9,7 @@ export default defineConfig(async () => ({
   resolve: {
     alias: {
       '@shared': path.resolve(__dirname, '../shared'),
+      'highlight.js': path.resolve(__dirname, 'node_modules/highlight.js'),
     },
   },
   clearScreen: false,
