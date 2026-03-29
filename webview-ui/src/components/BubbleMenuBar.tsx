@@ -1,7 +1,7 @@
 import React, { useRef } from 'react';
 import { BubbleMenu } from '@tiptap/react/menus';
 import { Editor } from '@tiptap/react';
-import { Bold, Italic, Underline, Code, Unlink, Highlighter, Palette } from 'lucide-react';
+import { Bold, Italic, Underline, Code, Unlink, Highlighter, Palette, Strikethrough } from 'lucide-react';
 
 interface BubbleMenuBarProps {
   editor: Editor;
@@ -64,6 +64,13 @@ export const BubbleMenuBar: React.FC<BubbleMenuBarProps> = ({ editor }) => {
         title="Underline"
       >
         <Underline size={14} />
+      </button>
+      <button
+        onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleStrike().run(); }}
+        className={editor.isActive('strike') ? 'is-active' : ''}
+        title="Strikethrough"
+      >
+        <Strikethrough size={14} />
       </button>
       <button
         onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleCode().run(); }}

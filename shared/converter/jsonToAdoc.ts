@@ -54,17 +54,24 @@ function convertNode(node: TiptapNode): string {
     case 'doc':
       return node.content ? node.content.map(convertNode).join('\n') : '';
 
-    case 'heading':
+    case 'heading': {
       const level = node.attrs?.level || 1;
       const headingPrefix = '='.repeat(level + 1);
       const headingText = node.content ? convertInlineContent(node.content) : '';
       if (level === 1) { h1Counter++; imageCounter = 0; tableCounter = 0; }
       const hAnchor = node.attrs?.id ? `[[${node.attrs.id}]]\n` : '';
       return `${hAnchor}${headingPrefix} ${headingText}\n`;
+    }
 
-    case 'paragraph':
+    case 'paragraph': {
       const paragraphText = node.content ? convertInlineContent(node.content) : '';
+      const align = node.attrs?.textAlign;
+      if (paragraphText && align && align !== 'left') {
+        const adocAlign = align === 'center' ? 'text-center' : align === 'right' ? 'text-right' : 'text-justify';
+        return `[.${adocAlign}]\n${paragraphText}\n`;
+      }
       return paragraphText ? `${paragraphText}\n` : '';
+    }
 
     case 'bulletList':
       return node.content ? node.content.map((item) => convertListItem(item, '*')).join('') : '';

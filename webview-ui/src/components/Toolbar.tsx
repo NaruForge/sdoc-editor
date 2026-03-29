@@ -27,6 +27,11 @@ import {
   RemoveFormatting,
   Palette,
   Highlighter,
+  Strikethrough,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  AlignJustify,
 } from 'lucide-react';
 
 const TEXT_COLORS = [
@@ -164,6 +169,13 @@ export const Toolbar: React.FC<ToolbarProps> = ({ editor, onViewJson, showNumber
       >
         <UnderlineIcon size={16} />
       </Button>
+      <Button
+        onClick={() => editor.chain().focus().toggleStrike().run()}
+        isActive={editor.isActive('strike')}
+        title="Strikethrough"
+      >
+        <Strikethrough size={16} />
+      </Button>
       {onInsertLink && (
         <Button
           onClick={onInsertLink}
@@ -277,6 +289,38 @@ export const Toolbar: React.FC<ToolbarProps> = ({ editor, onViewJson, showNumber
         title="Heading 3"
       >
         <Heading3 size={16} />
+      </Button>
+
+      <div className="toolbar-separator" />
+
+      {/* Text Alignment */}
+      <Button
+        onClick={() => editor.chain().focus().setTextAlign('left').run()}
+        isActive={editor.isActive({ textAlign: 'left' })}
+        title="Align Left"
+      >
+        <AlignLeft size={16} />
+      </Button>
+      <Button
+        onClick={() => editor.chain().focus().setTextAlign('center').run()}
+        isActive={editor.isActive({ textAlign: 'center' })}
+        title="Align Center"
+      >
+        <AlignCenter size={16} />
+      </Button>
+      <Button
+        onClick={() => editor.chain().focus().setTextAlign('right').run()}
+        isActive={editor.isActive({ textAlign: 'right' })}
+        title="Align Right"
+      >
+        <AlignRight size={16} />
+      </Button>
+      <Button
+        onClick={() => editor.chain().focus().setTextAlign('justify').run()}
+        isActive={editor.isActive({ textAlign: 'justify' })}
+        title="Justify"
+      >
+        <AlignJustify size={16} />
       </Button>
 
       <div className="toolbar-separator" />

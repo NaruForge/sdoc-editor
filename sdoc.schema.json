@@ -80,7 +80,8 @@
           "required": ["level"],
           "properties": {
             "level": { "type": "integer", "minimum": 1, "maximum": 6 },
-            "id": { "type": ["string", "null"], "description": "Anchor id for cross-references." }
+            "id": { "type": ["string", "null"], "description": "Anchor id for cross-references." },
+            "textAlign": { "type": ["string", "null"], "enum": ["left", "center", "right", "justify", null] }
           },
           "additionalProperties": false
         },
@@ -97,6 +98,13 @@
       "required": ["type"],
       "properties": {
         "type": { "const": "paragraph" },
+        "attrs": {
+          "type": "object",
+          "properties": {
+            "textAlign": { "type": ["string", "null"], "enum": ["left", "center", "right", "justify", null] }
+          },
+          "additionalProperties": false
+        },
         "content": {
           "type": "array",
           "items": { "$ref": "#/definitions/inlineNode" }

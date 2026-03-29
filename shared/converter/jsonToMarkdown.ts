@@ -56,17 +56,23 @@ function convertNode(node: TiptapNode): string {
     case 'doc':
       return node.content ? node.content.map(convertNode).join('\n') : '';
 
-    case 'heading':
+    case 'heading': {
       const level = node.attrs?.level || 1;
       const headingPrefix = '#'.repeat(level);
       const headingText = node.content ? convertInlineContent(node.content) : '';
       if (level === 1) { h1Counter++; imageCounter = 0; tableCounter = 0; }
       const anchor = node.attrs?.id ? `<a id="${node.attrs.id}"></a>` : '';
       return `${headingPrefix} ${anchor}${headingText}\n`;
+    }
 
-    case 'paragraph':
+    case 'paragraph': {
       const paragraphText = node.content ? convertInlineContent(node.content) : '';
+      const align = node.attrs?.textAlign;
+      if (paragraphText && align && align !== 'left') {
+        return `<p style="text-align:${align}">${paragraphText}</p>\n`;
+      }
       return paragraphText ? `${paragraphText}\n` : '';
+    }
 
     case 'bulletList':
       return node.content ? node.content.map((item) => convertListItem(item, '-')).join('') : '';
