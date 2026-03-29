@@ -724,7 +724,48 @@ body {
   color: var(--vscode-button-foreground);
 }
 
-/* Table Context Menu */
+/* Color / Highlight picker in bubble menu */
+.bubble-color-picker {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 4px;
+  padding: 6px;
+  background-color: var(--vscode-menu-background, #252526);
+  border: 1px solid var(--vscode-menu-border, #454545);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+  z-index: 200;
+  white-space: nowrap;
+}
+
+.bubble-color-picker button {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+
+.bubble-color-picker button:hover {
+  transform: scale(1.2);
+  box-shadow: 0 0 0 2px rgba(255,255,255,0.4);
+  background-color: unset;
+}
+
+.bubble-color-picker button.is-active {
+  box-shadow: 0 0 0 2px white;
+  background-color: unset;
+  color: unset;
+}
+
+
 .table-context-menu {
   background-color: var(--vscode-menu-background);
   border: 1px solid var(--vscode-menu-border);

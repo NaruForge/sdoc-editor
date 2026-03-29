@@ -373,7 +373,7 @@
       "properties": {
         "type": {
           "type": "string",
-          "enum": ["bold", "italic", "underline", "strike", "code", "link"]
+          "enum": ["bold", "italic", "underline", "strike", "code", "link", "textStyle", "highlight"]
         },
         "attrs": {
           "type": "object",

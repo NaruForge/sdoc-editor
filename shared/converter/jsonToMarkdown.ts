@@ -259,6 +259,8 @@ function applyMarks(text: string, marks: TiptapMark[]): string {
   const hasStrike = marks.some(m => m.type === 'strike');
   const hasCode = marks.some(m => m.type === 'code');
   const linkMark = marks.find(m => m.type === 'link');
+  const colorMark = marks.find(m => m.type === 'textStyle');
+  const highlightMark = marks.find(m => m.type === 'highlight');
 
   // Code takes precedence
   if (hasCode) {
@@ -287,6 +289,15 @@ function applyMarks(text: string, marks: TiptapMark[]): string {
   if (linkMark) {
     const href = linkMark.attrs?.href || '';
     result = `[${result}](${href})`;
+  }
+
+  // color/highlight: fall back to HTML span (Markdown has no native support)
+  if (colorMark?.attrs?.color) {
+    result = `<span style="color:${colorMark.attrs.color}">${result}</span>`;
+  }
+  if (highlightMark) {
+    const bg = highlightMark.attrs?.color || '#fef08a';
+    result = `<mark style="background-color:${bg}">${result}</mark>`;
   }
 
   return result;

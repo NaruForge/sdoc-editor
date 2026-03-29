@@ -305,6 +305,16 @@ function applyMarks(text: string, marks: TiptapMark[]): string {
         const href = mark.attrs?.href || '';
         result = `<a href="${escapeHtml(href)}">${result}</a>`;
         break;
+      case 'textStyle': {
+        const color = mark.attrs?.color;
+        if (color) result = `<span style="color:${escapeHtml(color)}">${result}</span>`;
+        break;
+      }
+      case 'highlight': {
+        const bg = mark.attrs?.color || '#fef08a';
+        result = `<mark style="background-color:${escapeHtml(bg)}">${result}</mark>`;
+        break;
+      }
     }
   }
 
