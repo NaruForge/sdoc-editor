@@ -88,8 +88,11 @@ export const MathInline = Node.create({
         rendered.style.display = '';
         renderMath(currentLatex);
         if (typeof getPos === 'function') {
-          const tr = editor.state.tr.setNodeMarkup(getPos() as number, undefined, { latex: value });
-          editor.view.dispatch(tr);
+          const pos = getPos();
+          if (pos != null) {
+            const tr = editor.state.tr.setNodeMarkup(pos, undefined, { latex: value });
+            editor.view.dispatch(tr);
+          }
         }
       };
 

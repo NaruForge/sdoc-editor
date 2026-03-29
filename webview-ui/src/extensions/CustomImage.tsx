@@ -1,4 +1,4 @@
-import Image from '@tiptap/extension-image';
+import { Image } from '@tiptap/extension-image';
 
 // Read default alignment from global settings (set by Editor.tsx)
 function getDefaultAlignment(): string {

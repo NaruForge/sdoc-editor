@@ -71,7 +71,7 @@ const TableNodeView = ({ node, updateAttributes }: any) => {
           overflow: 'auto',
         }}
       >
-        <NodeViewContent as="table" />
+        <NodeViewContent<'table'> as="table" />
       </div>
     </NodeViewWrapper>
   );

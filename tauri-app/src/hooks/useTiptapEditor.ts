@@ -41,7 +41,7 @@ export const useTiptapEditor = ({ onUpdate, pendingEditRef }: UseTiptapEditorOpt
     // Save cursor position before replacing content
     const { from, to } = editor.state.selection;
 
-    editor.commands.setContent(content, false);
+    editor.commands.setContent(content, { emitUpdate: false });
 
     // Restore cursor position (clamped to new doc size)
     try {

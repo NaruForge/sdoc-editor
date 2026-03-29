@@ -20,7 +20,7 @@ const CodeBlockComponent = ({
       ))}
     </select>
     <pre>
-      <NodeViewContent as="code" />
+      <NodeViewContent<'code'> as="code" />
     </pre>
   </NodeViewWrapper>
 );

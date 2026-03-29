@@ -1,4 +1,4 @@
-import Table from '@tiptap/extension-table';
+import { Table } from '@tiptap/extension-table';
 
 export const CustomTable = Table.extend({
   addAttributes() {

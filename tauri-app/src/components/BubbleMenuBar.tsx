@@ -1,5 +1,6 @@
 import React from 'react';
-import { BubbleMenu, Editor } from '@tiptap/react';
+import { BubbleMenu } from '@tiptap/react/menus';
+import { Editor } from '@tiptap/react';
 import { Bold, Italic, Underline, Code, Unlink } from 'lucide-react';
 
 interface BubbleMenuBarProps {
@@ -10,7 +11,7 @@ export const BubbleMenuBar: React.FC<BubbleMenuBarProps> = ({ editor }) => {
   return (
     <BubbleMenu
       editor={editor}
-      tippyOptions={{ duration: 100, placement: 'top' }}
+      options={{ placement: 'top', offset: 6 }}
       className="bubble-menu"
     >
       <button
