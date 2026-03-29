@@ -54,17 +54,22 @@ function convertNode(node: TiptapNode): string {
     case 'doc':
       return node.content ? node.content.map(convertNode).join('\n') : '';
 
-    case 'heading':
+    case 'heading': {
       const level = node.attrs?.level || 1;
       const headingPrefix = '='.repeat(level + 1);
       const headingText = node.content ? convertInlineContent(node.content) : '';
       if (level === 1) { h1Counter++; imageCounter = 0; tableCounter = 0; }
       const hAnchor = node.attrs?.id ? `[[${node.attrs.id}]]\n` : '';
-      return `${hAnchor}${headingPrefix} ${headingText}\n`;
+      const hAlign = node.attrs?.textAlign && node.attrs.textAlign !== 'left' ? `[.text-${node.attrs.textAlign}]\n` : '';
+      return `${hAnchor}${hAlign}${headingPrefix} ${headingText}\n`;
+    }
 
-    case 'paragraph':
+    case 'paragraph': {
       const paragraphText = node.content ? convertInlineContent(node.content) : '';
-      return paragraphText ? `${paragraphText}\n` : '';
+      if (!paragraphText) { return ''; }
+      const pAlign = node.attrs?.textAlign && node.attrs.textAlign !== 'left' ? `[.text-${node.attrs.textAlign}]\n` : '';
+      return `${pAlign}${paragraphText}\n`;
+    }
 
     case 'bulletList':
       return node.content ? node.content.map((item) => convertListItem(item, '*')).join('') : '';
@@ -269,6 +274,9 @@ function applyMarks(text: string, marks: TiptapMark[]): string {
         break;
       case 'underline':
         result = `[.underline]#${result}#`;
+        break;
+      case 'strike':
+        result = `[.line-through]#${result}#`;
         break;
       case 'code':
         result = `\`${result}\``;

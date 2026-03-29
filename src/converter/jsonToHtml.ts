@@ -60,16 +60,20 @@ function convertNode(node: TiptapNode): string {
     case 'doc':
       return node.content ? node.content.map(convertNode).join('\n') : '';
 
-    case 'heading':
+    case 'heading': {
       const level = node.attrs?.level || 1;
       const headingText = node.content ? convertInlineContent(node.content) : '';
       if (level === 1) { h1Counter++; imageCounter = 0; tableCounter = 0; }
       const hId = node.attrs?.id ? ` id="${escapeHtml(node.attrs.id)}"` : '';
-      return `<h${level}${hId}>${headingText}</h${level}>`;
+      const hStyle = node.attrs?.textAlign ? ` style="text-align:${node.attrs.textAlign};"` : '';
+      return `<h${level}${hId}${hStyle}>${headingText}</h${level}>`;
+    }
 
-    case 'paragraph':
+    case 'paragraph': {
       const paragraphText = node.content ? convertInlineContent(node.content) : '';
-      return paragraphText ? `<p>${paragraphText}</p>` : '<p></p>';
+      const pStyle = node.attrs?.textAlign ? ` style="text-align:${node.attrs.textAlign};"` : '';
+      return paragraphText ? `<p${pStyle}>${paragraphText}</p>` : '<p></p>';
+    }
 
     case 'bulletList':
       const bulletItems = node.content ? node.content.map(convertNode).join('\n') : '';
