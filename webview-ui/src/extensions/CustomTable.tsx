@@ -146,7 +146,7 @@ export const CustomTable = Table.extend({
               });
               return true;
             }).run();
-            
+
             // Immediately flush update to avoid debounce delay
             if ((window as any).__editorFlushUpdate) {
               (window as any).__editorFlushUpdate();

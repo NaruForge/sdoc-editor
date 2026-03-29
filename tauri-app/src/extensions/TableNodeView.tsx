@@ -22,7 +22,7 @@ const TableNodeView = ({ node, updateAttributes }: any) => {
 
   return (
     <NodeViewWrapper className="table-wrapper">
-      <div 
+      <div
         className="table-caption-area"
         onMouseEnter={() => setIsHovering(true)}
         onMouseLeave={() => setIsHovering(false)}
@@ -39,8 +39,8 @@ const TableNodeView = ({ node, updateAttributes }: any) => {
         }}
       >
         {caption ? (
-          <div style={{ 
-            fontWeight: 'bold', 
+          <div style={{
+            fontWeight: 'bold',
             fontSize: '0.95em',
             display: 'flex',
             alignItems: 'center',
@@ -51,7 +51,7 @@ const TableNodeView = ({ node, updateAttributes }: any) => {
             {isHovering && <Edit2 size={14} style={{ opacity: 0.6 }} />}
           </div>
         ) : (
-          <div style={{ 
+          <div style={{
             color: 'var(--vscode-descriptionForeground)',
             fontStyle: 'italic',
             fontSize: '0.9em',
@@ -62,7 +62,7 @@ const TableNodeView = ({ node, updateAttributes }: any) => {
           </div>
         )}
       </div>
-      
+
       <div
         style={{
           width: width,

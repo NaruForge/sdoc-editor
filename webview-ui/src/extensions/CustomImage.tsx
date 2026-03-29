@@ -226,12 +226,12 @@ export const CustomImage = Image.extend({
         e.stopPropagation();
 
         const src = currentNode.attrs.src || '';
-        
+
         // Only handle draw.io files on double-click
         if (src.includes('.drawio.svg') || src.includes('/drawio/')) {
           // Extract relative path from src
           let drawioPath = src;
-          
+
           // If it's a webview URI, extract the relative path
           const drawioMatch = src.match(/drawio\/([^?#]+)/);
           if (drawioMatch) {
@@ -260,7 +260,7 @@ export const CustomImage = Image.extend({
 
         const src = currentNode.attrs.src || '';
         const alt = currentNode.attrs.alt || '';
-        
+
         if (typeof getPos === 'function') {
           const pos = getPos();
           if (typeof pos === 'number') {
@@ -278,7 +278,7 @@ export const CustomImage = Image.extend({
         e.stopPropagation();
 
         const src = currentNode.attrs.src || '';
-        
+
         if (src.includes('.drawio.svg') || src.includes('/drawio/')) {
           let drawioPath = src;
           const drawioMatch = src.match(/drawio\/([^?#]+)/);
@@ -305,7 +305,7 @@ export const CustomImage = Image.extend({
 
         const src = currentNode.attrs.src || '';
         const alt = currentNode.attrs.alt || '';
-        
+
         if (typeof getPos === 'function') {
           const pos = getPos();
           if (typeof pos === 'number') {
@@ -383,13 +383,13 @@ export const CustomImage = Image.extend({
         stopEvent(event: Event) {
           const target = event.target as HTMLElement;
           if (!target) return false;
-          
+
           // Allow double-click events on image/image container to pass through
           if (event.type === 'dblclick') {
             // Let the event propagate so our custom handler can process it (for both draw.io and regular images)
             return false;
           }
-          
+
           // Stop ProseMirror from handling events in caption/toolbar area
           if (alignToolbar.contains(target)) return true;
           return captionDisplay.contains(target) || captionInputWrapper.contains(target);

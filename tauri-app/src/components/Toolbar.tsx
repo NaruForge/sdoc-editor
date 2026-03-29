@@ -25,7 +25,31 @@ import {
   ChevronRight,
   Hash,
   RemoveFormatting,
+  Palette,
+  Highlighter,
 } from 'lucide-react';
+
+const TEXT_COLORS = [
+  { label: '기본', value: '' },
+  { label: 'LG Red', value: '#A50034' },
+  { label: '빨강', value: '#ef4444' },
+  { label: '주황', value: '#f97316' },
+  { label: '노랑', value: '#eab308' },
+  { label: '초록', value: '#22c55e' },
+  { label: '파랑', value: '#3b82f6' },
+  { label: '보라', value: '#a855f7' },
+  { label: '회색', value: '#6b7280' },
+];
+
+const HIGHLIGHT_COLORS = [
+  { label: '없음', value: '' },
+  { label: '노랑', value: '#fef08a' },
+  { label: '초록', value: '#bbf7d0' },
+  { label: '하늘', value: '#bae6fd' },
+  { label: '분홍', value: '#fbcfe8' },
+  { label: '주황', value: '#fed7aa' },
+  { label: '보라', value: '#e9d5ff' },
+];
 
 interface ToolbarProps {
   editor: TiptapEditor | null;
@@ -49,6 +73,10 @@ export const Toolbar: React.FC<ToolbarProps> = ({ editor, onViewJson, showNumber
   const [showCustomSize, setShowCustomSize] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showImportMenu, setShowImportMenu] = useState(false);
+  const [showColorPicker, setShowColorPicker] = useState(false);
+  const [showHighlightPicker, setShowHighlightPicker] = useState(false);
+  const colorPickerRef = useRef<HTMLDivElement>(null);
+  const highlightPickerRef = useRef<HTMLDivElement>(null);
   const [customRows, setCustomRows] = useState('3');
   const [customCols, setCustomCols] = useState('3');
   const insertMenuRef = useRef<HTMLDivElement>(null);
@@ -145,6 +173,86 @@ export const Toolbar: React.FC<ToolbarProps> = ({ editor, onViewJson, showNumber
           <LinkIcon size={16} />
         </Button>
       )}
+
+      {/* 텍스트 색상 */}
+      <div ref={colorPickerRef} style={{ position: 'relative', display: 'inline-block' }}>
+        <button
+          onMouseDown={(e) => {
+            e.preventDefault();
+            setShowColorPicker(v => !v);
+            setShowHighlightPicker(false);
+          }}
+          title="텍스트 색상"
+          className={`toolbar-button ${editor.isActive('textStyle') && editor.getAttributes('textStyle').color ? 'is-active' : ''}`}
+          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}
+        >
+          <Palette size={16} />
+          <div style={{ width: 16, height: 3, borderRadius: 2, background: editor.getAttributes('textStyle').color || 'currentColor', opacity: editor.getAttributes('textStyle').color ? 1 : 0.4 }} />
+        </button>
+        {showColorPicker && (
+          <div className="bubble-color-picker" style={{ top: '100%', left: 0 }} onMouseDown={e => e.preventDefault()}>
+            {TEXT_COLORS.map(({ label, value }) => (
+              <button
+                key={value}
+                title={label}
+                className={editor.getAttributes('textStyle').color === value ? 'is-active' : ''}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  if (value) {
+                    editor.chain().focus().setColor(value).run();
+                  } else {
+                    editor.chain().focus().unsetColor().run();
+                  }
+                  setShowColorPicker(false);
+                }}
+                style={{ background: value || 'transparent', border: value ? 'none' : '1px solid #555' }}
+              >
+                {!value && <span style={{ fontSize: 10, color: '#aaa' }}>✕</span>}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* 하이라이트 */}
+      <div ref={highlightPickerRef} style={{ position: 'relative', display: 'inline-block' }}>
+        <button
+          onMouseDown={(e) => {
+            e.preventDefault();
+            setShowHighlightPicker(v => !v);
+            setShowColorPicker(false);
+          }}
+          title="하이라이트"
+          className={`toolbar-button ${editor.isActive('highlight') ? 'is-active' : ''}`}
+          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}
+        >
+          <Highlighter size={16} />
+          <div style={{ width: 16, height: 3, borderRadius: 2, background: editor.getAttributes('highlight').color || '#fef08a', opacity: editor.isActive('highlight') ? 1 : 0.4 }} />
+        </button>
+        {showHighlightPicker && (
+          <div className="bubble-color-picker" style={{ top: '100%', left: 0 }} onMouseDown={e => e.preventDefault()}>
+            {HIGHLIGHT_COLORS.map(({ label, value }) => (
+              <button
+                key={value}
+                title={label}
+                className={editor.getAttributes('highlight').color === value ? 'is-active' : ''}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  if (value) {
+                    editor.chain().focus().setHighlight({ color: value }).run();
+                  } else {
+                    editor.chain().focus().unsetHighlight().run();
+                  }
+                  setShowHighlightPicker(false);
+                }}
+                style={{ background: value || 'transparent', border: value ? 'none' : '1px solid #555' }}
+              >
+                {!value && <span style={{ fontSize: 10, color: '#aaa' }}>✕</span>}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
       <div className="toolbar-separator" />
 
