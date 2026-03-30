@@ -302,6 +302,12 @@ function applyMarks(text: string, marks: TiptapMark[]): string {
       case 'strike':
         result = `<s>${result}</s>`;
         break;
+      case 'subscript':
+        result = `<sub>${result}</sub>`;
+        break;
+      case 'superscript':
+        result = `<sup>${result}</sup>`;
+        break;
       case 'code':
         result = `<code>${result}</code>`;
         break;

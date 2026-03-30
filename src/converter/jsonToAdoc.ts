@@ -278,6 +278,12 @@ function applyMarks(text: string, marks: TiptapMark[]): string {
       case 'strike':
         result = `[.line-through]#${result}#`;
         break;
+      case 'subscript':
+        result = `~${result}~`;
+        break;
+      case 'superscript':
+        result = `^${result}^`;
+        break;
       case 'code':
         result = `\`${result}\``;
         break;

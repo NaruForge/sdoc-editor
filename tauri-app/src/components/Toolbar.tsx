@@ -28,6 +28,8 @@ import {
   Palette,
   Highlighter,
   Strikethrough,
+  Subscript,
+  Superscript,
   AlignLeft,
   AlignCenter,
   AlignRight,
@@ -175,6 +177,20 @@ export const Toolbar: React.FC<ToolbarProps> = ({ editor, onViewJson, showNumber
         title="Strikethrough"
       >
         <Strikethrough size={16} />
+      </Button>
+      <Button
+        onClick={() => editor.chain().focus().toggleSubscript().run()}
+        isActive={editor.isActive('subscript')}
+        title="Subscript"
+      >
+        <Subscript size={16} />
+      </Button>
+      <Button
+        onClick={() => editor.chain().focus().toggleSuperscript().run()}
+        isActive={editor.isActive('superscript')}
+        title="Superscript"
+      >
+        <Superscript size={16} />
       </Button>
       {onInsertLink && (
         <Button

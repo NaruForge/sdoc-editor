@@ -263,6 +263,8 @@ function applyMarks(text: string, marks: TiptapMark[]): string {
   const hasItalic = marks.some(m => m.type === 'italic');
   const hasUnderline = marks.some(m => m.type === 'underline');
   const hasStrike = marks.some(m => m.type === 'strike');
+  const hasSubscript = marks.some(m => m.type === 'subscript');
+  const hasSuperscript = marks.some(m => m.type === 'superscript');
   const hasCode = marks.some(m => m.type === 'code');
   const linkMark = marks.find(m => m.type === 'link');
   const colorMark = marks.find(m => m.type === 'textStyle');
@@ -283,6 +285,14 @@ function applyMarks(text: string, marks: TiptapMark[]): string {
 
     if (hasStrike) {
       result = `~~${result}~~`;
+    }
+
+    if (hasSubscript) {
+      result = `~${result}~`;
+    }
+
+    if (hasSuperscript) {
+      result = `^${result}^`;
     }
 
     // Note: Markdown doesn't have native underline, we'll use HTML

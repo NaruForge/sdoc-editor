@@ -381,7 +381,7 @@
       "properties": {
         "type": {
           "type": "string",
-          "enum": ["bold", "italic", "underline", "strike", "code", "link", "textStyle", "highlight"]
+          "enum": ["bold", "italic", "underline", "strike", "code", "link", "textStyle", "highlight", "subscript", "superscript"]
         },
         "attrs": {
           "type": "object",

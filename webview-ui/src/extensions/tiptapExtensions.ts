@@ -19,6 +19,8 @@ import { CustomCodeBlock } from './CodeBlockView';
 import { MathInline } from './MathInline';
 import { MathBlock } from './MathBlock';
 import { CrossReference } from './CrossReference';
+import { Subscript } from '@tiptap/extension-subscript';
+import { Superscript } from '@tiptap/extension-superscript';
 
 /* ===== Section Fold (Collapse) ===== */
 const sectionFoldKey = new PluginKey<Set<number>>('sectionFold');
@@ -212,6 +214,8 @@ export const tiptapExtensions = [
   TextStyle,
   Color,
   Highlight.configure({ multicolor: true }),
+  Subscript,
+  Superscript,
   TextAlign.configure({
     types: ['heading', 'paragraph'],
   }),
