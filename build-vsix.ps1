@@ -27,7 +27,8 @@
 param(
     [string]$WslDistro        = "Ubuntu",
     [string]$WslProjectPath   = "/home/NaruForge/projects/vscode-ext-customeditor",
-    [bool]$CopyToDesktop      = $true
+    [bool]$CopyToDesktop      = $true,
+    [string]$SharedFolder     = "D:\CONTROL_NAS\VsCode-Extension\sdoc-editor"
 )
 
 Set-StrictMode -Version Latest
@@ -105,6 +106,24 @@ if ($CopyToDesktop) {
 }
 
 # ──────────────────────────────────────────────
+# 공유 폴더로 복사
+# ──────────────────────────────────────────────
+if ($SharedFolder) {
+    if (-not (Test-Path $SharedFolder)) {
+        New-Item -ItemType Directory -Path $SharedFolder -Force | Out-Null
+        Write-Ok "공유 폴더 생성: $SharedFolder"
+    }
+    $sharedDest = Join-Path $SharedFolder $vsixFile.Name
+    Copy-Item -Path $vsixFile.FullName -Destination $sharedDest -Force
+    # version.json 도 함께 복사
+    $versionJson = Join-Path $OutputUncPath "version.json"
+    if (Test-Path $versionJson) {
+        Copy-Item -Path $versionJson -Destination (Join-Path $SharedFolder "version.json") -Force
+    }
+    Write-Ok "공유 폴더 복사: $sharedDest"
+}
+
+# ──────────────────────────────────────────────
 # 완료
 # ──────────────────────────────────────────────
 Write-Host ""
@@ -113,6 +132,9 @@ Write-Host "  빌드 완료!" -ForegroundColor Green
 Write-Host "  VSIX 파일: output\$($vsixFile.Name)" -ForegroundColor White
 if ($CopyToDesktop) {
     Write-Host "  바탕화면:  $($vsixFile.Name)" -ForegroundColor White
+}
+if ($SharedFolder) {
+    Write-Host "  공유 폴더: $SharedFolder\$($vsixFile.Name)" -ForegroundColor White
 }
 Write-Host "═══════════════════════════════════════════════" -ForegroundColor Cyan
 Write-Host ""
