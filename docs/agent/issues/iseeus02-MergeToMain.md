@@ -1,10 +1,10 @@
 # Issue 2: main branch로 병합
-- Status: Open
+- Status: Resolved
 - Description:
    1. Main branch로 병합이 필요함.
    2. 그러나, Main에서 여러가지 변경이 이루어진 듯 함. 특히, tiptap이 v2에서 v3으로 격변된 듯
    3. 모든 기능을 유지하며 main에 잘 병합할 수 있는지 검토 후 병합이 필요함
-- Resolution:
+- Resolution: main으로 병합 완료 (bdb3b72). 충돌은 package.json/package-lock.json만 발생, 양쪽 의존성 모두 포함하여 해결. feature/tauri-desktop, feature/tiptap-v3-upgrade 원격/로컬 모두 삭제.
 - Comment
     1. copilot: 분석 결과 아래와 같음. 병합 진행.
 
