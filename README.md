@@ -1,6 +1,8 @@
 # Structured Doc Editor
 
-`.sdoc` 파일을 위한 WYSIWYG 구조화 문서 에디터입니다.
+> **v0.2.3** — Mermaid 다이어그램 지원, AI Agent(MCP) 통합
+
+`.sdoc` / `.tiptap.json` 파일을 위한 WYSIWYG 구조화 문서 에디터입니다.
 **VS Code 확장 프로그램**과 **독립형 데스크톱 앱(Tauri, Windows 전용)** 두 가지 형태로 제공됩니다.
 
 ---
@@ -38,12 +40,14 @@
 | 코드 블록 | lowlight 기반 구문 강조 (100+ 언어) |
 | 표 | 캡션, 정렬, 너비 설정 / 컨텍스트 메뉴로 행·열 조작 |
 | 이미지 | 클립보드 붙여넣기, 캡션, 정렬 |
+| Mermaid 다이어그램 | 플로우차트·시퀀스·ER·간트 등 라이브 렌더링 / 분할 편집 창 + 6종 템플릿 |
 | Draw.io 다이어그램 | 삽입 및 편집 (VS Code: Draw.io Integration 확장 / 데스크톱: draw.io 앱 연동) |
 | 교차 참조 | `@` 입력으로 heading·figure·table 참조 삽입 및 번호 자동 동기화 |
 | 섹션 접기 | heading 옆 토글로 섹션별 접기/펼치기 |
 | 할 일 목록 | 체크박스 태스크 리스트 |
 | 문서 메타데이터 | Title, Author, Version 인라인 편집 |
 | 자동 업데이트 | 공유 폴더 기반 사내 자동 업데이트 (VS Code 확장 전용) |
+| AI Agent 지원 | MCP 서버 내장 — Copilot/Claude 등 AI Agent가 `.sdoc`·`.tiptap.json` 직접 생성·편집 가능 |
 
 ---
 
@@ -211,7 +215,8 @@ vscode-ext-customeditor/
 │   ├── extension.ts            # 확장 진입점
 │   ├── SdocEditorProvider.ts   # 커스텀 에디터 + 파일 I/O
 │   ├── commands/               # 내보내기 명령 (HTML, Markdown, AsciiDoc)
-│   └── converter/              # (레거시) VS Code 전용 변환기
+│   ├── converter/              # VS Code 전용 변환기 (vscode API 사용)
+│   └── mcp/server.ts           # MCP 서버 (stdio, AI Agent 연동)
 │
 ├── webview-ui/                 # VS Code 웹뷰 UI (React + Vite)
 │   └── src/
@@ -220,12 +225,13 @@ vscode-ext-customeditor/
 │       ├── hooks/              # useVSCodeMessaging, useTiptapEditor
 │       └── styles/             # VS Code 테마 CSS
 │
-├── shared/                     # VS Code + Tauri 공유 변환 로직
-│   └── converter/
-│       ├── jsonToHtml.ts       # HTML 내보내기
-│       ├── jsonToMarkdown.ts   # Markdown 내보내기
-│       ├── jsonToAdoc.ts       # AsciiDoc 내보내기
-│       └── markdownToJson.ts   # Markdown 가져오기
+├── shared/                     # VS Code + Tauri 공유 코드 (vscode API 미사용)
+│   ├── converter/
+│   │   ├── jsonToHtml.ts       # HTML 내보내기
+│   │   ├── jsonToMarkdown.ts   # Markdown 내보내기
+│   │   ├── jsonToAdoc.ts       # AsciiDoc 내보내기
+│   │   └── markdownToJson.ts   # Markdown 가져오기
+│   └── mcp/                    # MCP 도구 구현 (AI Agent)
 │
 ├── tauri-app/                  # 데스크톱 앱 (Tauri v2, Windows 전용)
 │   ├── src/                    # 프론트엔드 (webview-ui와 동일 구조)
@@ -251,7 +257,7 @@ vscode-ext-customeditor/
 
 | 레이어 | VS Code 확장 | Tauri 데스크톱 |
 |---|---|---|
-| 에디터 UI | React 18 + Tiptap v2 | React 18 + Tiptap v2 (동일) |
+| 에디터 UI | React 18 + Tiptap v3 | React 18 + Tiptap v3 (동일) |
 | 스타일링 | Tailwind CSS + VS Code CSS 변수 | Tailwind CSS + 독립 다크 테마 |
 | 빌드 (프론트) | Vite | Vite |
 | 백엔드 | TypeScript (Node.js) | Rust + Tauri v2 |
