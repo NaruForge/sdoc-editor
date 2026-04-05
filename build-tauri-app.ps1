@@ -35,6 +35,10 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+# UTF-8 출력 강제 설정 (WSL 터미널 한글 깨짐 방지)
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+
 # ──────────────────────────────────────────────
 # 색상 헬퍼
 # ──────────────────────────────────────────────
