@@ -47,6 +47,14 @@ export function activate(context: vscode.ExtensionContext) {
       () => setupMcpServer(context)
     )
   );
+
+  // Register Setup AI Agent (all-in-one) command
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      'structuredDocEditor.setupAgent',
+      () => setupAgent(context)
+    )
+  );
 }
 
 async function setupMcpServer(context: vscode.ExtensionContext): Promise<void> {
@@ -110,6 +118,67 @@ async function setupMcpServer(context: vscode.ExtensionContext): Promise<void> {
     const doc = await vscode.workspace.openTextDocument(mcpJsonPath);
     await vscode.window.showTextDocument(doc);
   }
+}
+
+async function setupAgent(context: vscode.ExtensionContext): Promise<void> {
+  const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+  if (!workspaceFolder) {
+    vscode.window.showErrorMessage('워크스페이스 폴더가 열려 있지 않습니다.');
+    return;
+  }
+
+  // Source: docs/agent/.github/ inside the extension
+  const srcGithubDir = path.join(context.extensionPath, 'docs', 'agent', '.github');
+  if (!fs.existsSync(srcGithubDir)) {
+    vscode.window.showErrorMessage(
+      `Agent 파일을 찾을 수 없습니다: ${srcGithubDir}\n확장을 재설치해 주세요.`
+    );
+    return;
+  }
+
+  const destGithubDir = path.join(workspaceFolder.uri.fsPath, '.github');
+
+  // Collect files to copy and detect conflicts
+  const filePairs = collectFilePairs(srcGithubDir, destGithubDir);
+  const conflicts = filePairs.filter(([, dest]) => fs.existsSync(dest));
+
+  if (conflicts.length > 0) {
+    const conflictList = conflicts.map(([, dest]) => path.relative(workspaceFolder.uri.fsPath, dest)).join('\n');
+    const answer = await vscode.window.showWarningMessage(
+      `이미 존재하는 파일이 있습니다. 덮어쓰시겠습니까?`,
+      { modal: true, detail: conflictList },
+      '덮어쓰기', '취소'
+    );
+    if (answer !== '덮어쓰기') { return; }
+  }
+
+  // Copy files
+  for (const [src, dest] of filePairs) {
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.copyFileSync(src, dest);
+  }
+
+  // Also set up MCP server in .vscode/mcp.json
+  await setupMcpServer(context);
+
+  vscode.window.showInformationMessage(
+    `AI Agent 설정 완료! ${filePairs.length}개 파일이 .github/ 에 복사되었습니다.`,
+    '확인'
+  );
+}
+
+function collectFilePairs(srcDir: string, destDir: string): [string, string][] {
+  const pairs: [string, string][] = [];
+  for (const entry of fs.readdirSync(srcDir, { withFileTypes: true })) {
+    const srcPath = path.join(srcDir, entry.name);
+    const destPath = path.join(destDir, entry.name);
+    if (entry.isDirectory()) {
+      pairs.push(...collectFilePairs(srcPath, destPath));
+    } else {
+      pairs.push([srcPath, destPath]);
+    }
+  }
+  return pairs;
 }
 
 export function deactivate() {}
