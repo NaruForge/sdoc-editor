@@ -17,17 +17,13 @@
 .PARAMETER WslProjectPath
     WSL 내 프로젝트 경로 (기본값: /home/NaruForge/projects/vscode-ext-customeditor)
 
-.PARAMETER CopyToDesktop
-    완료 후 VSIX 파일을 Windows 바탕화면에 복사 (기본값: $true)
-
 .EXAMPLE
     .\build-vsix.ps1
-    .\build-vsix.ps1 -CopyToDesktop:$false
+    .\build-vsix.ps1 -SharedFolder ""
 #>
 param(
     [string]$WslDistro        = "Ubuntu",
     [string]$WslProjectPath   = "/home/NaruForge/projects/vscode-ext-customeditor",
-    [bool]$CopyToDesktop      = $true,
     [string]$SharedFolder     = "D:\CONTROL_NAS\VsCode-Extension\sdoc-editor"
 )
 
@@ -102,16 +98,6 @@ if (-not $vsixFile) {
 }
 
 # ──────────────────────────────────────────────
-# 바탕화면으로 복사 (선택)
-# ──────────────────────────────────────────────
-$DesktopPath = [Environment]::GetFolderPath("Desktop")
-if ($CopyToDesktop) {
-    $destFile = Join-Path $DesktopPath $vsixFile.Name
-    Copy-Item -Path $vsixFile.FullName -Destination $destFile -Force
-    Write-Ok "바탕화면 복사: $destFile"
-}
-
-# ──────────────────────────────────────────────
 # 공유 폴더로 복사
 # ──────────────────────────────────────────────
 if ($SharedFolder) {
@@ -136,9 +122,6 @@ Write-Host ""
 Write-Host "═══════════════════════════════════════════════" -ForegroundColor Cyan
 Write-Host "  빌드 완료!" -ForegroundColor Green
 Write-Host "  VSIX 파일: output\$($vsixFile.Name)" -ForegroundColor White
-if ($CopyToDesktop) {
-    Write-Host "  바탕화면:  $($vsixFile.Name)" -ForegroundColor White
-}
 if ($SharedFolder) {
     Write-Host "  공유 폴더: $SharedFolder\$($vsixFile.Name)" -ForegroundColor White
 }
