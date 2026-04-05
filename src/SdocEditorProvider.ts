@@ -5,6 +5,13 @@ import { convertJsonToHtml } from './converter/jsonToHtml';
 import { convertJsonToAdoc } from './converter/jsonToAdoc';
 import { convertJsonToMarkdown } from './converter/jsonToMarkdown';
 import { convertMarkdownToJson } from './converter/markdownToJson';
+import {
+  unwrapSdoc as sharedUnwrapSdoc,
+  migrateAttributes as sharedMigrateAttributes,
+  assignAutoIds as sharedAssignAutoIds,
+  syncCrossReferences as sharedSyncCrossReferences,
+  extractTitle as sharedExtractTitle,
+} from '../shared/mcp/sdocUtils';
 
 export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
   private static readonly SDOC_VERSION = '1.0';
@@ -963,81 +970,15 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
    * Also migrates legacy attribute names (data-caption → caption, etc.).
    */
   private static unwrapSdoc(parsed: any): { meta: any; doc: any } {
-    let doc: any;
-    let meta: any = {};
-
-    if (parsed.sdoc && parsed.doc) {
-      // New envelope format
-      doc = parsed.doc;
-      meta = parsed.meta || {};
-    } else if (parsed.type === 'doc') {
-      // Legacy format: bare Tiptap doc
-      doc = parsed;
-    } else {
-      doc = { type: 'doc', content: [] };
-    }
-
-    // Migrate legacy attribute names
-    doc = SdocEditorProvider.migrateAttributes(doc);
-    return { meta, doc };
+    return sharedUnwrapSdoc(parsed);
   }
 
-  /**
-   * Recursively rename data-caption→caption, data-align→align, data-width→width
-   * in node attrs for backward compatibility with legacy .sdoc files.
-   */
   private static migrateAttributes(node: any): any {
-    if (!node || typeof node !== 'object') {
-      return node;
-    }
-    const cloned = Array.isArray(node) ? [...node] : { ...node };
-
-    if (cloned.attrs) {
-      const a = { ...cloned.attrs };
-      if ('data-caption' in a) { a.caption = a['data-caption']; delete a['data-caption']; }
-      if ('data-align' in a) { a.align = a['data-align']; delete a['data-align']; }
-      if ('data-width' in a) { a.width = a['data-width']; delete a['data-width']; }
-      cloned.attrs = a;
-    }
-
-    if (cloned.content && Array.isArray(cloned.content)) {
-      cloned.content = cloned.content.map((child: any) => SdocEditorProvider.migrateAttributes(child));
-    }
-    return cloned;
+    return sharedMigrateAttributes(node);
   }
 
-  /**
-   * Extract the document title from the first heading node.
-   */
   private static extractTitle(doc: any): string {
-    if (!doc?.content) { return ''; }
-    for (const node of doc.content) {
-      if (node.type === 'heading' && node.content) {
-        return node.content
-          .filter((c: any) => c.type === 'text')
-          .map((c: any) => c.text || '')
-          .join('');
-      }
-    }
-    return '';
-  }
-
-  private static slugify(text: string): string {
-    return text
-      .toLowerCase()
-      .replace(/[^\w\s가-힣-]/g, '')
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-|-$/g, '')
-      || 'untitled';
-  }
-
-  private static getNodeText(node: any): string {
-    if (!node?.content) return '';
-    return node.content
-      .filter((c: any) => c.type === 'text')
-      .map((c: any) => c.text || '')
-      .join('');
+    return sharedExtractTitle(doc);
   }
 
   /**
@@ -1073,122 +1014,12 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     return { ...node, content: cleaned };
   }
 
-  /**
-   * Assign auto-generated `id` to headings, captioned images, and captioned tables.
-   * Preserves existing ids if present.
-   */
   private static assignAutoIds(doc: any): any {
-    if (!doc?.content) return doc;
-
-    const usedIds = new Set<string>();
-    let imageCounter = 0;
-    let tableCounter = 0;
-
-    const uniqueId = (base: string): string => {
-      let id = base;
-      let i = 2;
-      while (usedIds.has(id)) { id = `${base}-${i}`; i++; }
-      usedIds.add(id);
-      return id;
-    };
-
-    const cloned = { ...doc, content: doc.content.map((node: any) => {
-      if (node.type === 'heading') {
-        const text = SdocEditorProvider.getNodeText(node);
-        const existing = node.attrs?.id;
-        const id = existing || uniqueId(SdocEditorProvider.slugify(text));
-        if (!existing) usedIds.add(id);
-        else usedIds.add(existing);
-        return { ...node, attrs: { ...node.attrs, id } };
-      }
-      if (node.type === 'image') {
-        imageCounter++;
-        const existing = node.attrs?.id;
-        const id = existing || uniqueId(`figure-${imageCounter}`);
-        if (!existing) usedIds.add(id);
-        else usedIds.add(existing);
-        return { ...node, attrs: { ...node.attrs, id } };
-      }
-      if (node.type === 'table') {
-        tableCounter++;
-        const existing = node.attrs?.id;
-        const id = existing || uniqueId(`table-${tableCounter}`);
-        if (!existing) usedIds.add(id);
-        else usedIds.add(existing);
-        return { ...node, attrs: { ...node.attrs, id } };
-      }
-      return node;
-    })};
-
-    return cloned;
+    return sharedAssignAutoIds(doc);
   }
 
-  /**
-   * Scan all internal links (href starts with #) and update their text
-   * to reflect the current numbering of the target node.
-   */
   private static syncCrossReferences(doc: any): any {
-    if (!doc?.content) return doc;
-
-    // Build a map: id → label
-    const idMap = new Map<string, string>();
-    let h1 = 0; let imgCnt = 0; let tblCnt = 0;
-    const h = [0, 0, 0, 0, 0, 0]; // h1–h6 counters
-
-    for (const node of doc.content) {
-      if (node.type === 'heading') {
-        const level: number = node.attrs?.level || 1;
-        h[level - 1]++;
-        for (let j = level; j < 6; j++) h[j] = 0;
-        if (level === 1) { h1++; imgCnt = 0; tblCnt = 0; }
-        const nums = h.slice(0, level).join('.') + '.';
-        const text = SdocEditorProvider.getNodeText(node);
-        if (node.attrs?.id) {
-          idMap.set(node.attrs.id, `${nums} ${text}`);
-        }
-      }
-      if (node.type === 'image') {
-        imgCnt++;
-        const caption = node.attrs?.caption || '';
-        const label = caption ? `Figure ${imgCnt}: ${caption}` : `Figure ${imgCnt}`;
-        if (node.attrs?.id) {
-          idMap.set(node.attrs.id, label);
-        }
-      }
-      if (node.type === 'table') {
-        tblCnt++;
-        const caption = node.attrs?.caption || '';
-        const label = caption ? `Table ${tblCnt}: ${caption}` : `Table ${tblCnt}`;
-        if (node.attrs?.id) {
-          idMap.set(node.attrs.id, label);
-        }
-      }
-    }
-
-    // Recursively update link text for internal references
-    const updateRefs = (node: any): any => {
-      if (!node || typeof node !== 'object') return node;
-      const cloned = Array.isArray(node) ? [...node] : { ...node };
-
-      // Text node with a link mark pointing to #id
-      if (cloned.type === 'text' && cloned.marks) {
-        const linkMark = cloned.marks.find((m: any) => m.type === 'link' && m.attrs?.href?.startsWith('#'));
-        if (linkMark) {
-          const targetId = linkMark.attrs.href.slice(1);
-          const newLabel = idMap.get(targetId);
-          if (newLabel && cloned.text !== newLabel) {
-            return { ...cloned, text: newLabel };
-          }
-        }
-      }
-
-      if (cloned.content && Array.isArray(cloned.content)) {
-        cloned.content = cloned.content.map(updateRefs);
-      }
-      return cloned;
-    };
-
-    return updateRefs(doc);
+    return sharedSyncCrossReferences(doc);
   }
 
   private getHtmlForWebview(webview: vscode.Webview): string {
