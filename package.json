@@ -42,6 +42,11 @@
         "command": "structuredDocEditor.exportToMarkdown",
         "title": "Export to Markdown",
         "category": "Structured Doc"
+      },
+      {
+        "command": "structuredDocEditor.setupMcp",
+        "title": "Setup MCP Server (for AI Agent)",
+        "category": "Structured Doc"
       }
     ],
     "configuration": {
