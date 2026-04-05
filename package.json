@@ -2,7 +2,7 @@
   "name": "structured-doc-editor",
   "displayName": "Structured Doc Editor",
   "description": "WYSIWYG editor for .tiptap.json/.sdoc files with Markdown/AsciiDoc/HTML export",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "publisher": "lgm-control-contributor-01",
   "engines": {
     "vscode": "^1.85.0"
@@ -173,7 +173,7 @@
     "vscode:prepublish": "npm run build"
   },
   "devDependencies": {
-    "@modelcontextprotocol/sdk": "^1.12.1",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@types/node": "^20.11.0",
     "@types/vscode": "^1.85.0",
     "asciidoctor": "^3.0.4",
@@ -181,7 +181,6 @@
     "highlight.js": "^11.11.1",
     "npm-run-all": "^4.1.5",
     "typescript": "^5.3.3",
-    "zod": "^3.24.0"
-  },
-  "dependencies": {}
+    "zod": "^3.25.76"
+  }
 }
