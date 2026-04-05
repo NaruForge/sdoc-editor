@@ -49,8 +49,10 @@ Write-Step "환경 확인 중..."
 if (-not (Get-Command wsl -ErrorAction SilentlyContinue)) {
     Write-Fail "WSL 을 찾을 수 없습니다."
 }
-$wslCheck = wsl --list --quiet 2>$null
-if ($wslCheck -notmatch $WslDistro) {
+# wsl --list 출력은 UTF-16(null 바이트 포함) → 제거 후 비교
+$wslRaw = wsl --list --quiet 2>$null
+$wslCheck = ($wslRaw -replace "`0", "" | Out-String).Trim()
+if ($wslCheck -notmatch [regex]::Escape($WslDistro)) {
     Write-Fail "WSL 배포판 '$WslDistro' 를 찾을 수 없습니다.`n   wsl --list  로 이름을 확인하세요."
 }
 Write-Ok "WSL 배포판: $WslDistro"

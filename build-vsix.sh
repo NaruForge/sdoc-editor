@@ -15,5 +15,8 @@ else
   exit 1
 fi
 
-echo "▶  $PWSH 로 실행 중: build-vsix.ps1"
-"$PWSH" -ExecutionPolicy Bypass -File "$PS1_PATH" "$@"
+# 현재 WSL 배포판 이름을 자동으로 전달 (wsl --list 인코딩 문제 우회)
+Wsl_DISTRO="${WSL_DISTRO_NAME:-Ubuntu}"
+
+echo "▶  $PWSH 로 실행 중: build-vsix.ps1 (배포판: $Wsl_DISTRO)"
+"$PWSH" -ExecutionPolicy Bypass -File "$PS1_PATH" -WslDistro "$Wsl_DISTRO" "$@"
