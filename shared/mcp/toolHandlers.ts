@@ -86,10 +86,13 @@ export function validateSdoc(input: string | object): ValidateResult {
 
 const VALID_BLOCK_TYPES = new Set([
   'heading', 'paragraph', 'bulletList', 'orderedList', 'taskList',
-  'codeBlock', 'table', 'image', 'mathBlock', 'hardBreak', 'horizontalRule',
+  'codeBlock', 'table', 'image', 'mathBlock', 'diagram', 'hardBreak', 'horizontalRule',
 ]);
-const VALID_INLINE_TYPES = new Set(['text', 'mathInline', 'hardBreak', 'image']);
-const VALID_MARK_TYPES = new Set(['bold', 'italic', 'underline', 'strike', 'code', 'link']);
+const VALID_INLINE_TYPES = new Set(['text', 'mathInline', 'hardBreak']);
+const VALID_MARK_TYPES = new Set([
+  'bold', 'italic', 'underline', 'strike', 'code', 'link',
+  'textStyle', 'highlight', 'subscript', 'superscript',
+]);
 
 function validateNodes(nodes: any[], basePath: string, errors: ValidationError[]) {
   for (let i = 0; i < nodes.length; i++) {

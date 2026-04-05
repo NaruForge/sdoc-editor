@@ -38,16 +38,18 @@ Every `.sdoc` file MUST have this top-level structure:
 ### heading
 
 ```json
-{ "type": "heading", "attrs": { "level": 2, "id": "my-heading" }, "content": [ /* inline nodes */ ] }
+{ "type": "heading", "attrs": { "level": 2, "id": "my-heading", "textAlign": "left" }, "content": [ /* inline nodes */ ] }
 ```
 - `level`: 1–6 (required)
 - `id`: optional anchor for cross-references (auto-assigned on save, slugified from text)
+- `textAlign`: optional `"left"` | `"center"` | `"right"` | `"justify"` | `null`
 
 ### paragraph
 
 ```json
-{ "type": "paragraph", "content": [ /* inline nodes */ ] }
+{ "type": "paragraph", "attrs": { "textAlign": "left" }, "content": [ /* inline nodes */ ] }
 ```
+- `textAlign`: optional `"left"` | `"center"` | `"right"` | `"justify"` | `null`
 
 ### bulletList / orderedList
 
@@ -130,6 +132,14 @@ Every `.sdoc` file MUST have this top-level structure:
 ```
 - `latex`: LaTeX math expression rendered by KaTeX
 
+### diagram
+
+```json
+{ "type": "diagram", "attrs": { "language": "mermaid", "code": "graph TD\n  A --> B" } }
+```
+- `language`: required — `"mermaid"`, `"plantuml"`, `"d2"`, `"graphviz"`, etc.
+- `code`: required — diagram source code as a string
+
 ### hardBreak
 
 ```json
@@ -165,6 +175,10 @@ With marks:
 | `strike` | — | `{ "type": "strike" }` |
 | `code` | — | `{ "type": "code" }` |
 | `link` | `href`, `target`, `rel`, `class` | `{ "type": "link", "attrs": { "href": "https://example.com" } }` |
+| `subscript` | — | `{ "type": "subscript" }` |
+| `superscript` | — | `{ "type": "superscript" }` |
+| `textStyle` | `color` | `{ "type": "textStyle", "attrs": { "color": "#ff0000" } }` |
+| `highlight` | `color` | `{ "type": "highlight", "attrs": { "color": "#ffff00" } }` |
 
 Multiple marks can be combined:
 ```json

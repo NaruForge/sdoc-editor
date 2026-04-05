@@ -365,3 +365,74 @@
   }
 }
 ```
+
+## Diagram (Mermaid)
+
+```json
+{
+  "type": "diagram",
+  "attrs": {
+    "language": "mermaid",
+    "code": "graph TD\n  A[Start] --> B{Decision}\n  B -->|Yes| C[OK]\n  B -->|No| D[Cancel]"
+  }
+}
+```
+
+## Text Alignment
+
+```json
+{
+  "type": "heading",
+  "attrs": { "level": 2, "textAlign": "center" },
+  "content": [{ "type": "text", "text": "Centered Heading" }]
+}
+```
+
+```json
+{
+  "type": "paragraph",
+  "attrs": { "textAlign": "right" },
+  "content": [{ "type": "text", "text": "Right-aligned paragraph." }]
+}
+```
+
+## Subscript and Superscript
+
+```json
+{
+  "type": "paragraph",
+  "content": [
+    { "type": "text", "text": "H" },
+    { "type": "text", "text": "2", "marks": [{ "type": "subscript" }] },
+    { "type": "text", "text": "O is water. E = mc" },
+    { "type": "text", "text": "2", "marks": [{ "type": "superscript" }] },
+    { "type": "text", "text": "." }
+  ]
+}
+```
+
+## Text Color (textStyle mark)
+
+```json
+{
+  "type": "paragraph",
+  "content": [
+    { "type": "text", "text": "This is " },
+    { "type": "text", "text": "red text", "marks": [{ "type": "textStyle", "attrs": { "color": "#ff0000" } }] },
+    { "type": "text", "text": "." }
+  ]
+}
+```
+
+## Highlight (background color)
+
+```json
+{
+  "type": "paragraph",
+  "content": [
+    { "type": "text", "text": "This is " },
+    { "type": "text", "text": "highlighted text", "marks": [{ "type": "highlight", "attrs": { "color": "#ffeb3b" } }] },
+    { "type": "text", "text": "." }
+  ]
+}
+```

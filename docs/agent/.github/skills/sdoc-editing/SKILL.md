@@ -111,6 +111,43 @@ Supports 100+ languages via lowlight/highlight.js syntax highlighting.
 }
 ```
 
+### Adding a Diagram (Mermaid, PlantUML, etc.)
+
+```json
+{
+  "type": "diagram",
+  "attrs": {
+    "language": "mermaid",
+    "code": "graph TD\n  A[Start] --> B[Process]\n  B --> C[End]"
+  }
+}
+```
+- `language`: `"mermaid"`, `"plantuml"`, `"d2"`, `"graphviz"`, etc.
+- `code`: diagram source code as a string
+- Rendered visually in the editor; exported as fenced code blocks
+
+### Text Alignment
+
+Headings and paragraphs support `textAlign` attribute:
+```json
+{ "type": "paragraph", "attrs": { "textAlign": "center" }, "content": [{ "type": "text", "text": "Centered text" }] }
+```
+Values: `"left"` | `"center"` | `"right"` | `"justify"` | `null`
+
+### Subscript and Superscript
+
+```json
+{ "type": "text", "text": "2", "marks": [{ "type": "subscript" }] }
+{ "type": "text", "text": "n", "marks": [{ "type": "superscript" }] }
+```
+
+### Text Color and Highlight
+
+```json
+{ "type": "text", "text": "red text", "marks": [{ "type": "textStyle", "attrs": { "color": "#ff0000" } }] }
+{ "type": "text", "text": "highlighted", "marks": [{ "type": "highlight", "attrs": { "color": "#ffff00" } }] }
+```
+
 ### Converting from Markdown
 
 The editor supports Markdown import. The converter handles:
