@@ -1,6 +1,6 @@
-# New .sdoc Document Template
+# New .sdoc / .tiptap.json Document Template
 
-Use this template when creating a new `.sdoc` file:
+Use this template when creating a new `.sdoc` or `.tiptap.json` file:
 
 ```json
 {

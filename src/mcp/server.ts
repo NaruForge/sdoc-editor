@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /**
- * .sdoc MCP Server — stdio transport
+ * .sdoc/.tiptap.json MCP Server — stdio transport
  *
  * Provides AI agents with tools to validate, create, export, import,
- * and process .sdoc structured documents.
+ * and process .sdoc/.tiptap.json structured documents.
  *
  * Run: node dist/mcp-server.js
  */
@@ -33,9 +33,9 @@ const server = new McpServer({
 // ── Tool: sdoc.validate ───────────────────────────────────────────
 server.tool(
   'sdoc_validate',
-  'Validate a .sdoc file against the schema. Returns a list of errors if invalid. Input can be a file path or raw JSON content.',
+  'Validate a .sdoc/.tiptap.json file against the schema. Returns a list of errors if invalid. Input can be a file path or raw JSON content.',
   {
-    input: z.string().describe('File path to a .sdoc file, or raw JSON string content'),
+    input: z.string().describe('File path to a .sdoc/.tiptap.json file, or raw JSON string content'),
   },
   async ({ input }) => {
     let content = input;
@@ -50,7 +50,7 @@ server.tool(
 
     const result = validateSdoc(content);
     if (result.valid) {
-      return { content: [{ type: 'text' as const, text: 'Valid .sdoc document.' }] };
+      return { content: [{ type: 'text' as const, text: 'Valid .sdoc/.tiptap.json document.' }] };
     }
     const errorList = result.errors.map(e => `  • ${e.path}: ${e.message}`).join('\n');
     return { content: [{ type: 'text' as const, text: `Validation failed (${result.errors.length} error(s)):\n${errorList}` }] };
@@ -60,7 +60,7 @@ server.tool(
 // ── Tool: sdoc.create ─────────────────────────────────────────────
 server.tool(
   'sdoc_create',
-  'Create a new .sdoc document with the proper envelope structure. Returns the complete JSON.',
+  'Create a new .sdoc/.tiptap.json document with the proper envelope structure. Returns the complete JSON.',
   {
     title: z.string().optional().describe('Document title'),
     author: z.string().optional().describe('Author name'),
@@ -75,9 +75,9 @@ server.tool(
 // ── Tool: sdoc.export ─────────────────────────────────────────────
 server.tool(
   'sdoc_export',
-  'Export a .sdoc document to HTML, Markdown, or AsciiDoc format. Input can be a file path or raw JSON content.',
+  'Export a .sdoc/.tiptap.json document to HTML, Markdown, or AsciiDoc format. Input can be a file path or raw JSON content.',
   {
-    input: z.string().describe('File path to a .sdoc file, or raw JSON string content'),
+    input: z.string().describe('File path to a .sdoc/.tiptap.json file, or raw JSON string content'),
     format: z.enum(['html', 'markdown', 'asciidoc']).describe('Export format'),
     imageCaptionPrefix: z.string().optional().describe('Prefix for image captions (default: "Image")'),
     tableCaptionPrefix: z.string().optional().describe('Prefix for table captions (default: "Table")'),
@@ -105,7 +105,7 @@ server.tool(
 // ── Tool: sdoc.import ─────────────────────────────────────────────
 server.tool(
   'sdoc_import',
-  'Import Markdown text and convert it to .sdoc format. Returns the complete .sdoc JSON.',
+  'Import Markdown text and convert it to .sdoc/.tiptap.json format. Returns the complete JSON.',
   {
     markdown: z.string().describe('Markdown text to convert'),
     title: z.string().optional().describe('Document title (auto-detected from H1 if omitted)'),
@@ -124,7 +124,7 @@ server.tool(
 // ── Tool: sdoc.getSchema ──────────────────────────────────────────
 server.tool(
   'sdoc_getSchema',
-  'Get the .sdoc JSON schema definition. Use this to understand the document structure and valid node types.',
+  'Get the .sdoc/.tiptap.json JSON schema definition. Use this to understand the document structure and valid node types.',
   {},
   async () => {
     // Try to find the schema file relative to the server script
@@ -150,9 +150,9 @@ server.tool(
 // ── Tool: sdoc.assignIds ──────────────────────────────────────────
 server.tool(
   'sdoc_assignIds',
-  'Assign auto-generated IDs to headings, images, and tables in a .sdoc document. Headings get slugified text IDs, images get "figure-N", tables get "table-N". Existing IDs are preserved.',
+  'Assign auto-generated IDs to headings, images, and tables in a .sdoc/.tiptap.json document. Headings get slugified text IDs, images get "figure-N", tables get "table-N". Existing IDs are preserved.',
   {
-    input: z.string().describe('File path to a .sdoc file, or raw JSON string content'),
+    input: z.string().describe('File path to a .sdoc/.tiptap.json file, or raw JSON string content'),
   },
   async ({ input }) => {
     let content = input;
@@ -176,9 +176,9 @@ server.tool(
 // ── Tool: sdoc.syncRefs ───────────────────────────────────────────
 server.tool(
   'sdoc_syncRefs',
-  'Synchronize cross-reference link texts with current heading/figure/table numbering in a .sdoc document.',
+  'Synchronize cross-reference link texts with current heading/figure/table numbering in a .sdoc/.tiptap.json document.',
   {
-    input: z.string().describe('File path to a .sdoc file, or raw JSON string content'),
+    input: z.string().describe('File path to a .sdoc/.tiptap.json file, or raw JSON string content'),
   },
   async ({ input }) => {
     let content = input;
@@ -202,9 +202,9 @@ server.tool(
 // ── Tool: sdoc.migrate ────────────────────────────────────────────
 server.tool(
   'sdoc_migrate',
-  'Migrate legacy .sdoc files: convert "data-*" attribute names to clean camelCase, wrap bare doc nodes in the proper envelope.',
+  'Migrate legacy .sdoc/.tiptap.json files: convert "data-*" attribute names to clean camelCase, wrap bare doc nodes in the proper envelope.',
   {
-    input: z.string().describe('File path to a .sdoc file, or raw JSON string content'),
+    input: z.string().describe('File path to a .sdoc/.tiptap.json file, or raw JSON string content'),
   },
   async ({ input }) => {
     let content = input;
@@ -230,7 +230,7 @@ server.tool(
   'sdoc_query',
   'Analyze document structure: list all headings (with numbering), figures, tables, and cross-references. Useful for understanding document layout before editing.',
   {
-    input: z.string().describe('File path to a .sdoc file, or raw JSON string content'),
+    input: z.string().describe('File path to a .sdoc/.tiptap.json file, or raw JSON string content'),
   },
   async ({ input }) => {
     let content = input;
@@ -297,7 +297,7 @@ server.tool(
 server.resource(
   'sdoc-schema',
   'sdoc://schema',
-  { description: 'The .sdoc JSON schema definition', mimeType: 'application/json' },
+  { description: 'The .sdoc/.tiptap.json JSON schema definition', mimeType: 'application/json' },
   async () => {
     const candidates = [
       path.resolve(__dirname, '..', 'sdoc.schema.json'),

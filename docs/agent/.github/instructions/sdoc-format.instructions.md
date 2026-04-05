@@ -1,16 +1,16 @@
 ---
-description: "Use when editing, creating, or modifying .sdoc files. Covers the JSON envelope structure, node types, attribute conventions, marks, and cross-references for Structured Document (.sdoc) format."
-applyTo: "**/*.sdoc"
+description: "Use when editing, creating, or modifying .sdoc or .tiptap.json files. Covers the JSON envelope structure, node types, attribute conventions, marks, and cross-references for Structured Document format."
+applyTo: "**/*.{sdoc,tiptap.json}"
 ---
 
 # .sdoc File Format — AI Authoring Guide
 
-`.sdoc` is a JSON-based structured document format powered by a Tiptap/ProseMirror editor.
-The file is saved as pretty-printed JSON and opened in a WYSIWYG custom editor.
+`.sdoc` (and its alias `.tiptap.json`) is a JSON-based structured document format powered by a Tiptap/ProseMirror editor.
+The file is saved as pretty-printed JSON and opened in a WYSIWYG custom editor. Both extensions use the identical format.
 
 ## Envelope Structure (REQUIRED)
 
-Every `.sdoc` file MUST have this top-level structure:
+Every `.sdoc` / `.tiptap.json` file MUST have this top-level structure:
 
 ```json
 {

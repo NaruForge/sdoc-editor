@@ -1,14 +1,14 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://sdoc.dev/schema/v1.0.json",
-  "title": "Structured Document (.sdoc)",
-  "description": "Schema for .sdoc files — a structured document format based on a tree of typed nodes with optional marks and attributes.",
+  "title": "Structured Document (.sdoc / .tiptap.json)",
+  "description": "Schema for .sdoc and .tiptap.json files — a structured document format based on a tree of typed nodes with optional marks and attributes.",
   "type": "object",
   "required": ["sdoc", "doc"],
   "properties": {
     "sdoc": {
       "type": "string",
-      "description": "Schema version of this .sdoc file.",
+      "description": "Schema version of this .sdoc/.tiptap.json file.",
       "enum": ["1.0"]
     },
     "meta": {

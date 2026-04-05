@@ -1,19 +1,19 @@
 ---
 name: sdoc-editing
-description: "Create, edit, and manage .sdoc structured documents. Use when: writing technical documents, inserting math equations, building tables with captions, adding images, creating cross-references, importing from Markdown, or understanding .sdoc format conventions."
+description: "Create, edit, and manage .sdoc/.tiptap.json structured documents. Use when: writing technical documents, inserting math equations, building tables with captions, adding images, creating cross-references, importing from Markdown, or understanding .sdoc format conventions."
 argument-hint: "Describe what you want to create or edit in the .sdoc document"
 ---
 
 # .sdoc Document Editing Skill
 
-This skill helps you author and edit `.sdoc` (Structured Document) files — a JSON-based document format with WYSIWYG editing backed by Tiptap/ProseMirror.
+This skill helps you author and edit `.sdoc` / `.tiptap.json` (Structured Document) files — a JSON-based document format with WYSIWYG editing backed by Tiptap/ProseMirror. Both file extensions use the identical format.
 
 ## When to Use
 
-- Creating a new `.sdoc` document from scratch
+- Creating a new `.sdoc` or `.tiptap.json` document from scratch
 - Adding or editing content: headings, paragraphs, lists, tables, images, math, code blocks
-- Converting Markdown content into `.sdoc` format
-- Understanding how to structure `.sdoc` JSON correctly
+- Converting Markdown content into `.sdoc`/`.tiptap.json` format
+- Understanding how to structure `.sdoc`/`.tiptap.json` JSON correctly
 - Working with cross-references between headings, figures, and tables
 
 ## File Format Overview
@@ -29,7 +29,7 @@ See [sdoc-format.instructions.md](../../.github/instructions/sdoc-format.instruc
 
 ### Creating a New Document
 
-1. Create a file with `.sdoc` extension
+1. Create a file with `.sdoc` or `.tiptap.json` extension
 2. Use the envelope template from [new-document-template.md](./references/new-document-template.md)
 3. Set `meta.title`, `meta.author`, `meta.version`
 4. Set `meta.created` and `meta.modified` to current ISO 8601 timestamp
