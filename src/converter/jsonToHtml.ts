@@ -128,6 +128,9 @@ function convertNode(node: TiptapNode): string {
     case 'mathBlock':
       return `<div class="math-block" data-latex="${escapeHtml(node.attrs?.latex || '')}">\\[${escapeHtml(node.attrs?.latex || '')}\\]</div>`;
 
+    case 'diagram':
+      return `<pre class="mermaid">${escapeHtml(node.attrs?.code || '')}</pre>`;
+
     case 'table':
       return convertTable(node);
 
@@ -678,6 +681,10 @@ function generateHtmlDocument(bodyContent: string, theme?: HtmlTheme, meta?: Sdo
       {left: '\\\\[', right: '\\\\]', display: true},
       {left: '\\\\(', right: '\\\\)', display: false}
     ]})"></script>
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({ startOnLoad: true, theme: 'default' });
+  </script>
 </head>
 <body>
   ${companyLogo || companyName ? `

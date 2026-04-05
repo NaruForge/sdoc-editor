@@ -1189,3 +1189,200 @@ body {
 .ProseMirror .section-collapsed {
   display: none;
 }
+
+/* ===== Editor Body Layout (with optional TOC) ===== */
+.editor-body-layout {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  height: 100%;
+}
+
+.editor-body-layout .editor-content-area {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+}
+
+/* ===== Table of Contents Panel ===== */
+.toc-panel {
+  width: 220px;
+  min-width: 180px;
+  max-width: 260px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+  border-right: 1px solid var(--vscode-panel-border);
+  padding: 8px 0;
+  background-color: var(--vscode-sideBar-background, var(--vscode-editor-background));
+  display: flex;
+  flex-direction: column;
+}
+
+.toc-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--vscode-sideBarTitle-foreground, var(--vscode-foreground));
+  padding: 4px 14px 8px;
+  border-bottom: 1px solid var(--vscode-panel-border);
+  margin-bottom: 4px;
+}
+
+.toc-empty {
+  padding: 8px 14px;
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground);
+  font-style: italic;
+}
+
+.toc-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 4px 6px;
+}
+
+.toc-entry {
+  display: flex;
+  align-items: baseline;
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  padding: 4px 8px;
+  text-align: left;
+  cursor: pointer;
+  color: var(--vscode-foreground);
+  font-family: var(--vscode-font-family);
+  transition: background-color 0.1s;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.toc-entry:hover {
+  background-color: var(--vscode-list-hoverBackground);
+}
+
+.toc-entry.toc-active {
+  background-color: var(--vscode-list-activeSelectionBackground);
+  color: var(--vscode-list-activeSelectionForeground);
+}
+
+.toc-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+  white-space: nowrap;
+}
+
+.toc-number {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+  color: var(--vscode-descriptionForeground);
+  margin-right: 4px;
+  font-size: 0.9em;
+  white-space: nowrap;
+}
+
+.toc-level-1 {
+  font-size: 13px;
+  font-weight: 600;
+  padding-left: 8px;
+}
+
+.toc-level-2 {
+  font-size: 12px;
+  font-weight: 500;
+  padding-left: 18px;
+}
+
+.toc-level-3 {
+  font-size: 12px;
+  font-weight: 400;
+  padding-left: 28px;
+}
+
+.toc-level-4 {
+  font-size: 11px;
+  font-weight: 400;
+  padding-left: 38px;
+  opacity: 0.85;
+}
+
+.toc-level-5,
+.toc-level-6 {
+  font-size: 11px;
+  font-weight: 400;
+  padding-left: 46px;
+  opacity: 0.75;
+}
+
+/* ===== Diagram Block ===== */
+.diagram-block {
+  position: relative;
+  margin: 1em 0;
+  padding: 12px;
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 6px;
+  background-color: var(--vscode-editor-background);
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.diagram-block:hover {
+  border-color: var(--vscode-focusBorder, #007acc);
+  box-shadow: 0 0 0 1px var(--vscode-focusBorder, #007acc);
+}
+
+.diagram-language-badge {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--vscode-badge-foreground, #fff);
+  background-color: var(--vscode-badge-background, #4d4d4d);
+  padding: 1px 6px;
+  border-radius: 3px;
+  z-index: 1;
+}
+
+.diagram-rendered {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60px;
+  overflow: auto;
+}
+
+.diagram-rendered svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.diagram-placeholder {
+  color: var(--vscode-descriptionForeground);
+  font-style: italic;
+  font-size: 13px;
+  padding: 16px;
+  text-align: center;
+}
+
+.diagram-error {
+  color: var(--vscode-errorForeground, #f48771);
+  font-size: 12px;
+  padding: 8px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.diagram-preview-area svg {
+  max-width: 100%;
+  height: auto;
+}

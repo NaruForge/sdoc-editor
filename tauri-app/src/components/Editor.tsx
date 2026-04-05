@@ -17,8 +17,10 @@ import { LinkDialog } from './LinkDialog';
 import { ImagePropertiesDialog } from './ImagePropertiesDialog';
 import { ImageContextMenu } from './ImageContextMenu';
 import { MathDialog } from './MathDialog';
+import { DiagramDialog } from './DiagramDialog';
 import { EditorContextMenu } from './EditorContextMenu';
 import { CrossReferenceDialog } from './CrossReferenceDialog';
+import { TableOfContents } from './TableOfContents';
 import { collectTargets } from '../extensions/CrossReference';
 import type { RefTarget } from '../extensions/CrossReference';
 
@@ -116,6 +118,7 @@ interface EditorProps {
 export const Editor: React.FC<EditorProps> = ({ adapter, initialDoc, initialMeta, onJsonView }) => {
   const { state, dispatch } = useEditorContext();
   const [showNumbering, setShowNumbering] = useState(true);
+  const [showToc, setShowToc] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [showTableProperties, setShowTableProperties] = useState(false);
   const [pendingImage, setPendingImage] = useState<{ blob: Blob; dataUrl: string } | null>(null);
@@ -125,6 +128,7 @@ export const Editor: React.FC<EditorProps> = ({ adapter, initialDoc, initialMeta
   const [imageProperties, setImageProperties] = useState<{ pos: number; src: string; alt: string; align: string; isDrawio: boolean } | null>(null);
   const [imageContextMenu, setImageContextMenu] = useState<{ x: number; y: number; pos: number; src: string; isDrawio: boolean } | null>(null);
   const [mathDialog, setMathDialog] = useState<{ latex: string; isBlock: boolean; pos: number | null } | null>(null);
+  const [diagramDialog, setDiagramDialog] = useState<{ code: string; language: string; pos: number | null } | null>(null);
   const [meta, setMeta] = useState<{ title: string; author: string; version: string; created: string; modified: string }>(
     initialMeta || { title: '', author: '', version: '', created: '', modified: '' }
   );
@@ -332,6 +336,20 @@ export const Editor: React.FC<EditorProps> = ({ adapter, initialDoc, initialMeta
   const handleInsertImage = () => { postMessage({ type: 'insertExistingImage' }); };
   const handleInsertLink = () => { setShowLinkDialog(true); };
   const handleInsertMath = () => { setMathDialog({ latex: '', isBlock: false, pos: null }); };
+  const handleInsertDiagram = () => { setDiagramDialog({ code: '', language: 'mermaid', pos: null }); };
+  const handleDiagramConfirm = (code: string, language: string, pos: number | null) => {
+    if (!editor) return;
+    if (pos !== null) {
+      editor.chain().focus().command(({ tr }) => {
+        tr.setNodeMarkup(pos, undefined, { language, code });
+        return true;
+      }).run();
+    } else {
+      (editor.chain().focus() as any).insertDiagram(language, code).run();
+    }
+    setDiagramDialog(null);
+    flushUpdate();
+  };
   const handleMathConfirm = (latex: string, isBlock: boolean) => {
     if (!editor) return;
     if (mathDialog?.pos !== null && mathDialog?.pos !== undefined) {
@@ -436,12 +454,16 @@ export const Editor: React.FC<EditorProps> = ({ adapter, initialDoc, initialMeta
       (window as any).__showMathDialog = (latex: string, isBlock: boolean, pos: number) => {
         setMathDialog({ latex, isBlock, pos });
       };
+      (window as any).__showDiagramDialog = (code: string, language: string, pos: number) => {
+        setDiagramDialog({ code, language, pos });
+      };
     }
     return () => {
       delete (window as any).__editorFlushUpdate;
       delete (window as any).__showImageProperties;
       delete (window as any).__showImageContextMenu;
       delete (window as any).__showMathDialog;
+      delete (window as any).__showDiagramDialog;
     };
   }, [editor, flushUpdate]);
 
@@ -466,19 +488,26 @@ export const Editor: React.FC<EditorProps> = ({ adapter, initialDoc, initialMeta
       <Toolbar
         editor={editor} onViewJson={handleViewJson} showNumbering={showNumbering} onToggleNumbering={handleToggleNumbering}
         showDecoration={state.settings.headingDecoration} onToggleDecoration={handleToggleDecoration}
+        showToc={showToc} onToggleToc={() => setShowToc(v => !v)}
         onInsertLink={handleInsertLink} onInsertMath={handleInsertMath}
+        onInsertDiagram={handleInsertDiagram}
         onInsertCrossRef={() => setShowCrossRefDialog(true)} onInsertImage={handleInsertImage}
         onInsertDrawio={handleInsertDrawio} onExport={handleExport} onImport={handleImport}
       />
       {editor && <BubbleMenuBar editor={editor} />}
-      <div onContextMenu={handleContextMenu}>
-        <div className="editor-title-area">
-          <input className="editor-title-input" value={meta.title}
-            onChange={(e) => handleMetaChange('title', e.target.value)} placeholder="문서 제목을 입력하세요" />
+      <div className={`editor-body-layout${showToc ? ' editor-body-with-toc' : ''}`}>
+        {showToc && (
+          <TableOfContents editor={editor} showNumbering={showNumbering} />
+        )}
+        <div className="editor-content-area" onContextMenu={handleContextMenu}>
+          <div className="editor-title-area">
+            <input className="editor-title-input" value={meta.title}
+              onChange={(e) => handleMetaChange('title', e.target.value)} placeholder="문서 제목을 입력하세요" />
+          </div>
+          <EditorContent editor={editor}
+            className={`${showNumbering ? 'show-numbering' : 'hide-numbering'} ${state.settings.headingDecoration ? 'show-heading-decoration' : ''} ${state.settings.captionNumbering === 'hierarchical' ? 'hierarchical-numbering' : 'simple-numbering'}`}
+          />
         </div>
-        <EditorContent editor={editor}
-          className={`${showNumbering ? 'show-numbering' : 'hide-numbering'} ${state.settings.headingDecoration ? 'show-heading-decoration' : ''} ${state.settings.captionNumbering === 'hierarchical' ? 'hierarchical-numbering' : 'simple-numbering'}`}
-        />
       </div>
       {editorContextMenu && <EditorContextMenu position={editorContextMenu} onInsertImage={handleInsertImage} onInsertDrawio={handleInsertDrawio} onInsertEquation={handleInsertMath} isLinkActive={editor?.isActive('link') ?? false} onRemoveLink={() => editor?.chain().focus().unsetLink().run()} onClose={() => setEditorContextMenu(null)} />}
       {contextMenu && editor && <TableContextMenu editor={editor} position={contextMenu} onClose={() => setContextMenu(null)} onOpenProperties={() => { setContextMenu(null); setShowTableProperties(true); }} />}
@@ -490,6 +519,7 @@ export const Editor: React.FC<EditorProps> = ({ adapter, initialDoc, initialMeta
       {imageProperties && <ImagePropertiesDialog src={imageProperties.src} alt={imageProperties.alt} align={imageProperties.align} onConfirm={handleImagePropertiesConfirm} onReplace={handleImageReplace} onCancel={() => setImageProperties(null)} isDrawio={imageProperties.isDrawio} />}
       {imageContextMenu && <ImageContextMenu position={{ x: imageContextMenu.x, y: imageContextMenu.y }} onClose={() => setImageContextMenu(null)} onOpenProperties={handleImageContextMenuProperties} onReplaceImage={handleImageContextMenuReplace} onCopyPath={handleImageContextMenuCopyPath} onDelete={handleImageContextMenuDelete} isDrawio={imageContextMenu.isDrawio} />}
       {mathDialog && <MathDialog initialLatex={mathDialog.latex} isBlock={mathDialog.isBlock} onConfirm={handleMathConfirm} onCancel={() => setMathDialog(null)} />}
+      {diagramDialog && <DiagramDialog initialCode={diagramDialog.code} initialLanguage={diagramDialog.language} pos={diagramDialog.pos} onConfirm={handleDiagramConfirm} onCancel={() => setDiagramDialog(null)} />}
       {showCrossRefDialog && editor && <CrossReferenceDialog targets={collectTargets(editor)} onSelect={(target: RefTarget) => { setShowCrossRefDialog(false); editor.chain().focus().insertContent([{ type: 'text', marks: [{ type: 'link', attrs: { href: `#${target.id}` } }], text: target.label }, { type: 'text', text: ' ' }]).run(); }} onClose={() => setShowCrossRefDialog(false)} />}
     </>
   );

@@ -37,6 +37,24 @@ export function convertMarkdownToJson(markdown: string): TiptapNode {
       continue;
     }
 
+    // Mermaid / diagram fenced code block (```mermaid ... ```)
+    const diagramFenceMatch = line.match(/^```(mermaid|plantuml|d2|graphviz)\s*$/);
+    if (diagramFenceMatch) {
+      const diagLang = diagramFenceMatch[1];
+      const diagLines: string[] = [];
+      i++;
+      while (i < lines.length && !lines[i].startsWith('```')) {
+        diagLines.push(lines[i]);
+        i++;
+      }
+      i++; // skip closing ```
+      doc.content!.push({
+        type: 'diagram',
+        attrs: { language: diagLang, code: diagLines.join('\n') },
+      });
+      continue;
+    }
+
     // Fenced code block
     const codeMatch = line.match(/^```(\w*)/);
     if (codeMatch) {

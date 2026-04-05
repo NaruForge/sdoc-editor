@@ -110,6 +110,12 @@ function convertNode(node: TiptapNode): string {
     case 'mathBlock':
       return `$$\n${node.attrs?.latex || ''}\n$$\n`;
 
+    case 'diagram': {
+      const diagLang = node.attrs?.language || 'mermaid';
+      const diagCode = node.attrs?.code || '';
+      return `\`\`\`${diagLang}\n${diagCode}\n\`\`\`\n`;
+    }
+
     case 'table':
       return convertTable(node);
 

@@ -58,6 +58,7 @@
         { "$ref": "#/definitions/tableNode" },
         { "$ref": "#/definitions/imageNode" },
         { "$ref": "#/definitions/mathBlockNode" },
+        { "$ref": "#/definitions/diagramNode" },
         { "$ref": "#/definitions/hardBreakNode" }
       ]
     },
@@ -345,6 +346,24 @@
           "required": ["latex"],
           "properties": {
             "latex": { "type": "string", "description": "LaTeX math expression." }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "diagramNode": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "const": "diagram" },
+        "attrs": {
+          "type": "object",
+          "required": ["language", "code"],
+          "properties": {
+            "language": { "type": "string", "description": "Diagram language, e.g. mermaid, plantuml, d2." },
+            "code": { "type": "string", "description": "Diagram source code." }
           },
           "additionalProperties": false
         }

@@ -18,6 +18,7 @@ import { CustomImage } from './CustomImage';
 import { CustomCodeBlock } from './CodeBlockView';
 import { MathInline } from './MathInline';
 import { MathBlock } from './MathBlock';
+import { DiagramBlock } from './DiagramBlock';
 import { CrossReference } from './CrossReference';
 import { Subscript } from '@tiptap/extension-subscript';
 import { Superscript } from '@tiptap/extension-superscript';
@@ -211,6 +212,7 @@ export const tiptapExtensions = [
   TableCell,
   MathInline,
   MathBlock,
+  DiagramBlock,
   TextStyle,
   Color,
   Highlight.configure({ multicolor: true }),

@@ -34,6 +34,8 @@ import {
   AlignCenter,
   AlignRight,
   AlignJustify,
+  BookOpen,
+  GitGraph,
 } from 'lucide-react';
 
 const TEXT_COLORS = [
@@ -65,16 +67,19 @@ interface ToolbarProps {
   onToggleNumbering: () => void;
   showDecoration: boolean;
   onToggleDecoration: () => void;
+  showToc: boolean;
+  onToggleToc: () => void;
   onInsertDrawio?: () => void;
   onInsertImage?: () => void;
   onInsertLink?: () => void;
   onInsertMath?: () => void;
+  onInsertDiagram?: () => void;
   onInsertCrossRef?: () => void;
   onExport?: (format: 'html' | 'adoc' | 'markdown') => void;
   onImport?: (format: 'markdown' | 'html') => void;
 }
 
-export const Toolbar: React.FC<ToolbarProps> = ({ editor, onViewJson, showNumbering, onToggleNumbering, showDecoration, onToggleDecoration, onInsertDrawio, onInsertImage, onInsertLink, onInsertMath, onInsertCrossRef, onExport, onImport }) => {
+export const Toolbar: React.FC<ToolbarProps> = ({ editor, onViewJson, showNumbering, onToggleNumbering, showDecoration, onToggleDecoration, showToc, onToggleToc, onInsertDrawio, onInsertImage, onInsertLink, onInsertMath, onInsertDiagram, onInsertCrossRef, onExport, onImport }) => {
   const [showInsertMenu, setShowInsertMenu] = useState(false);
   const [showTableSub, setShowTableSub] = useState(false);
   const [showCustomSize, setShowCustomSize] = useState(false);
@@ -89,6 +94,14 @@ export const Toolbar: React.FC<ToolbarProps> = ({ editor, onViewJson, showNumber
   const insertMenuRef = useRef<HTMLDivElement>(null);
   const exportMenuRef = useRef<HTMLDivElement>(null);
   const importMenuRef = useRef<HTMLDivElement>(null);
+  // Force re-render on every editor transaction so toolbar always reflects current state
+  const [, forceToolbarUpdate] = useState(0);
+  useEffect(() => {
+    if (!editor) return;
+    const handler = () => forceToolbarUpdate(v => v + 1);
+    editor.on('transaction', handler);
+    return () => { editor.off('transaction', handler); };
+  }, [editor]);
 
   // Close insert menu when clicking outside
   useEffect(() => {
@@ -461,6 +474,14 @@ export const Toolbar: React.FC<ToolbarProps> = ({ editor, onViewJson, showNumber
               </button>
             )}
 
+            {/* Diagram */}
+            {onInsertDiagram && (
+              <button className="insert-menu-item" onMouseDown={(e) => { e.preventDefault(); closeInsertMenu(); onInsertDiagram(); }}>
+                <GitGraph size={15} />
+                <span>Diagram (Mermaid)</span>
+              </button>
+            )}
+
             {/* Code Block */}
             <button className="insert-menu-item" onMouseDown={(e) => {
               e.preventDefault();
@@ -580,6 +601,15 @@ export const Toolbar: React.FC<ToolbarProps> = ({ editor, onViewJson, showNumber
         title={showDecoration ? "Hide Heading Decoration" : "Show Heading Decoration"}
       >
         <RemoveFormatting size={16} />
+      </Button>
+
+      <Button
+        onClick={onToggleToc}
+        isActive={showToc}
+        title={showToc ? "Hide Table of Contents" : "Show Table of Contents"}
+      >
+        <BookOpen size={16} />
+        <span style={{ marginLeft: '4px' }}>TOC</span>
       </Button>
 
 

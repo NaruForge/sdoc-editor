@@ -103,6 +103,12 @@ function convertNode(node: TiptapNode): string {
       const code = node.content ? node.content.map((n) => n.text || '').join('\n') : '';
       return `[source${language ? `,${language}` : ''}]\n----\n${code}\n----\n`;
 
+    case 'diagram': {
+      const diagLang = node.attrs?.language || 'mermaid';
+      const diagCode = node.attrs?.code || '';
+      return `[${diagLang}]\n....\n${diagCode}\n....\n`;
+    }
+
     case 'table':
       return convertTable(node);
 

@@ -17,6 +17,8 @@ import { ImageContextMenu } from './ImageContextMenu';
 import { MathDialog } from './MathDialog';
 import { EditorContextMenu } from './EditorContextMenu';
 import { CrossReferenceDialog } from './CrossReferenceDialog';
+import { DiagramDialog } from './DiagramDialog';
+import { TableOfContents } from './TableOfContents';
 import { collectTargets } from '../extensions/CrossReference';
 import type { RefTarget } from '../extensions/CrossReference';
 
@@ -107,6 +109,7 @@ function preprocessImportedHtml(html: string): string {
 export const Editor: React.FC = () => {
   const { state, dispatch } = useEditorContext();
   const [showNumbering, setShowNumbering] = useState(true);
+  const [showToc, setShowToc] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [showTableProperties, setShowTableProperties] = useState(false);
   const [pendingImage, setPendingImage] = useState<{ blob: Blob; dataUrl: string } | null>(null);
@@ -119,6 +122,7 @@ export const Editor: React.FC = () => {
   const [meta, setMeta] = useState<{ title: string; author: string; version: string; created: string; modified: string }>({ title: '', author: '', version: '', created: '', modified: '' });
   const [editorContextMenu, setEditorContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [showCrossRefDialog, setShowCrossRefDialog] = useState(false);
+  const [diagramDialog, setDiagramDialog] = useState<{ code: string; language: string; pos: number | null } | null>(null);
   const pendingEditRef = useRef(false);
   const setContentRef = useRef<((content: any) => void) | null>(null);
   const initDoneRef = useRef(false);
@@ -380,6 +384,24 @@ export const Editor: React.FC = () => {
     setMathDialog({ latex: '', isBlock: false, pos: null });
   };
 
+  const handleInsertDiagram = () => {
+    setDiagramDialog({ code: '', language: 'mermaid', pos: null });
+  };
+
+  const handleDiagramConfirm = (code: string, language: string, pos: number | null) => {
+    if (!editor) return;
+    if (pos !== null) {
+      editor.chain().focus().command(({ tr }) => {
+        tr.setNodeMarkup(pos, undefined, { language, code });
+        return true;
+      }).run();
+    } else {
+      (editor.chain().focus() as any).insertDiagram(language, code).run();
+    }
+    setDiagramDialog(null);
+    flushUpdate();
+  };
+
   const handleMathConfirm = (latex: string, isBlock: boolean) => {
     if (!editor) return;
 
@@ -555,12 +577,16 @@ export const Editor: React.FC = () => {
       (window as any).__showMathDialog = (latex: string, isBlock: boolean, pos: number) => {
         setMathDialog({ latex, isBlock, pos });
       };
+      (window as any).__showDiagramDialog = (code: string, language: string, pos: number) => {
+        setDiagramDialog({ code, language, pos });
+      };
     }
     return () => {
       delete (window as any).__editorFlushUpdate;
       delete (window as any).__showImageProperties;
       delete (window as any).__showImageContextMenu;
       delete (window as any).__showMathDialog;
+      delete (window as any).__showDiagramDialog;
     };
   }, [editor, flushUpdate]);
 
@@ -603,8 +629,11 @@ export const Editor: React.FC = () => {
         onToggleNumbering={handleToggleNumbering}
         showDecoration={state.settings.headingDecoration}
         onToggleDecoration={handleToggleDecoration}
+        showToc={showToc}
+        onToggleToc={() => setShowToc(v => !v)}
         onInsertLink={handleInsertLink}
         onInsertMath={handleInsertMath}
+        onInsertDiagram={handleInsertDiagram}
         onInsertCrossRef={() => setShowCrossRefDialog(true)}
         onInsertImage={handleInsertImage}
         onInsertDrawio={handleInsertDrawio}
@@ -612,19 +641,24 @@ export const Editor: React.FC = () => {
         onImport={handleImport}
       />
       {editor && <BubbleMenuBar editor={editor} />}
-      <div onContextMenu={handleContextMenu}>
-        <div className="editor-title-area">
-          <input
-            className="editor-title-input"
-            value={meta.title}
-            onChange={(e) => handleMetaChange('title', e.target.value)}
-            placeholder="문서 제목을 입력하세요"
+      <div className={`editor-body-layout${showToc ? ' editor-body-with-toc' : ''}`}>
+        {showToc && (
+          <TableOfContents editor={editor} showNumbering={showNumbering} />
+        )}
+        <div className="editor-content-area" onContextMenu={handleContextMenu}>
+          <div className="editor-title-area">
+            <input
+              className="editor-title-input"
+              value={meta.title}
+              onChange={(e) => handleMetaChange('title', e.target.value)}
+              placeholder="문서 제목을 입력하세요"
+            />
+          </div>
+          <EditorContent
+            editor={editor}
+            className={`${showNumbering ? 'show-numbering' : 'hide-numbering'} ${state.settings.headingDecoration ? 'show-heading-decoration' : ''} ${state.settings.captionNumbering === 'hierarchical' ? 'hierarchical-numbering' : 'simple-numbering'}`}
           />
         </div>
-        <EditorContent
-          editor={editor}
-          className={`${showNumbering ? 'show-numbering' : 'hide-numbering'} ${state.settings.headingDecoration ? 'show-heading-decoration' : ''} ${state.settings.captionNumbering === 'hierarchical' ? 'hierarchical-numbering' : 'simple-numbering'}`}
-        />
       </div>
       {editorContextMenu && (
         <EditorContextMenu
@@ -714,6 +748,15 @@ export const Editor: React.FC = () => {
           isBlock={mathDialog.isBlock}
           onConfirm={handleMathConfirm}
           onCancel={() => setMathDialog(null)}
+        />
+      )}
+      {diagramDialog && (
+        <DiagramDialog
+          initialCode={diagramDialog.code}
+          initialLanguage={diagramDialog.language}
+          pos={diagramDialog.pos}
+          onConfirm={handleDiagramConfirm}
+          onCancel={() => setDiagramDialog(null)}
         />
       )}
       {showCrossRefDialog && editor && (
