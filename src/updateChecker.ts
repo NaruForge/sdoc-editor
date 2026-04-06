@@ -6,7 +6,25 @@ interface VersionInfo {
   filename?: string;
 }
 
-export async function checkForUpdate(context: vscode.ExtensionContext): Promise<void> {
+export async function checkForUpdateManual(context: vscode.ExtensionContext): Promise<void> {
+  const config = vscode.workspace.getConfiguration('structuredDocEditor');
+  const sharedFolder = config.get<string>('update.sharedFolder', '');
+
+  if (!sharedFolder) {
+    const action = await vscode.window.showWarningMessage(
+      '업데이트 확인을 위해 공유 폴더 경로를 설정해 주세요.',
+      '설정 열기'
+    );
+    if (action === '설정 열기') {
+      vscode.commands.executeCommand('workbench.action.openSettings', 'structuredDocEditor.update.sharedFolder');
+    }
+    return;
+  }
+
+  await checkForUpdate(context, true);
+}
+
+export async function checkForUpdate(context: vscode.ExtensionContext, manual = false): Promise<void> {
   const config = vscode.workspace.getConfiguration('structuredDocEditor');
   const sharedFolder = config.get<string>('update.sharedFolder', '');
 
@@ -59,10 +77,16 @@ export async function checkForUpdate(context: vscode.ExtensionContext): Promise<
     console.log(`[sdoc-editor] Current: v${currentVersion}, Remote: v${remote.version}`);
 
     if (!remote.version || remote.version === currentVersion) {
+      if (manual) {
+        vscode.window.showInformationMessage(`Structured Doc Editor v${currentVersion}은 최신 버전입니다.`);
+      }
       return;
     }
 
     if (!isNewer(remote.version, currentVersion)) {
+      if (manual) {
+        vscode.window.showInformationMessage(`Structured Doc Editor v${currentVersion}은 최신 버전입니다.`);
+      }
       return;
     }
 

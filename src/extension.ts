@@ -5,7 +5,7 @@ import { SdocEditorProvider } from './SdocEditorProvider';
 import { exportToHtml } from './commands/exportToHtml';
 import { exportToAdoc } from './commands/exportToAdoc';
 import { exportToMarkdown } from './commands/exportToMarkdown';
-import { checkForUpdate } from './updateChecker';
+import { checkForUpdate, checkForUpdateManual } from './updateChecker';
 
 export function activate(context: vscode.ExtensionContext) {
   console.log('Structured Doc Editor extension is now active');
@@ -37,6 +37,14 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand(
       'structuredDocEditor.exportToMarkdown',
       () => exportToMarkdown(context)
+    )
+  );
+
+  // Register Setup AI Agent (all-in-one) command
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      'structuredDocEditor.checkForUpdate',
+      () => checkForUpdateManual(context)
     )
   );
 

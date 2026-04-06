@@ -44,6 +44,11 @@
         "category": "Structured Doc"
       },
       {
+        "command": "structuredDocEditor.checkForUpdate",
+        "title": "Check for Extension Update",
+        "category": "Structured Doc"
+      },
+      {
         "command": "structuredDocEditor.setupAgent",
         "title": "Setup AI Agent (Instructions + Skills + MCP)",
         "category": "Structured Doc"
