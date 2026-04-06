@@ -526,6 +526,17 @@ function generateHtmlDocument(bodyContent: string, theme?: HtmlTheme, meta?: Sdo
       margin-bottom: 1em;
     }
 
+    pre.mermaid {
+      background-color: #ffffff;
+      color: inherit;
+      padding: 0;
+    }
+
+    pre.mermaid svg {
+      background-color: #ffffff !important;
+      border-radius: 5px;
+    }
+
     pre code {
       background-color: transparent;
       padding: 0;
@@ -695,8 +706,13 @@ function generateHtmlDocument(bodyContent: string, theme?: HtmlTheme, meta?: Sdo
     import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
     mermaid.initialize({
       startOnLoad: true,
-      theme: 'default',
-      themeVariables: { background: '#ffffff', mainBkg: '#ffffff' }
+      theme: 'base',
+      themeVariables: {
+        background: '#ffffff',
+        mainBkg: '#ffffff',
+        primaryColor: '#dbeafe',
+        edgeLabelBackground: '#ffffff'
+      }
     });
   </script>
 </head>
