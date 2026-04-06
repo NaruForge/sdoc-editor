@@ -1,0 +1,1535 @@
+{
+  "sdoc": "1.0",
+  "meta": {
+    "title": "Structured Document Editor — 기능 종합 가이드",
+    "author": "Structured Doc Editor",
+    "version": "1.0",
+    "created": "2026-04-06T00:00:00.000Z",
+    "modified": "2026-04-06T00:00:00.000Z"
+  },
+  "doc": {
+    "type": "doc",
+    "content": [
+      {
+        "type": "heading",
+        "attrs": { "level": 1, "id": "feature-guide" },
+        "content": [{ "type": "text", "text": "Structured Document Editor — 기능 종합 가이드" }]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          { "type": "text", "text": "이 문서는 " },
+          { "type": "text", "text": "Structured Document Editor", "marks": [{ "type": "bold" }] },
+          { "type": "text", "text": "가 지원하는 " },
+          { "type": "text", "text": "모든 기능", "marks": [{ "type": "bold" }, { "type": "italic" }] },
+          { "type": "text", "text": "을 종합적으로 보여주는 예시 문서입니다. " },
+          { "type": "text", "text": ".sdoc", "marks": [{ "type": "code" }] },
+          { "type": "text", "text": " 및 " },
+          { "type": "text", "text": ".tiptap.json", "marks": [{ "type": "code" }] },
+          { "type": "text", "text": " 파일 포맷으로 작성할 수 있는 모든 노드 타입, 마크, 속성을 포함합니다." }
+        ]
+      },
+
+      {
+        "type": "heading",
+        "attrs": { "level": 1, "id": "text-formatting" },
+        "content": [{ "type": "text", "text": "텍스트 서식" }]
+      },
+
+      {
+        "type": "heading",
+        "attrs": { "level": 2, "id": "basic-formatting" },
+        "content": [{ "type": "text", "text": "기본 서식" }]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          { "type": "text", "text": "텍스트에 다양한 서식을 적용할 수 있습니다: " },
+          { "type": "text", "text": "굵게(Bold)", "marks": [{ "type": "bold" }] },
+          { "type": "text", "text": ", " },
+          { "type": "text", "text": "기울임(Italic)", "marks": [{ "type": "italic" }] },
+          { "type": "text", "text": ", " },
+          { "type": "text", "text": "밑줄(Underline)", "marks": [{ "type": "underline" }] },
+          { "type": "text", "text": ", " },
+          { "type": "text", "text": "취소선(Strikethrough)", "marks": [{ "type": "strike" }] },
+          { "type": "text", "text": ", " },
+          { "type": "text", "text": "인라인 코드(Code)", "marks": [{ "type": "code" }] },
+          { "type": "text", "text": " 등을 지원합니다." }
+        ]
+      },
+
+      {
+        "type": "heading",
+        "attrs": { "level": 2, "id": "combined-marks" },
+        "content": [{ "type": "text", "text": "복합 서식" }]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          { "type": "text", "text": "여러 마크를 동시에 적용할 수 있습니다: " },
+          { "type": "text", "text": "굵고 기울임", "marks": [{ "type": "bold" }, { "type": "italic" }] },
+          { "type": "text", "text": ", " },
+          { "type": "text", "text": "굵고 밑줄", "marks": [{ "type": "bold" }, { "type": "underline" }] },
+          { "type": "text", "text": ", " },
+          { "type": "text", "text": "기울이고 취소선", "marks": [{ "type": "italic" }, { "type": "strike" }] },
+          { "type": "text", "text": ", " },
+          { "type": "text", "text": "굵고 기울이고 밑줄", "marks": [{ "type": "bold" }, { "type": "italic" }, { "type": "underline" }] },
+          { "type": "text", "text": " — 마크는 자유롭게 조합 가능합니다." }
+        ]
+      },
+
+      {
+        "type": "heading",
+        "attrs": { "level": 2, "id": "text-color-highlight" },
+        "content": [{ "type": "text", "text": "텍스트 색상과 하이라이트" }]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          { "type": "text", "text": "텍스트 색상: " },
+          { "type": "text", "text": "빨간색", "marks": [{ "type": "textStyle", "attrs": { "color": "#e03131" } }] },
+          { "type": "text", "text": ", " },
+          { "type": "text", "text": "파란색", "marks": [{ "type": "textStyle", "attrs": { "color": "#1971c2" } }] },
+          { "type": "text", "text": ", " },
+          { "type": "text", "text": "녹색", "marks": [{ "type": "textStyle", "attrs": { "color": "#2f9e44" } }] },
+          { "type": "text", "text": ", " },
+          { "type": "text", "text": "보라색", "marks": [{ "type": "textStyle", "attrs": { "color": "#7048e8" } }] },
+          { "type": "text", "text": "으로 텍스트 색상을 변경할 수 있습니다." }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          { "type": "text", "text": "배경 하이라이트: " },
+          { "type": "text", "text": "노란색 하이라이트", "marks": [{ "type": "highlight", "attrs": { "color": "#fff3bf" } }] },
+          { "type": "text", "text": ", " },
+          { "type": "text", "text": "초록색 하이라이트", "marks": [{ "type": "highlight", "attrs": { "color": "#b2f2bb" } }] },
+          { "type": "text", "text": ", " },
+          { "type": "text", "text": "분홍색 하이라이트", "marks": [{ "type": "highlight", "attrs": { "color": "#fcc2d7" } }] },
+          { "type": "text", "text": ", " },
+          { "type": "text", "text": "파란색 하이라이트", "marks": [{ "type": "highlight", "attrs": { "color": "#a5d8ff" } }] },
+          { "type": "text", "text": "를 적용할 수 있습니다." }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          { "type": "text", "text": "색상과 하이라이트를 함께 사용할 수도 있습니다: " },
+          { "type": "text", "text": "빨간 글씨 + 노란 배경", "marks": [{ "type": "textStyle", "attrs": { "color": "#e03131" } }, { "type": "highlight", "attrs": { "color": "#fff3bf" } }, { "type": "bold" }] },
+          { "type": "text", "text": " 처럼 여러 스타일을 조합할 수 있습니다." }
+        ]
+      },
+
+      {
+        "type": "heading",
+        "attrs": { "level": 2, "id": "subscript-superscript" },
+        "content": [{ "type": "text", "text": "첨자 (위·아래 첨자)" }]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          { "type": "text", "text": "화학식 표기: H" },
+          { "type": "text", "text": "2", "marks": [{ "type": "subscript" }] },
+          { "type": "text", "text": "O (물), CO" },
+          { "type": "text", "text": "2", "marks": [{ "type": "subscript" }] },
+          { "type": "text", "text": " (이산화탄소), C" },
+          { "type": "text", "text": "6", "marks": [{ "type": "subscript" }] },
+          { "type": "text", "text": "H" },
+          { "type": "text", "text": "12", "marks": [{ "type": "subscript" }] },
+          { "type": "text", "text": "O" },
+          { "type": "text", "text": "6", "marks": [{ "type": "subscript" }] },
+          { "type": "text", "text": " (포도당)" }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          { "type": "text", "text": "수학 표기: x" },
+          { "type": "text", "text": "2", "marks": [{ "type": "superscript" }] },
+          { "type": "text", "text": " + y" },
+          { "type": "text", "text": "2", "marks": [{ "type": "superscript" }] },
+          { "type": "text", "text": " = r" },
+          { "type": "text", "text": "2", "marks": [{ "type": "superscript" }] },
+          { "type": "text", "text": ", a" },
+          { "type": "text", "text": "n", "marks": [{ "type": "subscript" }] },
+          { "type": "text", "text": " = a" },
+          { "type": "text", "text": "1", "marks": [{ "type": "subscript" }] },
+          { "type": "text", "text": " · r" },
+          { "type": "text", "text": "n-1", "marks": [{ "type": "superscript" }] }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          { "type": "text", "text": "각주 스타일: 이것은 중요한 내용입니다." },
+          { "type": "text", "text": "[1]", "marks": [{ "type": "superscript" }] },
+          { "type": "text", "text": " 참고 문헌을 표시할 때도 위 첨자를 활용합니다." },
+          { "type": "text", "text": "[2]", "marks": [{ "type": "superscript" }] }
+        ]
+      },
+
+      {
+        "type": "heading",
+        "attrs": { "level": 2, "id": "links" },
+        "content": [{ "type": "text", "text": "링크" }]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          { "type": "text", "text": "외부 링크: " },
+          { "type": "text", "text": "Tiptap 공식 문서", "marks": [{ "type": "link", "attrs": { "href": "https://tiptap.dev/docs" } }] },
+          { "type": "text", "text": "를 참고하세요. 내부 상호 참조: " },
+          { "type": "text", "text": "수식 섹션", "marks": [{ "type": "link", "attrs": { "href": "#math-equations" } }] },
+          { "type": "text", "text": "이나 " },
+          { "type": "text", "text": "Figure 1", "marks": [{ "type": "link", "attrs": { "href": "#figure-1" } }] },
+          { "type": "text", "text": ", " },
+          { "type": "text", "text": "Table 1", "marks": [{ "type": "link", "attrs": { "href": "#table-1" } }] },
+          { "type": "text", "text": "을 클릭하면 해당 위치로 이동합니다." }
+        ]
+      },
+
+      {
+        "type": "heading",
+        "attrs": { "level": 1, "id": "paragraph-alignment" },
+        "content": [{ "type": "text", "text": "단락 정렬" }]
+      },
+      {
+        "type": "paragraph",
+        "attrs": { "textAlign": "left" },
+        "content": [
+          { "type": "text", "text": "◀ 왼쪽 정렬 (Left Align) — 기본 정렬 방식입니다. 대부분의 본문 텍스트는 왼쪽 정렬을 사용합니다." }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": { "textAlign": "center" },
+        "content": [
+          { "type": "text", "text": "◆ 가운데 정렬 (Center Align) — 제목이나 캡션에 주로 사용됩니다." }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": { "textAlign": "right" },
+        "content": [
+          { "type": "text", "text": "▶ 오른쪽 정렬 (Right Align) — 날짜, 서명 등에 활용됩니다." }
+        ]
+      },
+
+      {
+        "type": "heading",
+        "attrs": { "level": 1, "id": "heading-levels" },
+        "content": [{ "type": "text", "text": "제목 수준" }]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          { "type": "text", "text": "제목은 H1부터 H6까지 6단계를 지원합니다. 번호는 에디터가 CSS 카운터로 자동 생성합니다." }
+        ]
+      },
+      {
+        "type": "heading",
+        "attrs": { "level": 2, "id": "heading-level-2" },
+        "content": [{ "type": "text", "text": "Heading Level 2 (H2)" }]
+      },
+      {
+        "type": "heading",
+        "attrs": { "level": 3, "id": "heading-level-3" },
+        "content": [{ "type": "text", "text": "Heading Level 3 (H3)" }]
+      },
+      {
+        "type": "heading",
+        "attrs": { "level": 4, "id": "heading-level-4" },
+        "content": [{ "type": "text", "text": "Heading Level 4 (H4)" }]
+      },
+      {
+        "type": "heading",
+        "attrs": { "level": 5, "id": "heading-level-5" },
+        "content": [{ "type": "text", "text": "Heading Level 5 (H5)" }]
+      },
+      {
+        "type": "heading",
+        "attrs": { "level": 6, "id": "heading-level-6" },
+        "content": [{ "type": "text", "text": "Heading Level 6 (H6)" }]
+      },
+
+      {
+        "type": "heading",
+        "attrs": { "level": 2, "id": "heading-alignment" },
+        "content": [{ "type": "text", "text": "제목 정렬" }]
+      },
+      {
+        "type": "heading",
+        "attrs": { "level": 3, "id": "centered-heading", "textAlign": "center" },
+        "content": [{ "type": "text", "text": "가운데 정렬된 제목" }]
+      },
+      {
+        "type": "heading",
+        "attrs": { "level": 3, "id": "right-heading", "textAlign": "right" },
+        "content": [{ "type": "text", "text": "오른쪽 정렬된 제목" }]
+      },
+
+      {
+        "type": "heading",
+        "attrs": { "level": 1, "id": "lists" },
+        "content": [{ "type": "text", "text": "목록" }]
+      },
+
+      {
+        "type": "heading",
+        "attrs": { "level": 2, "id": "bullet-list" },
+        "content": [{ "type": "text", "text": "순서 없는 목록 (Bullet List)" }]
+      },
+      {
+        "type": "bulletList",
+        "content": [
+          {
+            "type": "listItem",
+            "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "첫 번째 항목" }] }]
+          },
+          {
+            "type": "listItem",
+            "content": [
+              { "type": "paragraph", "content": [{ "type": "text", "text": "두 번째 항목 (중첩 목록 포함)" }] },
+              {
+                "type": "bulletList",
+                "content": [
+                  {
+                    "type": "listItem",
+                    "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "중첩된 항목 A" }] }]
+                  },
+                  {
+                    "type": "listItem",
+                    "content": [
+                      { "type": "paragraph", "content": [{ "type": "text", "text": "중첩된 항목 B (더 깊은 중첩)" }] },
+                      {
+                        "type": "bulletList",
+                        "content": [
+                          {
+                            "type": "listItem",
+                            "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "3단계 중첩 항목" }] }]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "listItem",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  { "type": "text", "text": "서식이 포함된 항목: " },
+                  { "type": "text", "text": "굵게", "marks": [{ "type": "bold" }] },
+                  { "type": "text", "text": ", " },
+                  { "type": "text", "text": "기울임", "marks": [{ "type": "italic" }] },
+                  { "type": "text", "text": ", " },
+                  { "type": "text", "text": "코드", "marks": [{ "type": "code" }] }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+
+      {
+        "type": "heading",
+        "attrs": { "level": 2, "id": "ordered-list" },
+        "content": [{ "type": "text", "text": "순서 있는 목록 (Ordered List)" }]
+      },
+      {
+        "type": "orderedList",
+        "attrs": { "start": 1 },
+        "content": [
+          {
+            "type": "listItem",
+            "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "요구사항 분석" }] }]
+          },
+          {
+            "type": "listItem",
+            "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "시스템 설계" }] }]
+          },
+          {
+            "type": "listItem",
+            "content": [
+              { "type": "paragraph", "content": [{ "type": "text", "text": "구현 (중첩 순서 목록)" }] },
+              {
+                "type": "orderedList",
+                "attrs": { "start": 1 },
+                "content": [
+                  {
+                    "type": "listItem",
+                    "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "프론트엔드 개발" }] }]
+                  },
+                  {
+                    "type": "listItem",
+                    "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "백엔드 개발" }] }]
+                  },
+                  {
+                    "type": "listItem",
+                    "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "데이터베이스 설계" }] }]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "listItem",
+            "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "테스트 및 검증" }] }]
+          },
+          {
+            "type": "listItem",
+            "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "배포" }] }]
+          }
+        ]
+      },
+
+      {
+        "type": "heading",
+        "attrs": { "level": 2, "id": "task-list" },
+        "content": [{ "type": "text", "text": "작업 목록 (Task List)" }]
+      },
+      {
+        "type": "taskList",
+        "content": [
+          {
+            "type": "taskItem",
+            "attrs": { "checked": true },
+            "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "프로젝트 초기 설정 완료" }] }]
+          },
+          {
+            "type": "taskItem",
+            "attrs": { "checked": true },
+            "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "UI 디자인 리뷰 완료" }] }]
+          },
+          {
+            "type": "taskItem",
+            "attrs": { "checked": false },
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  { "type": "text", "text": "API 엔드포인트 구현 " },
+                  { "type": "text", "text": "(진행 중)", "marks": [{ "type": "textStyle", "attrs": { "color": "#e67700" } }] }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "taskItem",
+            "attrs": { "checked": false },
+            "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "단위 테스트 작성" }] }]
+          },
+          {
+            "type": "taskItem",
+            "attrs": { "checked": false },
+            "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "문서화" }] }]
+          }
+        ]
+      },
+
+      {
+        "type": "heading",
+        "attrs": { "level": 1, "id": "code-blocks" },
+        "content": [{ "type": "text", "text": "코드 블록" }]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          { "type": "text", "text": "다양한 프로그래밍 언어의 구문 강조(Syntax Highlighting)를 지원합니다. highlight.js 기반으로 100개 이상의 언어를 지원합니다." }
+        ]
+      },
+
+      {
+        "type": "heading",
+        "attrs": { "level": 2, "id": "python-code" },
+        "content": [{ "type": "text", "text": "Python" }]
+      },
+      {
+        "type": "codeBlock",
+        "attrs": { "language": "python" },
+        "content": [{ "type": "text", "text": "import numpy as np\nfrom dataclasses import dataclass\n\n@dataclass\nclass Vector:\n    x: float\n    y: float\n    z: float\n\n    def magnitude(self) -> float:\n        \"\"\"벡터의 크기를 계산합니다.\"\"\"\n        return np.sqrt(self.x**2 + self.y**2 + self.z**2)\n\n    def normalize(self) -> 'Vector':\n        mag = self.magnitude()\n        return Vector(self.x / mag, self.y / mag, self.z / mag)\n\n# 사용 예시\nv = Vector(3.0, 4.0, 0.0)\nprint(f\"크기: {v.magnitude()}\")   # 5.0\nprint(f\"단위벡터: {v.normalize()}\")  # Vector(0.6, 0.8, 0.0)" }]
+      },
+
+      {
+        "type": "heading",
+        "attrs": { "level": 2, "id": "typescript-code" },
+        "content": [{ "type": "text", "text": "TypeScript" }]
+      },
+      {
+        "type": "codeBlock",
+        "attrs": { "language": "typescript" },
+        "content": [{ "type": "text", "text": "interface DocumentNode {\n  type: string;\n  attrs?: Record<string, unknown>;\n  content?: DocumentNode[];\n  marks?: Mark[];\n  text?: string;\n}\n\ninterface Mark {\n  type: string;\n  attrs?: Record<string, unknown>;\n}\n\nfunction traverseNodes(node: DocumentNode, visitor: (n: DocumentNode) => void): void {\n  visitor(node);\n  if (node.content) {\n    for (const child of node.content) {\n      traverseNodes(child, visitor);\n    }\n  }\n}\n\n// 모든 텍스트 노드를 추출하는 예시\nconst texts: string[] = [];\ntraverseNodes(doc, (node) => {\n  if (node.type === 'text' && node.text) {\n    texts.push(node.text);\n  }\n});" }]
+      },
+
+      {
+        "type": "heading",
+        "attrs": { "level": 2, "id": "rust-code" },
+        "content": [{ "type": "text", "text": "Rust" }]
+      },
+      {
+        "type": "codeBlock",
+        "attrs": { "language": "rust" },
+        "content": [{ "type": "text", "text": "use serde::{Deserialize, Serialize};\n\n#[derive(Serialize, Deserialize, Debug)]\nstruct SdocEnvelope {\n    sdoc: String,\n    meta: Meta,\n    doc: DocNode,\n}\n\n#[derive(Serialize, Deserialize, Debug)]\nstruct Meta {\n    title: String,\n    author: String,\n    version: String,\n}\n\n#[derive(Serialize, Deserialize, Debug)]\nstruct DocNode {\n    #[serde(rename = \"type\")]\n    node_type: String,\n    content: Option<Vec<DocNode>>,\n}\n\nfn main() -> Result<(), Box<dyn std::error::Error>> {\n    let json = std::fs::read_to_string(\"example.sdoc\")?;\n    let doc: SdocEnvelope = serde_json::from_str(&json)?;\n    println!(\"Document: {}\", doc.meta.title);\n    Ok(())\n}" }]
+      },
+
+      {
+        "type": "heading",
+        "attrs": { "level": 2, "id": "sql-code" },
+        "content": [{ "type": "text", "text": "SQL" }]
+      },
+      {
+        "type": "codeBlock",
+        "attrs": { "language": "sql" },
+        "content": [{ "type": "text", "text": "-- 문서 메타데이터 테이블\nCREATE TABLE documents (\n    id          SERIAL PRIMARY KEY,\n    title       VARCHAR(255) NOT NULL,\n    author      VARCHAR(100),\n    version     VARCHAR(20) DEFAULT '1.0',\n    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n    modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP\n);\n\n-- 최근 수정된 문서 조회\nSELECT d.title, d.author, d.modified_at\nFROM documents d\nWHERE d.modified_at > NOW() - INTERVAL '7 days'\nORDER BY d.modified_at DESC\nLIMIT 10;" }]
+      },
+
+      {
+        "type": "heading",
+        "attrs": { "level": 2, "id": "json-code" },
+        "content": [{ "type": "text", "text": "JSON" }]
+      },
+      {
+        "type": "codeBlock",
+        "attrs": { "language": "json" },
+        "content": [{ "type": "text", "text": "{\n  \"sdoc\": \"1.0\",\n  \"meta\": {\n    \"title\": \"Example Document\",\n    \"author\": \"Author\",\n    \"version\": \"1.0\"\n  },\n  \"doc\": {\n    \"type\": \"doc\",\n    \"content\": [\n      {\n        \"type\": \"heading\",\n        \"attrs\": { \"level\": 1 },\n        \"content\": [{ \"type\": \"text\", \"text\": \"Hello World\" }]\n      }\n    ]\n  }\n}" }]
+      },
+
+      {
+        "type": "heading",
+        "attrs": { "level": 1, "id": "tables" },
+        "content": [{ "type": "text", "text": "테이블" }]
+      },
+
+      {
+        "type": "heading",
+        "attrs": { "level": 2, "id": "basic-table" },
+        "content": [{ "type": "text", "text": "기본 테이블 (캡션 포함)" }]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          { "type": "text", "text": "테이블에는 캡션을 추가할 수 있으며, 에디터가 자동으로 번호를 매깁니다 (예: " },
+          { "type": "text", "text": "Table 1", "marks": [{ "type": "italic" }] },
+          { "type": "text", "text": "). 아래 " },
+          { "type": "text", "text": "Table 1", "marks": [{ "type": "link", "attrs": { "href": "#table-1" } }] },
+          { "type": "text", "text": "은 프로그래밍 언어 비교표입니다." }
+        ]
+      },
+      {
+        "type": "table",
+        "attrs": {
+          "caption": "프로그래밍 언어 비교",
+          "align": "center",
+          "width": "100%",
+          "id": "table-1"
+        },
+        "content": [
+          {
+            "type": "tableRow",
+            "content": [
+              {
+                "type": "tableHeader",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "언어" }] }]
+              },
+              {
+                "type": "tableHeader",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "타입 시스템" }] }]
+              },
+              {
+                "type": "tableHeader",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "용도" }] }]
+              },
+              {
+                "type": "tableHeader",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "성능" }] }]
+              }
+            ]
+          },
+          {
+            "type": "tableRow",
+            "content": [
+              {
+                "type": "tableCell",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "TypeScript", "marks": [{ "type": "bold" }] }] }]
+              },
+              {
+                "type": "tableCell",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "정적 (점진적)" }] }]
+              },
+              {
+                "type": "tableCell",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "웹 프론트/백엔드" }] }]
+              },
+              {
+                "type": "tableCell",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "⭐⭐⭐" }] }]
+              }
+            ]
+          },
+          {
+            "type": "tableRow",
+            "content": [
+              {
+                "type": "tableCell",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "Python", "marks": [{ "type": "bold" }] }] }]
+              },
+              {
+                "type": "tableCell",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "동적" }] }]
+              },
+              {
+                "type": "tableCell",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "AI/ML, 데이터 분석" }] }]
+              },
+              {
+                "type": "tableCell",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "⭐⭐" }] }]
+              }
+            ]
+          },
+          {
+            "type": "tableRow",
+            "content": [
+              {
+                "type": "tableCell",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "Rust", "marks": [{ "type": "bold" }] }] }]
+              },
+              {
+                "type": "tableCell",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "정적 (강타입)" }] }]
+              },
+              {
+                "type": "tableCell",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "시스템 프로그래밍" }] }]
+              },
+              {
+                "type": "tableCell",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "⭐⭐⭐⭐⭐" }] }]
+              }
+            ]
+          },
+          {
+            "type": "tableRow",
+            "content": [
+              {
+                "type": "tableCell",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "Go", "marks": [{ "type": "bold" }] }] }]
+              },
+              {
+                "type": "tableCell",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "정적" }] }]
+              },
+              {
+                "type": "tableCell",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "클라우드, 마이크로서비스" }] }]
+              },
+              {
+                "type": "tableCell",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "⭐⭐⭐⭐" }] }]
+              }
+            ]
+          }
+        ]
+      },
+
+      {
+        "type": "heading",
+        "attrs": { "level": 2, "id": "merged-cells-table" },
+        "content": [{ "type": "text", "text": "셀 병합 테이블" }]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          { "type": "text", "text": "테이블 셀은 " },
+          { "type": "text", "text": "colspan", "marks": [{ "type": "code" }] },
+          { "type": "text", "text": "(열 병합)과 " },
+          { "type": "text", "text": "rowspan", "marks": [{ "type": "code" }] },
+          { "type": "text", "text": "(행 병합)을 사용하여 병합할 수 있습니다." }
+        ]
+      },
+      {
+        "type": "table",
+        "attrs": {
+          "caption": "서버 사양 비교 (셀 병합 예시)",
+          "align": "center",
+          "width": "100%",
+          "id": "table-2"
+        },
+        "content": [
+          {
+            "type": "tableRow",
+            "content": [
+              {
+                "type": "tableHeader",
+                "attrs": { "colspan": 1, "rowspan": 2 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "서버 등급" }] }]
+              },
+              {
+                "type": "tableHeader",
+                "attrs": { "colspan": 2, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "하드웨어 사양" }] }]
+              },
+              {
+                "type": "tableHeader",
+                "attrs": { "colspan": 1, "rowspan": 2 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "월 비용" }] }]
+              }
+            ]
+          },
+          {
+            "type": "tableRow",
+            "content": [
+              {
+                "type": "tableHeader",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "CPU" }] }]
+              },
+              {
+                "type": "tableHeader",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "메모리" }] }]
+              }
+            ]
+          },
+          {
+            "type": "tableRow",
+            "content": [
+              {
+                "type": "tableCell",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "Basic" }] }]
+              },
+              {
+                "type": "tableCell",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "2 vCPU" }] }]
+              },
+              {
+                "type": "tableCell",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "4 GB" }] }]
+              },
+              {
+                "type": "tableCell",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "$20" }] }]
+              }
+            ]
+          },
+          {
+            "type": "tableRow",
+            "content": [
+              {
+                "type": "tableCell",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "Standard" }] }]
+              },
+              {
+                "type": "tableCell",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "4 vCPU" }] }]
+              },
+              {
+                "type": "tableCell",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "16 GB" }] }]
+              },
+              {
+                "type": "tableCell",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "$80" }] }]
+              }
+            ]
+          },
+          {
+            "type": "tableRow",
+            "content": [
+              {
+                "type": "tableCell",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "Premium" }] }]
+              },
+              {
+                "type": "tableCell",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "8 vCPU" }] }]
+              },
+              {
+                "type": "tableCell",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "32 GB" }] }]
+              },
+              {
+                "type": "tableCell",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "$200" }] }]
+              }
+            ]
+          }
+        ]
+      },
+
+      {
+        "type": "heading",
+        "attrs": { "level": 2, "id": "table-colwidth" },
+        "content": [{ "type": "text", "text": "열 너비 지정 테이블" }]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          { "type": "text", "text": "각 열의 너비를 " },
+          { "type": "text", "text": "colwidth", "marks": [{ "type": "code" }] },
+          { "type": "text", "text": " 속성으로 지정할 수 있습니다 (픽셀 단위 배열)." }
+        ]
+      },
+      {
+        "type": "table",
+        "attrs": {
+          "caption": "열 너비 지정 예시",
+          "align": "center",
+          "width": "100%",
+          "id": "table-3"
+        },
+        "content": [
+          {
+            "type": "tableRow",
+            "content": [
+              {
+                "type": "tableHeader",
+                "attrs": { "colspan": 1, "rowspan": 1, "colwidth": [150] },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "항목 (150px)" }] }]
+              },
+              {
+                "type": "tableHeader",
+                "attrs": { "colspan": 1, "rowspan": 1, "colwidth": [300] },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "설명 (300px)" }] }]
+              },
+              {
+                "type": "tableHeader",
+                "attrs": { "colspan": 1, "rowspan": 1, "colwidth": [100] },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "비고 (100px)" }] }]
+              }
+            ]
+          },
+          {
+            "type": "tableRow",
+            "content": [
+              {
+                "type": "tableCell",
+                "attrs": { "colspan": 1, "rowspan": 1, "colwidth": [150] },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "colwidth" }] }]
+              },
+              {
+                "type": "tableCell",
+                "attrs": { "colspan": 1, "rowspan": 1, "colwidth": [300] },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "각 열의 픽셀 단위 너비를 배열로 지정합니다." }] }]
+              },
+              {
+                "type": "tableCell",
+                "attrs": { "colspan": 1, "rowspan": 1, "colwidth": [100] },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "선택사항" }] }]
+              }
+            ]
+          }
+        ]
+      },
+
+      {
+        "type": "heading",
+        "attrs": { "level": 2, "id": "rich-content-table" },
+        "content": [{ "type": "text", "text": "서식이 풍부한 테이블" }]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          { "type": "text", "text": "테이블 셀 안에 다양한 서식을 적용할 수 있습니다." }
+        ]
+      },
+      {
+        "type": "table",
+        "attrs": {
+          "caption": "서식 적용 예시 테이블",
+          "align": "center",
+          "width": "100%",
+          "id": "table-4"
+        },
+        "content": [
+          {
+            "type": "tableRow",
+            "content": [
+              {
+                "type": "tableHeader",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "서식 종류" }] }]
+              },
+              {
+                "type": "tableHeader",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "적용 결과" }] }]
+              }
+            ]
+          },
+          {
+            "type": "tableRow",
+            "content": [
+              {
+                "type": "tableCell",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "굵게 + 색상" }] }]
+              },
+              {
+                "type": "tableCell",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "중요한 값: 99.7%", "marks": [{ "type": "bold" }, { "type": "textStyle", "attrs": { "color": "#2f9e44" } }] }] }]
+              }
+            ]
+          },
+          {
+            "type": "tableRow",
+            "content": [
+              {
+                "type": "tableCell",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "인라인 코드" }] }]
+              },
+              {
+                "type": "tableCell",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [
+                  { "type": "text", "text": "함수 " },
+                  { "type": "text", "text": "calculateScore()", "marks": [{ "type": "code" }] },
+                  { "type": "text", "text": " 호출" }
+                ] }]
+              }
+            ]
+          },
+          {
+            "type": "tableRow",
+            "content": [
+              {
+                "type": "tableCell",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "링크" }] }]
+              },
+              {
+                "type": "tableCell",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [
+                  { "type": "text", "text": "자세히 보기: " },
+                  { "type": "text", "text": "공식 문서", "marks": [{ "type": "link", "attrs": { "href": "https://tiptap.dev" } }] }
+                ] }]
+              }
+            ]
+          },
+          {
+            "type": "tableRow",
+            "content": [
+              {
+                "type": "tableCell",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "인라인 수식" }] }]
+              },
+              {
+                "type": "tableCell",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [
+                  { "type": "text", "text": "면적: " },
+                  { "type": "mathInline", "attrs": { "latex": "A = \\pi r^2" } }
+                ] }]
+              }
+            ]
+          }
+        ]
+      },
+
+      {
+        "type": "heading",
+        "attrs": { "level": 1, "id": "images" },
+        "content": [{ "type": "text", "text": "이미지" }]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          { "type": "text", "text": "이미지는 캡션, 정렬(왼쪽/가운데/오른쪽), 대체 텍스트(alt)를 지원합니다. 에디터가 자동으로 번호를 매깁니다 (예: " },
+          { "type": "text", "text": "Figure 1", "marks": [{ "type": "italic" }] },
+          { "type": "text", "text": ")." }
+        ]
+      },
+
+      {
+        "type": "heading",
+        "attrs": { "level": 2, "id": "image-center" },
+        "content": [{ "type": "text", "text": "가운데 정렬 이미지" }]
+      },
+      {
+        "type": "image",
+        "attrs": {
+          "src": "./images/sample-architecture.png",
+          "alt": "시스템 아키텍처 다이어그램 — Client, API Gateway, Backend, Database 구조",
+          "title": "System Architecture Diagram",
+          "caption": "시스템 아키텍처 개요도",
+          "align": "center",
+          "id": "figure-1"
+        }
+      },
+
+      {
+        "type": "heading",
+        "attrs": { "level": 2, "id": "image-left-right" },
+        "content": [{ "type": "text", "text": "좌우 정렬 이미지" }]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          { "type": "text", "text": "이미지의 " },
+          { "type": "text", "text": "align", "marks": [{ "type": "code" }] },
+          { "type": "text", "text": " 속성을 " },
+          { "type": "text", "text": "\"left\"", "marks": [{ "type": "code" }] },
+          { "type": "text", "text": " 또는 " },
+          { "type": "text", "text": "\"right\"", "marks": [{ "type": "code" }] },
+          { "type": "text", "text": "로 설정하면 텍스트 흐름과 함께 배치됩니다." }
+        ]
+      },
+      {
+        "type": "image",
+        "attrs": {
+          "src": "./images/sample-chart.png",
+          "alt": "분기별 성과 막대 차트 — Q1 65%, Q2 80%, Q3 55%, Q4 92%",
+          "caption": "분기별 성과 차트",
+          "align": "center",
+          "id": "figure-2"
+        }
+      },
+
+      {
+        "type": "heading",
+        "attrs": { "level": 2, "id": "drawio-image" },
+        "content": [{ "type": "text", "text": "Draw.io 다이어그램 이미지" }]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          { "type": "text", "text": "Draw.io(.drawio.svg)로 작성한 다이어그램도 이미지로 삽입할 수 있습니다. SVG 형식이므로 확대해도 선명하게 유지됩니다." }
+        ]
+      },
+      {
+        "type": "image",
+        "attrs": {
+          "src": "./drawio/example-drawio.drawio.svg",
+          "alt": "Draw.io로 작성한 예시 다이어그램",
+          "caption": "Draw.io 다이어그램 예시",
+          "align": "center",
+          "id": "figure-3"
+        }
+      },
+
+      {
+        "type": "heading",
+        "attrs": { "level": 1, "id": "math-equations" },
+        "content": [{ "type": "text", "text": "수식" }]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          { "type": "text", "text": "KaTeX 기반의 수학 수식을 지원합니다. 인라인 수식과 블록 수식 두 가지 형태를 사용할 수 있습니다." }
+        ]
+      },
+
+      {
+        "type": "heading",
+        "attrs": { "level": 2, "id": "inline-math" },
+        "content": [{ "type": "text", "text": "인라인 수식" }]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          { "type": "text", "text": "아인슈타인의 질량-에너지 등가 원리 " },
+          { "type": "mathInline", "attrs": { "latex": "E = mc^2" } },
+          { "type": "text", "text": "은 물리학에서 가장 유명한 방정식입니다. 여기서 " },
+          { "type": "mathInline", "attrs": { "latex": "E" } },
+          { "type": "text", "text": "는 에너지, " },
+          { "type": "mathInline", "attrs": { "latex": "m" } },
+          { "type": "text", "text": "은 질량, " },
+          { "type": "mathInline", "attrs": { "latex": "c" } },
+          { "type": "text", "text": "는 빛의 속도(" },
+          { "type": "mathInline", "attrs": { "latex": "3 \\times 10^8 \\text{ m/s}" } },
+          { "type": "text", "text": ")입니다." }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          { "type": "text", "text": "피타고라스 정리에 의하면 직각삼각형에서 " },
+          { "type": "mathInline", "attrs": { "latex": "a^2 + b^2 = c^2" } },
+          { "type": "text", "text": "이 성립합니다. 원의 넓이는 " },
+          { "type": "mathInline", "attrs": { "latex": "A = \\pi r^2" } },
+          { "type": "text", "text": "이고, 둘레는 " },
+          { "type": "mathInline", "attrs": { "latex": "C = 2\\pi r" } },
+          { "type": "text", "text": "입니다." }
+        ]
+      },
+
+      {
+        "type": "heading",
+        "attrs": { "level": 2, "id": "block-math" },
+        "content": [{ "type": "text", "text": "블록 수식" }]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          { "type": "text", "text": "이차방정식의 근의 공식:", "marks": [{ "type": "bold" }] }
+        ]
+      },
+      {
+        "type": "mathBlock",
+        "attrs": {
+          "latex": "x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}"
+        }
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          { "type": "text", "text": "가우스 적분:", "marks": [{ "type": "bold" }] }
+        ]
+      },
+      {
+        "type": "mathBlock",
+        "attrs": {
+          "latex": "\\int_{-\\infty}^{\\infty} e^{-x^2} \\, dx = \\sqrt{\\pi}"
+        }
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          { "type": "text", "text": "오일러 공식:", "marks": [{ "type": "bold" }] }
+        ]
+      },
+      {
+        "type": "mathBlock",
+        "attrs": {
+          "latex": "e^{i\\theta} = \\cos\\theta + i\\sin\\theta"
+        }
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          { "type": "text", "text": "행렬 표기:", "marks": [{ "type": "bold" }] }
+        ]
+      },
+      {
+        "type": "mathBlock",
+        "attrs": {
+          "latex": "\\mathbf{A} = \\begin{pmatrix} a_{11} & a_{12} & a_{13} \\\\ a_{21} & a_{22} & a_{23} \\\\ a_{31} & a_{32} & a_{33} \\end{pmatrix}"
+        }
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          { "type": "text", "text": "제어 시스템 — 2차 시스템 전달함수:", "marks": [{ "type": "bold" }] }
+        ]
+      },
+      {
+        "type": "mathBlock",
+        "attrs": {
+          "latex": "G(s) = \\frac{\\omega_n^2}{s^2 + 2\\zeta\\omega_n s + \\omega_n^2}"
+        }
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          { "type": "text", "text": "여기서 " },
+          { "type": "mathInline", "attrs": { "latex": "\\omega_n" } },
+          { "type": "text", "text": "은 고유진동수, " },
+          { "type": "mathInline", "attrs": { "latex": "\\zeta" } },
+          { "type": "text", "text": "는 감쇠비입니다." }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          { "type": "text", "text": "상태 공간 방정식:", "marks": [{ "type": "bold" }] }
+        ]
+      },
+      {
+        "type": "mathBlock",
+        "attrs": {
+          "latex": "\\dot{\\mathbf{x}} = \\mathbf{A}\\mathbf{x} + \\mathbf{B}\\mathbf{u}, \\quad \\mathbf{y} = \\mathbf{C}\\mathbf{x} + \\mathbf{D}\\mathbf{u}"
+        }
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          { "type": "text", "text": "맥스웰 방정식 (미분 형태):", "marks": [{ "type": "bold" }] }
+        ]
+      },
+      {
+        "type": "mathBlock",
+        "attrs": {
+          "latex": "\\nabla \\cdot \\mathbf{E} = \\frac{\\rho}{\\varepsilon_0}, \\quad \\nabla \\cdot \\mathbf{B} = 0, \\quad \\nabla \\times \\mathbf{E} = -\\frac{\\partial \\mathbf{B}}{\\partial t}, \\quad \\nabla \\times \\mathbf{B} = \\mu_0 \\mathbf{J} + \\mu_0 \\varepsilon_0 \\frac{\\partial \\mathbf{E}}{\\partial t}"
+        }
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          { "type": "text", "text": "연속 합과 급수:", "marks": [{ "type": "bold" }] }
+        ]
+      },
+      {
+        "type": "mathBlock",
+        "attrs": {
+          "latex": "\\sum_{n=1}^{\\infty} \\frac{1}{n^2} = \\frac{\\pi^2}{6}"
+        }
+      },
+
+      {
+        "type": "heading",
+        "attrs": { "level": 1, "id": "diagrams" },
+        "content": [{ "type": "text", "text": "다이어그램" }]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          { "type": "text", "text": "Mermaid 문법으로 다이어그램을 작성하면 에디터에서 실시간 렌더링됩니다. " },
+          { "type": "text", "text": "PlantUML", "marks": [{ "type": "code" }] },
+          { "type": "text", "text": ", " },
+          { "type": "text", "text": "D2", "marks": [{ "type": "code" }] },
+          { "type": "text", "text": ", " },
+          { "type": "text", "text": "Graphviz", "marks": [{ "type": "code" }] },
+          { "type": "text", "text": " 등도 지원합니다." }
+        ]
+      },
+
+      {
+        "type": "heading",
+        "attrs": { "level": 2, "id": "flowchart" },
+        "content": [{ "type": "text", "text": "플로우차트 (Flowchart)" }]
+      },
+      {
+        "type": "diagram",
+        "attrs": {
+          "language": "mermaid",
+          "code": "graph TD\n    A[사용자 요청] --> B{인증 확인}\n    B -->|인증됨| C[API 처리]\n    B -->|미인증| D[로그인 페이지]\n    C --> E{데이터 유효성}\n    E -->|유효| F[DB 저장]\n    E -->|무효| G[에러 반환]\n    F --> H[응답 전송]\n    G --> H\n    D --> I[인증 후 재요청]"
+        }
+      },
+
+      {
+        "type": "heading",
+        "attrs": { "level": 2, "id": "sequence-diagram" },
+        "content": [{ "type": "text", "text": "시퀀스 다이어그램 (Sequence Diagram)" }]
+      },
+      {
+        "type": "diagram",
+        "attrs": {
+          "language": "mermaid",
+          "code": "sequenceDiagram\n    participant U as 사용자\n    participant W as WebView\n    participant E as Extension Host\n    participant F as File System\n\n    U->>W: 문서 편집\n    W->>E: postMessage(update)\n    E->>F: writeFile(.sdoc)\n    F-->>E: 저장 완료\n    E-->>W: 상태 업데이트\n    W-->>U: UI 반영"
+        }
+      },
+
+      {
+        "type": "heading",
+        "attrs": { "level": 2, "id": "class-diagram" },
+        "content": [{ "type": "text", "text": "클래스 다이어그램 (Class Diagram)" }]
+      },
+      {
+        "type": "diagram",
+        "attrs": {
+          "language": "mermaid",
+          "code": "classDiagram\n    class Document {\n        +String title\n        +String author\n        +Date created\n        +Date modified\n        +save()\n        +export(format)\n    }\n    class Node {\n        +String type\n        +Object attrs\n        +Node[] content\n    }\n    class TextNode {\n        +String text\n        +Mark[] marks\n    }\n    class Mark {\n        +String type\n        +Object attrs\n    }\n    Document \"1\" --> \"*\" Node : contains\n    Node \"1\" --> \"*\" Node : children\n    Node <|-- TextNode\n    TextNode \"1\" --> \"*\" Mark : has"
+        }
+      },
+
+      {
+        "type": "heading",
+        "attrs": { "level": 2, "id": "gantt-chart" },
+        "content": [{ "type": "text", "text": "간트 차트 (Gantt Chart)" }]
+      },
+      {
+        "type": "diagram",
+        "attrs": {
+          "language": "mermaid",
+          "code": "gantt\n    title 프로젝트 일정\n    dateFormat  YYYY-MM-DD\n    section 기획\n    요구사항 분석     :done, a1, 2026-01-01, 14d\n    설계 문서 작성    :done, a2, after a1, 7d\n    section 개발\n    프론트엔드 개발   :active, b1, 2026-01-22, 21d\n    백엔드 개발       :b2, 2026-01-22, 28d\n    section 검증\n    통합 테스트       :c1, after b2, 14d\n    배포              :c2, after c1, 3d"
+        }
+      },
+
+      {
+        "type": "heading",
+        "attrs": { "level": 2, "id": "pie-chart" },
+        "content": [{ "type": "text", "text": "파이 차트 (Pie Chart)" }]
+      },
+      {
+        "type": "diagram",
+        "attrs": {
+          "language": "mermaid",
+          "code": "pie title 브라우저 점유율\n    \"Chrome\" : 65\n    \"Safari\" : 19\n    \"Firefox\" : 8\n    \"Edge\" : 5\n    \"기타\" : 3"
+        }
+      },
+
+      {
+        "type": "heading",
+        "attrs": { "level": 2, "id": "er-diagram" },
+        "content": [{ "type": "text", "text": "ER 다이어그램 (Entity Relationship)" }]
+      },
+      {
+        "type": "diagram",
+        "attrs": {
+          "language": "mermaid",
+          "code": "erDiagram\n    DOCUMENT ||--o{ NODE : contains\n    NODE ||--o{ NODE : children\n    NODE ||--o{ MARK : has\n    DOCUMENT {\n        string title\n        string author\n        date created\n        date modified\n    }\n    NODE {\n        string type\n        json attrs\n    }\n    MARK {\n        string type\n        json attrs\n    }"
+        }
+      },
+
+      {
+        "type": "heading",
+        "attrs": { "level": 1, "id": "cross-references" },
+        "content": [{ "type": "text", "text": "상호 참조 (Cross-References)" }]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          { "type": "text", "text": "문서 내의 다른 요소를 참조할 수 있습니다. 에디터에서 " },
+          { "type": "text", "text": "@", "marks": [{ "type": "code" }] },
+          { "type": "text", "text": " 기호를 입력하면 상호 참조 팝업이 나타나며, 제목·그림·테이블을 선택할 수 있습니다." }
+        ]
+      },
+      {
+        "type": "heading",
+        "attrs": { "level": 2, "id": "ref-headings" },
+        "content": [{ "type": "text", "text": "제목 참조" }]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          { "type": "text", "text": "이 문서의 주요 섹션들을 참조합니다: " },
+          { "type": "text", "text": "텍스트 서식", "marks": [{ "type": "link", "attrs": { "href": "#text-formatting" } }] },
+          { "type": "text", "text": ", " },
+          { "type": "text", "text": "목록", "marks": [{ "type": "link", "attrs": { "href": "#lists" } }] },
+          { "type": "text", "text": ", " },
+          { "type": "text", "text": "코드 블록", "marks": [{ "type": "link", "attrs": { "href": "#code-blocks" } }] },
+          { "type": "text", "text": ", " },
+          { "type": "text", "text": "테이블", "marks": [{ "type": "link", "attrs": { "href": "#tables" } }] },
+          { "type": "text", "text": ", " },
+          { "type": "text", "text": "수식", "marks": [{ "type": "link", "attrs": { "href": "#math-equations" } }] },
+          { "type": "text", "text": ", " },
+          { "type": "text", "text": "다이어그램", "marks": [{ "type": "link", "attrs": { "href": "#diagrams" } }] },
+          { "type": "text", "text": ". 클릭하면 해당 위치로 스크롤됩니다." }
+        ]
+      },
+      {
+        "type": "heading",
+        "attrs": { "level": 2, "id": "ref-figures-tables" },
+        "content": [{ "type": "text", "text": "그림 및 테이블 참조" }]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          { "type": "text", "text": "Figure 1", "marks": [{ "type": "link", "attrs": { "href": "#figure-1" } }] },
+          { "type": "text", "text": "은 시스템 아키텍처를, " },
+          { "type": "text", "text": "Figure 2", "marks": [{ "type": "link", "attrs": { "href": "#figure-2" } }] },
+          { "type": "text", "text": "는 분기별 성과 차트를 보여줍니다. " },
+          { "type": "text", "text": "Table 1", "marks": [{ "type": "link", "attrs": { "href": "#table-1" } }] },
+          { "type": "text", "text": "에서 프로그래밍 언어별 특성을, " },
+          { "type": "text", "text": "Table 2", "marks": [{ "type": "link", "attrs": { "href": "#table-2" } }] },
+          { "type": "text", "text": "에서 서버 사양을 확인할 수 있습니다." }
+        ]
+      },
+
+      {
+        "type": "heading",
+        "attrs": { "level": 1, "id": "hard-breaks" },
+        "content": [{ "type": "text", "text": "줄 바꿈 (Hard Break)" }]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          { "type": "text", "text": "단락 내에서 강제 줄 바꿈을 삽입할 수 있습니다." },
+          { "type": "hardBreak" },
+          { "type": "text", "text": "이 텍스트는 같은 단락이지만 새 줄에 표시됩니다." },
+          { "type": "hardBreak" },
+          { "type": "text", "text": "Shift+Enter로 줄 바꿈을 추가합니다." }
+        ]
+      },
+
+      {
+        "type": "heading",
+        "attrs": { "level": 1, "id": "summary" },
+        "content": [{ "type": "text", "text": "요약" }]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          { "type": "text", "text": "이 문서에서 다룬 기능을 정리합니다:" }
+        ]
+      },
+      {
+        "type": "table",
+        "attrs": {
+          "caption": "기능 요약표",
+          "align": "center",
+          "width": "100%",
+          "id": "table-5"
+        },
+        "content": [
+          {
+            "type": "tableRow",
+            "content": [
+              {
+                "type": "tableHeader",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "카테고리" }] }]
+              },
+              {
+                "type": "tableHeader",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "기능" }] }]
+              },
+              {
+                "type": "tableHeader",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "노드/마크 타입" }] }]
+              }
+            ]
+          },
+          {
+            "type": "tableRow",
+            "content": [
+              {
+                "type": "tableCell",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "블록 노드" }] }]
+              },
+              {
+                "type": "tableCell",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "제목, 단락, 목록, 코드 블록, 테이블, 이미지, 수식, 다이어그램" }] }]
+              },
+              {
+                "type": "tableCell",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [
+                  { "type": "text", "text": "heading, paragraph, bulletList, orderedList, taskList, codeBlock, table, image, mathBlock, diagram", "marks": [{ "type": "code" }] }
+                ] }]
+              }
+            ]
+          },
+          {
+            "type": "tableRow",
+            "content": [
+              {
+                "type": "tableCell",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "인라인 노드" }] }]
+              },
+              {
+                "type": "tableCell",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "텍스트, 인라인 수식, 줄 바꿈" }] }]
+              },
+              {
+                "type": "tableCell",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [
+                  { "type": "text", "text": "text, mathInline, hardBreak", "marks": [{ "type": "code" }] }
+                ] }]
+              }
+            ]
+          },
+          {
+            "type": "tableRow",
+            "content": [
+              {
+                "type": "tableCell",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "마크" }] }]
+              },
+              {
+                "type": "tableCell",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "굵게, 기울임, 밑줄, 취소선, 코드, 링크, 위·아래 첨자, 색상, 하이라이트" }] }]
+              },
+              {
+                "type": "tableCell",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [
+                  { "type": "text", "text": "bold, italic, underline, strike, code, link, subscript, superscript, textStyle, highlight", "marks": [{ "type": "code" }] }
+                ] }]
+              }
+            ]
+          },
+          {
+            "type": "tableRow",
+            "content": [
+              {
+                "type": "tableCell",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "속성" }] }]
+              },
+              {
+                "type": "tableCell",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "정렬, 캡션, 자동 ID, 셀 병합, 열 너비" }] }]
+              },
+              {
+                "type": "tableCell",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [
+                  { "type": "text", "text": "textAlign, caption, id, colspan, rowspan, colwidth", "marks": [{ "type": "code" }] }
+                ] }]
+              }
+            ]
+          },
+          {
+            "type": "tableRow",
+            "content": [
+              {
+                "type": "tableCell",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "에디터 기능" }] }]
+              },
+              {
+                "type": "tableCell",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "섹션 접기, 목차 사이드바, 상호 참조(@), 자동 번호, Mermaid 라이브 렌더링" }] }]
+              },
+              {
+                "type": "tableCell",
+                "attrs": { "colspan": 1, "rowspan": 1 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "—" }] }]
+              }
+            ]
+          }
+        ]
+      },
+
+      {
+        "type": "paragraph",
+        "attrs": { "textAlign": "center" },
+        "content": [
+          { "type": "text", "text": "— End of Feature Guide —", "marks": [{ "type": "italic" }, { "type": "textStyle", "attrs": { "color": "#868e96" } }] }
+        ]
+      }
+    ]
+  }
+}

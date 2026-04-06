@@ -51,6 +51,8 @@ Always write only the bare title in heading content.
 4. Set `meta.created` and `meta.modified` to current ISO 8601 timestamp
 5. Add content nodes inside `doc.content`
 
+> **Comprehensive Example**: See [example-full-features.sdoc](./references/example-full-features.sdoc) for a complete document demonstrating **every** supported node type, mark, and attribute — including headings (H1–H6), text formatting (bold, italic, underline, strike, code, color, highlight, subscript, superscript), bullet/ordered/task lists, code blocks with syntax highlighting, tables with captions and merged cells, images with captions and alignment, inline and block math equations, Mermaid diagrams (flowchart, sequence, class, gantt, pie, ER), cross-references, and hard breaks.
+
 ### Adding a Math Equation
 
 > **CRITICAL — Backslash escaping in JSON**: JSON requires `\` to be written as `\\`.
