@@ -683,7 +683,11 @@ function generateHtmlDocument(bodyContent: string, theme?: HtmlTheme, meta?: Sdo
     ]})"></script>
   <script type="module">
     import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
-    mermaid.initialize({ startOnLoad: true, theme: 'default' });
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'default',
+      themeVariables: { background: '#ffffff', mainBkg: '#ffffff' }
+    });
   </script>
 </head>
 <body>
