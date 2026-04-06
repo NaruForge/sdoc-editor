@@ -137,6 +137,20 @@ Every `.sdoc` / `.tiptap.json` file MUST have this top-level structure:
 ```
 - `latex`: LaTeX math expression rendered by KaTeX
 
+> **CRITICAL — JSON backslash escaping for LaTeX:**
+> JSON strings require `\` to be written as `\\`. Therefore every LaTeX command backslash must be doubled.
+> - LaTeX `\frac` → JSON `"\\frac"` ✅
+> - LaTeX `\omega` → JSON `"\\omega"` ✅
+> - `\\\\frac` (quadruple) or `\\\frac` (triple) are **WRONG** ❌
+>
+> **Rule**: count the backslashes in your output JSON string. Every LaTeX `\` must appear as exactly **two** characters `\\` in the JSON source. Never one (`\`), never three (`\\\`).  
+>
+> Correct complex example:
+> ```json
+> { "type": "mathBlock", "attrs": { "latex": "G(s) = \\frac{\\omega_n^2}{s^2 + 2\\zeta\\omega_n s + \\omega_n^2}" } }
+> ```
+> The JSON string value above, when parsed, becomes the LaTeX: `G(s) = \frac{\omega_n^2}{s^2 + 2\zeta\omega_n s + \omega_n^2}`
+
 ### diagram
 
 ```json

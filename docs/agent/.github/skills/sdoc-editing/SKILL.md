@@ -53,6 +53,16 @@ Always write only the bare title in heading content.
 
 ### Adding a Math Equation
 
+> **CRITICAL — Backslash escaping in JSON**: JSON requires `\` to be written as `\\`.
+> Every LaTeX command (which starts with `\`) must use **exactly two backslashes** `\\` in the JSON string.
+>
+> | LaTeX (what KaTeX sees) | JSON string (what you write) | ❌ Wrong |
+> |---|---|---|
+> | `\frac{a}{b}` | `"\\frac{a}{b}"` | `"\\\frac"` or `"\frac"` |
+> | `\omega_n^2` | `"\\omega_n^2"` | `"\\\omega_n^2"` |
+> | `\zeta` | `"\\zeta"` | `"\\\zeta"` |
+> | `\int_0^\infty` | `"\\int_0^\\infty"` | `"\\\int_0^\\\infty"` |
+
 **Inline math** (within a paragraph):
 ```json
 { "type": "mathInline", "attrs": { "latex": "E = mc^2" } }
@@ -63,7 +73,12 @@ Place it alongside text nodes inside a paragraph's `content` array.
 ```json
 { "type": "mathBlock", "attrs": { "latex": "\\int_0^\\infty e^{-x^2} dx = \\frac{\\sqrt{\\pi}}{2}" } }
 ```
-Place it as a top-level block in `doc.content`. Uses KaTeX syntax.
+
+**Transfer function example:**
+```json
+{ "type": "mathBlock", "attrs": { "latex": "G(s) = \\frac{\\omega_n^2}{s^2 + 2\\zeta\\omega_n s + \\omega_n^2}" } }
+```
+Place block math as a top-level block in `doc.content`. Uses KaTeX syntax.
 
 ### Adding a Table
 

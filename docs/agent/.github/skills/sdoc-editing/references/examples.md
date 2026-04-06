@@ -1,6 +1,38 @@
 # .sdoc Content Examples
 
-## Simple Paragraph with Formatting
+## Math Equations — Backslash Escaping Rule
+
+**JSON requires `\` → `\\`. Every LaTeX `\command` must be `\\command` in JSON.**
+
+```json
+// ✅ Correct — each LaTeX backslash is doubled in JSON
+{ "type": "mathBlock", "attrs": { "latex": "G(s) = \\frac{\\omega_n^2}{s^2 + 2\\zeta\\omega_n s + \\omega_n^2}" } }
+
+// ❌ Wrong — triple backslash (\\\) is never correct
+{ "type": "mathBlock", "attrs": { "latex": "G(s) = \\\frac{\\omega_n^2}{s^2 + 2\\zeta\\omega_n s + \\\omega_n^2}" } }
+```
+
+More examples:
+```json
+{ "type": "mathBlock", "attrs": { "latex": "\\int_0^\\infty e^{-x^2} dx = \\frac{\\sqrt{\\pi}}{2}" } }
+{ "type": "mathBlock", "attrs": { "latex": "F(s) = \\frac{K}{s(Ts+1)}" } }
+{ "type": "mathBlock", "attrs": { "latex": "\\dot{x} = Ax + Bu,\\quad y = Cx + Du" } }
+{ "type": "mathInline", "attrs": { "latex": "\\omega_n = \\sqrt{\\frac{k}{m}}" } }
+```
+
+Quick reference — LaTeX → JSON:
+
+| LaTeX expression | JSON string |
+|---|---|
+| `\frac{a}{b}` | `"\\frac{a}{b}"` |
+| `\omega_n^2` | `"\\omega_n^2"` |
+| `\zeta` | `"\\zeta"` |
+| `\sqrt{x}` | `"\\sqrt{x}"` |
+| `\int_0^\infty` | `"\\int_0^\\infty"` |
+| `\dot{x}` | `"\\dot{x}"` |
+| `\begin{matrix}` | `"\\begin{matrix}"` |
+
+
 
 ```json
 {
