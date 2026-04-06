@@ -2,12 +2,7 @@
 # WSL2 터미널에서 build-vsix.ps1 을 실행하는 래퍼 스크립트
 set -euo pipefail
 
-# bash 측 로케일을 UTF-8로 강제 (터미널 한글 깨짐 방지)
-export LANG=en_US.UTF-8
-export LC_ALL=en_US.UTF-8
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PS1_PATH="$(wslpath -w "$SCRIPT_DIR/build-vsix.ps1")"
 
 # PowerShell 7(pwsh) 우선, 없으면 Windows PowerShell 5 사용
 if command -v pwsh.exe &>/dev/null; then
@@ -22,12 +17,16 @@ fi
 # 현재 WSL 배포판 이름을 자동으로 전달 (wsl --list 인코딩 문제 우회)
 Wsl_DISTRO="${WSL_DISTRO_NAME:-Ubuntu}"
 
+# PowerShell 5는 BOM 없는 UTF-8 파일을 ANSI로 읽어 한글이 깨짐
+# → 임시 파일에 UTF-8 BOM을 붙여 실행 (PS7은 BOM 없이도 정상)
+TEMP_PS1=$(mktemp /tmp/build-vsix-XXXXXX.ps1)
+printf '\xef\xbb\xbf' > "$TEMP_PS1"
+cat "$SCRIPT_DIR/build-vsix.ps1" >> "$TEMP_PS1"
+PS1_WIN=$(wslpath -w "$TEMP_PS1")
+
 echo "▶  $PWSH 로 실행 중: build-vsix.ps1 (배포판: $Wsl_DISTRO)"
-# UTF-8 코드 페이지 강제 설정 후 스크립트 실행 (한글 깨짐 방지)
-# pwsh(PS7)은 -OutputEncoding 지원, powershell.exe(PS5)는 chcp 65001로 우회
-if [[ "$PWSH" == "pwsh.exe" ]]; then
-  "$PWSH" -ExecutionPolicy Bypass -File "$PS1_PATH" -WslDistro "$Wsl_DISTRO" "$@"
-else
-  "$PWSH" -ExecutionPolicy Bypass -NoProfile \
-    -Command "[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; chcp 65001 | Out-Null; & '$PS1_PATH' -WslDistro '$Wsl_DISTRO'"
-fi
+"$PWSH" -ExecutionPolicy Bypass -File "$PS1_WIN" -WslDistro "$Wsl_DISTRO" "$@"
+EXIT_CODE=$?
+
+rm -f "$TEMP_PS1"
+exit $EXIT_CODE
