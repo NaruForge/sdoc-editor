@@ -44,6 +44,11 @@ Every `.sdoc` / `.tiptap.json` file MUST have this top-level structure:
 - `id`: optional anchor for cross-references (auto-assigned on save, slugified from text)
 - `textAlign`: optional `"left"` | `"center"` | `"right"` | `"justify"` | `null`
 
+> **CRITICAL — DO NOT prefix heading text with numbers.**
+> The editor automatically generates heading numbers (e.g., `1.`, `1.1`, `2.3.1`) via CSS counters based on the heading `level`.
+> Writing `"1. Introduction"` or `"2.1 Overview"` in the text node will cause **double numbering** in the rendered document.
+> Always write the bare title only: `"Introduction"`, `"Overview"`.
+
 ### paragraph
 
 ```json

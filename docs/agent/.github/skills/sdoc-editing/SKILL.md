@@ -25,6 +25,22 @@ See [sdoc-format.instructions.md](../../.github/instructions/sdoc-format.instruc
 - JSON attributes use clean camelCase (never `data-*` prefixes)
 - Files are pretty-printed with 2-space indentation
 
+## Critical Rules
+
+### Heading Numbers — NEVER Add Manually
+
+The editor **automatically generates heading numbers** (e.g., `1.`, `1.1`, `2.3.1`) via CSS counters based on heading level. This is controlled by the `structuredDocEditor.heading.numbering` setting.
+
+**DO NOT** prefix heading text with numbers. It causes double numbering.
+
+| ❌ Wrong | ✅ Correct |
+|---|---|
+| `"1. Introduction"` | `"Introduction"` |
+| `"2.1 System Overview"` | `"System Overview"` |
+| `"3.2.1 API Design"` | `"API Design"` |
+
+Always write only the bare title in heading content.
+
 ## Procedures
 
 ### Creating a New Document

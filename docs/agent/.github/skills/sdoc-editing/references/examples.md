@@ -19,6 +19,8 @@
 
 ## Heading Hierarchy
 
+> **IMPORTANT**: Never include numbers in heading text. The editor auto-generates numbering (e.g., `1.`, `1.1`, `1.1.1`) via CSS. Writing `"1. Main Title"` causes double numbering.
+
 ```json
 [
   {
@@ -41,6 +43,18 @@
     "content": [{ "type": "text", "text": "Subsection" }]
   }
 ]
+```
+
+❌ Wrong — AI must NEVER produce this:
+```json
+{ "type": "heading", "attrs": { "level": 2 }, "content": [{ "type": "text", "text": "1. Introduction" }] }
+{ "type": "heading", "attrs": { "level": 3 }, "content": [{ "type": "text", "text": "1.1 Background" }] }
+```
+
+✅ Correct:
+```json
+{ "type": "heading", "attrs": { "level": 2 }, "content": [{ "type": "text", "text": "Introduction" }] }
+{ "type": "heading", "attrs": { "level": 3 }, "content": [{ "type": "text", "text": "Background" }] }
 ```
 
 ## Bullet List

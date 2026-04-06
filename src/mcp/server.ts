@@ -60,7 +60,7 @@ server.tool(
 // ── Tool: sdoc.create ─────────────────────────────────────────────
 server.tool(
   'sdoc_create',
-  'Create a new .sdoc/.tiptap.json document with the proper envelope structure. Returns the complete JSON.',
+  'Create a new .sdoc/.tiptap.json document with the proper envelope structure. Returns the complete JSON. IMPORTANT: heading text must NOT include numbers (e.g. "1.", "1.1") — the editor auto-generates numbering via CSS counters. Always write bare titles only.',
   {
     title: z.string().optional().describe('Document title'),
     author: z.string().optional().describe('Author name'),
