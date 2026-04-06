@@ -44,11 +44,6 @@
         "category": "Structured Doc"
       },
       {
-        "command": "structuredDocEditor.setupMcp",
-        "title": "Setup MCP Server (for AI Agent)",
-        "category": "Structured Doc"
-      },
-      {
         "command": "structuredDocEditor.setupAgent",
         "title": "Setup AI Agent (Instructions + Skills + MCP)",
         "category": "Structured Doc"

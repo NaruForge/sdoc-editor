@@ -10,8 +10,7 @@ applyTo: "src/**,shared/**"
 - `unwrapSdoc()` auto-migrates legacy files (bare `{ "type": "doc" }`) and legacy `data-*` attributes.
 - Export commands (`src/commands/`) must unwrap the envelope before converting.
 - Settings are read from `vscode.workspace.getConfiguration('structuredDocEditor')`.
-- `setupMcpServer()` writes `.vscode/mcp.json` for AI agent integration.
-- `setupAgent()` copies Instructions/Skills from bundled `docs/agent/.github/` to workspace.
+- `setupAgent()` copies Instructions/Skills from bundled `docs/agent/.github/` to workspace and writes `.vscode/mcp.json`.
 - `updateChecker.ts` checks `structuredDocEditor.update.sharedFolder` for newer VSIX versions.
 - CSP in `SdocEditorProvider` includes `${webview.cspSource}` in `script-src` for dynamic imports.
 
@@ -48,7 +47,6 @@ All settings live under `structuredDocEditor.*`:
 | `structuredDocEditor.exportToHtml` | Export to HTML (with Mermaid CDN + KaTeX CDN) |
 | `structuredDocEditor.exportToAdoc` | Export to AsciiDoc |
 | `structuredDocEditor.exportToMarkdown` | Export to Markdown |
-| `structuredDocEditor.setupMcp` | Setup MCP server in `.vscode/mcp.json` |
 | `structuredDocEditor.setupAgent` | Setup AI Agent (Instructions + Skills + MCP) |
 
 ## Metadata Management
