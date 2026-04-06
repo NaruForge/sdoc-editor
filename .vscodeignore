@@ -38,6 +38,8 @@ sample/**
 # Build scripts
 scripts/**
 output/**
+build-*.ps1
+build-*.sh
 
 # Dependencies (excluded because we bundle everything)
 node_modules/**

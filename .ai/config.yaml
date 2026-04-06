@@ -1,0 +1,7 @@
+ats: "0.1"
+project:
+  prefix: SDOC
+  name: "Structured Doc Editor"
+agents:
+  auto_discover: true
+  update_on_complete: true

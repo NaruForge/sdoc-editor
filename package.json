@@ -180,7 +180,8 @@
     "watch:ext": "node esbuild.mjs --watch",
     "watch:webview": "npm run build --workspace=webview-ui -- --watch",
     "watch": "npm-run-all --parallel watch:ext watch:webview",
-    "vscode:prepublish": "npm run build"
+    "clean:dist": "node -e \"const fs=require('fs'),p=require('path'),d='dist';fs.readdirSync(d).filter(f=>f.endsWith('.map')).forEach(f=>fs.rmSync(p.join(d,f)));const a=p.join(d,'webview','assets');try{fs.readdirSync(a).filter(f=>f.startsWith('KaTeX')&&f.endsWith('.ttf')).forEach(f=>fs.rmSync(p.join(a,f)))}catch{}\"",
+    "vscode:prepublish": "npm run build && npm run clean:dist"
   },
   "devDependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",

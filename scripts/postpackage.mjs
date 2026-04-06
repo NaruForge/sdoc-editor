@@ -14,6 +14,7 @@ const vsixName = `structured-doc-editor-${version}.vsix`;
 mkdirSync(outputDir, { recursive: true });
 
 // Package VSIX directly into output/
+// Note: vsce runs vscode:prepublish which includes build + clean:dist
 execSync(
   `npx @vscode/vsce package --allow-missing-repository --no-dependencies --out "${join(outputDir, vsixName)}"`,
   { cwd: root, stdio: 'inherit' }

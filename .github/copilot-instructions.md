@@ -102,3 +102,7 @@ Both must stay in sync. When adding a node type, update **both** sets (8 files t
 - No `any` at module boundaries (internal helpers may use `any` for Tiptap node traversal).
 - PascalCase for components/extensions, camelCase for utilities/hooks.
 - No unnecessary comments — code should be self-documenting.
+
+## AI Task Tracking
+
+이 프로젝트는 AI Task Standard(ATS) v0.1을 사용합니다. `.ai/STATUS.md`를 읽고 관련 태스크를 참조하세요.
