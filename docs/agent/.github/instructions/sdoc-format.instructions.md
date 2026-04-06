@@ -143,7 +143,7 @@ Every `.sdoc` / `.tiptap.json` file MUST have this top-level structure:
 > - LaTeX `\omega` → JSON `"\\omega"` ✅
 > - `\\\\frac` (quadruple) or `\\\frac` (triple) are **WRONG** ❌
 >
-> **Rule**: count the backslashes in your output JSON string. Every LaTeX `\` must appear as exactly **two** characters `\\` in the JSON source. Never one (`\`), never three (`\\\`).  
+> **Rule**: count the backslashes in your output JSON string. Every LaTeX `\` must appear as exactly **two** characters `\\` in the JSON source. Never one (`\`), never three (`\\\`).
 >
 > Correct complex example:
 > ```json
