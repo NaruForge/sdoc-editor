@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
+import * as fs from 'fs';
 
 interface VersionInfo {
   version: string;
@@ -34,40 +35,15 @@ export async function checkForUpdate(context: vscode.ExtensionContext, manual = 
   }
 
   try {
-    const versionFileUri = vscode.Uri.file(path.join(sharedFolder, 'version.json'));
-    console.log('[sdoc-editor] Checking for updates at:', versionFileUri.fsPath);
+    const versionFilePath = path.join(sharedFolder, 'version.json');
+    console.log('[sdoc-editor] Checking for updates at:', versionFilePath);
 
+    // Use Node.js fs directly to bypass VS Code's UNC host security restrictions
     let raw: string;
     try {
-      const data = await vscode.workspace.fs.readFile(versionFileUri);
-      raw = Buffer.from(data).toString('utf-8');
+      raw = await fs.promises.readFile(versionFilePath, 'utf-8');
     } catch (e) {
-      const msg = (e as Error).message || '';
-      console.log('[sdoc-editor] Cannot read version.json:', msg);
-
-      if (msg.includes('UNC host') && msg.includes('not allowed')) {
-        const hostname = sharedFolder.replace(/^\\\\/, '').split('\\')[0];
-        const action = await vscode.window.showWarningMessage(
-          `자동 업데이트를 위해 UNC 호스트 '${hostname}' 접근을 허용해야 합니다.`,
-          '설정 열기'
-        );
-        if (action === '설정 열기') {
-          const config = vscode.workspace.getConfiguration('security');
-          const hosts = config.get<string[]>('allowedUNCHosts', []);
-          if (!hosts.includes(hostname)) {
-            hosts.push(hostname);
-            await config.update('allowedUNCHosts', hosts, vscode.ConfigurationTarget.Global);
-            vscode.window.showInformationMessage(
-              `'${hostname}'이(가) 허용 목록에 추가되었습니다. VS Code를 리로드하면 자동 업데이트가 작동합니다.`,
-              '리로드'
-            ).then(r => {
-              if (r === '리로드') {
-                vscode.commands.executeCommand('workbench.action.reloadWindow');
-              }
-            });
-          }
-        }
-      }
+      console.log('[sdoc-editor] Cannot read version.json:', (e as Error).message || '');
       return;
     }
 
@@ -91,10 +67,10 @@ export async function checkForUpdate(context: vscode.ExtensionContext, manual = 
     }
 
     const vsixName = remote.filename || `sdoc-editor-${remote.version}.vsix`;
-    const vsixUri = vscode.Uri.file(path.join(sharedFolder, vsixName));
+    const vsixPath = path.join(sharedFolder, vsixName);
 
     try {
-      await vscode.workspace.fs.stat(vsixUri);
+      await fs.promises.access(vsixPath);
     } catch {
       vscode.window.showWarningMessage(
         `sdoc-editor v${remote.version} 업데이트가 있지만, VSIX 파일을 찾을 수 없습니다: ${vsixName}`
@@ -112,10 +88,21 @@ export async function checkForUpdate(context: vscode.ExtensionContext, manual = 
       return;
     }
 
-    await vscode.commands.executeCommand(
-      'workbench.extensions.installExtension',
-      vsixUri
-    );
+    // Copy VSIX to local temp to avoid any UNC issues during install
+    const tmpDir = path.join(context.globalStorageUri.fsPath, 'update-tmp');
+    await fs.promises.mkdir(tmpDir, { recursive: true });
+    const localVsix = path.join(tmpDir, vsixName);
+    await fs.promises.copyFile(vsixPath, localVsix);
+
+    try {
+      await vscode.commands.executeCommand(
+        'workbench.extensions.installExtension',
+        vscode.Uri.file(localVsix)
+      );
+    } finally {
+      // Clean up temp file
+      fs.promises.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+    }
 
     const reload = await vscode.window.showInformationMessage(
       `v${remote.version} 설치 완료. VS Code를 리로드해야 적용됩니다.`,
