@@ -27,11 +27,11 @@
         "priority": "default"
       },
       {
-        "viewType": "structuredDocEditor.sdocProject",
-        "displayName": "Sdoc Project Editor",
+        "viewType": "structuredDocEditor.sdocBook",
+        "displayName": "Sdoc Book Editor",
         "selector": [
           {
-            "filenamePattern": "*.sdoc-project"
+            "filenamePattern": "*.sdocbook"
           }
         ],
         "priority": "default"

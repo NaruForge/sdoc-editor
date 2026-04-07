@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { SdocEditorProvider } from './SdocEditorProvider';
-import { SdocProjectProvider } from './SdocProjectProvider';
+import { SdocBookProvider } from './SdocBookProvider';
 import { exportToHtml } from './commands/exportToHtml';
 import { exportToAdoc } from './commands/exportToAdoc';
 import { exportToMarkdown } from './commands/exportToMarkdown';
@@ -17,7 +17,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   // Register the custom editor providers
   context.subscriptions.push(SdocEditorProvider.register(context));
-  context.subscriptions.push(SdocProjectProvider.register(context));
+  context.subscriptions.push(SdocBookProvider.register(context));
 
   // Register export to HTML command
   context.subscriptions.push(

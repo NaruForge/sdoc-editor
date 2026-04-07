@@ -25,7 +25,7 @@ author: "@contributor-01"
 - 내보내기 컨버터에서 cross-doc 링크 처리
 
 **2단계: 프로젝트 매니페스트**
-- `.sdoc-project` 파일 형식 정의 (문서 목록 + 순서)
+- `.sdocbook` 파일 형식 정의 (문서 목록 + 순서)
 - customEditor 등록하여 매니페스트 UI 표시
 
 **3단계: 통합 내보내기**
@@ -47,8 +47,8 @@ author: "@contributor-01"
 - [x] 내보내기 컨버터에서 cross-doc 링크 처리
 
 ### 2단계: 프로젝트 매니페스트
-- [x] .sdoc-project 스키마 정의
-- [x] SdocProjectProvider 커스텀 에디터 등록
+- [x] .sdocbook 스키마 정의
+- [x] SdocBookProvider 커스텀 에디터 등록
 - [x] 매니페스트 UI (문서 목록, 순서 변경, 추가/삭제)
 - [x] 프로젝트 통합 내보내기 (HTML/PDF) 구현
 

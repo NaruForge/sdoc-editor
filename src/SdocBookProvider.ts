@@ -4,23 +4,23 @@ import * as fs from 'fs';
 import { convertJsonToHtml } from './converter/jsonToHtml';
 import { detectBrowser, printToPdf } from './utils/browserDetect';
 
-interface SdocProject {
-  sdocProject: string;
+interface SdocBook {
+  sdocBook: string;
   title?: string;
   author?: string;
   version?: string;
   documents: Array<{ path: string; label?: string }>;
 }
 
-export class SdocProjectProvider implements vscode.CustomTextEditorProvider {
-  private static readonly VIEW_TYPE = 'structuredDocEditor.sdocProject';
+export class SdocBookProvider implements vscode.CustomTextEditorProvider {
+  private static readonly VIEW_TYPE = 'structuredDocEditor.sdocBook';
 
   constructor(private readonly context: vscode.ExtensionContext) {}
 
   static register(context: vscode.ExtensionContext): vscode.Disposable {
     return vscode.window.registerCustomEditorProvider(
-      SdocProjectProvider.VIEW_TYPE,
-      new SdocProjectProvider(context),
+      SdocBookProvider.VIEW_TYPE,
+      new SdocBookProvider(context),
       { supportsMultipleEditorsPerDocument: false }
     );
   }
@@ -34,8 +34,8 @@ export class SdocProjectProvider implements vscode.CustomTextEditorProvider {
     const updateWebview = () => {
       try {
         const text = document.getText();
-        const project: SdocProject = text.trim() ? JSON.parse(text) : {
-          sdocProject: '1.0',
+        const project: SdocBook = text.trim() ? JSON.parse(text) : {
+          sdocBook: '1.0',
           title: '',
           documents: [],
         };
@@ -50,7 +50,7 @@ export class SdocProjectProvider implements vscode.CustomTextEditorProvider {
 
         webviewPanel.webview.html = this.getHtml(project, docs);
       } catch {
-        webviewPanel.webview.html = this.getErrorHtml('Invalid JSON in .sdoc-project file');
+        webviewPanel.webview.html = this.getErrorHtml('Invalid JSON in .sdocbook file');
       }
     };
 
@@ -87,7 +87,7 @@ export class SdocProjectProvider implements vscode.CustomTextEditorProvider {
           if (files && files.length > 0) {
             const projectDir = path.dirname(document.uri.fsPath);
             const text = document.getText();
-            const project: SdocProject = text.trim() ? JSON.parse(text) : { sdocProject: '1.0', documents: [] };
+            const project: SdocBook = text.trim() ? JSON.parse(text) : { sdocBook: '1.0', documents: [] };
             for (const f of files) {
               const rel = path.relative(projectDir, f.fsPath).replace(/\\/g, '/');
               const relPath = rel.startsWith('.') ? rel : `./${rel}`;
@@ -101,14 +101,14 @@ export class SdocProjectProvider implements vscode.CustomTextEditorProvider {
         }
         case 'removeDocument': {
           const text = document.getText();
-          const project: SdocProject = JSON.parse(text);
+          const project: SdocBook = JSON.parse(text);
           project.documents.splice(message.index, 1);
           await this.updateProjectFile(document, project);
           break;
         }
         case 'moveDocument': {
           const text = document.getText();
-          const project: SdocProject = JSON.parse(text);
+          const project: SdocBook = JSON.parse(text);
           const { from, to } = message;
           if (from >= 0 && from < project.documents.length && to >= 0 && to < project.documents.length) {
             const [item] = project.documents.splice(from, 1);
@@ -119,7 +119,7 @@ export class SdocProjectProvider implements vscode.CustomTextEditorProvider {
         }
         case 'updateMeta': {
           const text = document.getText();
-          const project: SdocProject = JSON.parse(text);
+          const project: SdocBook = JSON.parse(text);
           if (message.title !== undefined) project.title = message.title;
           if (message.author !== undefined) project.author = message.author;
           if (message.version !== undefined) project.version = message.version;
@@ -134,7 +134,7 @@ export class SdocProjectProvider implements vscode.CustomTextEditorProvider {
     });
   }
 
-  private async updateProjectFile(document: vscode.TextDocument, project: SdocProject): Promise<void> {
+  private async updateProjectFile(document: vscode.TextDocument, project: SdocBook): Promise<void> {
     const edit = new vscode.WorkspaceEdit();
     edit.replace(
       document.uri,
@@ -149,7 +149,7 @@ export class SdocProjectProvider implements vscode.CustomTextEditorProvider {
     format: 'html' | 'pdf'
   ): Promise<void> {
     const text = document.getText();
-    const project: SdocProject = JSON.parse(text);
+    const project: SdocBook = JSON.parse(text);
     const projectDir = path.dirname(document.uri.fsPath);
     const config = vscode.workspace.getConfiguration('structuredDocEditor');
 
@@ -236,8 +236,8 @@ export class SdocProjectProvider implements vscode.CustomTextEditorProvider {
       const pdfScale = config.get<number>('export.pdfScale', 70) / 100;
       htmlContent = htmlContent.replace('</head>', `<style>body{zoom:${pdfScale};}</style>\n</head>`);
 
-      const pdfPath = document.uri.fsPath.replace(/\.sdoc-project$/, '.pdf');
-      const tempHtmlPath = document.uri.fsPath.replace(/\.sdoc-project$/, '.tmp.html');
+      const pdfPath = document.uri.fsPath.replace(/\.sdocbook$/, '.pdf');
+      const tempHtmlPath = document.uri.fsPath.replace(/\.sdocbook$/, '.tmp.html');
 
       fs.writeFileSync(tempHtmlPath, htmlContent, 'utf-8');
       try {
@@ -254,7 +254,7 @@ export class SdocProjectProvider implements vscode.CustomTextEditorProvider {
         await vscode.env.openExternal(vscode.Uri.file(pdfPath));
       }
     } else {
-      const htmlPath = document.uri.fsPath.replace(/\.sdoc-project$/, '.html');
+      const htmlPath = document.uri.fsPath.replace(/\.sdocbook$/, '.html');
       fs.writeFileSync(htmlPath, htmlContent, 'utf-8');
 
       const action = await vscode.window.showInformationMessage(
@@ -283,7 +283,7 @@ export class SdocProjectProvider implements vscode.CustomTextEditorProvider {
           const imgPath = path.resolve(baseDir, src);
           const data = await fs.promises.readFile(imgPath);
           const ext = path.extname(src).toLowerCase().replace('.', '');
-          const mime = SdocProjectProvider.MIME_MAP[ext] || 'application/octet-stream';
+          const mime = SdocBookProvider.MIME_MAP[ext] || 'application/octet-stream';
           cloned.attrs = { ...cloned.attrs, src: `data:${mime};base64,${data.toString('base64')}` };
         } catch { /* keep original */ }
       }
@@ -353,7 +353,7 @@ export class SdocProjectProvider implements vscode.CustomTextEditorProvider {
     return cloned;
   }
 
-  private getHtml(project: SdocProject, docs: Array<{ path: string; label: string; exists: boolean }>): string {
+  private getHtml(project: SdocBook, docs: Array<{ path: string; label: string; exists: boolean }>): string {
     const docRows = docs.map((d, i) => `
       <div class="doc-row${d.exists ? '' : ' missing'}">
         <span class="doc-num">${i + 1}</span>

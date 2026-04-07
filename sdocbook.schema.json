@@ -1,14 +1,14 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://sdoc.dev/schema/sdoc-project-v1.0.json",
-  "title": "Structured Document Project (.sdoc-project)",
-  "description": "Project manifest that defines a collection of .sdoc documents for unified export.",
+  "$id": "https://sdoc.dev/schema/sdocbook-v1.0.json",
+  "title": "Structured Document Book (.sdocbook)",
+  "description": "Book manifest that defines a collection of .sdoc documents for unified export.",
   "type": "object",
-  "required": ["sdocProject", "documents"],
+  "required": ["sdocBook", "documents"],
   "properties": {
-    "sdocProject": {
+    "sdocBook": {
       "type": "string",
-      "description": "Schema version of this project manifest.",
+      "description": "Schema version of this book manifest.",
       "enum": ["1.0"]
     },
     "title": {
