@@ -44,4 +44,5 @@ author: "@contributor-01"
 - [x] exportToPdf 커맨드 구현 (src/commands/exportToPdf.ts)
 - [x] @media print CSS 추가 (기존 converter에 이미 포함)
 - [x] package.json 커맨드 등록
-- [ ] 테스트
+- [x] PDF 배율 설정 추가 (export.pdfScale, 기본 70%)
+- [x] 테스트

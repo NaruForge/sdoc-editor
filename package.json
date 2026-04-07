@@ -151,6 +151,13 @@
           ],
           "description": "Self-contained HTML export level"
         },
+        "structuredDocEditor.export.pdfScale": {
+          "type": "number",
+          "default": 70,
+          "minimum": 10,
+          "maximum": 200,
+          "description": "PDF export scale percentage (10–200). Default 70% produces a well-proportioned output."
+        },
         "structuredDocEditor.theme.companyLogo": {
           "type": "string",
           "default": "legacy-brand-logo.png",

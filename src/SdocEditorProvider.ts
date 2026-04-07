@@ -950,6 +950,10 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
               return;
             }
 
+            // Inject zoom CSS for PDF scale
+            const pdfScale = config.get<number>('export.pdfScale', 70) / 100;
+            content = content.replace('</head>', `<style>body{zoom:${pdfScale};}</style>\n</head>`);
+
             const fs = await import('fs');
             const tempHtmlPath = document.uri.fsPath.replace(/(\.tiptap\.json|\.sdoc)$/, '.tmp.html');
             const pdfPath = document.uri.fsPath.replace(/(\.tiptap\.json|\.sdoc)$/, '.pdf');

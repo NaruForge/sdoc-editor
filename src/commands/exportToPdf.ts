@@ -85,7 +85,11 @@ export async function exportToPdf(context: vscode.ExtensionContext) {
           selfContained: 'images-only' as const,
         };
 
-        const htmlContent = convertJsonToHtml(json, theme, exportSettings, meta);
+        let htmlContent = convertJsonToHtml(json, theme, exportSettings, meta);
+
+        // Inject zoom CSS for PDF scale
+        const pdfScale = config.get<number>('export.pdfScale', 70) / 100;
+        htmlContent = htmlContent.replace('</head>', `<style>body{zoom:${pdfScale};}</style>\n</head>`);
 
         // Write temp HTML file
         const tempHtmlPath = documentUri!.fsPath.replace(/(\.tiptap\.json|\.sdoc)$/, '.tmp.html');
