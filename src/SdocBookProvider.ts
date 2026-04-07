@@ -202,14 +202,24 @@ export class SdocBookProvider implements vscode.CustomTextEditorProvider {
       } catch { companyLogo = ''; }
     }
 
-    const theme = {
+    const theme: Record<string, any> = {
       companyLogo,
       companyName: config.get<string>('theme.companyName') || '',
       primaryColor: config.get<string>('theme.primaryColor') || '#A50034',
       accentColor: config.get<string>('theme.accentColor') || '#6b6b6b',
-      fontFamily: config.get<string>('theme.fontFamily') || '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      fontFamily: config.get<string>('theme.fontFamily') || "'Legacy Font 2.0', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
       customStyles: config.get<string>('theme.customStyles') || '',
+      fontWeights: {
+        body: SdocBookProvider.resolveFontWeight(config.get<string>('font.body', 'Regular')),
+        bold: SdocBookProvider.resolveFontWeight(config.get<string>('font.bold', 'Bold')),
+        h1: SdocBookProvider.resolveFontWeight(config.get<string>('font.h1', 'Bold')),
+        h2: SdocBookProvider.resolveFontWeight(config.get<string>('font.h2', 'SemiBold')),
+        h3: SdocBookProvider.resolveFontWeight(config.get<string>('font.h3', 'SemiBold')),
+      },
     };
+
+    // Embed bundled fonts as base64 for HTML/PDF export
+    theme.embeddedFonts = await this.loadBundledFontsAsBase64();
 
     const exportSettings: Record<string, any> = {
       imageCaptionPrefix: config.get<string>('caption.imagePrefix', 'Image'),
@@ -424,5 +434,35 @@ export class SdocBookProvider implements vscode.CustomTextEditorProvider {
 
   private escHtml(s: string): string {
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  private static readonly BUNDLED_FONTS = [
+    { file: 'LegacyFontL.ttf', weight: 300 },
+    { file: 'LegacyFontR.ttf', weight: 400 },
+    { file: 'LegacyFontSB.ttf', weight: 600 },
+    { file: 'LegacyFontB.ttf', weight: 700 },
+  ];
+
+  private static readonly FONT_WEIGHT_MAP: Record<string, number> = {
+    Light: 300, Regular: 400, SemiBold: 600, Bold: 700,
+  };
+
+  private static resolveFontWeight(name: string): number {
+    return SdocBookProvider.FONT_WEIGHT_MAP[name] || 400;
+  }
+
+  private async loadBundledFontsAsBase64(): Promise<{ weight: number; dataUri: string }[]> {
+    const results: { weight: number; dataUri: string }[] = [];
+    for (const { file, weight } of SdocBookProvider.BUNDLED_FONTS) {
+      try {
+        const fontPath = path.join(this.context.extensionPath, 'media', 'fonts', file);
+        const fontData = await fs.promises.readFile(fontPath);
+        const base64 = fontData.toString('base64');
+        results.push({ weight, dataUri: `data:font/ttf;base64,${base64}` });
+      } catch {
+        // Skip missing font files
+      }
+    }
+    return results;
   }
 }

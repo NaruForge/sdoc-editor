@@ -2,7 +2,7 @@
   "name": "structured-doc-editor",
   "displayName": "Structured Doc Editor",
   "description": "WYSIWYG editor for .tiptap.json/.sdoc files with Markdown/AsciiDoc/HTML export",
-  "version": "0.3.5",
+  "version": "0.3.6",
   "publisher": "lgm-control-contributor-01",
   "engines": {
     "vscode": "^1.85.0"
@@ -190,8 +190,68 @@
         },
         "structuredDocEditor.theme.fontFamily": {
           "type": "string",
-          "default": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif",
-          "description": "Font family for HTML export"
+          "default": "'Legacy Font 2.0', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+          "description": "Font family for editor and HTML/PDF export. Bundled 'Legacy Font 2.0' is used by default."
+        },
+        "structuredDocEditor.font.body": {
+          "type": "string",
+          "enum": ["Light", "Regular", "SemiBold", "Bold"],
+          "default": "Regular",
+          "enumDescriptions": [
+            "Light (300) — 가벼운 본문",
+            "Regular (400) — 기본 본문",
+            "SemiBold (600) — 약간 굵은 본문",
+            "Bold (700) — 굵은 본문"
+          ],
+          "description": "본문 텍스트의 폰트 굵기"
+        },
+        "structuredDocEditor.font.bold": {
+          "type": "string",
+          "enum": ["Light", "Regular", "SemiBold", "Bold"],
+          "default": "Bold",
+          "enumDescriptions": [
+            "Light (300)",
+            "Regular (400)",
+            "SemiBold (600) — 본문과 적절한 대비",
+            "Bold (700) — 강한 강조"
+          ],
+          "description": "Bold(강조) 텍스트의 폰트 굵기"
+        },
+        "structuredDocEditor.font.h1": {
+          "type": "string",
+          "enum": ["Light", "Regular", "SemiBold", "Bold"],
+          "default": "Bold",
+          "enumDescriptions": [
+            "Light (300)",
+            "Regular (400)",
+            "SemiBold (600)",
+            "Bold (700) — 가장 큰 제목에 적합"
+          ],
+          "description": "H1 제목의 폰트 굵기"
+        },
+        "structuredDocEditor.font.h2": {
+          "type": "string",
+          "enum": ["Light", "Regular", "SemiBold", "Bold"],
+          "default": "SemiBold",
+          "enumDescriptions": [
+            "Light (300)",
+            "Regular (400)",
+            "SemiBold (600) — H1보다 한 단계 가볍게",
+            "Bold (700)"
+          ],
+          "description": "H2 제목의 폰트 굵기"
+        },
+        "structuredDocEditor.font.h3": {
+          "type": "string",
+          "enum": ["Light", "Regular", "SemiBold", "Bold"],
+          "default": "SemiBold",
+          "enumDescriptions": [
+            "Light (300)",
+            "Regular (400)",
+            "SemiBold (600)",
+            "Bold (700)"
+          ],
+          "description": "H3 제목의 폰트 굵기"
         },
         "structuredDocEditor.theme.customStyles": {
           "type": "string",

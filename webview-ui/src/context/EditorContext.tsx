@@ -12,6 +12,22 @@ export interface EditorSettings {
   headingH3Color: string;
   defaultImageAlignment: 'left' | 'center' | 'right';
   exportImagePath: 'relative' | 'absolute';
+  fontWeightBody: number;
+  fontWeightBold: number;
+  fontWeightH1: number;
+  fontWeightH2: number;
+  fontWeightH3: number;
+}
+
+const FONT_WEIGHT_MAP: Record<string, number> = {
+  Light: 300,
+  Regular: 400,
+  SemiBold: 600,
+  Bold: 700,
+};
+
+export function resolveFontWeight(name: string): number {
+  return FONT_WEIGHT_MAP[name] || 400;
 }
 
 export const defaultSettings: EditorSettings = {
@@ -25,6 +41,11 @@ export const defaultSettings: EditorSettings = {
   headingH3Color: '#A50034',
   defaultImageAlignment: 'center',
   exportImagePath: 'relative',
+  fontWeightBody: 400,
+  fontWeightBold: 700,
+  fontWeightH1: 700,
+  fontWeightH2: 600,
+  fontWeightH3: 600,
 };
 
 interface EditorState {

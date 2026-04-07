@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { EditorContent } from '@tiptap/react';
 import { useTiptapEditor } from '../hooks/useTiptapEditor';
-import { useEditorContext } from '../context/EditorContext';
+import { useEditorContext, resolveFontWeight } from '../context/EditorContext';
 import { useVSCodeMessaging } from '../hooks/useVSCodeMessaging';
 import { Toolbar } from './Toolbar';
 import { BubbleMenuBar } from './BubbleMenuBar';
@@ -141,6 +141,11 @@ export const Editor: React.FC = () => {
       proseMirrorEl.style.setProperty('--heading-h1-color', settings.headingH1Color);
       proseMirrorEl.style.setProperty('--heading-h2-color', settings.headingH2Color);
       proseMirrorEl.style.setProperty('--heading-h3-color', settings.headingH3Color);
+      proseMirrorEl.style.setProperty('--font-weight-body', String(settings.fontWeightBody));
+      proseMirrorEl.style.setProperty('--font-weight-bold', String(settings.fontWeightBold));
+      proseMirrorEl.style.setProperty('--font-weight-h1', String(settings.fontWeightH1));
+      proseMirrorEl.style.setProperty('--font-weight-h2', String(settings.fontWeightH2));
+      proseMirrorEl.style.setProperty('--font-weight-h3', String(settings.fontWeightH3));
     }
 
     // Sync heading numbering toggle with settings
@@ -172,9 +177,17 @@ export const Editor: React.FC = () => {
           setContentRef.current(message.content);
         }
         break;
-      case 'settingsChanged':
-        dispatch({ type: 'SET_SETTINGS', payload: message.settings });
+      case 'settingsChanged': {
+        const s = { ...message.settings };
+        // Resolve font weight names to numeric values
+        if (typeof s.fontWeightBody === 'string') s.fontWeightBody = resolveFontWeight(s.fontWeightBody);
+        if (typeof s.fontWeightBold === 'string') s.fontWeightBold = resolveFontWeight(s.fontWeightBold);
+        if (typeof s.fontWeightH1 === 'string') s.fontWeightH1 = resolveFontWeight(s.fontWeightH1);
+        if (typeof s.fontWeightH2 === 'string') s.fontWeightH2 = resolveFontWeight(s.fontWeightH2);
+        if (typeof s.fontWeightH3 === 'string') s.fontWeightH3 = resolveFontWeight(s.fontWeightH3);
+        dispatch({ type: 'SET_SETTINGS', payload: s });
         break;
+      }
       case 'metaUpdate':
         setMeta(prev => ({ ...prev, ...message.meta }));
         break;

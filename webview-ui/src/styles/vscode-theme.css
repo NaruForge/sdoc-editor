@@ -18,6 +18,8 @@ body {
 .ProseMirror {
   background-color: var(--vscode-editor-background);
   color: var(--vscode-editor-foreground);
+  font-family: 'Legacy Font 2.0', var(--vscode-font-family), sans-serif;
+  font-weight: var(--font-weight-body, 400);
   padding: 16px;
   min-height: 100vh;
   outline: none;
@@ -30,16 +32,27 @@ body {
   --heading-h1-color: #A50034;
   --heading-h2-color: #A50034;
   --heading-h3-color: #A50034;
+  /* Font weight custom properties (set via JS from VS Code settings) */
+  --font-weight-body: 400;
+  --font-weight-bold: 700;
+  --font-weight-h1: 700;
+  --font-weight-h2: 600;
+  --font-weight-h3: 600;
 }
 
 .ProseMirror:focus {
   outline: none;
 }
 
+.ProseMirror strong,
+.ProseMirror b {
+  font-weight: var(--font-weight-bold, 700);
+}
+
 /* Headings with automatic numbering */
 .show-numbering .ProseMirror h1 {
   font-size: 2em;
-  font-weight: bold;
+  font-weight: var(--font-weight-h1, 700);
   margin: 0.67em 0;
   padding-bottom: 0.3em;
   counter-reset: h2-counter h3-counter;
@@ -58,7 +71,7 @@ body {
 
 .show-numbering .ProseMirror h2 {
   font-size: 1.5em;
-  font-weight: bold;
+  font-weight: var(--font-weight-h2, 600);
   margin: 0.75em 0;
   counter-reset: h3-counter;
   counter-increment: h2-counter;
@@ -74,7 +87,7 @@ body {
 
 .show-numbering .ProseMirror h3 {
   font-size: 1.17em;
-  font-weight: bold;
+  font-weight: var(--font-weight-h3, 600);
   margin: 0.83em 0;
   counter-increment: h3-counter;
 }
@@ -90,7 +103,7 @@ body {
 /* Headings without numbering */
 .hide-numbering .ProseMirror h1 {
   font-size: 2em;
-  font-weight: bold;
+  font-weight: var(--font-weight-h1, 700);
   margin: 0.67em 0;
   padding-bottom: 0.3em;
 }
@@ -101,7 +114,7 @@ body {
 
 .hide-numbering .ProseMirror h2 {
   font-size: 1.5em;
-  font-weight: bold;
+  font-weight: var(--font-weight-h2, 600);
   margin: 0.75em 0;
 }
 
@@ -109,7 +122,7 @@ body {
 
 .hide-numbering .ProseMirror h3 {
   font-size: 1.17em;
-  font-weight: bold;
+  font-weight: var(--font-weight-h3, 600);
   margin: 0.83em 0;
 }
 

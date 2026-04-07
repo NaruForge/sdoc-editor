@@ -44,5 +44,6 @@ build-*.sh
 # Dependencies (excluded because we bundle everything)
 node_modules/**
 
-# Include only the dist folder
+# Include only the dist folder and media assets
 !dist/**
+!media/**

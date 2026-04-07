@@ -1,7 +1,7 @@
 # Project Status
 
 ## In Progress
-- (없음)
+- [SDOC-009](tasks/SDOC-009.md): 에디터 폰트 시스템 개선 — 시스템 폰트 지원 및 인에디터 폰트 선택
 
 ## Ready
 - (없음)

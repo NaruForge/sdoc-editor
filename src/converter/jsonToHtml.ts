@@ -20,6 +20,8 @@ interface HtmlTheme {
   accentColor?: string;
   fontFamily?: string;
   customStyles?: string; // Additional custom CSS
+  embeddedFonts?: { weight: number; dataUri: string }[]; // base64 font data for self-contained export
+  fontWeights?: { body: number; bold: number; h1: number; h2: number; h3: number };
 }
 
 interface EmbeddedAssets {
@@ -393,8 +395,19 @@ function generateHtmlDocument(bodyContent: string, theme?: HtmlTheme, meta?: Sdo
   const companyName = theme?.companyName || '';
   const primaryColor = theme?.primaryColor || '#A50034';
   const accentColor = theme?.accentColor || '#6b6b6b';
-  const fontFamily = theme?.fontFamily || '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+  const fontFamily = theme?.fontFamily || "'Legacy Font 2.0', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
   const customStyles = theme?.customStyles || '';
+  const fw = theme?.fontWeights || { body: 400, bold: 700, h1: 700, h2: 600, h3: 600 };
+
+  // Generate @font-face rules if embeddedFonts are provided
+  const fontFaceRules = (theme?.embeddedFonts || []).map(f => `
+    @font-face {
+      font-family: 'Legacy Font 2.0';
+      font-weight: ${f.weight};
+      font-style: normal;
+      font-display: swap;
+      src: url(${f.dataUri}) format('truetype');
+    }`).join('\n');
 
   return `<!DOCTYPE html>
 <html lang="ko">
@@ -404,6 +417,7 @@ function generateHtmlDocument(bodyContent: string, theme?: HtmlTheme, meta?: Sdo
   <title>${meta?.title ? escapeHtml(meta.title) : 'Document'}</title>
   ${meta?.author ? `<meta name="author" content="${escapeHtml(meta.author)}">` : ''}
   <style>
+    ${fontFaceRules}
     /* Base Styles */
     * {
       margin: 0;
@@ -413,6 +427,7 @@ function generateHtmlDocument(bodyContent: string, theme?: HtmlTheme, meta?: Sdo
 
     body {
       font-family: ${fontFamily};
+      font-weight: ${fw.body};
       font-size: 16px;
       line-height: 1.6;
       color: #333;
@@ -420,6 +435,10 @@ function generateHtmlDocument(bodyContent: string, theme?: HtmlTheme, meta?: Sdo
       margin: 0 auto;
       padding: 40px 20px;
       background-color: #FFFFFF;
+    }
+
+    strong, b {
+      font-weight: ${fw.bold};
     }
 
     /* Header with Company Logo */
@@ -475,6 +494,7 @@ function generateHtmlDocument(bodyContent: string, theme?: HtmlTheme, meta?: Sdo
       counter-reset: h2;
       counter-increment: h1;
       font-size: 2em;
+      font-weight: ${fw.h1};
       margin-top: 1.5em;
       margin-bottom: 0.5em;
       color: ${primaryColor};
@@ -503,6 +523,7 @@ function generateHtmlDocument(bodyContent: string, theme?: HtmlTheme, meta?: Sdo
       counter-reset: h3;
       counter-increment: h2;
       font-size: 1.5em;
+      font-weight: ${fw.h2};
       margin-top: 1.3em;
       margin-bottom: 0.4em;
       color: ${accentColor};
@@ -516,6 +537,7 @@ function generateHtmlDocument(bodyContent: string, theme?: HtmlTheme, meta?: Sdo
       counter-reset: h4;
       counter-increment: h3;
       font-size: 1.25em;
+      font-weight: ${fw.h3};
       margin-top: 1.2em;
       margin-bottom: 0.3em;
       color: #6b6b6b;

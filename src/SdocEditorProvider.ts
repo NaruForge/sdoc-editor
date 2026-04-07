@@ -48,6 +48,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       enableScripts: true,
       localResourceRoots: [
         vscode.Uri.joinPath(this.context.extensionUri, 'dist', 'webview'),
+        vscode.Uri.joinPath(this.context.extensionUri, 'media', 'fonts'),
         documentDir, // Allow access to images in the same directory as .sdoc file
       ],
     };
@@ -70,6 +71,11 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
           headingH3Color: config.get<string>('heading.h3Color', '#A50034'),
           defaultImageAlignment: config.get<string>('image.defaultAlignment', 'center'),
           exportImagePath: config.get<string>('export.imagePath', 'relative'),
+          fontWeightBody: config.get<string>('font.body', 'Regular'),
+          fontWeightBold: config.get<string>('font.bold', 'Bold'),
+          fontWeightH1: config.get<string>('font.h1', 'Bold'),
+          fontWeightH2: config.get<string>('font.h2', 'SemiBold'),
+          fontWeightH3: config.get<string>('font.h3', 'SemiBold'),
         },
       });
     };
@@ -1054,14 +1060,25 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
               companyLogo = '';
             }
           }
-          const theme = {
+          const theme: Record<string, any> = {
             companyLogo,
             companyName: config.get<string>('theme.companyName') || '',
             primaryColor: config.get<string>('theme.primaryColor') || '#A50034',
             accentColor: config.get<string>('theme.accentColor') || '#6b6b6b',
-            fontFamily: config.get<string>('theme.fontFamily') || '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+            fontFamily: config.get<string>('theme.fontFamily') || "'Legacy Font 2.0', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
             customStyles: config.get<string>('theme.customStyles') || '',
+            fontWeights: {
+              body: SdocEditorProvider.resolveFontWeight(config.get<string>('font.body', 'Regular')),
+              bold: SdocEditorProvider.resolveFontWeight(config.get<string>('font.bold', 'Bold')),
+              h1: SdocEditorProvider.resolveFontWeight(config.get<string>('font.h1', 'Bold')),
+              h2: SdocEditorProvider.resolveFontWeight(config.get<string>('font.h2', 'SemiBold')),
+              h3: SdocEditorProvider.resolveFontWeight(config.get<string>('font.h3', 'SemiBold')),
+            },
           };
+
+          // Embed bundled fonts as base64 data URIs for HTML/PDF export
+          theme.embeddedFonts = await this.loadBundledFontsAsBase64();
+
           content = convertJsonToHtml(convertedDoc, theme, exportSettings, meta);
 
           if (format === 'pdf') {
@@ -1247,6 +1264,9 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       'index.css',
     ]);
 
+    // Build @font-face declarations for bundled fonts
+    const fontFaces = this.generateFontFaceCSS(webview);
+
     const nonce = getNonce();
 
     return `<!DOCTYPE html>
@@ -1254,7 +1274,8 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}' ${webview.cspSource}; img-src ${webview.cspSource} data: https:;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; font-src ${webview.cspSource}; script-src 'nonce-${nonce}' ${webview.cspSource}; img-src ${webview.cspSource} data: https:;">
+  <style>${fontFaces}</style>
   <link href="${styleUri}" rel="stylesheet">
   <title>Structured Doc Editor</title>
 </head>
@@ -1263,5 +1284,48 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
   <script type="module" nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;
+  }
+
+  private static readonly BUNDLED_FONTS = [
+    { file: 'LegacyFontL.ttf', weight: 300 },
+    { file: 'LegacyFontR.ttf', weight: 400 },
+    { file: 'LegacyFontSB.ttf', weight: 600 },
+    { file: 'LegacyFontB.ttf', weight: 700 },
+  ];
+
+  private static readonly FONT_WEIGHT_MAP: Record<string, number> = {
+    Light: 300, Regular: 400, SemiBold: 600, Bold: 700,
+  };
+
+  private static resolveFontWeight(name: string): number {
+    return SdocEditorProvider.FONT_WEIGHT_MAP[name] || 400;
+  }
+
+  private generateFontFaceCSS(webview: vscode.Webview): string {
+    return SdocEditorProvider.BUNDLED_FONTS.map(({ file, weight }) => {
+      const fontUri = getWebviewUri(webview, this.context.extensionUri, ['media', 'fonts', file]);
+      return `@font-face {
+  font-family: 'Legacy Font 2.0';
+  font-weight: ${weight};
+  font-style: normal;
+  font-display: swap;
+  src: url('${fontUri}') format('truetype');
+}`;
+    }).join('\n');
+  }
+
+  private async loadBundledFontsAsBase64(): Promise<{ weight: number; dataUri: string }[]> {
+    const results: { weight: number; dataUri: string }[] = [];
+    for (const { file, weight } of SdocEditorProvider.BUNDLED_FONTS) {
+      try {
+        const fontPath = vscode.Uri.joinPath(this.context.extensionUri, 'media', 'fonts', file);
+        const fontData = await vscode.workspace.fs.readFile(fontPath);
+        const base64 = Buffer.from(fontData).toString('base64');
+        results.push({ weight, dataUri: `data:font/ttf;base64,${base64}` });
+      } catch {
+        // Skip missing font files
+      }
+    }
+    return results;
   }
 }
