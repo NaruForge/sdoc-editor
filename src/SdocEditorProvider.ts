@@ -142,6 +142,12 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         case 'export':
           await this.exportDocument(document, message.format);
           break;
+        case 'openDocument':
+          await this.openLinkedDocument(document, message.path, message.anchor);
+          break;
+        case 'browseSdocFiles':
+          await this.browseSdocFiles(document, webviewPanel.webview);
+          break;
         case 'importMarkdown':
           await this.importMarkdown(document, webviewPanel);
           break;
@@ -868,6 +874,124 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     }
 
     return cloned;
+  }
+
+  private async openLinkedDocument(
+    currentDocument: vscode.TextDocument,
+    relPath: string,
+    anchor?: string
+  ): Promise<void> {
+    try {
+      const currentDir = path.dirname(currentDocument.uri.fsPath);
+      const targetPath = path.resolve(currentDir, relPath);
+      const targetUri = vscode.Uri.file(targetPath);
+
+      // Verify file exists
+      try {
+        await vscode.workspace.fs.stat(targetUri);
+      } catch {
+        vscode.window.showWarningMessage(`File not found: ${relPath}`);
+        return;
+      }
+
+      await vscode.commands.executeCommand('vscode.open', targetUri);
+    } catch (error) {
+      vscode.window.showErrorMessage(
+        `Failed to open document: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  private async browseSdocFiles(
+    document: vscode.TextDocument,
+    webview: vscode.Webview
+  ): Promise<void> {
+    const currentDir = path.dirname(document.uri.fsPath);
+    const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
+    const searchRoot = workspaceFolder?.uri.fsPath || currentDir;
+
+    // Find all .sdoc files in workspace
+    const files = await vscode.workspace.findFiles('**/*.sdoc', '**/node_modules/**', 100);
+    const currentPath = document.uri.fsPath;
+
+    const items = files
+      .filter(f => f.fsPath !== currentPath)
+      .map(f => {
+        const rel = path.relative(currentDir, f.fsPath).replace(/\\/g, '/');
+        const label = path.basename(f.fsPath);
+        return { label, description: rel, fsPath: f.fsPath, relativePath: rel.startsWith('.') ? rel : `./${rel}` };
+      })
+      .sort((a, b) => a.label.localeCompare(b.label));
+
+    const selected = await vscode.window.showQuickPick(items, {
+      placeHolder: 'Select a .sdoc document to link',
+      matchOnDescription: true,
+    });
+
+    if (selected) {
+      // Read the target document to get its referenceable targets
+      try {
+        const data = await vscode.workspace.fs.readFile(vscode.Uri.file(selected.fsPath));
+        const text = new TextDecoder().decode(data);
+        const parsed = JSON.parse(text);
+        const { doc } = SdocEditorProvider.unwrapSdoc(parsed);
+        const targets = this.collectExternalTargets(doc);
+
+        webview.postMessage({
+          type: 'sdocFileBrowseResult',
+          path: selected.relativePath,
+          fileName: selected.label,
+          targets,
+        });
+      } catch {
+        webview.postMessage({
+          type: 'sdocFileBrowseResult',
+          path: selected.relativePath,
+          fileName: selected.label,
+          targets: [],
+        });
+      }
+    }
+  }
+
+  private collectExternalTargets(doc: any): Array<{ id: string; type: string; label: string }> {
+    const targets: Array<{ id: string; type: string; label: string }> = [];
+    if (!doc?.content) return targets;
+
+    const h = [0, 0, 0, 0, 0, 0];
+    let imgCnt = 0;
+    let tblCnt = 0;
+
+    const getText = (node: any): string => {
+      if (node.type === 'text') return node.text || '';
+      if (!node.content) return '';
+      return node.content.map(getText).join('');
+    };
+
+    for (const node of doc.content) {
+      if (node.type === 'heading') {
+        const level = node.attrs?.level || 1;
+        h[level - 1]++;
+        for (let j = level; j < 6; j++) h[j] = 0;
+        if (level === 1) { imgCnt = 0; tblCnt = 0; }
+        const nums = h.slice(0, level).join('.') + '.';
+        const text = getText(node);
+        const id = node.attrs?.id || '';
+        if (id) targets.push({ id, type: 'heading', label: `${nums} ${text}` });
+      }
+      if (node.type === 'image' && node.attrs?.id) {
+        imgCnt++;
+        const caption = node.attrs?.caption || '';
+        targets.push({ id: node.attrs.id, type: 'figure', label: caption ? `Figure ${imgCnt}: ${caption}` : `Figure ${imgCnt}` });
+      }
+      if (node.type === 'table' && node.attrs?.id) {
+        tblCnt++;
+        const caption = node.attrs?.caption || '';
+        targets.push({ id: node.attrs.id, type: 'table', label: caption ? `Table ${tblCnt}: ${caption}` : `Table ${tblCnt}` });
+      }
+    }
+
+    return targets;
   }
 
   private async exportDocument(

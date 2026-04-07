@@ -25,6 +25,16 @@
           }
         ],
         "priority": "default"
+      },
+      {
+        "viewType": "structuredDocEditor.sdocBook",
+        "displayName": "Sdoc Book Editor",
+        "selector": [
+          {
+            "filenamePattern": "*.sdocbook"
+          }
+        ],
+        "priority": "default"
       }
     ],
     "commands": [

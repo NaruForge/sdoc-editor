@@ -325,7 +325,8 @@ function applyMarks(text: string, marks: TiptapMark[]): string {
         break;
       case 'link':
         const href = mark.attrs?.href || '';
-        result = `<a href="${escapeHtml(href)}">${result}</a>`;
+        const htmlHref = href.replace(/\.sdoc(#|$)/, '.html$1');
+        result = `<a href="${escapeHtml(htmlHref)}">${result}</a>`;
         break;
     }
   }

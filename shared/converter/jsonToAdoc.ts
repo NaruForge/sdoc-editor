@@ -299,6 +299,9 @@ function applyMarks(text: string, marks: TiptapMark[]): string {
         const href = mark.attrs?.href || '';
         if (href.startsWith('#')) {
           result = `<<${href.slice(1)},${result}>>`;
+        } else if (href.includes('.sdoc')) {
+          const adocHref = href.replace(/\.sdoc(#|$)/, '.adoc$1');
+          result = `xref:${adocHref}[${result}]`;
         } else {
           result = `${href}[${result}]`;
         }
