@@ -22,11 +22,20 @@ interface HtmlTheme {
   customStyles?: string; // Additional custom CSS
 }
 
+interface EmbeddedAssets {
+  katexCss?: string;
+  katexJs?: string;
+  autoRenderJs?: string;
+  mermaidJs?: string;
+}
+
 interface ExportSettings {
   imageCaptionPrefix?: string;
   tableCaptionPrefix?: string;
   captionNumbering?: 'simple' | 'hierarchical';
   exportImagePath?: 'relative' | 'absolute';
+  selfContained?: 'none' | 'images-only' | 'full';
+  embeddedAssets?: EmbeddedAssets;
   documentDir?: string;
 }
 
@@ -331,6 +340,51 @@ function escapeHtml(text: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
+}
+
+const MERMAID_INIT = `mermaid.initialize({
+  startOnLoad: true,
+  theme: 'base',
+  themeVariables: {
+    background: '#ffffff',
+    mainBkg: '#ffffff',
+    primaryColor: '#dbeafe',
+    edgeLabelBackground: '#ffffff'
+  }
+});`;
+
+const AUTO_RENDER_CALL = `renderMathInElement(document.body, { delimiters: [
+  {left: '\\\\[', right: '\\\\]', display: true},
+  {left: '\\\\(', right: '\\\\)', display: false}
+]});`;
+
+function generateScriptTags(settings: ExportSettings): string {
+  const assets = settings.embeddedAssets;
+  if (assets && settings.selfContained === 'full') {
+    const parts: string[] = [];
+    if (assets.katexCss) {
+      parts.push(`<style>${assets.katexCss}</style>`);
+    }
+    if (assets.katexJs) {
+      parts.push(`<script>${assets.katexJs}</script>`);
+    }
+    if (assets.autoRenderJs) {
+      parts.push(`<script>${assets.autoRenderJs}\n${AUTO_RENDER_CALL}</script>`);
+    }
+    if (assets.mermaidJs) {
+      parts.push(`<script>${assets.mermaidJs}\n${MERMAID_INIT}</script>`);
+    }
+    return parts.join('\n  ');
+  }
+
+  return `<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
+    onload="${AUTO_RENDER_CALL}"></script>
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+    ${MERMAID_INIT}
+  </script>`;
 }
 
 function generateHtmlDocument(bodyContent: string, theme?: HtmlTheme, meta?: SdocMeta): string {
@@ -685,26 +739,7 @@ function generateHtmlDocument(bodyContent: string, theme?: HtmlTheme, meta?: Sdo
     .math-inline { display: inline; }
     .math-block { display: block; text-align: center; margin: 1em 0; overflow-x: auto; }
   </style>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
-  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
-  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
-    onload="renderMathInElement(document.body, { delimiters: [
-      {left: '\\\\[', right: '\\\\]', display: true},
-      {left: '\\\\(', right: '\\\\)', display: false}
-    ]})"></script>
-  <script type="module">
-    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
-    mermaid.initialize({
-      startOnLoad: true,
-      theme: 'base',
-      themeVariables: {
-        background: '#ffffff',
-        mainBkg: '#ffffff',
-        primaryColor: '#dbeafe',
-        edgeLabelBackground: '#ffffff'
-      }
-    });
-  </script>
+  ${generateScriptTags(currentSettings)}
 </head>
 <body>
   ${companyLogo || companyName ? `

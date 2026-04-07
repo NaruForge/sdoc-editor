@@ -225,7 +225,7 @@ export const Editor: React.FC<EditorProps> = ({ adapter, initialDoc, initialMeta
   });
 
   const handleViewJson = () => { postMessage({ type: 'viewJson' }); };
-  const handleExport = async (format: 'html' | 'adoc' | 'markdown') => {
+  const handleExport = async (format: 'html' | 'adoc' | 'markdown' | 'pdf') => {
     if (!editor) return;
     const { save: saveDlg } = await import('@tauri-apps/plugin-dialog');
     const { convertJsonToHtml } = await import('@shared/converter/jsonToHtml');

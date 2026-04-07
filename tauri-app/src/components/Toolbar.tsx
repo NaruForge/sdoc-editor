@@ -75,7 +75,7 @@ interface ToolbarProps {
   onInsertMath?: () => void;
   onInsertDiagram?: () => void;
   onInsertCrossRef?: () => void;
-  onExport?: (format: 'html' | 'adoc' | 'markdown') => void;
+  onExport?: (format: 'html' | 'adoc' | 'markdown' | 'pdf') => void;
   onImport?: (format: 'markdown' | 'html') => void;
 }
 
@@ -549,6 +549,9 @@ export const Toolbar: React.FC<ToolbarProps> = ({ editor, onViewJson, showNumber
             <div className="insert-menu" style={{ minWidth: '140px' }}>
               <button className="insert-menu-item" onMouseDown={(e) => { e.preventDefault(); setShowExportMenu(false); onExport('html'); }}>
                 HTML
+              </button>
+              <button className="insert-menu-item" onMouseDown={(e) => { e.preventDefault(); setShowExportMenu(false); onExport('pdf'); }}>
+                PDF
               </button>
               <button className="insert-menu-item" onMouseDown={(e) => { e.preventDefault(); setShowExportMenu(false); onExport('markdown'); }}>
                 Markdown

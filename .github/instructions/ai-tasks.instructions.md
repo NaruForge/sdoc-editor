@@ -23,6 +23,14 @@ applyTo: "**"
 2. `.ai/STATUS.md`를 현재 상태에 맞게 업데이트하세요.
 3. 태스크의 **Progress** 섹션에서 완료 항목을 체크하세요.
 
+## STATUS.md 작성 형식
+
+태스크를 STATUS.md에 기록할 때 반드시 태스크 파일로의 링크를 포함하세요:
+
+```
+- [PREFIX-001](tasks/PREFIX-001.md): 태스크 제목
+```
+
 ## 새 태스크 생성 시
 
 사용자가 "태스크 만들어줘"라고 요청하면:
@@ -30,6 +38,7 @@ applyTo: "**"
 1. `.ai/config.yaml`에서 프로젝트 접두사를 확인하세요.
 2. `.ai/tasks/`의 기존 파일에서 가장 높은 번호를 찾아 다음 번호를 부여하세요.
 3. `.ai/tasks/{PREFIX}-{NNN}.md` 형식으로 생성하세요.
-4. YAML frontmatter에 최소한 `ats`, `id`, `title`, `status`, `created`, `modified`, `author` 필드를 포함하세요.
-5. 사용자가 설명한 내용으로 **Context**와 **Scope** 섹션을 작성하세요.
-6. `.ai/STATUS.md`에 새 태스크를 추가하세요.
+4. `.ai/tasks/${PREFIX}-Template.md`를 참조하여 동일한 형식으로 작성하세요. 이 템플릿 파일 자체는 태스크가 아니므로 무시하세요.
+5. YAML frontmatter에 최소한 `ats`, `id`, `title`, `status`, `created`, `modified`, `author` 필드를 포함하세요.
+6. 사용자가 설명한 내용으로 **Context**와 **Scope** 섹션을 작성하세요.
+7. `.ai/STATUS.md`에 새 태스크를 추가하세요.

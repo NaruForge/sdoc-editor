@@ -32,7 +32,8 @@ All settings live under `structuredDocEditor.*`:
 - `heading.decoration` — boolean (H1 border-bottom decoration)
 - `heading.h1Color` / `heading.h2Color` / `heading.h3Color` — hex color for heading numbering
 - `image.defaultAlignment` — `left`, `center`, `right`
-- `export.imagePath` — `relative`, `absolute`
+- `export.selfContained` — `none`, `images-only` (default), `full`
+- `export.imagePath` — `relative`, `absolute` (used when selfContained is `none`)
 - `theme.companyLogo` — company logo URL for HTML export
 - `theme.companyName` — company name for HTML export
 - `theme.primaryColor` / `theme.accentColor` — HTML export theme colors
@@ -44,9 +45,10 @@ All settings live under `structuredDocEditor.*`:
 
 | Command | Description |
 |---|---|
-| `structuredDocEditor.exportToHtml` | Export to HTML (with Mermaid CDN + KaTeX CDN) |
+| `structuredDocEditor.exportToHtml` | Export to HTML (self-contained with base64 images) |
 | `structuredDocEditor.exportToAdoc` | Export to AsciiDoc |
 | `structuredDocEditor.exportToMarkdown` | Export to Markdown |
+| `structuredDocEditor.exportToPdf` | Export to PDF (via system Chrome/Edge headless) |
 | `structuredDocEditor.setupAgent` | Setup AI Agent (Instructions + Skills + MCP) |
 
 ## Metadata Management

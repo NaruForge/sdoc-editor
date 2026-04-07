@@ -5,6 +5,7 @@ import { SdocEditorProvider } from './SdocEditorProvider';
 import { exportToHtml } from './commands/exportToHtml';
 import { exportToAdoc } from './commands/exportToAdoc';
 import { exportToMarkdown } from './commands/exportToMarkdown';
+import { exportToPdf } from './commands/exportToPdf';
 import { checkForUpdate, checkForUpdateManual } from './updateChecker';
 
 export function activate(context: vscode.ExtensionContext) {
@@ -37,6 +38,14 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand(
       'structuredDocEditor.exportToMarkdown',
       () => exportToMarkdown(context)
+    )
+  );
+
+  // Register export to PDF command
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      'structuredDocEditor.exportToPdf',
+      () => exportToPdf(context)
     )
   );
 

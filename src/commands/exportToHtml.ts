@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
+import * as https from 'https';
 import { convertJsonToHtml } from '../converter/jsonToHtml';
 
 export async function exportToHtml(context: vscode.ExtensionContext) {
@@ -75,7 +76,26 @@ export async function exportToHtml(context: vscode.ExtensionContext) {
       tableCaptionPrefix: config.get<string>('caption.tablePrefix', 'Table'),
       captionNumbering: config.get<'simple' | 'hierarchical'>('caption.numbering', 'simple'),
       exportImagePath: config.get<'relative' | 'absolute'>('export.imagePath', 'relative'),
+      selfContained: config.get<'none' | 'images-only' | 'full'>('export.selfContained', 'images-only'),
+      embeddedAssets: undefined as any,
     };
+
+    // Embed images as base64 when selfContained is enabled
+    const documentDir = path.dirname(documentUri.fsPath);
+    if (exportSettings.selfContained !== 'none') {
+      json = await embedImagesAsBase64(json, documentDir);
+    }
+
+    // For full mode, fetch and embed CDN scripts inline
+    if (exportSettings.selfContained === 'full') {
+      try {
+        exportSettings.embeddedAssets = await fetchCdnAssets(context);
+      } catch {
+        vscode.window.showWarningMessage(
+          'Could not fetch CDN assets for full embedding. Falling back to CDN links.'
+        );
+      }
+    }
 
     // Convert JSON to HTML directly
     const htmlContent = convertJsonToHtml(json, theme, exportSettings, meta);
@@ -145,4 +165,102 @@ function convertWebviewUrisToRelativePaths(node: any): any {
   }
 
   return cloned;
+}
+
+function getMimeType(ext: string): string {
+  const mimeMap: Record<string, string> = {
+    png: 'image/png',
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    gif: 'image/gif',
+    webp: 'image/webp',
+    svg: 'image/svg+xml',
+    bmp: 'image/bmp',
+    ico: 'image/x-icon',
+  };
+  return mimeMap[ext] || 'application/octet-stream';
+}
+
+async function embedImagesAsBase64(node: any, documentDir: string): Promise<any> {
+  if (!node || typeof node !== 'object') return node;
+
+  const cloned = Array.isArray(node) ? [...node] : { ...node };
+
+  if (cloned.type === 'image' && cloned.attrs?.src) {
+    const src: string = cloned.attrs.src;
+    if (!src.startsWith('data:') && !src.startsWith('http://') && !src.startsWith('https://')) {
+      try {
+        const imagePath = path.resolve(documentDir, src);
+        const imageUri = vscode.Uri.file(imagePath);
+        const imageData = await vscode.workspace.fs.readFile(imageUri);
+        const base64 = Buffer.from(imageData).toString('base64');
+        const ext = path.extname(src).toLowerCase().replace('.', '');
+        const mime = getMimeType(ext);
+        cloned.attrs = { ...cloned.attrs, src: `data:${mime};base64,${base64}` };
+      } catch {
+        // Keep original src if file not found
+      }
+    }
+  }
+
+  if (cloned.content && Array.isArray(cloned.content)) {
+    cloned.content = await Promise.all(
+      cloned.content.map((child: any) => embedImagesAsBase64(child, documentDir))
+    );
+  }
+
+  return cloned;
+}
+
+const CDN_URLS = {
+  katexCss: 'https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css',
+  katexJs: 'https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js',
+  autoRenderJs: 'https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js',
+  mermaidJs: 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js',
+};
+
+function fetchText(url: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const req = https.get(url, (res) => {
+      if ((res.statusCode === 301 || res.statusCode === 302) && res.headers.location) {
+        fetchText(res.headers.location).then(resolve, reject);
+        return;
+      }
+      if (res.statusCode !== 200) {
+        reject(new Error(`HTTP ${res.statusCode} for ${url}`));
+        return;
+      }
+      const chunks: Buffer[] = [];
+      res.on('data', (chunk: Buffer) => chunks.push(chunk));
+      res.on('end', () => resolve(Buffer.concat(chunks).toString('utf-8')));
+      res.on('error', reject);
+    });
+    req.on('error', reject);
+  });
+}
+
+async function fetchCdnAssets(context: vscode.ExtensionContext) {
+  const cacheDir = vscode.Uri.joinPath(context.globalStorageUri, 'cdn-cache');
+  try { await vscode.workspace.fs.createDirectory(cacheDir); } catch { /* exists */ }
+
+  async function getCached(key: string, url: string): Promise<string> {
+    const cacheFile = vscode.Uri.joinPath(cacheDir, key);
+    try {
+      const cached = await vscode.workspace.fs.readFile(cacheFile);
+      return new TextDecoder().decode(cached);
+    } catch {
+      const content = await fetchText(url);
+      await vscode.workspace.fs.writeFile(cacheFile, new TextEncoder().encode(content));
+      return content;
+    }
+  }
+
+  const [katexCss, katexJs, autoRenderJs, mermaidJs] = await Promise.all([
+    getCached('katex.min.css', CDN_URLS.katexCss),
+    getCached('katex.min.js', CDN_URLS.katexJs),
+    getCached('auto-render.min.js', CDN_URLS.autoRenderJs),
+    getCached('mermaid.min.js', CDN_URLS.mermaidJs),
+  ]);
+
+  return { katexCss, katexJs, autoRenderJs, mermaidJs };
 }

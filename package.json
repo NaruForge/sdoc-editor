@@ -2,7 +2,7 @@
   "name": "structured-doc-editor",
   "displayName": "Structured Doc Editor",
   "description": "WYSIWYG editor for .tiptap.json/.sdoc files with Markdown/AsciiDoc/HTML export",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "publisher": "lgm-control-contributor-01",
   "engines": {
     "vscode": "^1.85.0"
@@ -41,6 +41,11 @@
       {
         "command": "structuredDocEditor.exportToMarkdown",
         "title": "Export to Markdown",
+        "category": "Structured Doc"
+      },
+      {
+        "command": "structuredDocEditor.exportToPdf",
+        "title": "Export to PDF",
         "category": "Structured Doc"
       },
       {
@@ -130,6 +135,21 @@
             "Use absolute file system paths for images"
           ],
           "description": "Image path format in exported documents"
+        },
+        "structuredDocEditor.export.selfContained": {
+          "type": "string",
+          "default": "images-only",
+          "enum": [
+            "none",
+            "images-only",
+            "full"
+          ],
+          "enumDescriptions": [
+            "No embedding — use relative/absolute image paths",
+            "Embed images as base64 data URIs (default). CDN links for KaTeX/Mermaid",
+            "Embed everything: images + KaTeX + Mermaid scripts inline (~2MB larger)"
+          ],
+          "description": "Self-contained HTML export level"
         },
         "structuredDocEditor.theme.companyLogo": {
           "type": "string",

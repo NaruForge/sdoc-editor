@@ -5,6 +5,7 @@ import { convertJsonToHtml } from './converter/jsonToHtml';
 import { convertJsonToAdoc } from './converter/jsonToAdoc';
 import { convertJsonToMarkdown } from './converter/jsonToMarkdown';
 import { convertMarkdownToJson } from './converter/markdownToJson';
+import { detectBrowser, printToPdf } from './utils/browserDetect';
 import {
   unwrapSdoc as sharedUnwrapSdoc,
   migrateAttributes as sharedMigrateAttributes,
@@ -871,7 +872,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
 
   private async exportDocument(
     document: vscode.TextDocument,
-    format: 'html' | 'adoc' | 'markdown'
+    format: 'html' | 'adoc' | 'markdown' | 'pdf'
   ): Promise<void> {
     try {
       const text = document.getText();
@@ -881,23 +882,39 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       const { doc, meta } = SdocEditorProvider.unwrapSdoc(parsed);
 
       // Convert webview URIs back to relative paths
-      const convertedDoc = this.convertWebviewUrisToRelativePaths(doc);
+      let convertedDoc = this.convertWebviewUrisToRelativePaths(doc);
 
       // Read export settings
       const config = vscode.workspace.getConfiguration('structuredDocEditor');
-      const exportSettings = {
+      const selfContained = config.get<'none' | 'images-only' | 'full'>('export.selfContained', 'images-only');
+      const exportSettings: Record<string, any> = {
         imageCaptionPrefix: config.get<string>('caption.imagePrefix', 'Image'),
         tableCaptionPrefix: config.get<string>('caption.tablePrefix', 'Table'),
         captionNumbering: config.get<'simple' | 'hierarchical'>('caption.numbering', 'simple'),
         exportImagePath: config.get<'relative' | 'absolute'>('export.imagePath', 'relative'),
       };
 
+      // For HTML and PDF, apply selfContained settings
+      const needsSelfContained = format === 'html' || format === 'pdf';
+      if (needsSelfContained && selfContained !== 'none') {
+        const documentDir = path.dirname(document.uri.fsPath);
+        convertedDoc = await this.embedImagesAsBase64(convertedDoc, documentDir);
+        exportSettings.selfContained = selfContained;
+      }
+      // PDF always embeds images regardless of setting
+      if (format === 'pdf' && selfContained === 'none') {
+        const documentDir = path.dirname(document.uri.fsPath);
+        convertedDoc = await this.embedImagesAsBase64(convertedDoc, documentDir);
+        exportSettings.selfContained = 'images-only';
+      }
+
       let content: string;
       let ext: string;
       let label: string;
 
       switch (format) {
-        case 'html': {
+        case 'html':
+        case 'pdf': {
           let companyLogo = config.get<string>('theme.companyLogo') || '';
           // Resolve logo file to data URI if it's a filename (not URL or data URI)
           if (companyLogo && !companyLogo.startsWith('data:') && !companyLogo.startsWith('http')) {
@@ -922,6 +939,39 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
             customStyles: config.get<string>('theme.customStyles') || '',
           };
           content = convertJsonToHtml(convertedDoc, theme, exportSettings, meta);
+
+          if (format === 'pdf') {
+            // PDF: generate via headless browser
+            const browserPath = detectBrowser();
+            if (!browserPath) {
+              vscode.window.showErrorMessage(
+                'Chrome, Edge, or Chromium is required for PDF export. Please install one of these browsers.'
+              );
+              return;
+            }
+
+            const fs = await import('fs');
+            const tempHtmlPath = document.uri.fsPath.replace(/(\.tiptap\.json|\.sdoc)$/, '.tmp.html');
+            const pdfPath = document.uri.fsPath.replace(/(\.tiptap\.json|\.sdoc)$/, '.pdf');
+
+            fs.writeFileSync(tempHtmlPath, content, 'utf-8');
+            try {
+              await printToPdf(browserPath, tempHtmlPath, pdfPath);
+            } finally {
+              try { fs.unlinkSync(tempHtmlPath); } catch { /* ignore */ }
+            }
+
+            const pdfUri = vscode.Uri.file(pdfPath);
+            const action = await vscode.window.showInformationMessage(
+              `PDF exported: ${pdfUri.fsPath}`,
+              'Open PDF'
+            );
+            if (action === 'Open PDF') {
+              await vscode.env.openExternal(pdfUri);
+            }
+            return;
+          }
+
           ext = '.html';
           label = 'HTML';
           break;
@@ -963,6 +1013,39 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         `Failed to export: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
     }
+  }
+
+  private static readonly MIME_MAP: Record<string, string> = {
+    png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+    gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml',
+    bmp: 'image/bmp', ico: 'image/x-icon',
+  };
+
+  private async embedImagesAsBase64(node: any, documentDir: string): Promise<any> {
+    if (!node || typeof node !== 'object') return node;
+    const cloned = Array.isArray(node) ? [...node] : { ...node };
+
+    if (cloned.type === 'image' && cloned.attrs?.src) {
+      const src: string = cloned.attrs.src;
+      if (!src.startsWith('data:') && !src.startsWith('http://') && !src.startsWith('https://')) {
+        try {
+          const imagePath = path.resolve(documentDir, src);
+          const imageUri = vscode.Uri.file(imagePath);
+          const imageData = await vscode.workspace.fs.readFile(imageUri);
+          const base64 = Buffer.from(imageData).toString('base64');
+          const ext = path.extname(src).toLowerCase().replace('.', '');
+          const mime = SdocEditorProvider.MIME_MAP[ext] || 'application/octet-stream';
+          cloned.attrs = { ...cloned.attrs, src: `data:${mime};base64,${base64}` };
+        } catch { /* keep original src */ }
+      }
+    }
+
+    if (cloned.content && Array.isArray(cloned.content)) {
+      cloned.content = await Promise.all(
+        cloned.content.map((child: any) => this.embedImagesAsBase64(child, documentDir))
+      );
+    }
+    return cloned;
   }
 
   /**
