@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sdoc.dev/schema/sdoc-project-v1.0.json",
+  "title": "Structured Document Project (.sdoc-project)",
+  "description": "Project manifest that defines a collection of .sdoc documents for unified export.",
+  "type": "object",
+  "required": ["sdocProject", "documents"],
+  "properties": {
+    "sdocProject": {
+      "type": "string",
+      "description": "Schema version of this project manifest.",
+      "enum": ["1.0"]
+    },
+    "title": {
+      "type": "string",
+      "description": "Project title used as the main document title in unified export."
+    },
+    "author": {
+      "type": "string",
+      "description": "Project author."
+    },
+    "version": {
+      "type": "string",
+      "description": "Project version string."
+    },
+    "documents": {
+      "type": "array",
+      "description": "Ordered list of .sdoc documents in this project.",
+      "items": {
+        "type": "object",
+        "required": ["path"],
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Relative path to the .sdoc file from this manifest."
+          },
+          "label": {
+            "type": "string",
+            "description": "Optional display label (defaults to filename if omitted)."
+          }
+        },
+        "additionalProperties": false
+      },
+      "minItems": 1
+    }
+  },
+  "additionalProperties": false
+}

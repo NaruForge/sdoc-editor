@@ -310,7 +310,8 @@ function applyMarks(text: string, marks: TiptapMark[]): string {
   // Apply link last
   if (linkMark) {
     const href = linkMark.attrs?.href || '';
-    result = `[${result}](${href})`;
+    const mdHref = href.replace(/\.sdoc(#|$)/, '.md$1');
+    result = `[${result}](${mdHref})`;
   }
 
   // color/highlight: fall back to HTML span (Markdown has no native support)

@@ -25,6 +25,16 @@
           }
         ],
         "priority": "default"
+      },
+      {
+        "viewType": "structuredDocEditor.sdocProject",
+        "displayName": "Sdoc Project Editor",
+        "selector": [
+          {
+            "filenamePattern": "*.sdoc-project"
+          }
+        ],
+        "priority": "default"
       }
     ],
     "commands": [

@@ -232,10 +232,24 @@ export const tiptapExtensions = [
           props: {
             handleDOMEvents: {
               click(view, event) {
-                const anchor = (event.target as HTMLElement).closest('a[href^="#"]');
+                const anchor = (event.target as HTMLElement).closest('a[href]');
                 if (!anchor) return false;
                 const href = anchor.getAttribute('href');
                 if (!href) return false;
+
+                // Cross-document link: path ending with .sdoc (with optional #anchor)
+                if (href.includes('.sdoc')) {
+                  event.preventDefault();
+                  const [filePath, fragment] = href.split('#');
+                  const vscode = (window as any).vscode;
+                  if (vscode) {
+                    vscode.postMessage({ type: 'openDocument', path: filePath, anchor: fragment || '' });
+                  }
+                  return true;
+                }
+
+                // Internal anchor link: #id
+                if (!href.startsWith('#')) return false;
                 const targetId = href.slice(1);
 
                 // Search by persisted id attr OR by on-the-fly generated id
