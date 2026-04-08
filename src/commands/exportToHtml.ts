@@ -2,6 +2,8 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as https from 'https';
 import { convertJsonToHtml } from '../../shared/converter';
+import { convertWebviewUrisToRelativePaths, embedImagesAsBase64 } from '../utils/imageUtils';
+import { resolveCompanyLogo } from '../utils/themeUtils';
 
 export async function exportToHtml(context: vscode.ExtensionContext) {
   // Get the active tab's input
@@ -48,20 +50,10 @@ export async function exportToHtml(context: vscode.ExtensionContext) {
 
     // Get theme configuration from VS Code settings
     const config = vscode.workspace.getConfiguration('structuredDocEditor');
-    let companyLogo = config.get<string>('theme.companyLogo') || '';
-    if (companyLogo && !companyLogo.startsWith('data:') && !companyLogo.startsWith('http')) {
-      try {
-        const logoPath = path.join(context.extensionPath, 'media', companyLogo);
-        const logoUri = vscode.Uri.file(logoPath);
-        const logoData = await vscode.workspace.fs.readFile(logoUri);
-        const base64 = Buffer.from(logoData).toString('base64');
-        const ext = path.extname(companyLogo).toLowerCase().replace('.', '');
-        const mime = ext === 'svg' ? 'image/svg+xml' : `image/${ext || 'png'}`;
-        companyLogo = `data:${mime};base64,${base64}`;
-      } catch {
-        companyLogo = '';
-      }
-    }
+    const companyLogo = await resolveCompanyLogo(
+      config.get<string>('theme.companyLogo') || '',
+      context.extensionPath,
+    );
     const theme = {
       companyLogo,
       companyName: config.get<string>('theme.companyName') || '',
@@ -129,87 +121,6 @@ export async function exportToHtml(context: vscode.ExtensionContext) {
       `Failed to export to HTML: ${error instanceof Error ? error.message : 'Unknown error'}`
     );
   }
-}
-
-// Convert webview URIs back to relative paths for export
-function convertWebviewUrisToRelativePaths(node: any): any {
-  if (!node || typeof node !== 'object') {
-    return node;
-  }
-
-  // Clone to avoid mutating original
-  const cloned = Array.isArray(node) ? [...node] : { ...node };
-
-  // If this is an image node with a webview URI, convert it to relative path
-  if (cloned.type === 'image' && cloned.attrs?.src) {
-    const src = cloned.attrs.src;
-    // Check if it's a webview URI
-    if (src.includes('vscode-webview') || src.includes('vscode-resource')) {
-      // Extract the filename from the URI
-      const match = src.match(/images\/([^?#]+)/);
-      if (match) {
-        const fileName = match[1];
-        cloned.attrs = {
-          ...cloned.attrs,
-          src: `./images/${fileName}`,
-        };
-      }
-    }
-  }
-
-  // Recursively process content
-  if (cloned.content && Array.isArray(cloned.content)) {
-    cloned.content = cloned.content.map((child: any) =>
-      convertWebviewUrisToRelativePaths(child)
-    );
-  }
-
-  return cloned;
-}
-
-function getMimeType(ext: string): string {
-  const mimeMap: Record<string, string> = {
-    png: 'image/png',
-    jpg: 'image/jpeg',
-    jpeg: 'image/jpeg',
-    gif: 'image/gif',
-    webp: 'image/webp',
-    svg: 'image/svg+xml',
-    bmp: 'image/bmp',
-    ico: 'image/x-icon',
-  };
-  return mimeMap[ext] || 'application/octet-stream';
-}
-
-async function embedImagesAsBase64(node: any, documentDir: string): Promise<any> {
-  if (!node || typeof node !== 'object') return node;
-
-  const cloned = Array.isArray(node) ? [...node] : { ...node };
-
-  if (cloned.type === 'image' && cloned.attrs?.src) {
-    const src: string = cloned.attrs.src;
-    if (!src.startsWith('data:') && !src.startsWith('http://') && !src.startsWith('https://')) {
-      try {
-        const imagePath = path.resolve(documentDir, src);
-        const imageUri = vscode.Uri.file(imagePath);
-        const imageData = await vscode.workspace.fs.readFile(imageUri);
-        const base64 = Buffer.from(imageData).toString('base64');
-        const ext = path.extname(src).toLowerCase().replace('.', '');
-        const mime = getMimeType(ext);
-        cloned.attrs = { ...cloned.attrs, src: `data:${mime};base64,${base64}` };
-      } catch {
-        // Keep original src if file not found
-      }
-    }
-  }
-
-  if (cloned.content && Array.isArray(cloned.content)) {
-    cloned.content = await Promise.all(
-      cloned.content.map((child: any) => embedImagesAsBase64(child, documentDir))
-    );
-  }
-
-  return cloned;
 }
 
 const CDN_URLS = {

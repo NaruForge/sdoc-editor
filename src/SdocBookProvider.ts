@@ -3,6 +3,9 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { convertJsonToHtml } from '../shared/converter';
 import { detectBrowser, printToPdf } from './utils/browserDetect';
+import { loadBundledFontsAsBase64 } from './utils/fontUtils';
+import { embedImagesAsBase64 } from './utils/imageUtils';
+import { resolveCompanyLogo, readFontWeights, buildHtmlTheme, readExportSettings } from './utils/themeUtils';
 
 interface SdocBook {
   sdocBook: string;
@@ -186,47 +189,22 @@ export class SdocBookProvider implements vscode.CustomTextEditorProvider {
     const selfContained = config.get<string>('export.selfContained', 'images-only');
     let finalDoc = mergedDoc;
     if (selfContained !== 'none') {
-      finalDoc = await this.embedImages(mergedDoc, projectDir);
+      finalDoc = await embedImagesAsBase64(mergedDoc, projectDir);
     }
 
     // Build theme
-    let companyLogo = config.get<string>('theme.companyLogo') || '';
-    if (companyLogo && !companyLogo.startsWith('data:') && !companyLogo.startsWith('http')) {
-      try {
-        const logoPath = path.join(this.context.extensionPath, 'media', companyLogo);
-        const logoData = await fs.promises.readFile(logoPath);
-        const base64 = logoData.toString('base64');
-        const ext = path.extname(companyLogo).toLowerCase().replace('.', '');
-        const mime = ext === 'svg' ? 'image/svg+xml' : `image/${ext || 'png'}`;
-        companyLogo = `data:${mime};base64,${base64}`;
-      } catch { companyLogo = ''; }
-    }
+    const companyLogo = await resolveCompanyLogo(
+      config.get<string>('theme.companyLogo') || '',
+      this.context.extensionPath,
+    );
+    const fontWeights = readFontWeights(config);
+    const usedWeights = new Set(Object.values(fontWeights));
+    const embeddedFonts = await loadBundledFontsAsBase64(this.context.extensionUri, usedWeights);
+    const theme = buildHtmlTheme(config, companyLogo, fontWeights, embeddedFonts);
 
-    const theme: Record<string, any> = {
-      companyLogo,
-      companyName: config.get<string>('theme.companyName') || '',
-      primaryColor: config.get<string>('theme.primaryColor') || '#A50034',
-      accentColor: config.get<string>('theme.accentColor') || '#6b6b6b',
-      fontFamily: config.get<string>('theme.fontFamily') || "'Legacy Font 2.0', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-      customStyles: config.get<string>('theme.customStyles') || '',
-      fontWeights: {
-        body: SdocBookProvider.resolveFontWeight(config.get<string>('font.body', 'Regular')),
-        bold: SdocBookProvider.resolveFontWeight(config.get<string>('font.bold', 'Bold')),
-        h1: SdocBookProvider.resolveFontWeight(config.get<string>('font.h1', 'Bold')),
-        h2: SdocBookProvider.resolveFontWeight(config.get<string>('font.h2', 'SemiBold')),
-        h3: SdocBookProvider.resolveFontWeight(config.get<string>('font.h3', 'SemiBold')),
-      },
-    };
-
-    // Embed only used font weights as base64 for HTML/PDF export
-    const usedWeights = new Set(Object.values(theme.fontWeights as Record<string, number>));
-    theme.embeddedFonts = await this.loadBundledFontsAsBase64(usedWeights);
-
-    const exportSettings: Record<string, any> = {
-      imageCaptionPrefix: config.get<string>('caption.imagePrefix', 'Image'),
-      tableCaptionPrefix: config.get<string>('caption.tablePrefix', 'Table'),
-      captionNumbering: config.get<'simple' | 'hierarchical'>('caption.numbering', 'simple'),
-      selfContained: selfContained,
+    const exportSettings: Record<string, unknown> = {
+      ...readExportSettings(config),
+      selfContained,
     };
 
     const meta = {
@@ -276,36 +254,6 @@ export class SdocBookProvider implements vscode.CustomTextEditorProvider {
         await vscode.commands.executeCommand('vscode.open', vscode.Uri.file(htmlPath));
       }
     }
-  }
-
-  private static readonly MIME_MAP: Record<string, string> = {
-    png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
-    gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml',
-  };
-
-  private async embedImages(node: any, baseDir: string): Promise<any> {
-    if (!node || typeof node !== 'object') return node;
-    const cloned = Array.isArray(node) ? [...node] : { ...node };
-
-    if (cloned.type === 'image' && cloned.attrs?.src) {
-      const src: string = cloned.attrs.src;
-      if (!src.startsWith('data:') && !src.startsWith('http')) {
-        try {
-          const imgPath = path.resolve(baseDir, src);
-          const data = await fs.promises.readFile(imgPath);
-          const ext = path.extname(src).toLowerCase().replace('.', '');
-          const mime = SdocBookProvider.MIME_MAP[ext] || 'application/octet-stream';
-          cloned.attrs = { ...cloned.attrs, src: `data:${mime};base64,${data.toString('base64')}` };
-        } catch { /* keep original */ }
-      }
-    }
-
-    if (cloned.content && Array.isArray(cloned.content)) {
-      cloned.content = await Promise.all(
-        cloned.content.map((child: any) => this.embedImages(child, baseDir))
-      );
-    }
-    return cloned;
   }
 
   /** Rebase image src paths from document-relative to project-relative */
@@ -435,36 +383,5 @@ export class SdocBookProvider implements vscode.CustomTextEditorProvider {
 
   private escHtml(s: string): string {
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-  }
-
-  private static readonly BUNDLED_FONTS = [
-    { file: 'LegacyFontL.woff2', weight: 300 },
-    { file: 'LegacyFontR.woff2', weight: 400 },
-    { file: 'LegacyFontSB.woff2', weight: 600 },
-    { file: 'LegacyFontB.woff2', weight: 700 },
-  ];
-
-  private static readonly FONT_WEIGHT_MAP: Record<string, number> = {
-    Light: 300, Regular: 400, SemiBold: 600, Bold: 700,
-  };
-
-  private static resolveFontWeight(name: string): number {
-    return SdocBookProvider.FONT_WEIGHT_MAP[name] || 400;
-  }
-
-  private async loadBundledFontsAsBase64(weights?: Set<number>): Promise<{ weight: number; dataUri: string }[]> {
-    const results: { weight: number; dataUri: string }[] = [];
-    for (const { file, weight } of SdocBookProvider.BUNDLED_FONTS) {
-      if (weights && !weights.has(weight)) continue;
-      try {
-        const fontPath = path.join(this.context.extensionPath, 'media', 'fonts', file);
-        const fontData = await fs.promises.readFile(fontPath);
-        const base64 = fontData.toString('base64');
-        results.push({ weight, dataUri: `data:font/woff2;base64,${base64}` });
-      } catch {
-        // Skip missing font files
-      }
-    }
-    return results;
   }
 }

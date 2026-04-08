@@ -5,7 +5,7 @@ title: "코드베이스 리팩토링 — 하네스 엔지니어링 기반 구축
 status: in-progress
 priority: high
 created: 2026-04-09T00:00:00+09:00
-modified: 2026-04-09T01:00:00+09:00
+modified: 2026-04-10T01:00:00+09:00
 author: "@contributor-01"
 ---
 
@@ -119,17 +119,17 @@ Phase 순서 근거:
 - [x] TypeScript 설정 통일 (noUnusedLocals, noUnusedParameters 등)
 
 ### Phase 2: Converter 통합
-- [ ] `src/converter/` 삭제, `src/commands/` 임포트를 `shared/converter/`로 전환
-- [ ] Converter 모듈 레벨 mutable state → 컨텍스트 객체 패턴으로 전환
-- [ ] `shared/converter/utils.ts` 추출 — `escapeHtml`, 공통 유틸
+- [x] `src/converter/` 삭제, `src/commands/` 임포트를 `shared/converter/`로 전환
+- [x] Converter 모듈 레벨 mutable state → 컨텍스트 객체 패턴으로 전환
+- [x] `shared/converter/utils.ts` 추출 — `escapeHtml`, 공통 유틸
 
 ### Phase 3: Extension Host 분해
-- [ ] `src/utils/imageUtils.ts` 추출
-- [ ] `src/utils/fontUtils.ts` 추출
-- [ ] `src/utils/themeUtils.ts` 추출
+- [x] `src/utils/imageUtils.ts` 추출
+- [x] `src/utils/fontUtils.ts` 추출
+- [x] `src/utils/themeUtils.ts` 추출
 - [ ] `src/utils/exportUtils.ts` 추출
-- [ ] Export 커맨드 중복 제거
-- [ ] `SdocBookProvider` 공유 유틸 전환
+- [x] Export 커맨드 중복 제거
+- [x] `SdocBookProvider` 공유 유틸 전환
 
 ### Phase 4: Webview 분해
 - [ ] `useEditorMessages.ts` 훅 추출

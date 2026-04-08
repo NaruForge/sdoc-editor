@@ -3,6 +3,8 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { convertJsonToHtml } from '../../shared/converter';
 import { detectBrowser, printToPdf } from '../utils/browserDetect';
+import { convertWebviewUrisToRelativePaths, embedImagesAsBase64 } from '../utils/imageUtils';
+import { resolveCompanyLogo } from '../utils/themeUtils';
 
 export async function exportToPdf(context: vscode.ExtensionContext) {
   const activeTab = vscode.window.tabGroups.activeTabGroup.activeTab;
@@ -50,24 +52,15 @@ export async function exportToPdf(context: vscode.ExtensionContext) {
         let json = (parsed.sdoc && parsed.doc) ? parsed.doc : parsed;
 
         // Embed images as base64 for self-contained HTML
-        json = await embedImagesForPdf(json, path.dirname(documentUri!.fsPath));
+        json = convertWebviewUrisToRelativePaths(json);
+        json = await embedImagesAsBase64(json, path.dirname(documentUri!.fsPath));
 
         // Get theme configuration
         const config = vscode.workspace.getConfiguration('structuredDocEditor');
-        let companyLogo = config.get<string>('theme.companyLogo') || '';
-        if (companyLogo && !companyLogo.startsWith('data:') && !companyLogo.startsWith('http')) {
-          try {
-            const logoPath = path.join(context.extensionPath, 'media', companyLogo);
-            const logoUri = vscode.Uri.file(logoPath);
-            const logoData = await vscode.workspace.fs.readFile(logoUri);
-            const base64 = Buffer.from(logoData).toString('base64');
-            const ext = path.extname(companyLogo).toLowerCase().replace('.', '');
-            const mime = ext === 'svg' ? 'image/svg+xml' : `image/${ext || 'png'}`;
-            companyLogo = `data:${mime};base64,${base64}`;
-          } catch {
-            companyLogo = '';
-          }
-        }
+        const companyLogo = await resolveCompanyLogo(
+          config.get<string>('theme.companyLogo') || '',
+          context.extensionPath,
+        );
 
         const theme = {
           companyLogo,
@@ -125,55 +118,3 @@ export async function exportToPdf(context: vscode.ExtensionContext) {
   }
 }
 
-function getMimeType(ext: string): string {
-  const mimeMap: Record<string, string> = {
-    png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
-    gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml',
-    bmp: 'image/bmp', ico: 'image/x-icon',
-  };
-  return mimeMap[ext] || 'application/octet-stream';
-}
-
-async function embedImagesForPdf(node: any, documentDir: string): Promise<any> {
-  if (!node || typeof node !== 'object') return node;
-
-  const cloned = Array.isArray(node) ? [...node] : { ...node };
-
-  if (cloned.type === 'image' && cloned.attrs?.src) {
-    const src: string = cloned.attrs.src;
-    if (!src.startsWith('data:') && !src.startsWith('http://') && !src.startsWith('https://')) {
-      try {
-        const imagePath = path.resolve(documentDir, src);
-        const imageUri = vscode.Uri.file(imagePath);
-        const imageData = await vscode.workspace.fs.readFile(imageUri);
-        const base64 = Buffer.from(imageData).toString('base64');
-        const ext = path.extname(src).toLowerCase().replace('.', '');
-        const mime = getMimeType(ext);
-        cloned.attrs = { ...cloned.attrs, src: `data:${mime};base64,${base64}` };
-      } catch { /* keep original */ }
-    }
-    // Also convert webview URIs
-    if (src.includes('vscode-webview') || src.includes('vscode-resource')) {
-      const match = src.match(/images\/([^?#]+)/);
-      if (match) {
-        try {
-          const imagePath = path.resolve(documentDir, 'images', match[1]);
-          const imageUri = vscode.Uri.file(imagePath);
-          const imageData = await vscode.workspace.fs.readFile(imageUri);
-          const base64 = Buffer.from(imageData).toString('base64');
-          const ext = path.extname(match[1]).toLowerCase().replace('.', '');
-          const mime = getMimeType(ext);
-          cloned.attrs = { ...cloned.attrs, src: `data:${mime};base64,${base64}` };
-        } catch { /* keep original */ }
-      }
-    }
-  }
-
-  if (cloned.content && Array.isArray(cloned.content)) {
-    cloned.content = await Promise.all(
-      cloned.content.map((child: any) => embedImagesForPdf(child, documentDir))
-    );
-  }
-
-  return cloned;
-}

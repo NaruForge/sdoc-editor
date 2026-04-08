@@ -3,6 +3,9 @@ import * as path from 'path';
 import { getNonce, getWebviewUri } from './utils/webviewHelper';
 import { convertJsonToHtml, convertJsonToAdoc, convertJsonToMarkdown, convertJsonToSlides, convertMarkdownToJson } from '../shared/converter';
 import { detectBrowser, printToPdf } from './utils/browserDetect';
+import { resolveFontWeight, generateFontFaceCSS, loadBundledFontsAsBase64 } from './utils/fontUtils';
+import { convertImagePathsToWebviewUris, convertWebviewUrisToRelativePaths, embedImagesAsBase64 } from './utils/imageUtils';
+import { resolveCompanyLogo, readFontWeights, buildHtmlTheme, readExportSettings } from './utils/themeUtils';
 import {
   unwrapSdoc as sharedUnwrapSdoc,
   migrateAttributes as sharedMigrateAttributes,
@@ -97,7 +100,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         // Unwrap sdoc envelope → extract doc node
         const { doc, meta } = SdocEditorProvider.unwrapSdoc(parsed);
         // Convert image paths to webview URIs
-        const convertedJson = this.convertImagePathsToWebviewUris(doc, documentDir, webviewPanel.webview);
+        const convertedJson = convertImagePathsToWebviewUris(doc, documentDir, webviewPanel.webview);
         webviewPanel.webview.postMessage({
           type: 'init',
           content: convertedJson,
@@ -177,7 +180,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
           const text = e.document.getText();
           const parsed = text.trim() ? JSON.parse(text) : { sdoc: SdocEditorProvider.SDOC_VERSION, meta: {}, doc: { type: 'doc', content: [] } };
           const { doc } = SdocEditorProvider.unwrapSdoc(parsed);
-          const convertedJson = this.convertImagePathsToWebviewUris(doc, documentDir, webviewPanel.webview);
+          const convertedJson = convertImagePathsToWebviewUris(doc, documentDir, webviewPanel.webview);
           webviewPanel.webview.postMessage({
             type: 'update',
             content: convertedJson,
@@ -232,7 +235,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     );
 
     // Convert webview URIs back to relative paths before saving
-    const convertedContent = this.convertWebviewUrisToRelativePaths(content);
+    const convertedContent = convertWebviewUrisToRelativePaths(content);
 
     // Clean up text nodes (trim trailing whitespace, remove empty text nodes)
     const cleaned = SdocEditorProvider.cleanTextNodes(convertedContent);
@@ -723,7 +726,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
 
       // Convert image paths to webview URIs
       const documentDir = vscode.Uri.joinPath(document.uri, '..');
-      const convertedDoc = this.convertImagePathsToWebviewUris(doc, documentDir, webviewPanel.webview);
+      const convertedDoc = convertImagePathsToWebviewUris(doc, documentDir, webviewPanel.webview);
 
       webviewPanel.webview.postMessage({ type: 'importContent', content: convertedDoc });
       vscode.window.showInformationMessage('Markdown imported successfully');
@@ -795,88 +798,6 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
 
     this.pendingApplyEdits++;
     await vscode.workspace.applyEdit(edit);
-  }
-
-  // Convert relative image paths to webview URIs for display
-  private convertImagePathsToWebviewUris(
-    node: any,
-    documentDir: vscode.Uri,
-    webview: vscode.Webview
-  ): any {
-    if (!node || typeof node !== 'object') {
-      return node;
-    }
-
-    // Clone to avoid mutating original
-    const cloned = Array.isArray(node) ? [...node] : { ...node };
-
-    // If this is an image node with a relative path, convert it
-    if (cloned.type === 'image' && cloned.attrs?.src) {
-      const src = cloned.attrs.src;
-      if (src.startsWith('./')) {
-        // Convert relative path to absolute URI
-        const imagePath = src.replace('./', '');
-        const imageUri = vscode.Uri.joinPath(documentDir, imagePath);
-        const webviewUri = webview.asWebviewUri(imageUri);
-        cloned.attrs = {
-          ...cloned.attrs,
-          src: webviewUri.toString(),
-        };
-      }
-    }
-
-    // Recursively process content
-    if (cloned.content && Array.isArray(cloned.content)) {
-      cloned.content = cloned.content.map((child: any) =>
-        this.convertImagePathsToWebviewUris(child, documentDir, webview)
-      );
-    }
-
-    return cloned;
-  }
-
-  // Convert webview URIs back to relative paths for JSON storage
-  private convertWebviewUrisToRelativePaths(node: any): any {
-    if (!node || typeof node !== 'object') {
-      return node;
-    }
-
-    // Clone to avoid mutating original
-    const cloned = Array.isArray(node) ? [...node] : { ...node };
-
-    // If this is an image node with a webview URI, convert it to relative path
-    if (cloned.type === 'image' && cloned.attrs?.src) {
-      const src = cloned.attrs.src;
-      // Check if it's a webview URI (contains vscode-webview-resource or similar)
-      if (src.includes('vscode-webview') || src.includes('vscode-resource')) {
-        // Extract the filename from the URI - check for images or drawio
-        const imageMatch = src.match(/images\/([^?#]+)/);
-        const drawioMatch = src.match(/drawio\/([^?#]+)/);
-
-        if (imageMatch) {
-          const fileName = imageMatch[1];
-          cloned.attrs = {
-            ...cloned.attrs,
-            src: `./images/${fileName}`,
-          };
-        } else if (drawioMatch) {
-          const fileName = drawioMatch[1];
-          cloned.attrs = {
-            ...cloned.attrs,
-            src: `./drawio/${fileName}`,
-          };
-        }
-      }
-    }
-
-    // Recursively process content
-    if (cloned.content && Array.isArray(cloned.content)) {
-      cloned.content = cloned.content.map((child: any) =>
-        this.convertWebviewUrisToRelativePaths(child)
-      );
-    }
-
-    return cloned;
   }
 
   private async openLinkedDocument(
@@ -1009,29 +930,24 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       const { doc, meta } = SdocEditorProvider.unwrapSdoc(parsed);
 
       // Convert webview URIs back to relative paths
-      let convertedDoc = this.convertWebviewUrisToRelativePaths(doc);
+      let convertedDoc = convertWebviewUrisToRelativePaths(doc);
 
       // Read export settings
       const config = vscode.workspace.getConfiguration('structuredDocEditor');
       const selfContained = config.get<'none' | 'images-only' | 'full'>('export.selfContained', 'images-only');
-      const exportSettings: Record<string, any> = {
-        imageCaptionPrefix: config.get<string>('caption.imagePrefix', 'Image'),
-        tableCaptionPrefix: config.get<string>('caption.tablePrefix', 'Table'),
-        captionNumbering: config.get<'simple' | 'hierarchical'>('caption.numbering', 'simple'),
-        exportImagePath: config.get<'relative' | 'absolute'>('export.imagePath', 'relative'),
-      };
+      const exportSettings = readExportSettings(config);
 
       // For HTML, PDF, and slides, apply selfContained settings
       const needsSelfContained = format === 'html' || format === 'pdf' || format === 'slides';
       if (needsSelfContained && selfContained !== 'none') {
         const documentDir = path.dirname(document.uri.fsPath);
-        convertedDoc = await this.embedImagesAsBase64(convertedDoc, documentDir);
+        convertedDoc = await embedImagesAsBase64(convertedDoc, documentDir);
         exportSettings.selfContained = selfContained;
       }
       // PDF always embeds images regardless of setting
       if (format === 'pdf' && selfContained === 'none') {
         const documentDir = path.dirname(document.uri.fsPath);
-        convertedDoc = await this.embedImagesAsBase64(convertedDoc, documentDir);
+        convertedDoc = await embedImagesAsBase64(convertedDoc, documentDir);
         exportSettings.selfContained = 'images-only';
       }
 
@@ -1042,40 +958,14 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       switch (format) {
         case 'html':
         case 'pdf': {
-          let companyLogo = config.get<string>('theme.companyLogo') || '';
-          // Resolve logo file to data URI if it's a filename (not URL or data URI)
-          if (companyLogo && !companyLogo.startsWith('data:') && !companyLogo.startsWith('http')) {
-            try {
-              const logoPath = path.join(this.context.extensionPath, 'media', companyLogo);
-              const logoUri = vscode.Uri.file(logoPath);
-              const logoData = await vscode.workspace.fs.readFile(logoUri);
-              const base64 = Buffer.from(logoData).toString('base64');
-              const ext2 = path.extname(companyLogo).toLowerCase().replace('.', '');
-              const mime = ext2 === 'svg' ? 'image/svg+xml' : `image/${ext2 || 'png'}`;
-              companyLogo = `data:${mime};base64,${base64}`;
-            } catch {
-              companyLogo = '';
-            }
-          }
-          const theme: Record<string, any> = {
-            companyLogo,
-            companyName: config.get<string>('theme.companyName') || '',
-            primaryColor: config.get<string>('theme.primaryColor') || '#A50034',
-            accentColor: config.get<string>('theme.accentColor') || '#6b6b6b',
-            fontFamily: config.get<string>('theme.fontFamily') || "'Legacy Font 2.0', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-            customStyles: config.get<string>('theme.customStyles') || '',
-            fontWeights: {
-              body: SdocEditorProvider.resolveFontWeight(config.get<string>('font.body', 'Regular')),
-              bold: SdocEditorProvider.resolveFontWeight(config.get<string>('font.bold', 'Bold')),
-              h1: SdocEditorProvider.resolveFontWeight(config.get<string>('font.h1', 'Bold')),
-              h2: SdocEditorProvider.resolveFontWeight(config.get<string>('font.h2', 'SemiBold')),
-              h3: SdocEditorProvider.resolveFontWeight(config.get<string>('font.h3', 'SemiBold')),
-            },
-          };
-
-          // Embed only used font weights as base64 data URIs for HTML/PDF export
-          const usedWeights = new Set(Object.values(theme.fontWeights as Record<string, number>));
-          theme.embeddedFonts = await this.loadBundledFontsAsBase64(usedWeights);
+          const companyLogo = await resolveCompanyLogo(
+            config.get<string>('theme.companyLogo') || '',
+            this.context.extensionPath,
+          );
+          const fontWeights = readFontWeights(config);
+          const usedWeights = new Set(Object.values(fontWeights));
+          const embeddedFonts = await loadBundledFontsAsBase64(this.context.extensionUri, usedWeights);
+          const theme = buildHtmlTheme(config, companyLogo, fontWeights, embeddedFonts);
 
           content = convertJsonToHtml(convertedDoc, theme, exportSettings, meta);
 
@@ -1120,35 +1010,18 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
           break;
         }
         case 'slides': {
-          let companyLogo2 = config.get<string>('theme.companyLogo') || '';
-          if (companyLogo2 && !companyLogo2.startsWith('data:') && !companyLogo2.startsWith('http')) {
-            try {
-              const logoPath2 = path.join(this.context.extensionPath, 'media', companyLogo2);
-              const logoUri2 = vscode.Uri.file(logoPath2);
-              const logoData2 = await vscode.workspace.fs.readFile(logoUri2);
-              const base642 = Buffer.from(logoData2).toString('base64');
-              const ext2 = path.extname(companyLogo2).toLowerCase().replace('.', '');
-              const mime2 = ext2 === 'svg' ? 'image/svg+xml' : `image/${ext2 || 'png'}`;
-              companyLogo2 = `data:${mime2};base64,${base642}`;
-            } catch { companyLogo2 = ''; }
-          }
-          const slideTheme: Record<string, any> = {
-            companyLogo: companyLogo2,
-            companyName: config.get<string>('theme.companyName') || '',
+          const slideLogo = await resolveCompanyLogo(
+            config.get<string>('theme.companyLogo') || '',
+            this.context.extensionPath,
+          );
+          const slideFontWeights = readFontWeights(config);
+          const usedSlideWeights = new Set(Object.values(slideFontWeights));
+          const slideEmbeddedFonts = await loadBundledFontsAsBase64(this.context.extensionUri, usedSlideWeights);
+          const slideTheme = {
+            ...buildHtmlTheme(config, slideLogo, slideFontWeights, slideEmbeddedFonts),
             primaryColor: config.get<string>('slide.primaryColor') || config.get<string>('theme.primaryColor') || '#A50034',
             accentColor: config.get<string>('slide.accentColor') || config.get<string>('theme.accentColor') || '#6b6b6b',
-            fontFamily: config.get<string>('theme.fontFamily') || "'Legacy Font 2.0', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-            customStyles: config.get<string>('theme.customStyles') || '',
-            fontWeights: {
-              body: SdocEditorProvider.resolveFontWeight(config.get<string>('font.body', 'Regular')),
-              bold: SdocEditorProvider.resolveFontWeight(config.get<string>('font.bold', 'Bold')),
-              h1: SdocEditorProvider.resolveFontWeight(config.get<string>('font.h1', 'Bold')),
-              h2: SdocEditorProvider.resolveFontWeight(config.get<string>('font.h2', 'SemiBold')),
-              h3: SdocEditorProvider.resolveFontWeight(config.get<string>('font.h3', 'SemiBold')),
-            },
           };
-          const usedSlideWeights = new Set(Object.values(slideTheme.fontWeights as Record<string, number>));
-          slideTheme.embeddedFonts = await this.loadBundledFontsAsBase64(usedSlideWeights);
 
           const slideSettings = {
             ...exportSettings,
@@ -1211,39 +1084,6 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         `Failed to export: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
     }
-  }
-
-  private static readonly MIME_MAP: Record<string, string> = {
-    png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
-    gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml',
-    bmp: 'image/bmp', ico: 'image/x-icon',
-  };
-
-  private async embedImagesAsBase64(node: any, documentDir: string): Promise<any> {
-    if (!node || typeof node !== 'object') return node;
-    const cloned = Array.isArray(node) ? [...node] : { ...node };
-
-    if (cloned.type === 'image' && cloned.attrs?.src) {
-      const src: string = cloned.attrs.src;
-      if (!src.startsWith('data:') && !src.startsWith('http://') && !src.startsWith('https://')) {
-        try {
-          const imagePath = path.resolve(documentDir, src);
-          const imageUri = vscode.Uri.file(imagePath);
-          const imageData = await vscode.workspace.fs.readFile(imageUri);
-          const base64 = Buffer.from(imageData).toString('base64');
-          const ext = path.extname(src).toLowerCase().replace('.', '');
-          const mime = SdocEditorProvider.MIME_MAP[ext] || 'application/octet-stream';
-          cloned.attrs = { ...cloned.attrs, src: `data:${mime};base64,${base64}` };
-        } catch { /* keep original src */ }
-      }
-    }
-
-    if (cloned.content && Array.isArray(cloned.content)) {
-      cloned.content = await Promise.all(
-        cloned.content.map((child: any) => this.embedImagesAsBase64(child, documentDir))
-      );
-    }
-    return cloned;
   }
 
   /**
@@ -1318,7 +1158,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     ]);
 
     // Build @font-face declarations for bundled fonts
-    const fontFaces = this.generateFontFaceCSS(webview);
+    const fontFaces = generateFontFaceCSS(webview, this.context.extensionUri);
 
     const nonce = getNonce();
 
@@ -1337,49 +1177,5 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
   <script type="module" nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;
-  }
-
-  private static readonly BUNDLED_FONTS = [
-    { file: 'LegacyFontL.woff2', weight: 300 },
-    { file: 'LegacyFontR.woff2', weight: 400 },
-    { file: 'LegacyFontSB.woff2', weight: 600 },
-    { file: 'LegacyFontB.woff2', weight: 700 },
-  ];
-
-  private static readonly FONT_WEIGHT_MAP: Record<string, number> = {
-    Light: 300, Regular: 400, SemiBold: 600, Bold: 700,
-  };
-
-  private static resolveFontWeight(name: string): number {
-    return SdocEditorProvider.FONT_WEIGHT_MAP[name] || 400;
-  }
-
-  private generateFontFaceCSS(webview: vscode.Webview): string {
-    return SdocEditorProvider.BUNDLED_FONTS.map(({ file, weight }) => {
-      const fontUri = getWebviewUri(webview, this.context.extensionUri, ['media', 'fonts', file]);
-      return `@font-face {
-  font-family: 'Legacy Font 2.0';
-  font-weight: ${weight};
-  font-style: normal;
-  font-display: swap;
-  src: url('${fontUri}') format('woff2');
-}`;
-    }).join('\n');
-  }
-
-  private async loadBundledFontsAsBase64(weights?: Set<number>): Promise<{ weight: number; dataUri: string }[]> {
-    const results: { weight: number; dataUri: string }[] = [];
-    for (const { file, weight } of SdocEditorProvider.BUNDLED_FONTS) {
-      if (weights && !weights.has(weight)) continue;
-      try {
-        const fontPath = vscode.Uri.joinPath(this.context.extensionUri, 'media', 'fonts', file);
-        const fontData = await vscode.workspace.fs.readFile(fontPath);
-        const base64 = Buffer.from(fontData).toString('base64');
-        results.push({ weight, dataUri: `data:font/woff2;base64,${base64}` });
-      } catch {
-        // Skip missing font files
-      }
-    }
-    return results;
   }
 }

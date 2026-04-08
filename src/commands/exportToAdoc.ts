@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { convertJsonToAdoc } from '../../shared/converter';
+import { convertWebviewUrisToRelativePaths } from '../utils/imageUtils';
 
 export async function exportToAdoc(context: vscode.ExtensionContext) {
   // Get the active tab's input
@@ -82,40 +83,4 @@ export async function exportToAdoc(context: vscode.ExtensionContext) {
       `Failed to export to AsciiDoc: ${error instanceof Error ? error.message : 'Unknown error'}`
     );
   }
-}
-
-// Helper function to convert webview URIs back to relative paths
-function convertWebviewUrisToRelativePaths(node: any): any {
-  if (!node || typeof node !== 'object') {
-    return node;
-  }
-
-  // Clone to avoid mutating original
-  const cloned = Array.isArray(node) ? [...node] : { ...node };
-
-  // If this is an image node with a webview URI, convert it to relative path
-  if (cloned.type === 'image' && cloned.attrs?.src) {
-    const src = cloned.attrs.src;
-    // Check if it's a webview URI (contains vscode-webview-resource or similar)
-    if (src.includes('vscode-webview') || src.includes('vscode-resource')) {
-      // Extract the filename from the URI
-      const match = src.match(/images\/([^?#]+)/);
-      if (match) {
-        const fileName = match[1];
-        cloned.attrs = {
-          ...cloned.attrs,
-          src: `./images/${fileName}`,
-        };
-      }
-    }
-  }
-
-  // Recursively process content
-  if (cloned.content && Array.isArray(cloned.content)) {
-    cloned.content = cloned.content.map((child: any) =>
-      convertWebviewUrisToRelativePaths(child)
-    );
-  }
-
-  return cloned;
 }
