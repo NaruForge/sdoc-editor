@@ -1158,6 +1158,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
             ...exportSettings,
             slideBreak: config.get<'h1-only' | 'h1-h2-vertical'>('slide.breakLevel', 'h1-only'),
             showTitleSlide: config.get<boolean>('slide.showTitleSlide', true),
+            transition: config.get<'none' | 'fade' | 'slide' | 'convex' | 'concave' | 'zoom'>('slide.transition', 'none'),
           };
 
           content = convertJsonToSlides(convertedDoc, slideTheme, slideSettings, meta);

@@ -294,6 +294,20 @@
           "default": "",
           "pattern": "^(#[0-9a-fA-F]{3,8})?$",
           "markdownDescription": "슬라이드 전용 보조 색상 (비워두면 `theme.accentColor` 사용)"
+        },
+        "structuredDocEditor.slide.transition": {
+          "type": "string",
+          "enum": ["none", "fade", "slide", "convex", "concave", "zoom"],
+          "default": "none",
+          "enumDescriptions": [
+            "애니메이션 없이 즉시 전환",
+            "페이드 인/아웃 (가장 부드러움)",
+            "좌우 슬라이드",
+            "볼록 효과 (3D)",
+            "오목 효과 (3D)",
+            "확대/축소 효과"
+          ],
+          "description": "슬라이드 전환 애니메이션"
         }
       }
     }

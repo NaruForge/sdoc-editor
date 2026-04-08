@@ -103,6 +103,7 @@ export async function exportToSlides(context: vscode.ExtensionContext) {
       captionNumbering: config.get<'simple' | 'hierarchical'>('caption.numbering', 'simple'),
       slideBreak: config.get<'h1-only' | 'h1-h2-vertical'>('slide.breakLevel', 'h1-only'),
       showTitleSlide: config.get<boolean>('slide.showTitleSlide', true),
+      transition: config.get<'none' | 'fade' | 'slide' | 'convex' | 'concave' | 'zoom'>('slide.transition', 'none'),
     };
 
     const htmlContent = convertJsonToSlides(json, theme, slideSettings, meta);

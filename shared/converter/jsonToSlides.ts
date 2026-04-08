@@ -30,6 +30,7 @@ export interface SlideSettings {
   captionNumbering?: 'simple' | 'hierarchical';
   slideBreak?: 'h1-only' | 'h1-h2-vertical';
   showTitleSlide?: boolean;
+  transition?: 'none' | 'fade' | 'slide' | 'convex' | 'concave' | 'zoom';
 }
 
 export interface SdocMeta {
@@ -700,7 +701,8 @@ ${titleSlide}${slideSections}
       width: 1280,
       height: 720,
       margin: 0.08,
-      transition: 'slide',
+      transition: '${currentSettings.transition || 'none'}',
+      transitionSpeed: 'fast',
       controls: true,
       progress: true,
       center: false,
