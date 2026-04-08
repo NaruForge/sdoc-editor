@@ -56,17 +56,23 @@ function convertNode(node: TiptapNode): string {
     case 'doc':
       return node.content ? node.content.map(convertNode).join('\n') : '';
 
-    case 'heading':
+    case 'heading': {
       const level = node.attrs?.level || 1;
       const headingPrefix = '#'.repeat(level);
       const headingText = node.content ? convertInlineContent(node.content) : '';
       if (level === 1) { h1Counter++; imageCounter = 0; tableCounter = 0; }
-      const anchor = node.attrs?.id ? `<a id="${node.attrs.id}"></a>` : '';
-      return `${headingPrefix} ${anchor}${headingText}\n`;
+      const anchor = node.attrs?.id ? ` {#${node.attrs.id}}` : '';
+      return `${headingPrefix} ${headingText}${anchor}\n`;
+    }
 
-    case 'paragraph':
+    case 'paragraph': {
       const paragraphText = node.content ? convertInlineContent(node.content) : '';
+      const align = node.attrs?.textAlign;
+      if (paragraphText && align && align !== 'left') {
+        return `<p style="text-align:${align}">${paragraphText}</p>\n`;
+      }
       return paragraphText ? `${paragraphText}\n` : '';
+    }
 
     case 'bulletList':
       return node.content ? node.content.map((item) => convertListItem(item, '-')).join('') : '';
@@ -267,6 +273,8 @@ function applyMarks(text: string, marks: TiptapMark[]): string {
   const hasSuperscript = marks.some(m => m.type === 'superscript');
   const hasCode = marks.some(m => m.type === 'code');
   const linkMark = marks.find(m => m.type === 'link');
+  const colorMark = marks.find(m => m.type === 'textStyle');
+  const highlightMark = marks.find(m => m.type === 'highlight');
 
   // Code takes precedence
   if (hasCode) {
@@ -304,6 +312,15 @@ function applyMarks(text: string, marks: TiptapMark[]): string {
     const href = linkMark.attrs?.href || '';
     const mdHref = href.replace(/\.sdoc(#|$)/, '.md$1');
     result = `[${result}](${mdHref})`;
+  }
+
+  // color/highlight: fall back to HTML span (Markdown has no native support)
+  if (colorMark?.attrs?.color) {
+    result = `<span style="color:${colorMark.attrs.color}">${result}</span>`;
+  }
+  if (highlightMark) {
+    const bg = highlightMark.attrs?.color || '#fef08a';
+    result = `<mark style="background-color:${bg}">${result}</mark>`;
   }
 
   return result;

@@ -61,8 +61,8 @@ function convertNode(node: TiptapNode): string {
       const headingPrefix = '#'.repeat(level);
       const headingText = node.content ? convertInlineContent(node.content) : '';
       if (level === 1) { h1Counter++; imageCounter = 0; tableCounter = 0; }
-      const anchor = node.attrs?.id ? `<a id="${node.attrs.id}"></a>` : '';
-      return `${headingPrefix} ${anchor}${headingText}\n`;
+      const anchor = node.attrs?.id ? ` {#${node.attrs.id}}` : '';
+      return `${headingPrefix} ${headingText}${anchor}\n`;
     }
 
     case 'paragraph': {

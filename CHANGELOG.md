@@ -5,6 +5,12 @@ All notable changes to the "Structured Doc Editor" extension will be documented 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-04-09
+
+### Changed
+- **Markdown 앵커 Pandoc 스타일 전환**: `<a id="..."></a>` → `{#id}` 형태로 변경하여 RAG 파이프라인 노이즈 최소화
+- **Markdown Converter 동기화**: `src/converter`에 누락된 정렬/색상/하이라이트 지원 추가
+
 ## [0.3.9] - 2026-04-08
 
 ### Changed
