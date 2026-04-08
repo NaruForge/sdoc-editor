@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { convertJsonToSlides } from '../converter/jsonToSlides';
+import { convertJsonToSlides } from '../../shared/converter';
 
 export async function exportToSlides(context: vscode.ExtensionContext) {
   const activeTab = vscode.window.tabGroups.activeTabGroup.activeTab;

@@ -1,17 +1,18 @@
 interface TiptapNode {
   type: string;
   content?: TiptapNode[];
-  attrs?: any;
+  attrs?: Record<string, unknown>;
   marks?: TiptapMark[];
   text?: string;
 }
 
 interface TiptapMark {
   type: string;
-  attrs?: any;
+  attrs?: Record<string, unknown>;
 }
 
 import hljs from 'highlight.js';
+import { escapeHtml } from './utils';
 
 export interface SlideTheme {
   companyLogo?: string;
@@ -41,23 +42,27 @@ export interface SdocMeta {
   modified?: string;
 }
 
-let currentSettings: SlideSettings = {};
-let imageCounter = 0;
-let tableCounter = 0;
-let h1Counter = 0;
+interface ConvertContext {
+  settings: SlideSettings;
+  imageCounter: number;
+  tableCounter: number;
+  h1Counter: number;
+}
 
 /**
  * Converts Tiptap JSON to reveal.js slide HTML
  */
 export function convertJsonToSlides(json: TiptapNode, theme?: SlideTheme, settings?: SlideSettings, meta?: SdocMeta): string {
-  currentSettings = settings || {};
-  imageCounter = 0;
-  tableCounter = 0;
-  h1Counter = 0;
+  const ctx: ConvertContext = {
+    settings: settings || {},
+    imageCounter: 0,
+    tableCounter: 0,
+    h1Counter: 0,
+  };
 
-  const slides = splitIntoSlides(json);
-  const slideSections = slides.map(slide => buildSlideSection(slide)).join('\n\n');
-  return generateSlideDocument(slideSections, theme, meta);
+  const slides = splitIntoSlides(json, ctx);
+  const slideSections = slides.map(slide => buildSlideSection(slide, ctx)).join('\n\n');
+  return generateSlideDocument(slideSections, theme, meta, ctx);
 }
 
 interface SlideGroup {
@@ -66,10 +71,10 @@ interface SlideGroup {
   subSlides?: SlideGroup[]; // H2-based vertical slides
 }
 
-function splitIntoSlides(doc: TiptapNode): SlideGroup[] {
+function splitIntoSlides(doc: TiptapNode, ctx: ConvertContext): SlideGroup[] {
   if (!doc.content) return [];
 
-  const useVertical = currentSettings.slideBreak === 'h1-h2-vertical';
+  const useVertical = ctx.settings.slideBreak === 'h1-h2-vertical';
   const groups: SlideGroup[] = [];
   let current: SlideGroup = { content: [] };
 
@@ -110,34 +115,31 @@ function splitIntoSlides(doc: TiptapNode): SlideGroup[] {
   return groups;
 }
 
-function buildSlideSection(group: SlideGroup): string {
+function buildSlideSection(group: SlideGroup, ctx: ConvertContext): string {
   if (group.subSlides && group.subSlides.length > 0) {
-    // Vertical slide group — wrap in nested <section>
     const parts: string[] = [];
 
-    // First slide: H1 + content before first H2
     let firstContent = '';
     if (group.h1Node) {
-      h1Counter++;
-      imageCounter = 0;
-      tableCounter = 0;
-      firstContent += convertSlideNode(group.h1Node);
+      ctx.h1Counter++;
+      ctx.imageCounter = 0;
+      ctx.tableCounter = 0;
+      firstContent += convertSlideNode(group.h1Node, ctx);
     }
     if (group.content.length > 0) {
-      firstContent += '\n' + group.content.map(convertSlideNode).join('\n');
+      firstContent += '\n' + group.content.map(n => convertSlideNode(n, ctx)).join('\n');
     }
     if (firstContent) {
       parts.push(`      <section>\n${firstContent}\n      </section>`);
     }
 
-    // Sub-slides (H2-based)
     for (const sub of group.subSlides) {
       let subContent = '';
-      if (sub.h1Node) { // This is actually an H2 node stored in h1Node field
-        subContent += convertSlideNode(sub.h1Node);
+      if (sub.h1Node) {
+        subContent += convertSlideNode(sub.h1Node, ctx);
       }
       if (sub.content.length > 0) {
-        subContent += '\n' + sub.content.map(convertSlideNode).join('\n');
+        subContent += '\n' + sub.content.map(n => convertSlideNode(n, ctx)).join('\n');
       }
       parts.push(`      <section>\n${subContent}\n      </section>`);
     }
@@ -145,76 +147,75 @@ function buildSlideSection(group: SlideGroup): string {
     return `    <section>\n${parts.join('\n')}\n    </section>`;
   }
 
-  // Simple slide (H1-only mode)
   let content = '';
   if (group.h1Node) {
-    h1Counter++;
-    imageCounter = 0;
-    tableCounter = 0;
-    content += convertSlideNode(group.h1Node);
+    ctx.h1Counter++;
+    ctx.imageCounter = 0;
+    ctx.tableCounter = 0;
+    content += convertSlideNode(group.h1Node, ctx);
   }
   if (group.content.length > 0) {
-    content += '\n' + group.content.map(convertSlideNode).join('\n');
+    content += '\n' + group.content.map(n => convertSlideNode(n, ctx)).join('\n');
   }
 
   return `    <section>\n${content}\n    </section>`;
 }
 
-function convertSlideNode(node: TiptapNode): string {
+function convertSlideNode(node: TiptapNode, ctx: ConvertContext): string {
   switch (node.type) {
     case 'doc':
-      return node.content ? node.content.map(convertSlideNode).join('\n') : '';
+      return node.content ? node.content.map(n => convertSlideNode(n, ctx)).join('\n') : '';
 
     case 'heading': {
       const level = node.attrs?.level || 1;
-      const text = node.content ? convertInlineContent(node.content) : '';
-      const hId = node.attrs?.id ? ` id="${escapeHtml(node.attrs.id)}"` : '';
+      const text = node.content ? convertInlineContent(node.content, ctx) : '';
+      const hId = node.attrs?.id ? ` id="${escapeHtml(node.attrs.id as string)}"` : '';
       const hAlign = node.attrs?.textAlign ? ` style="text-align:${node.attrs.textAlign}"` : '';
       return `        <h${level}${hId}${hAlign}>${text}</h${level}>`;
     }
 
     case 'paragraph': {
-      const text = node.content ? convertInlineContent(node.content) : '';
+      const text = node.content ? convertInlineContent(node.content, ctx) : '';
       const pAlign = node.attrs?.textAlign ? ` style="text-align:${node.attrs.textAlign}"` : '';
       return text ? `        <p${pAlign}>${text}</p>` : '';
     }
 
     case 'bulletList':
-      return `        <ul>\n${node.content ? node.content.map(convertSlideNode).join('\n') : ''}\n        </ul>`;
+      return `        <ul>\n${node.content ? node.content.map(n => convertSlideNode(n, ctx)).join('\n') : ''}\n        </ul>`;
 
     case 'orderedList':
-      return `        <ol>\n${node.content ? node.content.map(convertSlideNode).join('\n') : ''}\n        </ol>`;
+      return `        <ol>\n${node.content ? node.content.map(n => convertSlideNode(n, ctx)).join('\n') : ''}\n        </ol>`;
 
     case 'listItem': {
       const itemContent = node.content
         ? node.content.map(child => {
             if (child.type === 'paragraph') {
-              return child.content ? convertInlineContent(child.content) : '';
+              return child.content ? convertInlineContent(child.content, ctx) : '';
             }
-            return convertSlideNode(child);
+            return convertSlideNode(child, ctx);
           }).join('\n')
         : '';
       return `          <li>${itemContent}</li>`;
     }
 
     case 'taskList':
-      return `        <ul class="task-list">\n${node.content ? node.content.map(convertSlideNode).join('\n') : ''}\n        </ul>`;
+      return `        <ul class="task-list">\n${node.content ? node.content.map(n => convertSlideNode(n, ctx)).join('\n') : ''}\n        </ul>`;
 
     case 'taskItem': {
       const checked = node.attrs?.checked ? ' checked' : '';
       const taskContent = node.content
         ? node.content.map(child => {
             if (child.type === 'paragraph') {
-              return child.content ? convertInlineContent(child.content) : '';
+              return child.content ? convertInlineContent(child.content, ctx) : '';
             }
-            return convertSlideNode(child);
+            return convertSlideNode(child, ctx);
           }).join('\n')
         : '';
       return `          <li class="task-item"><input type="checkbox"${checked} disabled> ${taskContent}</li>`;
     }
 
     case 'codeBlock': {
-      const language = node.attrs?.language || '';
+      const language = (node.attrs?.language as string) || '';
       const code = node.content ? node.content.map(n => n.text || '').join('\n') : '';
       let highlighted: string;
       if (language && hljs.getLanguage(language)) {
@@ -226,19 +227,19 @@ function convertSlideNode(node: TiptapNode): string {
     }
 
     case 'mathInline':
-      return `<span class="math-inline">\\(${escapeHtml(node.attrs?.latex || '')}\\)</span>`;
+      return `<span class="math-inline">\\(${escapeHtml((node.attrs?.latex as string) || '')}\\)</span>`;
 
     case 'mathBlock':
-      return `        <div class="math-block">\\[${escapeHtml(node.attrs?.latex || '')}\\]</div>`;
+      return `        <div class="math-block">\\[${escapeHtml((node.attrs?.latex as string) || '')}\\]</div>`;
 
     case 'diagram':
-      return `        <pre class="mermaid">${escapeHtml(node.attrs?.code || '')}</pre>`;
+      return `        <pre class="mermaid">${escapeHtml((node.attrs?.code as string) || '')}</pre>`;
 
     case 'table':
-      return convertTable(node);
+      return convertTable(node, ctx);
 
     case 'image':
-      return convertImage(node);
+      return convertImage(node, ctx);
 
     case 'hardBreak':
       return '<br>';
@@ -247,45 +248,45 @@ function convertSlideNode(node: TiptapNode): string {
       return applyMarks(escapeHtml(node.text || ''), node.marks || []);
 
     default:
-      return node.content ? node.content.map(convertSlideNode).join('') : '';
+      return node.content ? node.content.map(n => convertSlideNode(n, ctx)).join('') : '';
   }
 }
 
-function convertInlineContent(content: TiptapNode[]): string {
-  return content.map(convertSlideNode).join('');
+function convertInlineContent(content: TiptapNode[], ctx: ConvertContext): string {
+  return content.map(n => convertSlideNode(n, ctx)).join('');
 }
 
-function convertTableCellContent(content: TiptapNode[]): string {
+function convertTableCellContent(content: TiptapNode[], ctx: ConvertContext): string {
   return content.map(node => {
     if (node.type === 'paragraph') {
-      return node.content ? convertInlineContent(node.content) : '';
+      return node.content ? convertInlineContent(node.content, ctx) : '';
     }
-    return convertSlideNode(node);
+    return convertSlideNode(node, ctx);
   }).join('').trim();
 }
 
-function convertTable(table: TiptapNode): string {
+function convertTable(table: TiptapNode, ctx: ConvertContext): string {
   if (!table.content || table.content.length === 0) return '';
 
-  tableCounter++;
+  ctx.tableCounter++;
   const caption = table.attrs?.caption;
-  const prefix = currentSettings.tableCaptionPrefix || 'Table';
-  const numbering = currentSettings.captionNumbering === 'hierarchical'
-    ? `${h1Counter}.${tableCounter}` : `${tableCounter}`;
+  const prefix = ctx.settings.tableCaptionPrefix || 'Table';
+  const numbering = ctx.settings.captionNumbering === 'hierarchical'
+    ? `${ctx.h1Counter}.${ctx.tableCounter}` : `${ctx.tableCounter}`;
 
   const hasHeader = table.content[0]?.content?.some((cell: TiptapNode) => cell.type === 'tableHeader');
-  const tId = table.attrs?.id ? ` id="${escapeHtml(table.attrs.id)}"` : '';
+  const tId = table.attrs?.id ? ` id="${escapeHtml(table.attrs.id as string)}"` : '';
 
   let html = `        <table${tId} class="slide-table">`;
 
   if (caption) {
-    html += `\n          <caption>${prefix} ${numbering}: ${escapeHtml(caption)}</caption>`;
+    html += `\n          <caption>${prefix} ${numbering}: ${escapeHtml(caption as string)}</caption>`;
   }
 
   if (hasHeader && table.content[0]) {
     html += '\n          <thead>\n            <tr>';
     for (const cell of table.content[0].content || []) {
-      const cellContent = cell.content ? convertTableCellContent(cell.content) : '';
+      const cellContent = cell.content ? convertTableCellContent(cell.content, ctx) : '';
       html += `\n              <th>${cellContent}</th>`;
     }
     html += '\n            </tr>\n          </thead>';
@@ -296,7 +297,7 @@ function convertTable(table: TiptapNode): string {
         const row = table.content[i];
         html += '\n            <tr>';
         for (const cell of row.content || []) {
-          const cellContent = cell.content ? convertTableCellContent(cell.content) : '';
+          const cellContent = cell.content ? convertTableCellContent(cell.content, ctx) : '';
           html += `\n              <td>${cellContent}</td>`;
         }
         html += '\n            </tr>';
@@ -309,7 +310,7 @@ function convertTable(table: TiptapNode): string {
       if (row.type === 'tableRow' && row.content) {
         html += '\n            <tr>';
         for (const cell of row.content) {
-          const cellContent = cell.content ? convertTableCellContent(cell.content) : '';
+          const cellContent = cell.content ? convertTableCellContent(cell.content, ctx) : '';
           const tag = cell.type === 'tableHeader' ? 'th' : 'td';
           html += `\n              <${tag}>${cellContent}</${tag}>`;
         }
@@ -323,16 +324,16 @@ function convertTable(table: TiptapNode): string {
   return html;
 }
 
-function convertImage(node: TiptapNode): string {
-  const src = node.attrs?.src || '';
-  const alt = node.attrs?.alt || '';
-  const caption = node.attrs?.caption || '';
-  imageCounter++;
-  const prefix = currentSettings.imageCaptionPrefix || 'Image';
-  const numbering = currentSettings.captionNumbering === 'hierarchical'
-    ? `${h1Counter}.${imageCounter}` : `${imageCounter}`;
+function convertImage(node: TiptapNode, ctx: ConvertContext): string {
+  const src = (node.attrs?.src as string) || '';
+  const alt = (node.attrs?.alt as string) || '';
+  const caption = (node.attrs?.caption as string) || '';
+  ctx.imageCounter++;
+  const prefix = ctx.settings.imageCaptionPrefix || 'Image';
+  const numbering = ctx.settings.captionNumbering === 'hierarchical'
+    ? `${ctx.h1Counter}.${ctx.imageCounter}` : `${ctx.imageCounter}`;
 
-  const figId = node.attrs?.id ? ` id="${escapeHtml(node.attrs.id)}"` : '';
+  const figId = node.attrs?.id ? ` id="${escapeHtml(node.attrs.id as string)}"` : '';
   let html = `        <figure class="slide-image"${figId}>`;
   html += `\n          <img src="${escapeHtml(src)}" alt="${escapeHtml(alt)}">`;
   if (caption) {
@@ -354,32 +355,23 @@ function applyMarks(text: string, marks: TiptapMark[]): string {
       case 'superscript': result = `<sup>${result}</sup>`; break;
       case 'code': result = `<code>${result}</code>`; break;
       case 'link': {
-        const href = mark.attrs?.href || '';
+        const href = (mark.attrs?.href as string) || '';
         result = `<a href="${escapeHtml(href)}">${result}</a>`;
         break;
       }
       case 'textStyle': {
-        const color = mark.attrs?.color;
+        const color = mark.attrs?.color as string;
         if (color) result = `<span style="color:${escapeHtml(color)}">${result}</span>`;
         break;
       }
       case 'highlight': {
-        const bg = mark.attrs?.color || '#fef08a';
+        const bg = (mark.attrs?.color as string) || '#fef08a';
         result = `<mark style="background-color:${escapeHtml(bg)}">${result}</mark>`;
         break;
       }
     }
   }
   return result;
-}
-
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
 }
 
 const MERMAID_INIT = `mermaid.initialize({
@@ -393,7 +385,7 @@ const MERMAID_INIT = `mermaid.initialize({
   }
 });`;
 
-function generateSlideDocument(slideSections: string, theme?: SlideTheme, meta?: SdocMeta): string {
+function generateSlideDocument(slideSections: string, theme?: SlideTheme, meta?: SdocMeta, ctx?: ConvertContext): string {
   const primaryColor = theme?.primaryColor || '#A50034';
   const accentColor = theme?.accentColor || '#6b6b6b';
   const fontFamily = theme?.fontFamily || "'Legacy Font 2.0', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
@@ -413,7 +405,7 @@ function generateSlideDocument(slideSections: string, theme?: SlideTheme, meta?:
 
   // Title slide
   let titleSlide = '';
-  if (currentSettings.showTitleSlide !== false && meta?.title) {
+  if ((ctx?.settings.showTitleSlide ?? true) && meta?.title) {
     const logoHtml = companyLogo
       ? `\n          <img src="${companyLogo}" alt="Logo" class="title-logo">`
       : '';
@@ -701,7 +693,7 @@ ${titleSlide}${slideSections}
       width: 1280,
       height: 720,
       margin: 0.08,
-      transition: '${currentSettings.transition || 'none'}',
+      transition: '${ctx?.settings.transition || 'none'}',
       transitionSpeed: 'fast',
       controls: true,
       progress: true,

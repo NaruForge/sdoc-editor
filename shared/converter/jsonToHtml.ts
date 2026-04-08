@@ -1,26 +1,27 @@
 interface TiptapNode {
   type: string;
   content?: TiptapNode[];
-  attrs?: any;
+  attrs?: Record<string, unknown>;
   marks?: TiptapMark[];
   text?: string;
 }
 
 interface TiptapMark {
   type: string;
-  attrs?: any;
+  attrs?: Record<string, unknown>;
 }
 
 import hljs from 'highlight.js';
+import { escapeHtml } from './utils';
 
 interface HtmlTheme {
-  companyLogo?: string; // URL or base64 encoded logo
+  companyLogo?: string;
   companyName?: string;
   primaryColor?: string;
   accentColor?: string;
   fontFamily?: string;
-  customStyles?: string; // Additional custom CSS
-  embeddedFonts?: { weight: number; dataUri: string }[]; // base64 font data for self-contained export
+  customStyles?: string;
+  embeddedFonts?: { weight: number; dataUri: string }[];
   fontWeights?: { body: number; bold: number; h1: number; h2: number; h3: number };
 }
 
@@ -49,80 +50,89 @@ export interface SdocMeta {
   modified?: string;
 }
 
-let currentSettings: ExportSettings = {};
-let imageCounter = 0;
-let tableCounter = 0;
-let h1Counter = 0;
+interface ConvertContext {
+  settings: ExportSettings;
+  imageCounter: number;
+  tableCounter: number;
+  h1Counter: number;
+}
 
 /**
  * Converts Tiptap JSON to HTML format
  */
 export function convertJsonToHtml(json: TiptapNode, theme?: HtmlTheme, settings?: ExportSettings, meta?: SdocMeta): string {
-  currentSettings = settings || {};
-  imageCounter = 0;
-  tableCounter = 0;
-  h1Counter = 0;
-  const bodyContent = convertNode(json);
-  return generateHtmlDocument(bodyContent, theme, meta);
+  const ctx: ConvertContext = {
+    settings: settings || {},
+    imageCounter: 0,
+    tableCounter: 0,
+    h1Counter: 0,
+  };
+  const bodyContent = convertNode(json, ctx);
+  return generateHtmlDocument(bodyContent, theme, meta, ctx);
 }
 
-function convertNode(node: TiptapNode): string {
+function convertNode(node: TiptapNode, ctx: ConvertContext): string {
   switch (node.type) {
     case 'doc':
-      return node.content ? node.content.map(convertNode).join('\n') : '';
+      return node.content ? node.content.map(n => convertNode(n, ctx)).join('\n') : '';
 
     case 'heading': {
       const level = node.attrs?.level || 1;
-      const headingText = node.content ? convertInlineContent(node.content) : '';
-      if (level === 1) { h1Counter++; imageCounter = 0; tableCounter = 0; }
-      const hId = node.attrs?.id ? ` id="${escapeHtml(node.attrs.id)}"` : '';
+      const headingText = node.content ? convertInlineContent(node.content, ctx) : '';
+      if (level === 1) { ctx.h1Counter++; ctx.imageCounter = 0; ctx.tableCounter = 0; }
+      const hId = node.attrs?.id ? ` id="${escapeHtml(node.attrs.id as string)}"` : '';
       const hAlign = node.attrs?.textAlign ? ` style="text-align:${node.attrs.textAlign}"` : '';
       return `<h${level}${hId}${hAlign}>${headingText}</h${level}>`;
     }
 
     case 'paragraph': {
-      const paragraphText = node.content ? convertInlineContent(node.content) : '';
+      const paragraphText = node.content ? convertInlineContent(node.content, ctx) : '';
       const pAlign = node.attrs?.textAlign ? ` style="text-align:${node.attrs.textAlign}"` : '';
       return paragraphText ? `<p${pAlign}>${paragraphText}</p>` : '<p></p>';
     }
 
-    case 'bulletList':
-      const bulletItems = node.content ? node.content.map(convertNode).join('\n') : '';
+    case 'bulletList': {
+      const bulletItems = node.content ? node.content.map(n => convertNode(n, ctx)).join('\n') : '';
       return `<ul>\n${bulletItems}\n</ul>`;
+    }
 
-    case 'orderedList':
-      const orderedItems = node.content ? node.content.map(convertNode).join('\n') : '';
+    case 'orderedList': {
+      const orderedItems = node.content ? node.content.map(n => convertNode(n, ctx)).join('\n') : '';
       return `<ol>\n${orderedItems}\n</ol>`;
+    }
 
-    case 'listItem':
+    case 'listItem': {
       const itemContent = node.content
         ? node.content.map((child) => {
             if (child.type === 'paragraph') {
-              return child.content ? convertInlineContent(child.content) : '';
+              return child.content ? convertInlineContent(child.content, ctx) : '';
             }
-            return convertNode(child);
+            return convertNode(child, ctx);
           }).join('\n')
         : '';
       return `  <li>${itemContent}</li>`;
+    }
 
-    case 'taskList':
-      const taskItems = node.content ? node.content.map(convertNode).join('\n') : '';
+    case 'taskList': {
+      const taskItems = node.content ? node.content.map(n => convertNode(n, ctx)).join('\n') : '';
       return `<ul class="task-list">\n${taskItems}\n</ul>`;
+    }
 
-    case 'taskItem':
+    case 'taskItem': {
       const checked = node.attrs?.checked ? ' checked' : '';
       const taskContent = node.content
         ? node.content.map((child) => {
             if (child.type === 'paragraph') {
-              return child.content ? convertInlineContent(child.content) : '';
+              return child.content ? convertInlineContent(child.content, ctx) : '';
             }
-            return convertNode(child);
+            return convertNode(child, ctx);
           }).join('\n')
         : '';
       return `  <li class="task-item"><input type="checkbox"${checked} disabled> ${taskContent}</li>`;
+    }
 
-    case 'codeBlock':
-      const language = node.attrs?.language || '';
+    case 'codeBlock': {
+      const language = (node.attrs?.language as string) || '';
       const code = node.content ? node.content.map((n) => n.text || '').join('\n') : '';
       let highlightedCode: string;
       if (language && hljs.getLanguage(language)) {
@@ -131,27 +141,26 @@ function convertNode(node: TiptapNode): string {
         highlightedCode = hljs.highlightAuto(code).value;
       }
       return `<pre><code class="hljs language-${escapeHtml(language)}">${highlightedCode}</code></pre>`;
+    }
 
     case 'mathInline':
-      // Render inline LaTeX with KaTeX-compatible placeholder; actual rendering needs client-side katex
-      return `<span class="math-inline" data-latex="${escapeHtml(node.attrs?.latex || '')}">\\(${escapeHtml(node.attrs?.latex || '')}\\)</span>`;
+      return `<span class="math-inline" data-latex="${escapeHtml((node.attrs?.latex as string) || '')}">\\(${escapeHtml((node.attrs?.latex as string) || '')}\\)</span>`;
 
     case 'mathBlock':
-      return `<div class="math-block" data-latex="${escapeHtml(node.attrs?.latex || '')}">\\[${escapeHtml(node.attrs?.latex || '')}\\]</div>`;
+      return `<div class="math-block" data-latex="${escapeHtml((node.attrs?.latex as string) || '')}">\\[${escapeHtml((node.attrs?.latex as string) || '')}\\]</div>`;
 
     case 'diagram':
-      return `<pre class="mermaid">${escapeHtml(node.attrs?.code || '')}</pre>`;
+      return `<pre class="mermaid">${escapeHtml((node.attrs?.code as string) || '')}</pre>`;
 
     case 'table':
-      return convertTable(node);
+      return convertTable(node, ctx);
 
     case 'image':
-      return convertImage(node);
+      return convertImage(node, ctx);
 
     case 'tableRow':
     case 'tableCell':
     case 'tableHeader':
-      // These are handled by the table converter
       return '';
 
     case 'hardBreak':
@@ -161,70 +170,59 @@ function convertNode(node: TiptapNode): string {
       return applyMarks(escapeHtml(node.text || ''), node.marks || []);
 
     default:
-      // For unknown types, try to process content if available
-      return node.content ? node.content.map(convertNode).join('') : '';
+      return node.content ? node.content.map(n => convertNode(n, ctx)).join('') : '';
   }
 }
 
-function convertInlineContent(content: TiptapNode[]): string {
-  return content.map(convertNode).join('');
+function convertInlineContent(content: TiptapNode[], ctx: ConvertContext): string {
+  return content.map(n => convertNode(n, ctx)).join('');
 }
 
-/**
- * Converts table cell content without adding paragraph tags
- */
-function convertTableCellContent(content: TiptapNode[]): string {
+function convertTableCellContent(content: TiptapNode[], ctx: ConvertContext): string {
   return content.map((node) => {
     if (node.type === 'paragraph') {
-      // For paragraphs in table cells, just get the text without paragraph tags
-      return node.content ? convertInlineContent(node.content) : '';
+      return node.content ? convertInlineContent(node.content, ctx) : '';
     }
-    return convertNode(node);
+    return convertNode(node, ctx);
   }).join('').trim();
 }
 
-function convertTable(table: TiptapNode): string {
+function convertTable(table: TiptapNode, ctx: ConvertContext): string {
   if (!table.content || table.content.length === 0) {
     return '';
   }
 
-  tableCounter++;
+  ctx.tableCounter++;
   let html = '';
 
-  // Get table attributes
   const caption = table.attrs?.caption;
   const align = table.attrs?.align || 'left';
   const width = table.attrs?.width || '100%';
-  const prefix = currentSettings.tableCaptionPrefix || 'Table';
-  const numbering = currentSettings.captionNumbering === 'hierarchical'
-    ? `${h1Counter}.${tableCounter}`
-    : `${tableCounter}`;
+  const prefix = ctx.settings.tableCaptionPrefix || 'Table';
+  const numbering = ctx.settings.captionNumbering === 'hierarchical'
+    ? `${ctx.h1Counter}.${ctx.tableCounter}`
+    : `${ctx.tableCounter}`;
 
-  // Check if first row has headers
   const hasHeader = table.content[0]?.content?.some(
     (cell: TiptapNode) => cell.type === 'tableHeader'
   );
 
-  // Start table with attributes
-  const tId = table.attrs?.id ? ` id="${escapeHtml(table.attrs.id)}"` : '';
+  const tId = table.attrs?.id ? ` id="${escapeHtml(table.attrs.id as string)}"` : '';
   html += `<table${tId} style="width: ${width}; text-align: ${align};" class="doc-table">`;
 
-  // Add caption if present
   if (caption) {
-    html += `\n  <caption>${prefix} ${numbering}: ${escapeHtml(caption)}</caption>`;
+    html += `\n  <caption>${prefix} ${numbering}: ${escapeHtml(caption as string)}</caption>`;
   }
 
-  // Process rows
   if (hasHeader && table.content[0]) {
-    // First row as header
     html += '\n  <thead>\n    <tr>';
     const headerRow = table.content[0];
     if (headerRow.content) {
       for (const cell of headerRow.content) {
-        const cellContent = cell.content ? convertTableCellContent(cell.content) : '';
+        const cellContent = cell.content ? convertTableCellContent(cell.content, ctx) : '';
         let cellAttrs = '';
-        const colspan = cell.attrs?.colspan || 1;
-        const rowspan = cell.attrs?.rowspan || 1;
+        const colspan = (cell.attrs?.colspan as number) || 1;
+        const rowspan = (cell.attrs?.rowspan as number) || 1;
         if (colspan > 1) { cellAttrs += ` colspan="${colspan}"`; }
         if (rowspan > 1) { cellAttrs += ` rowspan="${rowspan}"`; }
         html += `\n      <th${cellAttrs}>${cellContent}</th>`;
@@ -232,7 +230,6 @@ function convertTable(table: TiptapNode): string {
     }
     html += '\n    </tr>\n  </thead>';
 
-    // Rest of rows as body
     if (table.content.length > 1) {
       html += '\n  <tbody>';
       for (let i = 1; i < table.content.length; i++) {
@@ -240,10 +237,10 @@ function convertTable(table: TiptapNode): string {
         html += '\n    <tr>';
         if (row.content) {
           for (const cell of row.content) {
-            const cellContent = cell.content ? convertTableCellContent(cell.content) : '';
+            const cellContent = cell.content ? convertTableCellContent(cell.content, ctx) : '';
             let cellAttrs = '';
-            const colspan = cell.attrs?.colspan || 1;
-            const rowspan = cell.attrs?.rowspan || 1;
+            const colspan = (cell.attrs?.colspan as number) || 1;
+            const rowspan = (cell.attrs?.rowspan as number) || 1;
             if (colspan > 1) { cellAttrs += ` colspan="${colspan}"`; }
             if (rowspan > 1) { cellAttrs += ` rowspan="${rowspan}"`; }
             html += `\n      <td${cellAttrs}>${cellContent}</td>`;
@@ -254,17 +251,16 @@ function convertTable(table: TiptapNode): string {
       html += '\n  </tbody>';
     }
   } else {
-    // No header, all rows are body
     html += '\n  <tbody>';
     for (const row of table.content) {
       if (row.type === 'tableRow' && row.content) {
         html += '\n    <tr>';
         for (const cell of row.content) {
-          const cellContent = cell.content ? convertTableCellContent(cell.content) : '';
+          const cellContent = cell.content ? convertTableCellContent(cell.content, ctx) : '';
           const cellTag = cell.type === 'tableHeader' ? 'th' : 'td';
           let cellAttrs = '';
-          const colspan = cell.attrs?.colspan || 1;
-          const rowspan = cell.attrs?.rowspan || 1;
+          const colspan = (cell.attrs?.colspan as number) || 1;
+          const rowspan = (cell.attrs?.rowspan as number) || 1;
           if (colspan > 1) { cellAttrs += ` colspan="${colspan}"`; }
           if (rowspan > 1) { cellAttrs += ` rowspan="${rowspan}"`; }
           html += `\n      <${cellTag}${cellAttrs}>${cellContent}</${cellTag}>`;
@@ -279,17 +275,17 @@ function convertTable(table: TiptapNode): string {
   return html;
 }
 
-function convertImage(node: TiptapNode): string {
-  const src = node.attrs?.src || '';
-  const alt = node.attrs?.alt || '';
-  const title = node.attrs?.title || '';
-  const caption = node.attrs?.caption || '';
-  const align = node.attrs?.align || 'center';
-  imageCounter++;
-  const prefix = currentSettings.imageCaptionPrefix || 'Image';
-  const numbering = currentSettings.captionNumbering === 'hierarchical'
-    ? `${h1Counter}.${imageCounter}`
-    : `${imageCounter}`;
+function convertImage(node: TiptapNode, ctx: ConvertContext): string {
+  const src = (node.attrs?.src as string) || '';
+  const alt = (node.attrs?.alt as string) || '';
+  const title = (node.attrs?.title as string) || '';
+  const caption = (node.attrs?.caption as string) || '';
+  const align = (node.attrs?.align as string) || 'center';
+  ctx.imageCounter++;
+  const prefix = ctx.settings.imageCaptionPrefix || 'Image';
+  const numbering = ctx.settings.captionNumbering === 'hierarchical'
+    ? `${ctx.h1Counter}.${ctx.imageCounter}`
+    : `${ctx.imageCounter}`;
 
   const alignStyle = align === 'left'
     ? ' style="display:block; margin-right:auto; margin-left:0;"'
@@ -340,18 +336,19 @@ function applyMarks(text: string, marks: TiptapMark[]): string {
       case 'code':
         result = `<code>${result}</code>`;
         break;
-      case 'link':
-        const href = mark.attrs?.href || '';
+      case 'link': {
+        const href = (mark.attrs?.href as string) || '';
         const htmlHref = href.replace(/\.sdoc(#|$)/, '.html$1');
         result = `<a href="${escapeHtml(htmlHref)}">${result}</a>`;
         break;
+      }
       case 'textStyle': {
-        const color = mark.attrs?.color;
+        const color = mark.attrs?.color as string;
         if (color) result = `<span style="color:${escapeHtml(color)}">${result}</span>`;
         break;
       }
       case 'highlight': {
-        const bg = mark.attrs?.color || '#fef08a';
+        const bg = (mark.attrs?.color as string) || '#fef08a';
         result = `<mark style="background-color:${escapeHtml(bg)}">${result}</mark>`;
         break;
       }
@@ -359,15 +356,6 @@ function applyMarks(text: string, marks: TiptapMark[]): string {
   }
 
   return result;
-}
-
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
 }
 
 const MERMAID_INIT = `mermaid.initialize({
@@ -415,7 +403,7 @@ function generateScriptTags(settings: ExportSettings): string {
   </script>`;
 }
 
-function generateHtmlDocument(bodyContent: string, theme?: HtmlTheme, meta?: SdocMeta): string {
+function generateHtmlDocument(bodyContent: string, theme?: HtmlTheme, meta?: SdocMeta, ctx?: ConvertContext): string {
   const companyLogo = theme?.companyLogo || '';
   const companyName = theme?.companyName || '';
   const primaryColor = theme?.primaryColor || '#A50034';
@@ -787,7 +775,7 @@ function generateHtmlDocument(bodyContent: string, theme?: HtmlTheme, meta?: Sdo
     .math-inline { display: inline; }
     .math-block { display: block; text-align: center; margin: 1em 0; overflow-x: auto; }
   </style>
-  ${generateScriptTags(currentSettings)}
+  ${generateScriptTags(ctx?.settings || {})}
 </head>
 <body>
   ${companyLogo || companyName ? `

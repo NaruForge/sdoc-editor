@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { convertJsonToMarkdown } from '../converter/jsonToMarkdown';
+import { convertJsonToMarkdown } from '../../shared/converter';
 
 export async function exportToMarkdown(context: vscode.ExtensionContext) {
   // Get the active tab's input

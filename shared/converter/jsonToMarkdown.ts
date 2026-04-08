@@ -1,14 +1,14 @@
 interface TiptapNode {
   type: string;
   content?: TiptapNode[];
-  attrs?: any;
+  attrs?: Record<string, unknown>;
   marks?: TiptapMark[];
   text?: string;
 }
 
 interface TiptapMark {
   type: string;
-  attrs?: any;
+  attrs?: Record<string, unknown>;
 }
 
 interface ExportSettings {
@@ -25,19 +25,23 @@ export interface SdocMeta {
   modified?: string;
 }
 
-let currentSettings: ExportSettings = {};
-let imageCounter = 0;
-let tableCounter = 0;
-let h1Counter = 0;
+interface ConvertContext {
+  settings: ExportSettings;
+  imageCounter: number;
+  tableCounter: number;
+  h1Counter: number;
+}
 
 /**
  * Converts Tiptap JSON to Markdown format
  */
 export function convertJsonToMarkdown(json: TiptapNode, settings?: ExportSettings, meta?: SdocMeta): string {
-  currentSettings = settings || {};
-  imageCounter = 0;
-  tableCounter = 0;
-  h1Counter = 0;
+  const ctx: ConvertContext = {
+    settings: settings || {},
+    imageCounter: 0,
+    tableCounter: 0,
+    h1Counter: 0,
+  };
   let frontMatter = '';
   if (meta && (meta.title || meta.author || meta.version || meta.created || meta.modified)) {
     frontMatter = '---\n';
@@ -48,25 +52,25 @@ export function convertJsonToMarkdown(json: TiptapNode, settings?: ExportSetting
     if (meta.modified) { frontMatter += `modified: "${meta.modified}"\n`; }
     frontMatter += '---\n\n';
   }
-  return frontMatter + convertNode(json).trim() + '\n';
+  return frontMatter + convertNode(json, ctx).trim() + '\n';
 }
 
-function convertNode(node: TiptapNode): string {
+function convertNode(node: TiptapNode, ctx: ConvertContext): string {
   switch (node.type) {
     case 'doc':
-      return node.content ? node.content.map(convertNode).join('\n') : '';
+      return node.content ? node.content.map(n => convertNode(n, ctx)).join('\n') : '';
 
     case 'heading': {
       const level = node.attrs?.level || 1;
-      const headingPrefix = '#'.repeat(level);
-      const headingText = node.content ? convertInlineContent(node.content) : '';
-      if (level === 1) { h1Counter++; imageCounter = 0; tableCounter = 0; }
+      const headingPrefix = '#'.repeat(level as number);
+      const headingText = node.content ? convertInlineContent(node.content, ctx) : '';
+      if (level === 1) { ctx.h1Counter++; ctx.imageCounter = 0; ctx.tableCounter = 0; }
       const anchor = node.attrs?.id ? ` {#${node.attrs.id}}` : '';
       return `${headingPrefix} ${headingText}${anchor}\n`;
     }
 
     case 'paragraph': {
-      const paragraphText = node.content ? convertInlineContent(node.content) : '';
+      const paragraphText = node.content ? convertInlineContent(node.content, ctx) : '';
       const align = node.attrs?.textAlign;
       if (paragraphText && align && align !== 'left') {
         return `<p style="text-align:${align}">${paragraphText}</p>\n`;
@@ -75,13 +79,12 @@ function convertNode(node: TiptapNode): string {
     }
 
     case 'bulletList':
-      return node.content ? node.content.map((item) => convertListItem(item, '-')).join('') : '';
+      return node.content ? node.content.map((item) => convertListItem(item, '-', ctx)).join('') : '';
 
     case 'orderedList':
-      return node.content ? node.content.map((item, index) => convertListItem(item, `${index + 1}.`)).join('') : '';
+      return node.content ? node.content.map((item, index) => convertListItem(item, `${index + 1}.`, ctx)).join('') : '';
 
     case 'listItem':
-      // This is handled by the list itself
       return '';
 
     case 'taskList':
@@ -89,9 +92,9 @@ function convertNode(node: TiptapNode): string {
         const checked = item.attrs?.checked ? 'x' : ' ';
         const text = item.content ? item.content.map((child) => {
           if (child.type === 'paragraph') {
-            return child.content ? convertInlineContent(child.content) : '';
+            return child.content ? convertInlineContent(child.content, ctx) : '';
           }
-          return convertNode(child);
+          return convertNode(child, ctx);
         }).join('\n') : '';
         return `- [${checked}] ${text}\n`;
       }).join('') : '';
@@ -99,10 +102,11 @@ function convertNode(node: TiptapNode): string {
     case 'taskItem':
       return '';
 
-    case 'codeBlock':
+    case 'codeBlock': {
       const language = node.attrs?.language || '';
       const code = node.content ? node.content.map((n) => n.text || '').join('\n') : '';
       return `\`\`\`${language}\n${code}\n\`\`\`\n`;
+    }
 
     case 'mathInline':
       return `$${node.attrs?.latex || ''}$`;
@@ -117,51 +121,41 @@ function convertNode(node: TiptapNode): string {
     }
 
     case 'table':
-      return convertTable(node);
+      return convertTable(node, ctx);
 
     case 'image':
-      return convertImage(node);
+      return convertImage(node, ctx);
 
     case 'tableRow':
     case 'tableCell':
     case 'tableHeader':
-      // These are handled by the table converter
       return '';
 
     case 'hardBreak':
-      return '  \n'; // Two spaces followed by newline for hard break in Markdown
+      return '  \n';
 
     case 'text':
       return applyMarks(node.text || '', node.marks || []);
 
     default:
-      // For unknown types, try to process content if available
-      return node.content ? node.content.map(convertNode).join('') : '';
+      return node.content ? node.content.map(n => convertNode(n, ctx)).join('') : '';
   }
 }
 
-function convertInlineContent(content: TiptapNode[]): string {
-  return content.map(convertNode).join('');
+function convertInlineContent(content: TiptapNode[], ctx: ConvertContext): string {
+  return content.map(n => convertNode(n, ctx)).join('');
 }
 
-/**
- * Escape pipe characters and newlines for safe use inside Markdown table cells.
- */
 function escapeTableCell(text: string): string {
   return text.replace(/\|/g, '\\|').replace(/\n/g, '<br>');
 }
 
-/**
- * Check if a table contains complex cells (colspan/rowspan or multi-block content)
- * that cannot be represented in standard GFM pipe tables.
- */
 function isComplexTable(table: TiptapNode): boolean {
   for (const row of table.content || []) {
     for (const cell of row.content || []) {
-      const colspan = cell.attrs?.colspan || 1;
-      const rowspan = cell.attrs?.rowspan || 1;
+      const colspan = (cell.attrs?.colspan as number) || 1;
+      const rowspan = (cell.attrs?.rowspan as number) || 1;
       if (colspan > 1 || rowspan > 1) { return true; }
-      // Multi-block content (more than one block, or non-paragraph block)
       if (cell.content && cell.content.length > 1) { return true; }
       if (cell.content?.some((c: TiptapNode) => c.type !== 'paragraph')) { return true; }
     }
@@ -169,34 +163,28 @@ function isComplexTable(table: TiptapNode): boolean {
   return false;
 }
 
-/**
- * Converts table cell content without adding paragraph tags (for GFM pipe tables)
- */
-function convertTableCellContent(content: TiptapNode[]): string {
+function convertTableCellContent(content: TiptapNode[], ctx: ConvertContext): string {
   return escapeTableCell(
     content.map((node) => {
       if (node.type === 'paragraph') {
-        return node.content ? convertInlineContent(node.content) : '';
+        return node.content ? convertInlineContent(node.content, ctx) : '';
       }
-      return convertNode(node);
+      return convertNode(node, ctx);
     }).join('').trim()
   );
 }
 
-/**
- * Converts table cell content for HTML fallback (preserves block structure)
- */
-function convertTableCellContentHtml(content: TiptapNode[]): string {
+function convertTableCellContentHtml(content: TiptapNode[], ctx: ConvertContext): string {
   return content.map((node) => {
     if (node.type === 'paragraph') {
-      const text = node.content ? convertInlineContent(node.content) : '';
+      const text = node.content ? convertInlineContent(node.content, ctx) : '';
       return text;
     }
-    return convertNode(node);
+    return convertNode(node, ctx);
   }).join('<br>').trim();
 }
 
-function convertListItem(item: TiptapNode, marker: string): string {
+function convertListItem(item: TiptapNode, marker: string, ctx: ConvertContext): string {
   if (item.type !== 'listItem') {
     return '';
   }
@@ -204,53 +192,46 @@ function convertListItem(item: TiptapNode, marker: string): string {
   const itemContent = item.content
     ? item.content.map((child) => {
         if (child.type === 'paragraph') {
-          return child.content ? convertInlineContent(child.content) : '';
+          return child.content ? convertInlineContent(child.content, ctx) : '';
         }
-        return convertNode(child);
+        return convertNode(child, ctx);
       }).join('\n')
     : '';
 
   return `${marker} ${itemContent}\n`;
 }
 
-function convertTable(table: TiptapNode): string {
+function convertTable(table: TiptapNode, ctx: ConvertContext): string {
   if (!table.content || table.content.length === 0) {
     return '';
   }
 
-  // Caption (shared by both paths)
   let captionMd = '';
   const caption = table.attrs?.caption;
   if (caption) {
-    tableCounter++;
-    const prefix = currentSettings.tableCaptionPrefix || 'Table';
-    const numbering = currentSettings.captionNumbering === 'hierarchical'
-      ? `${h1Counter}.${tableCounter}`
-      : `${tableCounter}`;
+    ctx.tableCounter++;
+    const prefix = ctx.settings.tableCaptionPrefix || 'Table';
+    const numbering = ctx.settings.captionNumbering === 'hierarchical'
+      ? `${ctx.h1Counter}.${ctx.tableCounter}`
+      : `${ctx.tableCounter}`;
     captionMd = `**${prefix} ${numbering}: ${caption}**\n\n`;
   }
 
   if (isComplexTable(table)) {
-    return captionMd + convertTableAsHtml(table);
+    return captionMd + convertTableAsHtml(table, ctx);
   }
-  return captionMd + convertTableAsGfm(table);
+  return captionMd + convertTableAsGfm(table, ctx);
 }
 
-/**
- * Calculate the logical column count from the first row (accounting for colspan).
- */
 function getLogicalColumnCount(table: TiptapNode): number {
   const firstRow = table.content?.[0];
   if (!firstRow?.content) { return 0; }
   return firstRow.content.reduce((sum: number, cell: TiptapNode) => {
-    return sum + (cell.attrs?.colspan || 1);
+    return sum + ((cell.attrs?.colspan as number) || 1);
   }, 0);
 }
 
-/**
- * Convert a simple table (no colspan/rowspan) to GFM pipe syntax.
- */
-function convertTableAsGfm(table: TiptapNode): string {
+function convertTableAsGfm(table: TiptapNode, ctx: ConvertContext): string {
   let md = '';
   const colCount = getLogicalColumnCount(table);
 
@@ -263,9 +244,8 @@ function convertTableAsGfm(table: TiptapNode): string {
     if (headerRow.content) {
       const headers: string[] = [];
       for (const cell of headerRow.content) {
-        headers.push(cell.content ? convertTableCellContent(cell.content) : '');
+        headers.push(cell.content ? convertTableCellContent(cell.content, ctx) : '');
       }
-      // Pad to column count if needed
       while (headers.length < colCount) { headers.push(''); }
       md += '| ' + headers.join(' | ') + ' |\n';
       md += '|' + headers.map(() => ' --- ').join('|') + '|\n';
@@ -276,14 +256,13 @@ function convertTableAsGfm(table: TiptapNode): string {
       if (row.type === 'tableRow' && row.content) {
         const cells: string[] = [];
         for (const cell of row.content) {
-          cells.push(cell.content ? convertTableCellContent(cell.content) : '');
+          cells.push(cell.content ? convertTableCellContent(cell.content, ctx) : '');
         }
         while (cells.length < colCount) { cells.push(''); }
         md += '| ' + cells.join(' | ') + ' |\n';
       }
     }
   } else {
-    // No header: generate an empty header row so GFM renderers recognize the table
     const emptyHeaders = Array(colCount).fill('');
     md += '| ' + emptyHeaders.join(' | ') + ' |\n';
     md += '|' + emptyHeaders.map(() => ' --- ').join('|') + '|\n';
@@ -292,7 +271,7 @@ function convertTableAsGfm(table: TiptapNode): string {
       if (row.type === 'tableRow' && row.content) {
         const cells: string[] = [];
         for (const cell of row.content) {
-          cells.push(cell.content ? convertTableCellContent(cell.content) : '');
+          cells.push(cell.content ? convertTableCellContent(cell.content, ctx) : '');
         }
         while (cells.length < colCount) { cells.push(''); }
         md += '| ' + cells.join(' | ') + ' |\n';
@@ -304,11 +283,7 @@ function convertTableAsGfm(table: TiptapNode): string {
   return md;
 }
 
-/**
- * Convert a complex table (colspan/rowspan/multi-block cells) to HTML.
- * Raw HTML is valid inside GFM / CommonMark.
- */
-function convertTableAsHtml(table: TiptapNode): string {
+function convertTableAsHtml(table: TiptapNode, ctx: ConvertContext): string {
   const align = table.attrs?.align || 'left';
   const width = table.attrs?.width || '100%';
   const tId = table.attrs?.id ? ` id="${table.attrs.id}"` : '';
@@ -320,8 +295,8 @@ function convertTableAsHtml(table: TiptapNode): string {
 
   const renderCellAttrs = (cell: TiptapNode): string => {
     let attrs = '';
-    const colspan = cell.attrs?.colspan || 1;
-    const rowspan = cell.attrs?.rowspan || 1;
+    const colspan = (cell.attrs?.colspan as number) || 1;
+    const rowspan = (cell.attrs?.rowspan as number) || 1;
     if (colspan > 1) { attrs += ` colspan="${colspan}"`; }
     if (rowspan > 1) { attrs += ` rowspan="${rowspan}"`; }
     return attrs;
@@ -332,7 +307,7 @@ function convertTableAsHtml(table: TiptapNode): string {
     const headerRow = table.content![0];
     if (headerRow.content) {
       for (const cell of headerRow.content) {
-        const cellContent = cell.content ? convertTableCellContentHtml(cell.content) : '';
+        const cellContent = cell.content ? convertTableCellContentHtml(cell.content, ctx) : '';
         html += `<th${renderCellAttrs(cell)}>${cellContent}</th>`;
       }
     }
@@ -345,7 +320,7 @@ function convertTableAsHtml(table: TiptapNode): string {
         html += '\n<tr>';
         if (row.content) {
           for (const cell of row.content) {
-            const cellContent = cell.content ? convertTableCellContentHtml(cell.content) : '';
+            const cellContent = cell.content ? convertTableCellContentHtml(cell.content, ctx) : '';
             html += `<td${renderCellAttrs(cell)}>${cellContent}</td>`;
           }
         }
@@ -359,7 +334,7 @@ function convertTableAsHtml(table: TiptapNode): string {
       if (row.type === 'tableRow' && row.content) {
         html += '\n<tr>';
         for (const cell of row.content) {
-          const cellContent = cell.content ? convertTableCellContentHtml(cell.content) : '';
+          const cellContent = cell.content ? convertTableCellContentHtml(cell.content, ctx) : '';
           const tag = cell.type === 'tableHeader' ? 'th' : 'td';
           html += `<${tag}${renderCellAttrs(cell)}>${cellContent}</${tag}>`;
         }
@@ -373,7 +348,7 @@ function convertTableAsHtml(table: TiptapNode): string {
   return html;
 }
 
-function convertImage(node: TiptapNode): string {
+function convertImage(node: TiptapNode, ctx: ConvertContext): string {
   const src = node.attrs?.src || '';
   const alt = node.attrs?.alt || '';
   const caption = node.attrs?.caption || '';
@@ -381,11 +356,11 @@ function convertImage(node: TiptapNode): string {
   let md = `![${alt}](${src})`;
 
   if (caption) {
-    imageCounter++;
-    const prefix = currentSettings.imageCaptionPrefix || 'Image';
-    const numbering = currentSettings.captionNumbering === 'hierarchical'
-      ? `${h1Counter}.${imageCounter}`
-      : `${imageCounter}`;
+    ctx.imageCounter++;
+    const prefix = ctx.settings.imageCaptionPrefix || 'Image';
+    const numbering = ctx.settings.captionNumbering === 'hierarchical'
+      ? `${ctx.h1Counter}.${ctx.imageCounter}`
+      : `${ctx.imageCounter}`;
     md += `\n\n*${prefix} ${numbering}: ${caption}*`;
   }
 
@@ -395,7 +370,6 @@ function convertImage(node: TiptapNode): string {
 function applyMarks(text: string, marks: TiptapMark[]): string {
   let result = text;
 
-  // Apply marks in order: bold, italic, code (innermost to outermost)
   const hasBold = marks.some(m => m.type === 'bold');
   const hasItalic = marks.some(m => m.type === 'italic');
   const hasUnderline = marks.some(m => m.type === 'underline');
@@ -407,11 +381,9 @@ function applyMarks(text: string, marks: TiptapMark[]): string {
   const colorMark = marks.find(m => m.type === 'textStyle');
   const highlightMark = marks.find(m => m.type === 'highlight');
 
-  // Code takes precedence
   if (hasCode) {
     result = `\`${result}\``;
   } else {
-    // Apply formatting marks
     if (hasBold && hasItalic) {
       result = `***${result}***`;
     } else if (hasBold) {
@@ -432,25 +404,22 @@ function applyMarks(text: string, marks: TiptapMark[]): string {
       result = `^${result}^`;
     }
 
-    // Note: Markdown doesn't have native underline, we'll use HTML
     if (hasUnderline) {
       result = `<u>${result}</u>`;
     }
   }
 
-  // Apply link last
   if (linkMark) {
-    const href = linkMark.attrs?.href || '';
+    const href = (linkMark.attrs?.href as string) || '';
     const mdHref = href.replace(/\.sdoc(#|$)/, '.md$1');
     result = `[${result}](${mdHref})`;
   }
 
-  // color/highlight: fall back to HTML span (Markdown has no native support)
   if (colorMark?.attrs?.color) {
     result = `<span style="color:${colorMark.attrs.color}">${result}</span>`;
   }
   if (highlightMark) {
-    const bg = highlightMark.attrs?.color || '#fef08a';
+    const bg = (highlightMark.attrs?.color as string) || '#fef08a';
     result = `<mark style="background-color:${bg}">${result}</mark>`;
   }
 

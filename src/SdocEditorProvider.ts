@@ -1,11 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { getNonce, getWebviewUri } from './utils/webviewHelper';
-import { convertJsonToHtml } from './converter/jsonToHtml';
-import { convertJsonToAdoc } from './converter/jsonToAdoc';
-import { convertJsonToMarkdown } from './converter/jsonToMarkdown';
-import { convertJsonToSlides } from './converter/jsonToSlides';
-import { convertMarkdownToJson } from './converter/markdownToJson';
+import { convertJsonToHtml, convertJsonToAdoc, convertJsonToMarkdown, convertJsonToSlides, convertMarkdownToJson } from '../shared/converter';
 import { detectBrowser, printToPdf } from './utils/browserDetect';
 import {
   unwrapSdoc as sharedUnwrapSdoc,

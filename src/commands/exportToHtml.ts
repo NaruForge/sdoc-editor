@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as https from 'https';
-import { convertJsonToHtml } from '../converter/jsonToHtml';
+import { convertJsonToHtml } from '../../shared/converter';
 
 export async function exportToHtml(context: vscode.ExtensionContext) {
   // Get the active tab's input

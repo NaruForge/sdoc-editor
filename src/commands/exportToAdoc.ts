@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { convertJsonToAdoc } from '../converter/jsonToAdoc';
+import { convertJsonToAdoc } from '../../shared/converter';
 
 export async function exportToAdoc(context: vscode.ExtensionContext) {
   // Get the active tab's input

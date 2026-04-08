@@ -1,14 +1,14 @@
 interface TiptapNode {
   type: string;
   content?: TiptapNode[];
-  attrs?: any;
+  attrs?: Record<string, unknown>;
   marks?: TiptapMark[];
   text?: string;
 }
 
 interface TiptapMark {
   type: string;
-  attrs?: any;
+  attrs?: Record<string, unknown>;
 }
 
 interface ExportSettings {
@@ -25,19 +25,23 @@ export interface SdocMeta {
   modified?: string;
 }
 
-let currentSettings: ExportSettings = {};
-let imageCounter = 0;
-let tableCounter = 0;
-let h1Counter = 0;
+interface ConvertContext {
+  settings: ExportSettings;
+  imageCounter: number;
+  tableCounter: number;
+  h1Counter: number;
+}
 
 /**
  * Converts Tiptap JSON to AsciiDoc format
  */
 export function convertJsonToAdoc(json: TiptapNode, settings?: ExportSettings, meta?: SdocMeta): string {
-  currentSettings = settings || {};
-  imageCounter = 0;
-  tableCounter = 0;
-  h1Counter = 0;
+  const ctx: ConvertContext = {
+    settings: settings || {},
+    imageCounter: 0,
+    tableCounter: 0,
+    h1Counter: 0,
+  };
   // Add AsciiDoc document attributes
   let docAttributes = ':sectnums:\n:sectnumlevels: 4\n';
   if (meta?.title) { docAttributes += `= ${meta.title}\n`; }
@@ -46,25 +50,25 @@ export function convertJsonToAdoc(json: TiptapNode, settings?: ExportSettings, m
   if (meta?.modified) { docAttributes += `:revdate: ${meta.modified}\n`; }
   if (meta?.created) { docAttributes += `:created: ${meta.created}\n`; }
   docAttributes += '\n';
-  return docAttributes + convertNode(json).trim() + '\n';
+  return docAttributes + convertNode(json, ctx).trim() + '\n';
 }
 
-function convertNode(node: TiptapNode): string {
+function convertNode(node: TiptapNode, ctx: ConvertContext): string {
   switch (node.type) {
     case 'doc':
-      return node.content ? node.content.map(convertNode).join('\n') : '';
+      return node.content ? node.content.map(n => convertNode(n, ctx)).join('\n') : '';
 
     case 'heading': {
       const level = node.attrs?.level || 1;
       const headingPrefix = '='.repeat(level + 1);
-      const headingText = node.content ? convertInlineContent(node.content) : '';
-      if (level === 1) { h1Counter++; imageCounter = 0; tableCounter = 0; }
+      const headingText = node.content ? convertInlineContent(node.content, ctx) : '';
+      if (level === 1) { ctx.h1Counter++; ctx.imageCounter = 0; ctx.tableCounter = 0; }
       const hAnchor = node.attrs?.id ? `[[${node.attrs.id}]]\n` : '';
       return `${hAnchor}${headingPrefix} ${headingText}\n`;
     }
 
     case 'paragraph': {
-      const paragraphText = node.content ? convertInlineContent(node.content) : '';
+      const paragraphText = node.content ? convertInlineContent(node.content, ctx) : '';
       const align = node.attrs?.textAlign;
       if (paragraphText && align && align !== 'left') {
         const adocAlign = align === 'center' ? 'text-center' : align === 'right' ? 'text-right' : 'text-justify';
@@ -74,13 +78,12 @@ function convertNode(node: TiptapNode): string {
     }
 
     case 'bulletList':
-      return node.content ? node.content.map((item) => convertListItem(item, '*')).join('') : '';
+      return node.content ? node.content.map((item) => convertListItem(item, '*', ctx)).join('') : '';
 
     case 'orderedList':
-      return node.content ? node.content.map((item) => convertListItem(item, '.')).join('') : '';
+      return node.content ? node.content.map((item) => convertListItem(item, '.', ctx)).join('') : '';
 
     case 'listItem':
-      // This is handled by the list itself
       return '';
 
     case 'taskList':
@@ -88,9 +91,9 @@ function convertNode(node: TiptapNode): string {
         const checked = item.attrs?.checked ? 'x' : ' ';
         const text = item.content ? item.content.map((child) => {
           if (child.type === 'paragraph') {
-            return child.content ? convertInlineContent(child.content) : '';
+            return child.content ? convertInlineContent(child.content, ctx) : '';
           }
-          return convertNode(child);
+          return convertNode(child, ctx);
         }).join('\n') : '';
         return `* [${checked}] ${text}\n`;
       }).join('') : '';
@@ -98,10 +101,11 @@ function convertNode(node: TiptapNode): string {
     case 'taskItem':
       return '';
 
-    case 'codeBlock':
+    case 'codeBlock': {
       const language = node.attrs?.language || '';
       const code = node.content ? node.content.map((n) => n.text || '').join('\n') : '';
       return `[source${language ? `,${language}` : ''}]\n----\n${code}\n----\n`;
+    }
 
     case 'diagram': {
       const diagLang = node.attrs?.language || 'mermaid';
@@ -110,15 +114,14 @@ function convertNode(node: TiptapNode): string {
     }
 
     case 'table':
-      return convertTable(node);
+      return convertTable(node, ctx);
 
     case 'image':
-      return convertImage(node);
+      return convertImage(node, ctx);
 
     case 'tableRow':
     case 'tableCell':
     case 'tableHeader':
-      // These are handled by the table converter
       return '';
 
     case 'hardBreak':
@@ -128,29 +131,24 @@ function convertNode(node: TiptapNode): string {
       return applyMarks(node.text || '', node.marks || []);
 
     default:
-      // For unknown types, try to process content if available
-      return node.content ? node.content.map(convertNode).join('') : '';
+      return node.content ? node.content.map(n => convertNode(n, ctx)).join('') : '';
   }
 }
 
-function convertInlineContent(content: TiptapNode[]): string {
-  return content.map(convertNode).join('');
+function convertInlineContent(content: TiptapNode[], ctx: ConvertContext): string {
+  return content.map(n => convertNode(n, ctx)).join('');
 }
 
-/**
- * Converts table cell content without adding newlines from paragraphs
- */
-function convertTableCellContent(content: TiptapNode[]): string {
+function convertTableCellContent(content: TiptapNode[], ctx: ConvertContext): string {
   return content.map((node) => {
     if (node.type === 'paragraph') {
-      // For paragraphs in table cells, just get the text without newlines
-      return node.content ? convertInlineContent(node.content) : '';
+      return node.content ? convertInlineContent(node.content, ctx) : '';
     }
-    return convertNode(node);
+    return convertNode(node, ctx);
   }).join('').trim();
 }
 
-function convertListItem(item: TiptapNode, marker: string): string {
+function convertListItem(item: TiptapNode, marker: string, ctx: ConvertContext): string {
   if (item.type !== 'listItem') {
     return '';
   }
@@ -158,43 +156,40 @@ function convertListItem(item: TiptapNode, marker: string): string {
   const itemContent = item.content
     ? item.content.map((child) => {
         if (child.type === 'paragraph') {
-          return child.content ? convertInlineContent(child.content) : '';
+          return child.content ? convertInlineContent(child.content, ctx) : '';
         }
-        return convertNode(child);
+        return convertNode(child, ctx);
       }).join('\n')
     : '';
 
   return `${marker} ${itemContent}\n`;
 }
 
-function convertTable(table: TiptapNode): string {
+function convertTable(table: TiptapNode, ctx: ConvertContext): string {
   if (!table.content || table.content.length === 0) {
     return '';
   }
 
   let adoc = '';
 
-  // Add caption if present
   const caption = table.attrs?.caption;
   if (caption) {
-    tableCounter++;
-    const prefix = currentSettings.tableCaptionPrefix || 'Table';
-    const numbering = currentSettings.captionNumbering === 'hierarchical'
-      ? `${h1Counter}.${tableCounter}`
-      : `${tableCounter}`;
+    ctx.tableCounter++;
+    const prefix = ctx.settings.tableCaptionPrefix || 'Table';
+    const numbering = ctx.settings.captionNumbering === 'hierarchical'
+      ? `${ctx.h1Counter}.${ctx.tableCounter}`
+      : `${ctx.tableCounter}`;
     adoc += `.${prefix} ${numbering}: ${caption}\n`;
   }
 
-  // Check if first row has headers
   const hasHeader = table.content[0]?.content?.some(
     (cell: TiptapNode) => cell.type === 'tableHeader'
   );
 
-  // Add table options
   const align = table.attrs?.align;
   const width = table.attrs?.width;
 
-  let tableOptions: string[] = [];
+  const tableOptions: string[] = [];
 
   if (hasHeader) {
     tableOptions.push('header');
@@ -214,15 +209,13 @@ function convertTable(table: TiptapNode): string {
 
   adoc += '|===\n';
 
-  // Process each row - cells should be on the same line
   for (const row of table.content) {
     if (row.type === 'tableRow' && row.content) {
       const cells: string[] = [];
       for (const cell of row.content) {
-        const cellContent = cell.content ? convertTableCellContent(cell.content) : '';
+        const cellContent = cell.content ? convertTableCellContent(cell.content, ctx) : '';
         cells.push(cellContent);
       }
-      // All cells in one line, separated by |
       adoc += '| ' + cells.join(' | ') + '\n';
     }
   }
@@ -231,7 +224,7 @@ function convertTable(table: TiptapNode): string {
   return adoc;
 }
 
-function convertImage(node: TiptapNode): string {
+function convertImage(node: TiptapNode, ctx: ConvertContext): string {
   const src = node.attrs?.src || '';
   const alt = node.attrs?.alt || '';
   const title = node.attrs?.title || '';
@@ -243,17 +236,15 @@ function convertImage(node: TiptapNode): string {
 
   let adoc = '';
 
-  // Add caption if present (displayed above image in AsciiDoc)
   if (caption) {
-    imageCounter++;
-    const prefix = currentSettings.imageCaptionPrefix || 'Image';
-    const numbering = currentSettings.captionNumbering === 'hierarchical'
-      ? `${h1Counter}.${imageCounter}`
-      : `${imageCounter}`;
+    ctx.imageCounter++;
+    const prefix = ctx.settings.imageCaptionPrefix || 'Image';
+    const numbering = ctx.settings.captionNumbering === 'hierarchical'
+      ? `${ctx.h1Counter}.${ctx.imageCounter}`
+      : `${ctx.imageCounter}`;
     adoc += `.${prefix} ${numbering}: ${caption}\n`;
   }
 
-  // AsciiDoc image syntax: image::path[alt text, title]
   adoc += `image::${src}[`;
 
   if (alt) {
@@ -295,8 +286,8 @@ function applyMarks(text: string, marks: TiptapMark[]): string {
       case 'code':
         result = `\`${result}\``;
         break;
-      case 'link':
-        const href = mark.attrs?.href || '';
+      case 'link': {
+        const href = (mark.attrs?.href as string) || '';
         if (href.startsWith('#')) {
           result = `<<${href.slice(1)},${result}>>`;
         } else if (href.includes('.sdoc')) {
@@ -306,6 +297,7 @@ function applyMarks(text: string, marks: TiptapMark[]): string {
           result = `${href}[${result}]`;
         }
         break;
+      }
       case 'textStyle': {
         const color = mark.attrs?.color;
         if (color) result = `[.color-custom]#${result}#`;

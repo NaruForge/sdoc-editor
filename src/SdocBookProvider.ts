@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import { convertJsonToHtml } from './converter/jsonToHtml';
+import { convertJsonToHtml } from '../shared/converter';
 import { detectBrowser, printToPdf } from './utils/browserDetect';
 
 interface SdocBook {

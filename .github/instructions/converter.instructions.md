@@ -4,16 +4,34 @@ applyTo: "**/converter/**,src/commands/**"
 
 # Converters & Import/Export
 
-## Dual Converter Architecture
+## Single-Source Converter Architecture
 
-Two sets of identical converters exist for different runtime environments:
+All converters live in **`shared/converter/`** — the single source of truth. No `vscode` API allowed in converters.
 
-- **`src/converter/`** — Used by VS Code extension export commands. May use `vscode` API.
-- **`shared/converter/`** — Used by MCP server and Tauri app. Pure TypeScript, no `vscode` dependency.
+- **`shared/converter/`** — Used by VS Code extension, MCP server, and Tauri app. Pure TypeScript.
+- **`src/commands/`** — Export commands import from `../../shared/converter` and handle vscode-specific file I/O.
+- **`src/converter/`** — **DELETED**. Do not re-create.
 
-Both must stay in sync. When adding a node type, update **all 8 files**:
-- `src/converter/`: `jsonToHtml.ts`, `jsonToAdoc.ts`, `jsonToMarkdown.ts`, `markdownToJson.ts`
-- `shared/converter/`: `jsonToHtml.ts`, `jsonToAdoc.ts`, `jsonToMarkdown.ts`, `markdownToJson.ts`
+When adding a node type, update **4 files** in `shared/converter/`:
+- `jsonToHtml.ts`, `jsonToAdoc.ts`, `jsonToMarkdown.ts`, `markdownToJson.ts`
+
+## Context Object Pattern
+
+All converters use a `ConvertContext` object instead of module-level mutable state:
+```typescript
+interface ConvertContext {
+  settings: ExportSettings;
+  imageCounter: number;
+  tableCounter: number;
+  h1Counter: number;
+}
+```
+Internal functions receive `ctx` as a parameter. Do NOT add module-level `let` variables.
+
+## Shared Utilities
+
+- `shared/converter/utils.ts` — contains `escapeHtml()` and other shared helpers.
+- Import shared utilities rather than duplicating them across converter files.
 
 ## Export Formats
 
