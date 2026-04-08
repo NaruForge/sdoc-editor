@@ -5,6 +5,19 @@ All notable changes to the "Structured Doc Editor" extension will be documented 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.8] - 2026-04-08
+
+### Added
+- **Export to Slides**: .sdoc 문서를 reveal.js 기반 HTML 슬라이드로 변환
+  - H1 제목 기준 슬라이드 자동 분리
+  - H1 수평 + H2 수직 슬라이드 모드 옵션 (`slide.breakLevel`)
+  - 문서 메타데이터 기반 타이틀 슬라이드 자동 생성 옵션 (`slide.showTitleSlide`)
+  - 슬라이드 전용 테마 색상 설정 (`slide.primaryColor`, `slide.accentColor`)
+  - KaTeX 수식, Mermaid 다이어그램, 코드 뺨록, 표, 이미지 모두 지원
+  - 내장 폰트 base64 임베딩으로 독립적 HTML 출력
+  - Toolbar Export 메뉴 및 `Ctrl+Shift+P` 명령 모두 지원
+  - 브라우저에서 바로 열기 (키보드 탐색, 전체 화면, 슬라이드 오버뷰)
+
 ## [0.3.7] - 2026-04-08
 
 ### Changed

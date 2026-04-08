@@ -7,6 +7,7 @@ import { exportToHtml } from './commands/exportToHtml';
 import { exportToAdoc } from './commands/exportToAdoc';
 import { exportToMarkdown } from './commands/exportToMarkdown';
 import { exportToPdf } from './commands/exportToPdf';
+import { exportToSlides } from './commands/exportToSlides';
 import { checkForUpdate, checkForUpdateManual } from './updateChecker';
 
 /**
@@ -76,6 +77,14 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand(
       'structuredDocEditor.exportToPdf',
       () => exportToPdf(context)
+    )
+  );
+
+  // Register export to Slides command
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      'structuredDocEditor.exportToSlides',
+      () => exportToSlides(context)
     )
   );
 

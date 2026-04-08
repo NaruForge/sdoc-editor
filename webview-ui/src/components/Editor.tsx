@@ -278,7 +278,7 @@ export const Editor: React.FC = () => {
     postMessage({ type: 'viewJson' });
   };
 
-  const handleExport = (format: 'html' | 'adoc' | 'markdown' | 'pdf') => {
+  const handleExport = (format: 'html' | 'adoc' | 'markdown' | 'pdf' | 'slides') => {
     postMessage({ type: 'export', format });
   };
 

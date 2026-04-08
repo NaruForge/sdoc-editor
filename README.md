@@ -1,6 +1,6 @@
 # Structured Doc Editor
 
-> **v0.3.7** — 내장 폰트 및 가중치 설정, What's New 자동 표시
+> **v0.3.8** — 슬라이드 내보내기, 내장 폰트, What's New 자동 표시
 
 `.sdoc` / `.tiptap.json` 파일을 위한 WYSIWYG 구조화 문서 에디터입니다.
 
@@ -12,7 +12,7 @@
 |---|---|
 | WYSIWYG 편집 | Tiptap/ProseMirror 기반 리치 텍스트 에디터 |
 | JSON 저장 | pretty-printed JSON으로 저장 — Git diff 최적화 |
-| 내보내기 | Markdown, AsciiDoc, 테마 적용 HTML, PDF |
+| 내보내기 | Markdown, AsciiDoc, 테마 적용 HTML, PDF, **슬라이드** |
 | 가져오기 | Markdown, HTML → `.sdoc` 변환 |
 | 텍스트 꾸미기 | 굵게, 기울임, 밑줄, 취소선, 코드, **텍스트 색상**, **하이라이트(음영)** |
 | 수학 수식 | KaTeX 인라인 / 블록 수식 |
@@ -25,6 +25,7 @@
 | 섹션 접기 | heading 옆 토글로 섹션별 접기/펼치기 |
 | 할 일 목록 | 체크박스 태스크 리스트 |
 | 문서 메타데이터 | Title, Author, Version 인라인 편집 |
+| 슬라이드 내보내기 | H1 기준 자동 분리, reveal.js 기반 프레젠테이션 HTML 생성 |
 | 내장 폰트 | Legacy Font 2.0 (Light / Regular / SemiBold / Bold) 번들 |
 | 자동 업데이트 | 공유 폴더 기반 사내 자동 업데이트 |
 | AI Agent 지원 | MCP 서버 내장 — Copilot/Claude 등 AI Agent가 `.sdoc` 직접 생성·편집 가능 |
@@ -48,6 +49,7 @@
 3. **이미지 삽입**: 클립보드에서 직접 붙여넣기 (`Ctrl+V`)
 4. **Draw.io 다이어그램**: 툴바 "Draw.io" 버튼 → 파일명 입력 → 더블클릭으로 재편집
 5. **내보내기**: `Ctrl+Shift+P` → "Structured Doc: Export to ..."
+6. **슬라이드**: Toolbar → Export → Slides 또는 `Ctrl+Shift+P` → "Structured Doc: Export to Slides"
 
 ---
 
@@ -85,6 +87,15 @@ VS Code 설정(`Ctrl+,`)에서 "Structured Doc Editor"를 검색하여 아래 �
 | `heading.showNumber` | 자동 번호 매기기 표시 | `true` |
 | `caption.imagePrefix` | 이미지 캡션 접두사 | `Figure` |
 | `caption.tablePrefix` | 표 캡션 접두사 | `Table` |
+
+### 슬라이드
+
+| 설정 | 설명 | 기본값 |
+|---|---|---|
+| `slide.breakLevel` | 슬라이드 분리 기준 | `h1-only` |
+| `slide.showTitleSlide` | 타이틀 슬라이드 자동 생성 | `true` |
+| `slide.primaryColor` | 슬라이드 매인 색상 (비워두면 theme 색상 사용) | — |
+| `slide.accentColor` | 슬라이드 보조 색상 | — |
 
 ### 자동 업데이트
 

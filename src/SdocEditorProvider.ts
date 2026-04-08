@@ -4,6 +4,7 @@ import { getNonce, getWebviewUri } from './utils/webviewHelper';
 import { convertJsonToHtml } from './converter/jsonToHtml';
 import { convertJsonToAdoc } from './converter/jsonToAdoc';
 import { convertJsonToMarkdown } from './converter/jsonToMarkdown';
+import { convertJsonToSlides } from './converter/jsonToSlides';
 import { convertMarkdownToJson } from './converter/markdownToJson';
 import { detectBrowser, printToPdf } from './utils/browserDetect';
 import {
@@ -1002,7 +1003,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
 
   private async exportDocument(
     document: vscode.TextDocument,
-    format: 'html' | 'adoc' | 'markdown' | 'pdf'
+    format: 'html' | 'adoc' | 'markdown' | 'pdf' | 'slides'
   ): Promise<void> {
     try {
       const text = document.getText();
@@ -1024,8 +1025,8 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         exportImagePath: config.get<'relative' | 'absolute'>('export.imagePath', 'relative'),
       };
 
-      // For HTML and PDF, apply selfContained settings
-      const needsSelfContained = format === 'html' || format === 'pdf';
+      // For HTML, PDF, and slides, apply selfContained settings
+      const needsSelfContained = format === 'html' || format === 'pdf' || format === 'slides';
       if (needsSelfContained && selfContained !== 'none') {
         const documentDir = path.dirname(document.uri.fsPath);
         convertedDoc = await this.embedImagesAsBase64(convertedDoc, documentDir);
@@ -1120,6 +1121,59 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
           ext = '.html';
           label = 'HTML';
           break;
+        }
+        case 'slides': {
+          let companyLogo2 = config.get<string>('theme.companyLogo') || '';
+          if (companyLogo2 && !companyLogo2.startsWith('data:') && !companyLogo2.startsWith('http')) {
+            try {
+              const logoPath2 = path.join(this.context.extensionPath, 'media', companyLogo2);
+              const logoUri2 = vscode.Uri.file(logoPath2);
+              const logoData2 = await vscode.workspace.fs.readFile(logoUri2);
+              const base642 = Buffer.from(logoData2).toString('base64');
+              const ext2 = path.extname(companyLogo2).toLowerCase().replace('.', '');
+              const mime2 = ext2 === 'svg' ? 'image/svg+xml' : `image/${ext2 || 'png'}`;
+              companyLogo2 = `data:${mime2};base64,${base642}`;
+            } catch { companyLogo2 = ''; }
+          }
+          const slideTheme: Record<string, any> = {
+            companyLogo: companyLogo2,
+            companyName: config.get<string>('theme.companyName') || '',
+            primaryColor: config.get<string>('slide.primaryColor') || config.get<string>('theme.primaryColor') || '#A50034',
+            accentColor: config.get<string>('slide.accentColor') || config.get<string>('theme.accentColor') || '#6b6b6b',
+            fontFamily: config.get<string>('theme.fontFamily') || "'Legacy Font 2.0', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+            customStyles: config.get<string>('theme.customStyles') || '',
+            fontWeights: {
+              body: SdocEditorProvider.resolveFontWeight(config.get<string>('font.body', 'Regular')),
+              bold: SdocEditorProvider.resolveFontWeight(config.get<string>('font.bold', 'Bold')),
+              h1: SdocEditorProvider.resolveFontWeight(config.get<string>('font.h1', 'Bold')),
+              h2: SdocEditorProvider.resolveFontWeight(config.get<string>('font.h2', 'SemiBold')),
+              h3: SdocEditorProvider.resolveFontWeight(config.get<string>('font.h3', 'SemiBold')),
+            },
+          };
+          slideTheme.embeddedFonts = await this.loadBundledFontsAsBase64();
+
+          const slideSettings = {
+            ...exportSettings,
+            slideBreak: config.get<'h1-only' | 'h1-h2-vertical'>('slide.breakLevel', 'h1-only'),
+            showTitleSlide: config.get<boolean>('slide.showTitleSlide', true),
+          };
+
+          content = convertJsonToSlides(convertedDoc, slideTheme, slideSettings, meta);
+
+          const slideUri = document.uri.with({
+            path: document.uri.path.replace(/(\..+)$/, '.slides.html'),
+          });
+          const encoder2 = new TextEncoder();
+          await vscode.workspace.fs.writeFile(slideUri, encoder2.encode(content));
+
+          const action = await vscode.window.showInformationMessage(
+            `Slides exported: ${slideUri.fsPath}`,
+            'Open in Browser'
+          );
+          if (action === 'Open in Browser') {
+            await vscode.env.openExternal(slideUri);
+          }
+          return;
         }
         case 'adoc':
           content = convertJsonToAdoc(convertedDoc, exportSettings, meta);

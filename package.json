@@ -2,7 +2,7 @@
   "name": "structured-doc-editor",
   "displayName": "Structured Doc Editor",
   "description": "WYSIWYG editor for .tiptap.json/.sdoc files with Markdown/AsciiDoc/HTML export",
-  "version": "0.3.7",
+  "version": "0.3.8",
   "publisher": "lgm-control-contributor-01",
   "engines": {
     "vscode": "^1.85.0"
@@ -56,6 +56,11 @@
       {
         "command": "structuredDocEditor.exportToPdf",
         "title": "Export to PDF",
+        "category": "Structured Doc"
+      },
+      {
+        "command": "structuredDocEditor.exportToSlides",
+        "title": "Export to Slides",
         "category": "Structured Doc"
       },
       {
@@ -262,6 +267,33 @@
           "type": "string",
           "default": "\\\\ctrl-ws-a\\CONTROL_NAS\\VsCode-Extension\\sdoc-editor",
           "description": "Shared folder path for auto-update (e.g. \\\\server\\share\\sdoc-editor)"
+        },
+        "structuredDocEditor.slide.breakLevel": {
+          "type": "string",
+          "enum": ["h1-only", "h1-h2-vertical"],
+          "default": "h1-only",
+          "enumDescriptions": [
+            "H1 제목만 슬라이드 경계로 사용 (H2/H3는 같은 슬라이드 내 소제목)",
+            "H1 = 수평 슬라이드, H2 = 수직 슬라이드 (reveal.js 수직 탐색)"
+          ],
+          "description": "슬라이드 페이지 분리 기준"
+        },
+        "structuredDocEditor.slide.showTitleSlide": {
+          "type": "boolean",
+          "default": true,
+          "description": "문서 메타데이터(Title, Author, Version)로 타이틀 슬라이드를 자동 생성합니다"
+        },
+        "structuredDocEditor.slide.primaryColor": {
+          "type": "string",
+          "default": "",
+          "pattern": "^(#[0-9a-fA-F]{3,8})?$",
+          "markdownDescription": "슬라이드 전용 메인 색상 (비워두면 `theme.primaryColor` 사용)"
+        },
+        "structuredDocEditor.slide.accentColor": {
+          "type": "string",
+          "default": "",
+          "pattern": "^(#[0-9a-fA-F]{3,8})?$",
+          "markdownDescription": "슬라이드 전용 보조 색상 (비워두면 `theme.accentColor` 사용)"
         }
       }
     }
