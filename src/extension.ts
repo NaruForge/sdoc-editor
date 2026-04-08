@@ -9,8 +9,36 @@ import { exportToMarkdown } from './commands/exportToMarkdown';
 import { exportToPdf } from './commands/exportToPdf';
 import { checkForUpdate, checkForUpdateManual } from './updateChecker';
 
+/**
+ * Show What's New (CHANGELOG) when extension is updated to a new version
+ */
+async function showWhatsNewIfNeeded(context: vscode.ExtensionContext): Promise<void> {
+  try {
+    const packageJsonPath = path.join(context.extensionPath, 'package.json');
+    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+    const currentVersion = packageJson.version;
+    const previousVersion = context.globalState.get<string>('sdocEditor.version');
+
+    if (previousVersion !== currentVersion) {
+      await context.globalState.update('sdocEditor.version', currentVersion);
+
+      // Show CHANGELOG only on update (not first install)
+      if (previousVersion) {
+        const changelogUri = vscode.Uri.joinPath(context.extensionUri, 'CHANGELOG.md');
+        await vscode.commands.executeCommand('markdown.showPreview', changelogUri);
+      }
+    }
+  } catch (error) {
+    // Fail silently to not interrupt extension activation
+    console.error('Failed to check version for What\'s New:', error);
+  }
+}
+
 export function activate(context: vscode.ExtensionContext) {
   console.log('Structured Doc Editor extension is now active');
+
+  // Show What's New on version update
+  showWhatsNewIfNeeded(context);
 
   // Check for updates from shared folder
   checkForUpdate(context);

@@ -24,6 +24,7 @@ webview-ui/index.html
 *.log
 
 # Documentation and planning
+CONTRIBUTING.md
 Prompt.md
 plan.md
 TEST-GUIDE.md
