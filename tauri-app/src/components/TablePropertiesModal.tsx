@@ -18,7 +18,6 @@ export const TablePropertiesModal: React.FC<TablePropertiesModalProps> = ({
   useEffect(() => {
     // Get current table attributes
     const attrs = editor.getAttributes('table');
-    console.log('Current table attributes:', attrs);
     
     setCaption(attrs.caption || '');
     setAlign(attrs.align || 'left');
@@ -26,19 +25,11 @@ export const TablePropertiesModal: React.FC<TablePropertiesModalProps> = ({
   }, [editor]);
 
   const handleSave = () => {
-    console.log('Saving table properties:', { caption, align, width });
-    
     editor.chain().focus().updateAttributes('table', {
       caption: caption || null,
       align: align,
       width: width,
     }).run();
-    
-    // Verify the update
-    setTimeout(() => {
-      const newAttrs = editor.getAttributes('table');
-      console.log('Updated attributes:', newAttrs);
-    }, 100);
     
     onClose();
   };

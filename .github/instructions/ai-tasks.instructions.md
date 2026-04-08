@@ -1,44 +1,47 @@
 ---
 applyTo: "**"
+description: "Use when managing tasks, checking project status, creating tasks, updating progress, or working with .ai/ directory files. Covers ATS (AI Task Standard) workflow including STATUS.md, decisions.md, and task lifecycle."
 ---
 
 # AI Task Standard (ATS) — Agent Instructions
 
-이 프로젝트는 **AI Task Standard (ATS) v0.1**을 사용하여 태스크를 관리합니다.
+This project uses **AI Task Standard (ATS) v0.1** for task management.
 
-## 작업 시작 시
+> **IMPORTANT — Language rule**: Always communicate with the user in **Korean (한국어)**. All file contents (code, markdown, config) should follow the project's existing language conventions.
 
-1. `.ai/STATUS.md`를 읽어 프로젝트 현재 상태를 파악하세요.
-2. 현재 작업과 관련된 태스크가 `.ai/tasks/`에 있으면 해당 파일의 **Context**, **Approach**, **Progress** 섹션을 참조하세요.
-3. `.ai/decisions.md`에서 관련 결정 이력을 확인하세요. 이전 세션에서 내린 결정을 번복하지 마세요.
+## On Session Start
 
-## 작업 중
+1. Read `.ai/STATUS.md` to understand the current project state.
+2. If a task related to the current work exists in `.ai/tasks/`, refer to its **Context**, **Approach**, and **Progress** sections.
+3. Check `.ai/decisions.md` for related decision history. Do NOT reverse decisions made in previous sessions.
 
-- 주요 설계 결정을 내렸으면 `.ai/decisions.md`에 기록하세요 (Date, Task, Agent/Author, Decision, Rationale).
-- 태스크의 **Progress** 섹션을 업데이트하세요 (완료된 항목 체크).
+## During Work
 
-## 작업 완료 시
+- Record major design decisions in `.ai/decisions.md` (Date, Task, Agent/Author, Decision, Rationale).
+- Update the task's **Progress** section (check completed items).
 
-1. 태스크 파일의 frontmatter `status`와 `modified`를 업데이트하세요.
-2. `.ai/STATUS.md`를 현재 상태에 맞게 업데이트하세요.
-3. 태스크의 **Progress** 섹션에서 완료 항목을 체크하세요.
+## On Work Completion
 
-## STATUS.md 작성 형식
+1. Update the task file's frontmatter `status` and `modified` fields.
+2. Update `.ai/STATUS.md` to reflect the current state.
+3. Check off completed items in the task's **Progress** section.
 
-태스크를 STATUS.md에 기록할 때 반드시 태스크 파일로의 링크를 포함하세요:
+## STATUS.md Format
+
+Always include a link to the task file when recording in STATUS.md:
 
 ```
-- [PREFIX-001](tasks/PREFIX-001.md): 태스크 제목
+- [PREFIX-001](tasks/PREFIX-001.md): Task title
 ```
 
-## 새 태스크 생성 시
+## Creating New Tasks
 
-사용자가 "태스크 만들어줘"라고 요청하면:
+When the user requests task creation:
 
-1. `.ai/config.yaml`에서 프로젝트 접두사를 확인하세요.
-2. `.ai/tasks/`의 기존 파일에서 가장 높은 번호를 찾아 다음 번호를 부여하세요.
-3. `.ai/tasks/{PREFIX}-{NNN}.md` 형식으로 생성하세요.
-4. `.ai/tasks/${PREFIX}-Template.md`를 참조하여 동일한 형식으로 작성하세요. 이 템플릿 파일 자체는 태스크가 아니므로 무시하세요.
-5. YAML frontmatter에 최소한 `ats`, `id`, `title`, `status`, `created`, `modified`, `author` 필드를 포함하세요.
-6. 사용자가 설명한 내용으로 **Context**와 **Scope** 섹션을 작성하세요.
-7. `.ai/STATUS.md`에 새 태스크를 추가하세요.
+1. Check the project prefix in `.ai/config.yaml`.
+2. Find the highest existing number in `.ai/tasks/` and assign the next number.
+3. Create the file as `.ai/tasks/{PREFIX}-{NNN}.md`.
+4. Use `.ai/tasks/${PREFIX}-Template.md` as the format reference. The template file itself is NOT a task — ignore it.
+5. Include at minimum these YAML frontmatter fields: `ats`, `id`, `title`, `status`, `created`, `modified`, `author`.
+6. Fill in **Context** and **Scope** sections based on the user's description.
+7. Add the new task to `.ai/STATUS.md`.

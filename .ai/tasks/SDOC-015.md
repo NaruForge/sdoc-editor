@@ -5,7 +5,7 @@ title: "코드베이스 리팩토링 — 하네스 엔지니어링 기반 구축
 status: in-progress
 priority: high
 created: 2026-04-09T00:00:00+09:00
-modified: 2026-04-10T01:00:00+09:00
+modified: 2026-04-10T02:00:00+09:00
 author: "@contributor-01"
 ---
 
@@ -132,12 +132,12 @@ Phase 순서 근거:
 - [x] `SdocBookProvider` 공유 유틸 전환
 
 ### Phase 4: Webview 분해
-- [ ] `useEditorMessages.ts` 훅 추출
-- [ ] `useDialogState.ts` 훅 추출
-- [ ] `preprocessImportedHtml.ts` 유틸 분리
-- [ ] 공유 상수 추출, 데드 코드 삭제, Toolbar 최적화
+- [x] `useEditorMessages.ts` 훅 추출
+- [x] `useDialogState.ts` 훅 추출
+- [x] `preprocessImportedHtml.ts` 유틸 분리
+- [x] 공유 상수 추출, 데드 코드 삭제, Toolbar 최적화
 - [ ] 인라인 스타일 → CSS 클래스 전환
-- [ ] `console.log` 제거
+- [x] `console.log` 제거
 
 ### Phase 5: 의존성 & 빌드 정리
 - [ ] 패키지 버전 동기화 (webview-ui ↔ tauri-app)

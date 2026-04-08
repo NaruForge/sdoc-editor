@@ -241,7 +241,6 @@ export const CustomImage = Image.extend({
           // Send message to VS Code to open the draw.io file
           const vscode = (window as any).vscode;
           if (vscode) {
-            console.log('Opening draw.io file:', drawioPath);
             vscode.postMessage({
               type: 'openDrawio',
               drawioPath: drawioPath,
@@ -288,7 +287,6 @@ export const CustomImage = Image.extend({
 
           const vscode = (window as any).vscode;
           if (vscode) {
-            console.log('Opening draw.io file from container:', drawioPath);
             vscode.postMessage({
               type: 'openDrawio',
               drawioPath: drawioPath,
