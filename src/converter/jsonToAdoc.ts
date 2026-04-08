@@ -304,6 +304,15 @@ function applyMarks(text: string, marks: TiptapMark[]): string {
           result = `${href}[${result}]`;
         }
         break;
+      case 'textStyle': {
+        const color = mark.attrs?.color;
+        if (color) result = `[.color-custom]#${result}#`;
+        break;
+      }
+      case 'highlight': {
+        result = `[.highlight]#${result}#`;
+        break;
+      }
     }
   }
 

@@ -4,7 +4,7 @@
 - (없음)
 
 ## In Progress
-- (없음)
+- [SDOC-015](tasks/SDOC-015.md): 코드베이스 리팩토링 — 하네스 엔지니어링 기반 구축
 
 ## Done (최근)
 - [SDOC-014](tasks/SDOC-014.md): Markdown Table 변환 개선 — 복잡 테이블 HTML 폴백 + 안정성 강화 (2026-04-09, v0.4.1)

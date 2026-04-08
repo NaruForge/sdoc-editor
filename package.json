@@ -200,7 +200,12 @@
         },
         "structuredDocEditor.font.body": {
           "type": "string",
-          "enum": ["Light", "Regular", "SemiBold", "Bold"],
+          "enum": [
+            "Light",
+            "Regular",
+            "SemiBold",
+            "Bold"
+          ],
           "default": "Regular",
           "enumDescriptions": [
             "Light (300) — 가벼운 본문",
@@ -212,7 +217,12 @@
         },
         "structuredDocEditor.font.bold": {
           "type": "string",
-          "enum": ["Light", "Regular", "SemiBold", "Bold"],
+          "enum": [
+            "Light",
+            "Regular",
+            "SemiBold",
+            "Bold"
+          ],
           "default": "Bold",
           "enumDescriptions": [
             "Light (300)",
@@ -224,7 +234,12 @@
         },
         "structuredDocEditor.font.h1": {
           "type": "string",
-          "enum": ["Light", "Regular", "SemiBold", "Bold"],
+          "enum": [
+            "Light",
+            "Regular",
+            "SemiBold",
+            "Bold"
+          ],
           "default": "Bold",
           "enumDescriptions": [
             "Light (300)",
@@ -236,7 +251,12 @@
         },
         "structuredDocEditor.font.h2": {
           "type": "string",
-          "enum": ["Light", "Regular", "SemiBold", "Bold"],
+          "enum": [
+            "Light",
+            "Regular",
+            "SemiBold",
+            "Bold"
+          ],
           "default": "SemiBold",
           "enumDescriptions": [
             "Light (300)",
@@ -248,7 +268,12 @@
         },
         "structuredDocEditor.font.h3": {
           "type": "string",
-          "enum": ["Light", "Regular", "SemiBold", "Bold"],
+          "enum": [
+            "Light",
+            "Regular",
+            "SemiBold",
+            "Bold"
+          ],
           "default": "SemiBold",
           "enumDescriptions": [
             "Light (300)",
@@ -270,7 +295,10 @@
         },
         "structuredDocEditor.slide.breakLevel": {
           "type": "string",
-          "enum": ["h1-only", "h1-h2-vertical"],
+          "enum": [
+            "h1-only",
+            "h1-h2-vertical"
+          ],
           "default": "h1-only",
           "enumDescriptions": [
             "H1 제목만 슬라이드 경계로 사용 (H2/H3는 같은 슬라이드 내 소제목)",
@@ -297,7 +325,14 @@
         },
         "structuredDocEditor.slide.transition": {
           "type": "string",
-          "enum": ["none", "fade", "slide", "convex", "concave", "zoom"],
+          "enum": [
+            "none",
+            "fade",
+            "slide",
+            "convex",
+            "concave",
+            "zoom"
+          ],
           "default": "none",
           "enumDescriptions": [
             "애니메이션 없이 즉시 전환",
@@ -320,6 +355,8 @@
     "build:ext": "node esbuild.mjs",
     "build:webview": "npm run build --workspace=webview-ui",
     "package": "npm run build && node scripts/postpackage.mjs",
+    "lint": "eslint src/ shared/",
+    "lint:fix": "eslint src/ shared/ --fix",
     "watch:ext": "node esbuild.mjs --watch",
     "watch:webview": "npm run build --workspace=webview-ui -- --watch",
     "watch": "npm-run-all --parallel watch:ext watch:webview",
@@ -330,10 +367,15 @@
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@types/node": "^20.11.0",
     "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^8.58.1",
+    "@typescript-eslint/parser": "^8.58.1",
     "asciidoctor": "^3.0.4",
     "esbuild": "^0.20.0",
+    "eslint": "^10.2.0",
+    "eslint-config-prettier": "^10.1.8",
     "highlight.js": "^11.11.1",
     "npm-run-all": "^4.1.5",
+    "prettier": "^3.8.1",
     "typescript": "^5.3.3",
     "zod": "^3.25.76"
   }
