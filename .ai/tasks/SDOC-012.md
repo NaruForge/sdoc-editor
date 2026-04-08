@@ -5,7 +5,7 @@ title: "Export 폰트 임베딩 최적화 — 파일 크기 감소"
 status: done
 priority: high
 created: 2026-04-08T00:00:00+09:00
-modified: 2026-04-08T23:30:00+09:00
+modified: 2026-04-09T00:00:00+09:00
 author: "copilot"
 ---
 
@@ -39,3 +39,4 @@ Legacy Font 2.0 TTF 4종(총 ~13.6MB)을 base64로 임베딩하면 HTML 파일�
 - [x] font-preview.html 업데이트
 - [x] TTF 파일 삭제
 - [x] v0.3.9 빌드 검증 (VSIX 7.78MB)
+- [x] slide.transition 설정 추가 (none/fade/slide/convex/concave/zoom, 기본값 none)
