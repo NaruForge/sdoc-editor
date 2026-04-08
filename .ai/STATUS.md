@@ -7,6 +7,7 @@
 - (없음)
 
 ## Done (최근)
+- [SDOC-014](tasks/SDOC-014.md): Markdown Table 변환 개선 — 복잡 테이블 HTML 폴백 + 안정성 강화 (2026-04-09, v0.4.1)
 - [SDOC-013](tasks/SDOC-013.md): Markdown Export RAG 최적화 — Pandoc 앵커 + Converter 동기화 (2026-04-09, v0.4.0)
 - [SDOC-012](tasks/SDOC-012.md): Export 폰트 임베딩 최적화 — WOFF2 + weight 필터 (2026-04-08, v0.3.9)
 - [SDOC-011](tasks/SDOC-011.md): Export to Slides — reveal.js (2026-04-08, v0.3.8)

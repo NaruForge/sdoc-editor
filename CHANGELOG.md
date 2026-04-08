@@ -5,6 +5,14 @@ All notable changes to the "Structured Doc Editor" extension will be documented 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2026-04-09
+
+### Fixed
+- **복잡 테이블 Markdown 변환 개선**: colspan/rowspan 병합 셀, 멀티블록 셀 내용 있는 테이블을 HTML `<table>` 폴백으로 정확하게 변환
+- **테이블 셀 파이프 문자 이스케이프**: 셀 내용의 `|` 문자가 테이블 구조를 파괴하는 문제 수정
+- **헤더 없는 테이블 GFM 호환성**: 빈 헤더 row 자동 삽입으로 GFM 렌더러 인식 보장
+- **HTML export colspan/rowspan 속성 추가**: `<th>` / `<td>` 태그에 병합 셀 속성 정상 출력
+
 ## [0.4.0] - 2026-04-09
 
 ### Changed

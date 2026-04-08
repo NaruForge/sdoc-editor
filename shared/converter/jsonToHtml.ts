@@ -222,7 +222,12 @@ function convertTable(table: TiptapNode): string {
     if (headerRow.content) {
       for (const cell of headerRow.content) {
         const cellContent = cell.content ? convertTableCellContent(cell.content) : '';
-        html += `\n      <th>${cellContent}</th>`;
+        let cellAttrs = '';
+        const colspan = cell.attrs?.colspan || 1;
+        const rowspan = cell.attrs?.rowspan || 1;
+        if (colspan > 1) { cellAttrs += ` colspan="${colspan}"`; }
+        if (rowspan > 1) { cellAttrs += ` rowspan="${rowspan}"`; }
+        html += `\n      <th${cellAttrs}>${cellContent}</th>`;
       }
     }
     html += '\n    </tr>\n  </thead>';
@@ -236,7 +241,12 @@ function convertTable(table: TiptapNode): string {
         if (row.content) {
           for (const cell of row.content) {
             const cellContent = cell.content ? convertTableCellContent(cell.content) : '';
-            html += `\n      <td>${cellContent}</td>`;
+            let cellAttrs = '';
+            const colspan = cell.attrs?.colspan || 1;
+            const rowspan = cell.attrs?.rowspan || 1;
+            if (colspan > 1) { cellAttrs += ` colspan="${colspan}"`; }
+            if (rowspan > 1) { cellAttrs += ` rowspan="${rowspan}"`; }
+            html += `\n      <td${cellAttrs}>${cellContent}</td>`;
           }
         }
         html += '\n    </tr>';
@@ -252,7 +262,12 @@ function convertTable(table: TiptapNode): string {
         for (const cell of row.content) {
           const cellContent = cell.content ? convertTableCellContent(cell.content) : '';
           const cellTag = cell.type === 'tableHeader' ? 'th' : 'td';
-          html += `\n      <${cellTag}>${cellContent}</${cellTag}>`;
+          let cellAttrs = '';
+          const colspan = cell.attrs?.colspan || 1;
+          const rowspan = cell.attrs?.rowspan || 1;
+          if (colspan > 1) { cellAttrs += ` colspan="${colspan}"`; }
+          if (rowspan > 1) { cellAttrs += ` rowspan="${rowspan}"`; }
+          html += `\n      <${cellTag}${cellAttrs}>${cellContent}</${cellTag}>`;
         }
         html += '\n    </tr>';
       }

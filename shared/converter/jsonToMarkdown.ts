@@ -145,16 +145,55 @@ function convertInlineContent(content: TiptapNode[]): string {
 }
 
 /**
- * Converts table cell content without adding paragraph tags
+ * Escape pipe characters and newlines for safe use inside Markdown table cells.
+ */
+function escapeTableCell(text: string): string {
+  return text.replace(/\|/g, '\\|').replace(/\n/g, '<br>');
+}
+
+/**
+ * Check if a table contains complex cells (colspan/rowspan or multi-block content)
+ * that cannot be represented in standard GFM pipe tables.
+ */
+function isComplexTable(table: TiptapNode): boolean {
+  for (const row of table.content || []) {
+    for (const cell of row.content || []) {
+      const colspan = cell.attrs?.colspan || 1;
+      const rowspan = cell.attrs?.rowspan || 1;
+      if (colspan > 1 || rowspan > 1) { return true; }
+      // Multi-block content (more than one block, or non-paragraph block)
+      if (cell.content && cell.content.length > 1) { return true; }
+      if (cell.content?.some((c: TiptapNode) => c.type !== 'paragraph')) { return true; }
+    }
+  }
+  return false;
+}
+
+/**
+ * Converts table cell content without adding paragraph tags (for GFM pipe tables)
  */
 function convertTableCellContent(content: TiptapNode[]): string {
+  return escapeTableCell(
+    content.map((node) => {
+      if (node.type === 'paragraph') {
+        return node.content ? convertInlineContent(node.content) : '';
+      }
+      return convertNode(node);
+    }).join('').trim()
+  );
+}
+
+/**
+ * Converts table cell content for HTML fallback (preserves block structure)
+ */
+function convertTableCellContentHtml(content: TiptapNode[]): string {
   return content.map((node) => {
     if (node.type === 'paragraph') {
-      // For paragraphs in table cells, just get the text without newlines
-      return node.content ? convertInlineContent(node.content) : '';
+      const text = node.content ? convertInlineContent(node.content) : '';
+      return text;
     }
     return convertNode(node);
-  }).join('').trim();
+  }).join('<br>').trim();
 }
 
 function convertListItem(item: TiptapNode, marker: string): string {
@@ -179,9 +218,8 @@ function convertTable(table: TiptapNode): string {
     return '';
   }
 
-  let md = '';
-
-  // Add caption if present
+  // Caption (shared by both paths)
+  let captionMd = '';
   const caption = table.attrs?.caption;
   if (caption) {
     tableCounter++;
@@ -189,50 +227,74 @@ function convertTable(table: TiptapNode): string {
     const numbering = currentSettings.captionNumbering === 'hierarchical'
       ? `${h1Counter}.${tableCounter}`
       : `${tableCounter}`;
-    md += `**${prefix} ${numbering}: ${caption}**\n\n`;
+    captionMd = `**${prefix} ${numbering}: ${caption}**\n\n`;
   }
 
-  // Check if first row has headers
-  const hasHeader = table.content[0]?.content?.some(
+  if (isComplexTable(table)) {
+    return captionMd + convertTableAsHtml(table);
+  }
+  return captionMd + convertTableAsGfm(table);
+}
+
+/**
+ * Calculate the logical column count from the first row (accounting for colspan).
+ */
+function getLogicalColumnCount(table: TiptapNode): number {
+  const firstRow = table.content?.[0];
+  if (!firstRow?.content) { return 0; }
+  return firstRow.content.reduce((sum: number, cell: TiptapNode) => {
+    return sum + (cell.attrs?.colspan || 1);
+  }, 0);
+}
+
+/**
+ * Convert a simple table (no colspan/rowspan) to GFM pipe syntax.
+ */
+function convertTableAsGfm(table: TiptapNode): string {
+  let md = '';
+  const colCount = getLogicalColumnCount(table);
+
+  const hasHeader = table.content![0]?.content?.some(
     (cell: TiptapNode) => cell.type === 'tableHeader'
   );
 
-  // Process header row
-  if (hasHeader && table.content[0]) {
-    const headerRow = table.content[0];
+  if (hasHeader && table.content![0]) {
+    const headerRow = table.content![0];
     if (headerRow.content) {
       const headers: string[] = [];
       for (const cell of headerRow.content) {
-        const cellContent = cell.content ? convertTableCellContent(cell.content) : '';
-        headers.push(cellContent);
+        headers.push(cell.content ? convertTableCellContent(cell.content) : '');
       }
+      // Pad to column count if needed
+      while (headers.length < colCount) { headers.push(''); }
       md += '| ' + headers.join(' | ') + ' |\n';
-
-      // Add separator row
       md += '|' + headers.map(() => ' --- ').join('|') + '|\n';
     }
 
-    // Process body rows
-    for (let i = 1; i < table.content.length; i++) {
-      const row = table.content[i];
+    for (let i = 1; i < table.content!.length; i++) {
+      const row = table.content![i];
       if (row.type === 'tableRow' && row.content) {
         const cells: string[] = [];
         for (const cell of row.content) {
-          const cellContent = cell.content ? convertTableCellContent(cell.content) : '';
-          cells.push(cellContent);
+          cells.push(cell.content ? convertTableCellContent(cell.content) : '');
         }
+        while (cells.length < colCount) { cells.push(''); }
         md += '| ' + cells.join(' | ') + ' |\n';
       }
     }
   } else {
-    // No header, treat all rows as body
-    for (const row of table.content) {
+    // No header: generate an empty header row so GFM renderers recognize the table
+    const emptyHeaders = Array(colCount).fill('');
+    md += '| ' + emptyHeaders.join(' | ') + ' |\n';
+    md += '|' + emptyHeaders.map(() => ' --- ').join('|') + '|\n';
+
+    for (const row of table.content!) {
       if (row.type === 'tableRow' && row.content) {
         const cells: string[] = [];
         for (const cell of row.content) {
-          const cellContent = cell.content ? convertTableCellContent(cell.content) : '';
-          cells.push(cellContent);
+          cells.push(cell.content ? convertTableCellContent(cell.content) : '');
         }
+        while (cells.length < colCount) { cells.push(''); }
         md += '| ' + cells.join(' | ') + ' |\n';
       }
     }
@@ -240,6 +302,75 @@ function convertTable(table: TiptapNode): string {
 
   md += '\n';
   return md;
+}
+
+/**
+ * Convert a complex table (colspan/rowspan/multi-block cells) to HTML.
+ * Raw HTML is valid inside GFM / CommonMark.
+ */
+function convertTableAsHtml(table: TiptapNode): string {
+  const align = table.attrs?.align || 'left';
+  const width = table.attrs?.width || '100%';
+  const tId = table.attrs?.id ? ` id="${table.attrs.id}"` : '';
+  let html = `<table${tId} style="width:${width}; text-align:${align};">`;
+
+  const hasHeader = table.content![0]?.content?.some(
+    (cell: TiptapNode) => cell.type === 'tableHeader'
+  );
+
+  const renderCellAttrs = (cell: TiptapNode): string => {
+    let attrs = '';
+    const colspan = cell.attrs?.colspan || 1;
+    const rowspan = cell.attrs?.rowspan || 1;
+    if (colspan > 1) { attrs += ` colspan="${colspan}"`; }
+    if (rowspan > 1) { attrs += ` rowspan="${rowspan}"`; }
+    return attrs;
+  };
+
+  if (hasHeader && table.content![0]) {
+    html += '\n<thead>\n<tr>';
+    const headerRow = table.content![0];
+    if (headerRow.content) {
+      for (const cell of headerRow.content) {
+        const cellContent = cell.content ? convertTableCellContentHtml(cell.content) : '';
+        html += `<th${renderCellAttrs(cell)}>${cellContent}</th>`;
+      }
+    }
+    html += '</tr>\n</thead>';
+
+    if (table.content!.length > 1) {
+      html += '\n<tbody>';
+      for (let i = 1; i < table.content!.length; i++) {
+        const row = table.content![i];
+        html += '\n<tr>';
+        if (row.content) {
+          for (const cell of row.content) {
+            const cellContent = cell.content ? convertTableCellContentHtml(cell.content) : '';
+            html += `<td${renderCellAttrs(cell)}>${cellContent}</td>`;
+          }
+        }
+        html += '</tr>';
+      }
+      html += '\n</tbody>';
+    }
+  } else {
+    html += '\n<tbody>';
+    for (const row of table.content!) {
+      if (row.type === 'tableRow' && row.content) {
+        html += '\n<tr>';
+        for (const cell of row.content) {
+          const cellContent = cell.content ? convertTableCellContentHtml(cell.content) : '';
+          const tag = cell.type === 'tableHeader' ? 'th' : 'td';
+          html += `<${tag}${renderCellAttrs(cell)}>${cellContent}</${tag}>`;
+        }
+        html += '</tr>';
+      }
+    }
+    html += '\n</tbody>';
+  }
+
+  html += '\n</table>\n\n';
+  return html;
 }
 
 function convertImage(node: TiptapNode): string {
