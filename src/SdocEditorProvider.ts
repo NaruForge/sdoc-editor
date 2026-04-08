@@ -1077,8 +1077,9 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
             },
           };
 
-          // Embed bundled fonts as base64 data URIs for HTML/PDF export
-          theme.embeddedFonts = await this.loadBundledFontsAsBase64();
+          // Embed only used font weights as base64 data URIs for HTML/PDF export
+          const usedWeights = new Set(Object.values(theme.fontWeights as Record<string, number>));
+          theme.embeddedFonts = await this.loadBundledFontsAsBase64(usedWeights);
 
           content = convertJsonToHtml(convertedDoc, theme, exportSettings, meta);
 
@@ -1150,7 +1151,8 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
               h3: SdocEditorProvider.resolveFontWeight(config.get<string>('font.h3', 'SemiBold')),
             },
           };
-          slideTheme.embeddedFonts = await this.loadBundledFontsAsBase64();
+          const usedSlideWeights = new Set(Object.values(slideTheme.fontWeights as Record<string, number>));
+          slideTheme.embeddedFonts = await this.loadBundledFontsAsBase64(usedSlideWeights);
 
           const slideSettings = {
             ...exportSettings,
@@ -1341,10 +1343,10 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
   }
 
   private static readonly BUNDLED_FONTS = [
-    { file: 'LegacyFontL.ttf', weight: 300 },
-    { file: 'LegacyFontR.ttf', weight: 400 },
-    { file: 'LegacyFontSB.ttf', weight: 600 },
-    { file: 'LegacyFontB.ttf', weight: 700 },
+    { file: 'LegacyFontL.woff2', weight: 300 },
+    { file: 'LegacyFontR.woff2', weight: 400 },
+    { file: 'LegacyFontSB.woff2', weight: 600 },
+    { file: 'LegacyFontB.woff2', weight: 700 },
   ];
 
   private static readonly FONT_WEIGHT_MAP: Record<string, number> = {
@@ -1363,19 +1365,20 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
   font-weight: ${weight};
   font-style: normal;
   font-display: swap;
-  src: url('${fontUri}') format('truetype');
+  src: url('${fontUri}') format('woff2');
 }`;
     }).join('\n');
   }
 
-  private async loadBundledFontsAsBase64(): Promise<{ weight: number; dataUri: string }[]> {
+  private async loadBundledFontsAsBase64(weights?: Set<number>): Promise<{ weight: number; dataUri: string }[]> {
     const results: { weight: number; dataUri: string }[] = [];
     for (const { file, weight } of SdocEditorProvider.BUNDLED_FONTS) {
+      if (weights && !weights.has(weight)) continue;
       try {
         const fontPath = vscode.Uri.joinPath(this.context.extensionUri, 'media', 'fonts', file);
         const fontData = await vscode.workspace.fs.readFile(fontPath);
         const base64 = Buffer.from(fontData).toString('base64');
-        results.push({ weight, dataUri: `data:font/ttf;base64,${base64}` });
+        results.push({ weight, dataUri: `data:font/woff2;base64,${base64}` });
       } catch {
         // Skip missing font files
       }

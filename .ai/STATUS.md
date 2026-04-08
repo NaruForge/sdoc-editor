@@ -1,12 +1,13 @@
 # Project Status
 
 ## Ready
-- [SDOC-012](tasks/SDOC-012.md): Export 폰트 임베딩 최적화 — 파일 크기 감소
+- (없음)
 
 ## In Progress
 - (없음)
 
 ## Done (최근)
+- [SDOC-012](tasks/SDOC-012.md): Export 폰트 임베딩 최적화 — WOFF2 + weight 필터 (2026-04-08, v0.3.9)
 - [SDOC-011](tasks/SDOC-011.md): Export to Slides — reveal.js (2026-04-08, v0.3.8)
 - [SDOC-010](tasks/SDOC-010.md): README 분리 + What's New 자동 표시 (2026-04-08, v0.3.7)
 - [SDOC-009](tasks/SDOC-009.md): 폰트 시스템 개선 — Legacy Font 2.0 번들 + 가중치 설정 (2026-04-08, v0.3.6)

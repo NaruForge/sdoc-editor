@@ -5,6 +5,15 @@ All notable changes to the "Structured Doc Editor" extension will be documented 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.9] - 2026-04-08
+
+### Changed
+- **폰트 포맷 WOFF2 전환**: TTF → WOFF2 변환으로 폰트 파일 크기 ~63% 감소 (13.6MB → 5.1MB)
+- **사용 weight만 임베딩**: Export 시 설정에서 실제 사용하는 font-weight만 base64 임베딩하여 HTML/PDF/Slides 파일 크기 대폭 감소
+
+### Removed
+- TTF 폰트 파일 제거 (WOFF2로 대체)
+
 ## [0.3.8] - 2026-04-08
 
 ### Added

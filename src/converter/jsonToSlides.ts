@@ -407,7 +407,7 @@ function generateSlideDocument(slideSections: string, theme?: SlideTheme, meta?:
         font-weight: ${f.weight};
         font-style: normal;
         font-display: swap;
-        src: url(${f.dataUri}) format('truetype');
+        src: url(${f.dataUri}) format('woff2');
       }`).join('\n');
 
   // Title slide

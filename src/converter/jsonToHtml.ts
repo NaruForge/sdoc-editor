@@ -406,7 +406,7 @@ function generateHtmlDocument(bodyContent: string, theme?: HtmlTheme, meta?: Sdo
       font-weight: ${f.weight};
       font-style: normal;
       font-display: swap;
-      src: url(${f.dataUri}) format('truetype');
+      src: url(${f.dataUri}) format('woff2');
     }`).join('\n');
 
   return `<!DOCTYPE html>
