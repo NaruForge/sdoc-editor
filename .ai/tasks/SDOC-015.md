@@ -5,7 +5,7 @@ title: "코드베이스 리팩토링 — 하네스 엔지니어링 기반 구축
 status: in-progress
 priority: high
 created: 2026-04-09T00:00:00+09:00
-modified: 2026-04-10T02:00:00+09:00
+modified: 2026-04-10T03:00:00+09:00
 author: "@contributor-01"
 ---
 
@@ -136,7 +136,7 @@ Phase 순서 근거:
 - [x] `useDialogState.ts` 훅 추출
 - [x] `preprocessImportedHtml.ts` 유틸 분리
 - [x] 공유 상수 추출, 데드 코드 삭제, Toolbar 최적화
-- [ ] 인라인 스타일 → CSS 클래스 전환
+- [x] 인라인 스타일 → CSS 클래스 전환 (127→42, 67% 감소)
 - [x] `console.log` 제거
 
 ### Phase 5: 의존성 & 빌드 정리

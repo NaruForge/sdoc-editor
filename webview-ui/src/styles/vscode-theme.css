@@ -946,6 +946,259 @@ body {
   background-color: var(--vscode-button-secondaryHoverBackground);
 }
 
+.btn-primary:disabled,
+.btn-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Dialog title — direct h3 inside modal-content */
+.modal-content > h3,
+.modal-content > form > h3 {
+  margin-top: 0;
+  margin-bottom: 16px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+/* Dialog size variants */
+.modal-content--md {
+  width: 500px;
+  max-width: 90vw;
+}
+
+.modal-content--lg {
+  width: 800px;
+  max-width: 95vw;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Form label for dialog fields */
+.form-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.form-label--sm {
+  font-size: 11px;
+  margin-bottom: 4px;
+}
+
+/* Form hint / description */
+.form-hint {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+}
+
+/* Error state for form inputs */
+.form-input--error {
+  border-color: var(--vscode-inputValidation-errorBorder, #f48771);
+}
+
+/* Error message text */
+.form-error {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--vscode-errorForeground, #f48771);
+}
+
+/* Read-only info field */
+.form-readonly {
+  padding: 6px 8px;
+  background-color: var(--vscode-input-background);
+  border: 1px solid var(--vscode-input-border);
+  border-radius: 2px;
+  font-size: 13px;
+  color: var(--vscode-input-foreground);
+  font-family: var(--vscode-editor-font-family);
+  word-break: break-all;
+}
+
+/* Textarea variant */
+.form-textarea {
+  width: 100%;
+  padding: 6px 8px;
+  background-color: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border);
+  border-radius: 2px;
+  font-size: 13px;
+  font-family: var(--vscode-editor-font-family, monospace);
+  outline: none;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+/* Code textarea — non-resizable, for diagram code */
+.form-textarea--code {
+  resize: none;
+  line-height: 1.5;
+  border-radius: 4px;
+  tab-size: 4;
+  flex: 1;
+}
+
+/* Modal actions bar (inline, no border) */
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* Modal actions with top border separator */
+.modal-actions--bordered {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--vscode-panel-border);
+}
+
+/* Chip / tag button for examples & templates */
+.chip-btn {
+  padding: 3px 8px;
+  border: none;
+  border-radius: 2px;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+/* Toggle button (inline/block mode) */
+.toggle-btn {
+  padding: 4px 12px;
+  border: none;
+  border-radius: 2px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+/* Keyboard shortcut hint */
+.kbd-hint {
+  opacity: 0.7;
+  font-size: 11px;
+}
+
+/* Dialog split layout (e.g. diagram code + preview) */
+.dialog-split {
+  display: flex;
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.dialog-split__pane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* Preview area (math, diagram) */
+.dialog-preview {
+  padding: 10px 12px;
+  background-color: var(--vscode-input-background);
+  border: 1px solid var(--vscode-input-border);
+  border-radius: 2px;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  overflow: auto;
+}
+
+.dialog-preview--grow {
+  flex: 1;
+  border-radius: 4px;
+  justify-content: center;
+}
+
+/* Alignment button in image properties */
+.align-btn {
+  flex: 1;
+  padding: 5px 8px;
+  border: 1px solid var(--vscode-input-border);
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 13px;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+}
+
+.align-btn--active {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+}
+
+/* DrawioAction large card button */
+.drawio-card {
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  text-align: left;
+  width: 100%;
+}
+
+.drawio-card__title {
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+
+.drawio-card__desc {
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+/* Toolbar dropdown wrapper */
+.toolbar-dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+/* Color indicator underline for picker buttons */
+.color-indicator {
+  height: 3px;
+  border-radius: 2px;
+}
+
+/* Color picker button layout */
+.color-picker-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+
+/* Browsable target list item (LinkDialog) */
+.target-list {
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid var(--vscode-input-border);
+  border-radius: 2px;
+  background: var(--vscode-input-background);
+}
+
+.target-list__item {
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.target-list__item:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+
+.target-list__item--header {
+  border-bottom: 1px solid var(--vscode-input-border);
+}
+
 /* Link styles */
 .ProseMirror a,
 .ProseMirror .editor-link {

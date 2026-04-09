@@ -195,7 +195,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({ editor, onViewJson, showNumber
       )}
 
       {/* 텍스트 색상 */}
-      <div ref={colorPickerRef} style={{ position: 'relative', display: 'inline-block' }}>
+      <div ref={colorPickerRef} className="toolbar-dropdown">
         <button
           onMouseDown={(e) => {
             e.preventDefault();
@@ -203,11 +203,10 @@ export const Toolbar: React.FC<ToolbarProps> = ({ editor, onViewJson, showNumber
             setShowHighlightPicker(false);
           }}
           title="텍스트 색상"
-          className={`toolbar-button ${editor.isActive('textStyle') && editor.getAttributes('textStyle').color ? 'is-active' : ''}`}
-          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}
+          className={`toolbar-button color-picker-btn ${editor.isActive('textStyle') && editor.getAttributes('textStyle').color ? 'is-active' : ''}`}
         >
           <Palette size={16} />
-          <div style={{ width: 16, height: 3, borderRadius: 2, background: editor.getAttributes('textStyle').color || 'currentColor', opacity: editor.getAttributes('textStyle').color ? 1 : 0.4 }} />
+          <div className="color-indicator" style={{ width: 16, background: editor.getAttributes('textStyle').color || 'currentColor', opacity: editor.getAttributes('textStyle').color ? 1 : 0.4 }} />
         </button>
         {showColorPicker && (
           <div className="bubble-color-picker" style={{ top: '100%', left: 0 }} onMouseDown={e => e.preventDefault()}>
@@ -235,7 +234,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({ editor, onViewJson, showNumber
       </div>
 
       {/* 하이라이트 */}
-      <div ref={highlightPickerRef} style={{ position: 'relative', display: 'inline-block' }}>
+      <div ref={highlightPickerRef} className="toolbar-dropdown">
         <button
           onMouseDown={(e) => {
             e.preventDefault();
@@ -243,11 +242,10 @@ export const Toolbar: React.FC<ToolbarProps> = ({ editor, onViewJson, showNumber
             setShowColorPicker(false);
           }}
           title="하이라이트"
-          className={`toolbar-button ${editor.isActive('highlight') ? 'is-active' : ''}`}
-          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}
+          className={`toolbar-button color-picker-btn ${editor.isActive('highlight') ? 'is-active' : ''}`}
         >
           <Highlighter size={16} />
-          <div style={{ width: 16, height: 3, borderRadius: 2, background: editor.getAttributes('highlight').color || '#fef08a', opacity: editor.isActive('highlight') ? 1 : 0.4 }} />
+          <div className="color-indicator" style={{ width: 16, background: editor.getAttributes('highlight').color || '#fef08a', opacity: editor.isActive('highlight') ? 1 : 0.4 }} />
         </button>
         {showHighlightPicker && (
           <div className="bubble-color-picker" style={{ top: '100%', left: 0 }} onMouseDown={e => e.preventDefault()}>
@@ -359,7 +357,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({ editor, onViewJson, showNumber
       <div className="toolbar-separator" />
 
       {/* Unified Insert Menu */}
-      <div ref={insertMenuRef} style={{ position: 'relative', display: 'inline-block' }}>
+      <div ref={insertMenuRef} className="toolbar-dropdown">
         <Button
           onClick={() => setShowInsertMenu(!showInsertMenu)}
           title="Insert..."
@@ -516,7 +514,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({ editor, onViewJson, showNumber
 
       {/* Export */}
       {onExport && (
-        <div ref={exportMenuRef} style={{ position: 'relative', display: 'inline-block' }}>
+        <div ref={exportMenuRef} className="toolbar-dropdown">
           <Button
             onClick={() => setShowExportMenu(!showExportMenu)}
             title="Export Document"
@@ -548,7 +546,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({ editor, onViewJson, showNumber
 
       {/* Import */}
       {onImport && (
-        <div ref={importMenuRef} style={{ position: 'relative', display: 'inline-block' }}>
+        <div ref={importMenuRef} className="toolbar-dropdown">
           <Button
             onClick={() => setShowImportMenu(!showImportMenu)}
             title="Import Document"

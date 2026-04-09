@@ -361,6 +361,96 @@ body {
 .btn-primary:hover { background-color: var(--button-hover-bg); }
 .btn-secondary { background-color: var(--button-secondary-bg); color: var(--button-secondary-fg); }
 .btn-secondary:hover { background-color: var(--button-secondary-hover-bg); }
+.btn-primary:disabled, .btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Dialog title */
+.modal-content > h3, .modal-content > form > h3 { margin-top: 0; margin-bottom: 16px; font-size: 16px; font-weight: 600; }
+
+/* Dialog size variants */
+.modal-content--md { width: 500px; max-width: 90vw; }
+.modal-content--lg { width: 800px; max-width: 95vw; max-height: 90vh; display: flex; flex-direction: column; }
+
+/* Form label */
+.form-label { display: block; margin-bottom: 6px; font-size: 13px; color: var(--description-fg); }
+.form-label--sm { font-size: 11px; margin-bottom: 4px; }
+
+/* Form hint */
+.form-hint { margin-top: 4px; font-size: 11px; color: var(--description-fg); }
+
+/* Error state */
+.form-input--error { border-color: var(--error-fg); }
+.form-error { margin-top: 4px; font-size: 11px; color: var(--error-fg); }
+
+/* Read-only field */
+.form-readonly {
+  padding: 6px 8px; background-color: var(--input-bg); border: 1px solid var(--input-border);
+  border-radius: 2px; font-size: 13px; color: var(--input-fg); font-family: var(--editor-font-family); word-break: break-all;
+}
+
+/* Textarea */
+.form-textarea {
+  width: 100%; padding: 6px 8px; background-color: var(--input-bg); color: var(--input-fg);
+  border: 1px solid var(--input-border); border-radius: 2px; font-size: 13px;
+  font-family: var(--editor-font-family, monospace); outline: none; resize: vertical; box-sizing: border-box;
+}
+.form-textarea--code { resize: none; line-height: 1.5; border-radius: 4px; tab-size: 4; flex: 1; }
+
+/* Modal actions */
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.modal-actions--bordered { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--panel-border); }
+
+/* Chip button */
+.chip-btn { padding: 3px 8px; border: none; border-radius: 2px; cursor: pointer; font-size: 11px; }
+
+/* Toggle button */
+.toggle-btn { padding: 4px 12px; border: none; border-radius: 2px; cursor: pointer; font-size: 12px; }
+
+/* Keyboard hint */
+.kbd-hint { opacity: 0.7; font-size: 11px; }
+
+/* Dialog split layout */
+.dialog-split { display: flex; gap: 12px; flex: 1; min-height: 0; overflow: hidden; }
+.dialog-split__pane { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+
+/* Preview area */
+.dialog-preview {
+  padding: 10px 12px; background-color: var(--input-bg); border: 1px solid var(--input-border);
+  border-radius: 2px; min-height: 48px; display: flex; align-items: center; overflow: auto;
+}
+.dialog-preview--grow { flex: 1; border-radius: 4px; justify-content: center; }
+
+/* Alignment button */
+.align-btn {
+  flex: 1; padding: 5px 8px; border: 1px solid var(--input-border); border-radius: 3px;
+  cursor: pointer; font-size: 13px; background: var(--input-bg); color: var(--input-fg);
+}
+.align-btn--active { background: var(--button-bg); color: var(--button-fg); }
+
+/* DrawioAction card */
+.drawio-card {
+  padding: 16px; display: flex; align-items: center; gap: 12px; border: none; border-radius: 4px;
+  cursor: pointer; font-size: 14px; text-align: left; width: 100%;
+}
+.drawio-card__title { font-weight: bold; margin-bottom: 4px; }
+.drawio-card__desc { font-size: 12px; opacity: 0.8; }
+
+/* Toolbar dropdown wrapper */
+.toolbar-dropdown { position: relative; display: inline-block; }
+
+/* Color indicator */
+.color-indicator { height: 3px; border-radius: 2px; }
+
+/* Color picker button */
+.color-picker-btn { display: flex; flex-direction: column; align-items: center; gap: 1px; }
+
+/* Target list (LinkDialog) */
+.target-list {
+  max-height: 200px; overflow-y: auto; border: 1px solid var(--input-border);
+  border-radius: 2px; background: var(--input-bg);
+}
+.target-list__item { padding: 4px 8px; cursor: pointer; font-size: 13px; }
+.target-list__item:hover { background: var(--list-hover-bg); }
+.target-list__item--header { border-bottom: 1px solid var(--input-border); }
 
 /* Link styles */
 .ProseMirror a, .ProseMirror .editor-link { color: #A50034; text-decoration: underline; cursor: pointer; transition: color 0.2s; }

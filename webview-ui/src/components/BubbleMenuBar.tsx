@@ -74,15 +74,14 @@ export const BubbleMenuBar: React.FC<BubbleMenuBarProps> = ({ editor }) => {
       </button>
 
       {/* 텍스트 컬러 */}
-      <div ref={colorRef} style={{ position: 'relative' }}>
+      <div ref={colorRef} className="toolbar-dropdown">
         <button
           onMouseDown={(e) => { e.preventDefault(); setShowColorPicker(v => !v); setShowHighlightPicker(false); }}
-          className={currentColor ? 'is-active' : ''}
+          className={`color-picker-btn ${currentColor ? 'is-active' : ''}`}
           title="텍스트 색상"
-          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}
         >
           <Palette size={14} />
-          <div style={{ width: 14, height: 3, borderRadius: 2, background: currentColor || 'currentColor', opacity: currentColor ? 1 : 0.4 }} />
+          <div className="color-indicator" style={{ width: 14, background: currentColor || 'currentColor', opacity: currentColor ? 1 : 0.4 }} />
         </button>
         {showColorPicker && (
           <div className="bubble-color-picker" onMouseDown={e => e.preventDefault()}>
@@ -110,15 +109,14 @@ export const BubbleMenuBar: React.FC<BubbleMenuBarProps> = ({ editor }) => {
       </div>
 
       {/* 하이라이트 */}
-      <div ref={highlightRef} style={{ position: 'relative' }}>
+      <div ref={highlightRef} className="toolbar-dropdown">
         <button
           onMouseDown={(e) => { e.preventDefault(); setShowHighlightPicker(v => !v); setShowColorPicker(false); }}
-          className={editor.isActive('highlight') ? 'is-active' : ''}
+          className={`color-picker-btn ${editor.isActive('highlight') ? 'is-active' : ''}`}
           title="하이라이트"
-          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}
         >
           <Highlighter size={14} />
-          <div style={{ width: 14, height: 3, borderRadius: 2, background: currentHighlight || '#fef08a', opacity: editor.isActive('highlight') ? 1 : 0.4 }} />
+          <div className="color-indicator" style={{ width: 14, background: currentHighlight || '#fef08a', opacity: editor.isActive('highlight') ? 1 : 0.4 }} />
         </button>
         {showHighlightPicker && (
           <div className="bubble-color-picker" onMouseDown={e => e.preventDefault()}>

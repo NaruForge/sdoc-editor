@@ -78,38 +78,33 @@ export const MathDialog: React.FC<MathDialogProps> = ({
   return (
     <div className="modal-overlay" onClick={onCancel}>
       <div
-        className="modal-content"
-        style={{ width: '500px', maxWidth: '90vw' }}
+        className="modal-content modal-content--md"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={handleKeyDown}
       >
-        <h3 style={{ marginTop: 0, marginBottom: '16px' }}>Insert Math Formula</h3>
+        <h3>Insert Math Formula</h3>
 
         {/* Mode toggle */}
-        <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+        <div className="form-group" style={{ display: 'flex', gap: '8px' }}>
           <button
             type="button"
             onClick={() => setIsBlock(false)}
-            className={!isBlock ? 'btn-primary' : 'btn-secondary'}
-            style={{ padding: '4px 12px', border: 'none', borderRadius: '2px', cursor: 'pointer', fontSize: '12px' }}
+            className={`toggle-btn ${!isBlock ? 'btn-primary' : 'btn-secondary'}`}
           >
-            Inline  <code style={{ opacity: 0.7 }}>$...$</code>
+            Inline  <code className="kbd-hint">$...$</code>
           </button>
           <button
             type="button"
             onClick={() => setIsBlock(true)}
-            className={isBlock ? 'btn-primary' : 'btn-secondary'}
-            style={{ padding: '4px 12px', border: 'none', borderRadius: '2px', cursor: 'pointer', fontSize: '12px' }}
+            className={`toggle-btn ${isBlock ? 'btn-primary' : 'btn-secondary'}`}
           >
-            Block  <code style={{ opacity: 0.7 }}>$$...$$</code>
+            Block  <code className="kbd-hint">$$...$$</code>
           </button>
         </div>
 
         {/* LaTeX input */}
-        <div style={{ marginBottom: '12px' }}>
-          <label style={{ display: 'block', marginBottom: '6px', fontSize: '12px', color: 'var(--vscode-descriptionForeground)' }}>
-            LaTeX:
-          </label>
+        <div className="form-group">
+          <label className="form-label">LaTeX:</label>
           <textarea
             ref={textareaRef}
             value={latex}
@@ -117,56 +112,30 @@ export const MathDialog: React.FC<MathDialogProps> = ({
             rows={3}
             placeholder="Enter LaTeX, e.g. E = mc^2"
             spellCheck={false}
-            style={{
-              width: '100%',
-              padding: '6px 8px',
-              backgroundColor: 'var(--vscode-input-background)',
-              color: 'var(--vscode-input-foreground)',
-              border: `1px solid ${error ? 'var(--vscode-inputValidation-errorBorder,#f48771)' : 'var(--vscode-input-border)'}`,
-              borderRadius: '2px',
-              fontSize: '13px',
-              fontFamily: 'var(--vscode-editor-font-family, monospace)',
-              outline: 'none',
-              resize: 'vertical',
-              boxSizing: 'border-box',
-            }}
+            className={`form-textarea ${error ? 'form-input--error' : ''}`}
           />
         </div>
 
         {/* Live preview */}
-        <div style={{ marginBottom: '12px' }}>
-          <label style={{ display: 'block', marginBottom: '6px', fontSize: '12px', color: 'var(--vscode-descriptionForeground)' }}>
-            Preview:
-          </label>
+        <div className="form-group">
+          <label className="form-label">Preview:</label>
           <div
             ref={previewRef}
-            style={{
-              padding: '10px 12px',
-              backgroundColor: 'var(--vscode-input-background)',
-              border: '1px solid var(--vscode-input-border)',
-              borderRadius: '2px',
-              minHeight: '48px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: isBlock ? 'center' : 'flex-start',
-              overflowX: 'auto',
-            }}
+            className="dialog-preview"
+            style={{ justifyContent: isBlock ? 'center' : 'flex-start' }}
           />
         </div>
 
         {/* Examples */}
-        <div style={{ marginBottom: '16px' }}>
-          <label style={{ display: 'block', marginBottom: '6px', fontSize: '12px', color: 'var(--vscode-descriptionForeground)' }}>
-            Examples:
-          </label>
+        <div className="form-group">
+          <label className="form-label">Examples:</label>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
             {EXAMPLES.map((ex) => (
               <button
                 key={ex.label}
                 type="button"
                 onClick={() => insertExample(ex.latex)}
-                className="btn-secondary"
-                style={{ padding: '3px 8px', border: 'none', borderRadius: '2px', cursor: 'pointer', fontSize: '11px' }}
+                className="btn-secondary chip-btn"
                 title={ex.latex}
               >
                 {ex.label}
@@ -176,8 +145,8 @@ export const MathDialog: React.FC<MathDialogProps> = ({
         </div>
 
         {/* Actions */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-          <button type="button" onClick={onCancel} className="btn-secondary" style={{ padding: '6px 12px', border: 'none', borderRadius: '2px', cursor: 'pointer', fontSize: '13px' }}>
+        <div className="modal-actions">
+          <button type="button" onClick={onCancel} className="btn-secondary">
             Cancel
           </button>
           <button
@@ -185,9 +154,8 @@ export const MathDialog: React.FC<MathDialogProps> = ({
             onClick={handleSubmit}
             className="btn-primary"
             disabled={!latex.trim()}
-            style={{ padding: '6px 12px', border: 'none', borderRadius: '2px', cursor: 'pointer', fontSize: '13px', opacity: latex.trim() ? 1 : 0.5 }}
           >
-            Insert  <span style={{ opacity: 0.7, fontSize: '11px' }}>Ctrl+Enter</span>
+            Insert  <span className="kbd-hint">Ctrl+Enter</span>
           </button>
         </div>
       </div>

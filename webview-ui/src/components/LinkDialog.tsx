@@ -81,41 +81,13 @@ export const LinkDialog: React.FC<LinkDialogProps> = ({
     }
   };
 
-  const btnStyle: React.CSSProperties = {
-    padding: '6px 14px',
-    background: 'var(--vscode-button-secondaryBackground)',
-    color: 'var(--vscode-button-secondaryForeground)',
-    border: 'none',
-    borderRadius: '2px',
-    cursor: 'pointer',
-    fontSize: '13px',
-  };
-
-  const inputStyle: React.CSSProperties = {
-    width: '100%',
-    padding: '6px 8px',
-    background: 'var(--vscode-input-background)',
-    color: 'var(--vscode-input-foreground)',
-    border: '1px solid var(--vscode-input-border)',
-    borderRadius: '2px',
-    fontSize: '13px',
-    fontFamily: 'var(--vscode-font-family)',
-  };
-
-  const labelStyle: React.CSSProperties = {
-    display: 'block',
-    marginBottom: '6px',
-    fontSize: '13px',
-    color: 'var(--vscode-descriptionForeground)',
-  };
-
   return (
     <div className="modal-overlay" onClick={onCancel}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ minWidth: '400px' }}>
-        <h3 style={{ marginTop: 0, marginBottom: '16px' }}>Insert Link</h3>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <h3>Insert Link</h3>
         <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: '12px' }}>
-            <label htmlFor="link-url" style={labelStyle}>URL:</label>
+          <div className="form-group">
+            <label htmlFor="link-url" className="form-label">URL:</label>
             <div style={{ display: 'flex', gap: '6px' }}>
               <input
                 id="link-url"
@@ -124,40 +96,31 @@ export const LinkDialog: React.FC<LinkDialogProps> = ({
                 onChange={(e) => setUrl(e.target.value)}
                 onKeyDown={handleKeyDown}
                 autoFocus
-                style={{ ...inputStyle, flex: 1 }}
+                className="form-input"
+                style={{ flex: 1 }}
                 placeholder="https://... or ./other.sdoc#id"
               />
-              <button type="button" onClick={handleBrowseSdoc} style={btnStyle} title="Browse .sdoc files">
+              <button type="button" onClick={handleBrowseSdoc} className="btn-secondary" title="Browse .sdoc files">
                 📄
               </button>
             </div>
           </div>
 
           {showTargets && sdocTargets.length > 0 && (
-            <div style={{ marginBottom: '12px' }}>
-              <label style={labelStyle}>Link to a section in {sdocPath}:</label>
-              <div style={{
-                maxHeight: '200px',
-                overflowY: 'auto',
-                border: '1px solid var(--vscode-input-border)',
-                borderRadius: '2px',
-                background: 'var(--vscode-input-background)',
-              }}>
+            <div className="form-group">
+              <label className="form-label">Link to a section in {sdocPath}:</label>
+              <div className="target-list">
                 <div
-                  style={{ padding: '4px 8px', cursor: 'pointer', fontSize: '13px', borderBottom: '1px solid var(--vscode-input-border)' }}
+                  className="target-list__item target-list__item--header"
                   onClick={() => { setUrl(sdocPath); setText(sdocPath.replace(/\.sdoc$/, '').split('/').pop() || sdocPath); setShowTargets(false); }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--vscode-list-hoverBackground)')}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = '')}
                 >
                   📄 Document (no specific section)
                 </div>
                 {sdocTargets.map(t => (
                   <div
                     key={t.id}
-                    style={{ padding: '4px 8px', cursor: 'pointer', fontSize: '13px' }}
+                    className="target-list__item"
                     onClick={() => handleSelectTarget(t)}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--vscode-list-hoverBackground)')}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = '')}
                   >
                     <span style={{ marginRight: '6px' }}>
                       {t.type === 'heading' ? '§' : t.type === 'figure' ? '🖼' : '▦'}
@@ -169,30 +132,24 @@ export const LinkDialog: React.FC<LinkDialogProps> = ({
             </div>
           )}
 
-          <div style={{ marginBottom: '16px' }}>
-            <label htmlFor="link-text" style={labelStyle}>Link Text (optional):</label>
+          <div className="form-group">
+            <label htmlFor="link-text" className="form-label">Link Text (optional):</label>
             <input
               id="link-text"
               type="text"
               value={text}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={handleKeyDown}
-              style={inputStyle}
+              className="form-input"
               placeholder="Click here"
             />
           </div>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-            <button type="button" onClick={onCancel} style={btnStyle}>Cancel</button>
+          <div className="modal-actions">
+            <button type="button" onClick={onCancel} className="btn-secondary">Cancel</button>
             <button
               type="submit"
               disabled={!url.trim()}
-              style={{
-                ...btnStyle,
-                background: 'var(--vscode-button-background)',
-                color: 'var(--vscode-button-foreground)',
-                cursor: url.trim() ? 'pointer' : 'not-allowed',
-                opacity: url.trim() ? 1 : 0.5,
-              }}
+              className="btn-primary"
             >
               Insert
             </button>

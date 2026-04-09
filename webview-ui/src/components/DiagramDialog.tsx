@@ -136,31 +136,27 @@ export const DiagramDialog: React.FC<DiagramDialogProps> = ({
   return (
     <div className="modal-overlay" onClick={onCancel}>
       <div
-        className="modal-content"
-        style={{ width: '800px', maxWidth: '95vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}
+        className="modal-content modal-content--lg"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={handleKeyDown}
       >
-        <h3 style={{ marginTop: 0, marginBottom: '12px' }}>
+        <h3>
           {pos !== null ? 'Edit Diagram' : 'Insert Diagram'}
-          <span style={{ marginLeft: '8px', fontSize: '12px', opacity: 0.6, fontWeight: 'normal' }}>
+          <span className="kbd-hint" style={{ marginLeft: '8px', fontSize: '12px', fontWeight: 'normal' }}>
             ({language})
           </span>
         </h3>
 
         {/* Examples */}
-        <div style={{ marginBottom: '10px' }}>
-          <label style={{ display: 'block', marginBottom: '4px', fontSize: '11px', color: 'var(--vscode-descriptionForeground)' }}>
-            Templates:
-          </label>
+        <div className="form-group">
+          <label className="form-label form-label--sm">Templates:</label>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
             {EXAMPLES.map((ex) => (
               <button
                 key={ex.label}
                 type="button"
                 onClick={() => { setCode(ex.code); textareaRef.current?.focus(); }}
-                className="btn-secondary"
-                style={{ padding: '3px 8px', border: 'none', borderRadius: '2px', cursor: 'pointer', fontSize: '11px' }}
+                className="btn-secondary chip-btn"
               >
                 {ex.label}
               </button>
@@ -169,12 +165,10 @@ export const DiagramDialog: React.FC<DiagramDialogProps> = ({
         </div>
 
         {/* Editor + Preview split */}
-        <div style={{ display: 'flex', gap: '12px', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+        <div className="dialog-split">
           {/* Code editor */}
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-            <label style={{ marginBottom: '4px', fontSize: '11px', color: 'var(--vscode-descriptionForeground)' }}>
-              Code:
-            </label>
+          <div className="dialog-split__pane">
+            <label className="form-label form-label--sm">Code:</label>
             <textarea
               ref={textareaRef}
               value={code}
@@ -182,56 +176,24 @@ export const DiagramDialog: React.FC<DiagramDialogProps> = ({
               rows={15}
               spellCheck={false}
               placeholder="graph TD&#10;    A[Start] --> B[End]"
-              style={{
-                flex: 1,
-                width: '100%',
-                padding: '8px',
-                backgroundColor: 'var(--vscode-input-background)',
-                color: 'var(--vscode-input-foreground)',
-                border: `1px solid ${error ? 'var(--vscode-inputValidation-errorBorder,#f48771)' : 'var(--vscode-input-border)'}`,
-                borderRadius: '4px',
-                fontSize: '13px',
-                fontFamily: 'var(--vscode-editor-font-family, monospace)',
-                lineHeight: '1.5',
-                outline: 'none',
-                resize: 'none',
-                boxSizing: 'border-box',
-                tabSize: 4,
-              }}
+              className={`form-textarea form-textarea--code ${error ? 'form-input--error' : ''}`}
             />
-            {error && (
-              <div style={{ marginTop: '4px', fontSize: '11px', color: 'var(--vscode-errorForeground,#f48771)' }}>
-                {error}
-              </div>
-            )}
+            {error && <div className="form-error">{error}</div>}
           </div>
 
           {/* Live Preview */}
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-            <label style={{ marginBottom: '4px', fontSize: '11px', color: 'var(--vscode-descriptionForeground)' }}>
-              Preview:
-            </label>
+          <div className="dialog-split__pane">
+            <label className="form-label form-label--sm">Preview:</label>
             <div
               ref={previewRef}
-              className="diagram-preview-area"
-              style={{
-                flex: 1,
-                padding: '12px',
-                backgroundColor: 'var(--vscode-input-background)',
-                border: '1px solid var(--vscode-input-border)',
-                borderRadius: '4px',
-                overflow: 'auto',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
+              className="diagram-preview-area dialog-preview dialog-preview--grow"
             />
           </div>
         </div>
 
         {/* Actions */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--vscode-panel-border)' }}>
-          <button type="button" onClick={onCancel} className="btn-secondary" style={{ padding: '6px 12px', border: 'none', borderRadius: '2px', cursor: 'pointer', fontSize: '13px' }}>
+        <div className="modal-actions modal-actions--bordered">
+          <button type="button" onClick={onCancel} className="btn-secondary">
             Cancel
           </button>
           <button
@@ -239,10 +201,9 @@ export const DiagramDialog: React.FC<DiagramDialogProps> = ({
             onClick={handleSubmit}
             className="btn-primary"
             disabled={!code.trim()}
-            style={{ padding: '6px 12px', border: 'none', borderRadius: '2px', cursor: 'pointer', fontSize: '13px', opacity: code.trim() ? 1 : 0.5 }}
           >
             {pos !== null ? 'Update' : 'Insert'}
-            <span style={{ opacity: 0.7, fontSize: '11px', marginLeft: '6px' }}>Ctrl+Enter</span>
+            <span className="kbd-hint" style={{ marginLeft: '6px' }}>Ctrl+Enter</span>
           </button>
         </div>
       </div>

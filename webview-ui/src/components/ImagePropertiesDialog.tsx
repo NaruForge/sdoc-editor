@@ -65,93 +65,27 @@ export const ImagePropertiesDialog: React.FC<ImagePropertiesDialogProps> = ({
   return (
     <div className="modal-overlay" onClick={onCancel}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-        <h3 style={{ marginTop: 0, marginBottom: '16px' }}>Image Properties</h3>
+        <h3>Image Properties</h3>
         <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: '12px' }}>
-            <label 
-              style={{ 
-                display: 'block',
-                marginBottom: '6px',
-                fontSize: '13px',
-                color: 'var(--vscode-descriptionForeground)'
-              }}
-            >
-              Filename:
-            </label>
-            <div 
-              style={{ 
-                padding: '6px 8px',
-                backgroundColor: 'var(--vscode-input-background)',
-                border: '1px solid var(--vscode-input-border)',
-                borderRadius: '2px',
-                fontSize: '13px',
-                color: 'var(--vscode-input-foreground)',
-                fontFamily: 'var(--vscode-editor-font-family)',
-                wordBreak: 'break-all'
-              }}
-            >
-              {filename}
-            </div>
+          <div className="form-group">
+            <label className="form-label">Filename:</label>
+            <div className="form-readonly">{filename}</div>
           </div>
 
-          <div style={{ marginBottom: '16px' }}>
-            <label 
-              style={{ 
-                display: 'block',
-                marginBottom: '6px',
-                fontSize: '13px',
-                color: 'var(--vscode-descriptionForeground)'
-              }}
-            >
-              Path:
-            </label>
-            <div 
-              style={{ 
-                padding: '6px 8px',
-                backgroundColor: 'var(--vscode-input-background)',
-                border: '1px solid var(--vscode-input-border)',
-                borderRadius: '2px',
-                fontSize: '13px',
-                color: 'var(--vscode-input-foreground)',
-                fontFamily: 'var(--vscode-editor-font-family)',
-                wordBreak: 'break-all'
-              }}
-            >
-              {path}
-            </div>
+          <div className="form-group">
+            <label className="form-label">Path:</label>
+            <div className="form-readonly">{path}</div>
           </div>
 
-          <div style={{ marginBottom: '16px' }}>
-            <label
-              style={{
-                display: 'block',
-                marginBottom: '8px',
-                fontSize: '13px',
-                color: 'var(--vscode-descriptionForeground)'
-              }}
-            >
-              Alignment:
-            </label>
+          <div className="form-group">
+            <label className="form-label">Alignment:</label>
             <div style={{ display: 'flex', gap: '6px' }}>
               {(['left', 'center', 'right'] as const).map((a) => (
                 <button
                   key={a}
                   type="button"
                   onClick={() => setAlignValue(a)}
-                  style={{
-                    flex: 1,
-                    padding: '5px 8px',
-                    border: '1px solid var(--vscode-input-border)',
-                    borderRadius: '3px',
-                    cursor: 'pointer',
-                    fontSize: '13px',
-                    background: alignValue === a
-                      ? 'var(--vscode-button-background)'
-                      : 'var(--vscode-input-background)',
-                    color: alignValue === a
-                      ? 'var(--vscode-button-foreground)'
-                      : 'var(--vscode-input-foreground)',
-                  }}
+                  className={`align-btn ${alignValue === a ? 'align-btn--active' : ''}`}
                 >
                   {a === 'left' ? '← Left' : a === 'center' ? '↔ Center' : 'Right →'}
                 </button>
@@ -159,18 +93,8 @@ export const ImagePropertiesDialog: React.FC<ImagePropertiesDialogProps> = ({
             </div>
           </div>
 
-          <div style={{ marginBottom: '16px' }}>
-            <label
-              htmlFor="image-alt"
-              style={{ 
-                display: 'block',
-                marginBottom: '6px',
-                fontSize: '13px',
-                color: 'var(--vscode-descriptionForeground)'
-              }}
-            >
-              Alt Text:
-            </label>
+          <div className="form-group">
+            <label htmlFor="image-alt" className="form-label">Alt Text:</label>
             <input
               id="image-alt"
               type="text"
@@ -179,70 +103,26 @@ export const ImagePropertiesDialog: React.FC<ImagePropertiesDialogProps> = ({
               onKeyDown={handleKeyDown}
               placeholder="Describe this image..."
               autoFocus
-              style={{
-                width: '100%',
-                padding: '6px 8px',
-                backgroundColor: 'var(--vscode-input-background)',
-                color: 'var(--vscode-input-foreground)',
-                border: '1px solid var(--vscode-input-border)',
-                borderRadius: '2px',
-                fontSize: '13px',
-                outline: 'none',
-                fontFamily: 'var(--vscode-font-family)',
-              }}
+              className="form-input"
             />
           </div>
 
-          <div 
-            style={{ 
-              display: 'flex', 
-              justifyContent: 'space-between',
-              gap: '8px'
-            }}
-          >
+          <div className="modal-actions" style={{ justifyContent: 'space-between' }}>
             {!isDrawio && (
               <button
                 type="button"
                 onClick={onReplace}
                 className="btn-secondary"
-                style={{
-                  flex: '1',
-                  padding: '6px 12px',
-                  border: 'none',
-                  borderRadius: '2px',
-                  cursor: 'pointer',
-                  fontSize: '13px',
-                }}
+                style={{ flex: '1' }}
               >
                 Replace Image...
               </button>
             )}
-            <div style={{ display: 'flex', gap: '8px', marginLeft: isDrawio ? 'auto' : '0' }}>
-              <button
-                type="button"
-                onClick={onCancel}
-                className="btn-secondary"
-                style={{
-                  padding: '6px 12px',
-                  border: 'none',
-                  borderRadius: '2px',
-                  cursor: 'pointer',
-                  fontSize: '13px',
-                }}
-              >
+            <div className="modal-actions" style={{ marginLeft: isDrawio ? 'auto' : '0' }}>
+              <button type="button" onClick={onCancel} className="btn-secondary">
                 Cancel
               </button>
-              <button
-                type="submit"
-                className="btn-primary"
-                style={{
-                  padding: '6px 12px',
-                  border: 'none',
-                  borderRadius: '2px',
-                  cursor: 'pointer',
-                  fontSize: '13px',
-                }}
-              >
+              <button type="submit" className="btn-primary">
                 OK
               </button>
             </div>
