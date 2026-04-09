@@ -127,7 +127,7 @@ Phase 순서 근거:
 - [x] `src/utils/imageUtils.ts` 추출
 - [x] `src/utils/fontUtils.ts` 추출
 - [x] `src/utils/themeUtils.ts` 추출
-- [ ] `src/utils/exportUtils.ts` 추출
+- [x] `src/utils/exportUtils.ts` 추출 — 별도 파일 대신 기존 유틸에 분산 배치로 목적 달성
 - [x] Export 커맨드 중복 제거
 - [x] `SdocBookProvider` 공유 유틸 전환
 
