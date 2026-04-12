@@ -1,5 +1,5 @@
 import { useRef, MutableRefObject } from 'react';
-import { Editor as TiptapEditor } from '@tiptap/react';
+import { Editor as TiptapEditor, type JSONContent } from '@tiptap/react';
 import { useEditorContext, resolveFontWeight } from '../context/EditorContext';
 import { useVSCodeMessaging } from './useVSCodeMessaging';
 import { preprocessImportedHtml } from '../utils/preprocessImportedHtml';
@@ -15,10 +15,9 @@ export interface MetaState {
 interface UseEditorMessagesOptions {
   editor: TiptapEditor | null;
   flushUpdate: () => void;
-  setContentRef: MutableRefObject<((content: unknown) => void) | null>;
+  setContentRef: MutableRefObject<((content: JSONContent) => void) | null>;
   initDoneRef: MutableRefObject<boolean>;
   pendingEditRef: MutableRefObject<boolean>;
-  meta: MetaState;
   setMeta: React.Dispatch<React.SetStateAction<MetaState>>;
 }
 
@@ -28,10 +27,9 @@ export function useEditorMessages({
   setContentRef,
   initDoneRef,
   pendingEditRef,
-  meta,
   setMeta,
 }: UseEditorMessagesOptions) {
-  const { state, dispatch } = useEditorContext();
+  const { dispatch } = useEditorContext();
   const editorRef = useRef(editor);
   editorRef.current = editor;
 

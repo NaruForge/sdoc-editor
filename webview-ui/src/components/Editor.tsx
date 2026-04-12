@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { EditorContent } from '@tiptap/react';
+import { EditorContent, type JSONContent } from '@tiptap/react';
 import { useTiptapEditor } from '../hooks/useTiptapEditor';
 import { useEditorContext } from '../context/EditorContext';
 import { useEditorMessages, type MetaState } from '../hooks/useEditorMessages';
@@ -30,7 +30,7 @@ export const Editor: React.FC = () => {
   const [meta, setMeta] = useState<MetaState>({ title: '', author: '', version: '', created: '', modified: '' });
   const { dialogs, dialogDispatch, openTableContextMenu, openEditorContextMenu } = useDialogState();
   const pendingEditRef = useRef(false);
-  const setContentRef = useRef<((content: unknown) => void) | null>(null);
+  const setContentRef = useRef<((content: JSONContent) => void) | null>(null);
   const initDoneRef = useRef(false);
 
   // Apply settings to CSS custom properties and global state
@@ -74,7 +74,6 @@ export const Editor: React.FC = () => {
     setContentRef,
     initDoneRef,
     pendingEditRef,
-    meta,
     setMeta,
   });
   postMessageRef.current = postMessage;
@@ -361,10 +360,10 @@ export const Editor: React.FC = () => {
     if (!editor) return;
 
     const editorElement = editor.view.dom;
-    editorElement.addEventListener('paste', handlePaste as EventListener);
+    editorElement.addEventListener('paste', handlePaste as unknown as EventListener);
 
     return () => {
-      editorElement.removeEventListener('paste', handlePaste as EventListener);
+      editorElement.removeEventListener('paste', handlePaste as unknown as EventListener);
     };
   }, [editor]);
 
