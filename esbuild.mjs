@@ -6,7 +6,7 @@ const ctx = await esbuild.context({
   entryPoints: ['src/extension.ts'],
   bundle: true,
   outfile: 'dist/extension.js',
-  external: ['vscode', 'asciidoctor'],
+  external: ['vscode'],
   format: 'cjs',
   platform: 'node',
   target: 'node18',

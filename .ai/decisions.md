@@ -8,6 +8,8 @@
 | 2026-04-09 | SDOC-015 | @copilot | TypeScript strictness를 `noUnusedLocals: true, noUnusedParameters: true`로 통일 | 3개 패키지(root, webview-ui, tauri-app) 간 일관성 확보, 데드코드 조기 탐지 |
 | 2026-04-09 | SDOC-015 | @contributor-01 | 전면 코드 감사 후 5단계 점진적 리팩토링 채택 | Phase별 독립 커밋 가능, 기능 회귀 방지. Phase 0(버그)→1(인프라)→2(Converter)→3(Host)→4(Webview)→5(의존성) 순서 |
 | 2026-04-09 | SDOC-015 | @contributor-01 | `src/converter/` 삭제하고 `shared/converter/` 단일화 결정 | 2,534줄 완전 복제 + 드리프트로 실제 버그 발생 확인. Converter에 vscode API 의존성 없음 확인 |
+| 2026-04-13 | SDOC-015 | @copilot | `asciidoctor` devDependency + esbuild external 제거 | 코드에서 실제 사용하지 않음 확인 (esbuild.mjs external에만 잔존). 데드 의존성 정리 |
+| 2026-04-13 | SDOC-015 | @copilot | Tauri 플러그인 `^2` → `^2.x.y` 구체화 | major 범위 `^2`는 breaking change 위험. 설치된 실제 버전 기준으로 minor 고정 |
 | 2026-04-09 | SDOC-015 | @contributor-01 | Harness Engineering Guidelines 신규 작성 | AI Agent 코드 작성 시 반복 문제(중복, any 남용, God class) 방지를 위한 강제 규칙 필요 |
 | 2026-04-08 | SDOC-012 | @contributor-01 | TTF → WOFF2 전환 + 사용 weight만 임베딩 | WOFF2는 무손실 ~63% 압축, weight 필터로 추가 절감. 기존 TTF 삭제 |
 | 2026-04-08 | SDOC-012 | @contributor-01 | slide.transition 설정 추가, 기본값 none | 애니메이션 부드럽지 않은 문제 → 사용자 선택으로 전환, 기본 비활성화 |

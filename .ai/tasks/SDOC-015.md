@@ -2,10 +2,10 @@
 ats: "0.1"
 id: SDOC-015
 title: "코드베이스 리팩토링 — 하네스 엔지니어링 기반 구축"
-status: in-progress
+status: done
 priority: high
 created: 2026-04-09T00:00:00+09:00
-modified: 2026-04-10T03:00:00+09:00
+modified: 2026-04-13T12:00:00+09:00
 author: "@contributor-01"
 ---
 
@@ -140,7 +140,8 @@ Phase 순서 근거:
 - [x] `console.log` 제거
 
 ### Phase 5: 의존성 & 빌드 정리
-- [ ] 패키지 버전 동기화 (webview-ui ↔ tauri-app)
-- [ ] `npm-run-all` → `npm-run-all2` 교체
-- [ ] 미사용 의존성 정리 (`asciidoctor` external 등)
-- [ ] 경로 별칭 통일 (`@shared`)
+- [x] 패키지 버전 동기화 (webview-ui ↔ tauri-app) — 9개 불일치 해소
+- [x] `npm-run-all` → `npm-run-all2` 교체 (v7.0.2)
+- [x] 미사용 의존성 정리 (`asciidoctor` devDep + esbuild external 제거)
+- [x] Tauri 플러그인 버전 구체화 (`^2` → `^2.x.y`)
+- [x] 경로 별칭 통일 (`@shared` — webview-ui tsconfig + vite.config 추가)
