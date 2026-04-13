@@ -64,8 +64,8 @@ export async function exportToHtml(context: vscode.ExtensionContext) {
     };
 
     const exportSettings = {
-      imageCaptionPrefix: config.get<string>('caption.imagePrefix', 'Image'),
-      tableCaptionPrefix: config.get<string>('caption.tablePrefix', 'Table'),
+      imageCaptionPrefix: config.get<string>('caption.imagePrefix', ''),
+      tableCaptionPrefix: config.get<string>('caption.tablePrefix', ''),
       captionNumbering: config.get<'simple' | 'hierarchical'>('caption.numbering', 'simple'),
       equationNumbering: config.get<'sequential' | 'hierarchical'>('equation.numbering', 'sequential'),
       exportImagePath: config.get<'relative' | 'absolute'>('export.imagePath', 'relative'),

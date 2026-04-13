@@ -72,8 +72,8 @@ export async function exportToPdf(context: vscode.ExtensionContext) {
         };
 
         const exportSettings = {
-          imageCaptionPrefix: config.get<string>('caption.imagePrefix', 'Image'),
-          tableCaptionPrefix: config.get<string>('caption.tablePrefix', 'Table'),
+          imageCaptionPrefix: config.get<string>('caption.imagePrefix', ''),
+          tableCaptionPrefix: config.get<string>('caption.tablePrefix', ''),
           captionNumbering: config.get<'simple' | 'hierarchical'>('caption.numbering', 'simple'),
           selfContained: 'images-only' as const,
         };

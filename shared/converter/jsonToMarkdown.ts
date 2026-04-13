@@ -1,4 +1,4 @@
-import { formatDate } from './utils';
+import { formatDate, formatCaptionLabel } from './utils';
 
 interface TiptapNode {
   type: string;
@@ -224,11 +224,11 @@ function convertTable(table: TiptapNode, ctx: ConvertContext): string {
   const caption = table.attrs?.caption;
   if (caption) {
     ctx.tableCounter++;
-    const prefix = ctx.settings.tableCaptionPrefix || 'Table';
+    const prefix = ctx.settings.tableCaptionPrefix ?? '';
     const numbering = ctx.settings.captionNumbering === 'hierarchical'
       ? `${ctx.h1Counter}.${ctx.tableCounter}`
       : `${ctx.tableCounter}`;
-    captionMd = `**${prefix} ${numbering}: ${caption}**\n\n`;
+    captionMd = `**${formatCaptionLabel(prefix, numbering, caption as string)}**\n\n`;
   }
 
   if (isComplexTable(table)) {
@@ -371,11 +371,11 @@ function convertImage(node: TiptapNode, ctx: ConvertContext): string {
 
   if (caption) {
     ctx.imageCounter++;
-    const prefix = ctx.settings.imageCaptionPrefix || 'Image';
+    const prefix = ctx.settings.imageCaptionPrefix ?? '';
     const numbering = ctx.settings.captionNumbering === 'hierarchical'
       ? `${ctx.h1Counter}.${ctx.imageCounter}`
       : `${ctx.imageCounter}`;
-    md += `\n\n*${prefix} ${numbering}: ${caption}*`;
+    md += `\n\n*${formatCaptionLabel(prefix, numbering, caption as string)}*`;
   }
 
   return md + '\n';

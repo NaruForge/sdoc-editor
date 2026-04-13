@@ -79,13 +79,13 @@
       "properties": {
         "structuredDocEditor.caption.imagePrefix": {
           "type": "string",
-          "default": "Image",
-          "description": "Prefix for image captions (e.g., 'Image', 'Figure', 'Fig.', '그림')"
+          "default": "",
+          "description": "Prefix for image captions, placed before the number (e.g., 'Fig. ', 'Image ', '그림 '). Include trailing space/punctuation as desired."
         },
         "structuredDocEditor.caption.tablePrefix": {
           "type": "string",
-          "default": "Table",
-          "description": "Prefix for table captions (e.g., 'Table', '표')"
+          "default": "",
+          "description": "Prefix for table captions, placed before the number (e.g., 'Table ', '표 '). Include trailing space/punctuation as desired."
         },
         "structuredDocEditor.caption.numbering": {
           "type": "string",

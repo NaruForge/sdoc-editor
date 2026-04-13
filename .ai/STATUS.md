@@ -7,6 +7,7 @@
 - (없음)
 
 ## Done (최근)
+- [SDOC-022](tasks/SDOC-022.md): 캡션 포맷 통일 + CrossRef hierarchical 번호 지원 (2026-04-13)
 - [SDOC-021](tasks/SDOC-021.md): 설정 패널 UX 개선 — 텍스트 입력 디바운스 + CrossRef 동적 라벨 (2026-04-13)
 - [SDOC-020](tasks/SDOC-020.md): Heading 번호 매기기 버그 수정 — CSS counter-set (2026-04-13)
 - [SDOC-019](tasks/SDOC-019.md): Settings 아키텍처 리팩토링 — 문서별 설정 분리 + 설정 패널 UI (2026-04-13)

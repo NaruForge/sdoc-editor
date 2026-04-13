@@ -11,8 +11,8 @@ export const SETTINGS_DEFAULTS: Required<DocumentSettings> = {
   headingH1Color: '#A50034',
   headingH2Color: '#A50034',
   headingH3Color: '#A50034',
-  captionImagePrefix: 'Image',
-  captionTablePrefix: 'Table',
+  captionImagePrefix: '',
+  captionTablePrefix: '',
   captionNumbering: 'simple',
   equationNumbering: 'sequential',
 };

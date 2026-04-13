@@ -48,8 +48,8 @@ export async function exportToMarkdown(context: vscode.ExtensionContext) {
     // Get caption settings
     const config = vscode.workspace.getConfiguration('structuredDocEditor');
     const exportSettings = {
-      imageCaptionPrefix: config.get<string>('caption.imagePrefix', 'Image'),
-      tableCaptionPrefix: config.get<string>('caption.tablePrefix', 'Table'),
+      imageCaptionPrefix: config.get<string>('caption.imagePrefix', ''),
+      tableCaptionPrefix: config.get<string>('caption.tablePrefix', ''),
       captionNumbering: config.get<'simple' | 'hierarchical'>('caption.numbering', 'simple'),
       equationNumbering: config.get<'sequential' | 'hierarchical'>('equation.numbering', 'sequential'),
     };

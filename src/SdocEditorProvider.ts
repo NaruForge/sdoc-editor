@@ -66,8 +66,8 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         headingH1Color: config.get<string>('heading.h1Color', '#A50034'),
         headingH2Color: config.get<string>('heading.h2Color', '#A50034'),
         headingH3Color: config.get<string>('heading.h3Color', '#A50034'),
-        captionImagePrefix: config.get<string>('caption.imagePrefix', 'Image'),
-        captionTablePrefix: config.get<string>('caption.tablePrefix', 'Table'),
+        captionImagePrefix: config.get<string>('caption.imagePrefix', ''),
+        captionTablePrefix: config.get<string>('caption.tablePrefix', ''),
         captionNumbering: config.get<'simple' | 'hierarchical'>('caption.numbering', 'simple'),
         equationNumbering: config.get<'sequential' | 'hierarchical'>('equation.numbering', 'sequential'),
       };
@@ -891,8 +891,8 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       headingH1Color: config.get<string>('heading.h1Color', '#A50034'),
       headingH2Color: config.get<string>('heading.h2Color', '#A50034'),
       headingH3Color: config.get<string>('heading.h3Color', '#A50034'),
-      captionImagePrefix: config.get<string>('caption.imagePrefix', 'Image'),
-      captionTablePrefix: config.get<string>('caption.tablePrefix', 'Table'),
+      captionImagePrefix: config.get<string>('caption.imagePrefix', ''),
+      captionTablePrefix: config.get<string>('caption.tablePrefix', ''),
       captionNumbering: config.get<'simple' | 'hierarchical'>('caption.numbering', 'simple'),
       equationNumbering: config.get<'sequential' | 'hierarchical'>('equation.numbering', 'sequential'),
     };
@@ -1060,8 +1060,8 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       const config = vscode.workspace.getConfiguration('structuredDocEditor');
       const selfContained = config.get<'none' | 'images-only' | 'full'>('export.selfContained', 'images-only');
       const vscodeDefaults: Partial<DocumentSettings> = {
-        captionImagePrefix: config.get<string>('caption.imagePrefix', 'Image'),
-        captionTablePrefix: config.get<string>('caption.tablePrefix', 'Table'),
+        captionImagePrefix: config.get<string>('caption.imagePrefix', ''),
+        captionTablePrefix: config.get<string>('caption.tablePrefix', ''),
         captionNumbering: config.get<'simple' | 'hierarchical'>('caption.numbering', 'simple'),
         equationNumbering: config.get<'sequential' | 'hierarchical'>('equation.numbering', 'sequential'),
       };

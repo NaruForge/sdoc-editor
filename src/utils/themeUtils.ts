@@ -62,8 +62,8 @@ export function buildHtmlTheme(
 
 export function readExportSettings(config: vscode.WorkspaceConfiguration): Record<string, unknown> {
   return {
-    imageCaptionPrefix: config.get<string>('caption.imagePrefix', 'Image'),
-    tableCaptionPrefix: config.get<string>('caption.tablePrefix', 'Table'),
+    imageCaptionPrefix: config.get<string>('caption.imagePrefix', ''),
+    tableCaptionPrefix: config.get<string>('caption.tablePrefix', ''),
     captionNumbering: config.get<'simple' | 'hierarchical'>('caption.numbering', 'simple'),
     exportImagePath: config.get<'relative' | 'absolute'>('export.imagePath', 'relative'),
   };

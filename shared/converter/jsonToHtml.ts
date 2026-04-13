@@ -12,7 +12,7 @@ interface TiptapMark {
 }
 
 import hljs from 'highlight.js';
-import { escapeHtml, formatDate } from './utils';
+import { escapeHtml, formatDate, formatCaptionLabel } from './utils';
 
 interface HtmlTheme {
   companyLogo?: string;
@@ -212,7 +212,7 @@ function convertTable(table: TiptapNode, ctx: ConvertContext): string {
   const caption = table.attrs?.caption;
   const align = table.attrs?.align || 'left';
   const width = table.attrs?.width || '100%';
-  const prefix = ctx.settings.tableCaptionPrefix || 'Table';
+  const prefix = ctx.settings.tableCaptionPrefix ?? '';
   const numbering = ctx.settings.captionNumbering === 'hierarchical'
     ? `${ctx.h1Counter}.${ctx.tableCounter}`
     : `${ctx.tableCounter}`;
@@ -225,7 +225,7 @@ function convertTable(table: TiptapNode, ctx: ConvertContext): string {
   html += `<table${tId} style="width: ${width}; text-align: ${align};" class="doc-table">`;
 
   if (caption) {
-    html += `\n  <caption>${prefix} ${numbering}: ${escapeHtml(caption as string)}</caption>`;
+    html += `\n  <caption>${formatCaptionLabel(prefix, numbering, escapeHtml(caption as string))}</caption>`;
   }
 
   if (hasHeader && table.content[0]) {
@@ -296,7 +296,7 @@ function convertImage(node: TiptapNode, ctx: ConvertContext): string {
   const caption = (node.attrs?.caption as string) || '';
   const align = (node.attrs?.align as string) || 'center';
   ctx.imageCounter++;
-  const prefix = ctx.settings.imageCaptionPrefix || 'Image';
+  const prefix = ctx.settings.imageCaptionPrefix ?? '';
   const numbering = ctx.settings.captionNumbering === 'hierarchical'
     ? `${ctx.h1Counter}.${ctx.imageCounter}`
     : `${ctx.imageCounter}`;
@@ -317,7 +317,7 @@ function convertImage(node: TiptapNode, ctx: ConvertContext): string {
   }
 
   if (caption) {
-    html += `\n  <figcaption>${prefix} ${numbering}: ${escapeHtml(caption)}</figcaption>`;
+    html += `\n  <figcaption>${formatCaptionLabel(prefix, numbering, escapeHtml(caption))}</figcaption>`;
   }
 
   html += '\n</figure>';

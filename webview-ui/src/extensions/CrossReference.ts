@@ -275,8 +275,9 @@ export function collectTargets(editor: any): RefTarget[] {
 
   const settings = window.__editorSettings;
   const mode = (settings?.equationNumbering ?? 'sequential') as string;
-  const imgPrefix = settings?.imageCaptionPrefix ?? 'Image';
-  const tblPrefix = settings?.tableCaptionPrefix ?? 'Table';
+  const capMode = (settings?.captionNumbering ?? 'simple') as string;
+  const imgPrefix = settings?.imageCaptionPrefix ?? '';
+  const tblPrefix = settings?.tableCaptionPrefix ?? '';
   const h = [0, 0, 0, 0, 0, 0];
   let imgCnt = 0;
   let tblCnt = 0;
@@ -299,13 +300,17 @@ export function collectTargets(editor: any): RefTarget[] {
       imgCnt++;
       const caption = node.attrs?.caption || '';
       const id = node.attrs?.id || `figure-${imgCnt}`;
-      targets.push({ id, type: 'figure', label: caption ? `${imgPrefix} ${imgCnt}: ${caption}` : `${imgPrefix} ${imgCnt}` });
+      const numbering = capMode === 'hierarchical' ? `${h1}.${imgCnt}` : `${imgCnt}`;
+      const num = imgPrefix ? `${imgPrefix}${numbering}` : numbering;
+      targets.push({ id, type: 'figure', label: caption ? `${num} ${caption}` : num });
     }
     if (node.type === 'table') {
       tblCnt++;
       const caption = node.attrs?.caption || '';
       const id = node.attrs?.id || `table-${tblCnt}`;
-      targets.push({ id, type: 'table', label: caption ? `${tblPrefix} ${tblCnt}: ${caption}` : `${tblPrefix} ${tblCnt}` });
+      const numbering = capMode === 'hierarchical' ? `${h1}.${tblCnt}` : `${tblCnt}`;
+      const num = tblPrefix ? `${tblPrefix}${numbering}` : numbering;
+      targets.push({ id, type: 'table', label: caption ? `${num} ${caption}` : num });
     }
     if (node.type === 'mathBlock') {
       eqGlobal++;
@@ -334,8 +339,9 @@ function buildIdMap(doc: import('@tiptap/pm/model').Node): Map<string, string> {
   const idMap = new Map<string, string>();
   const settings = window.__editorSettings;
   const mode = (settings?.equationNumbering ?? 'sequential') as string;
-  const imgPrefix = settings?.imageCaptionPrefix ?? 'Image';
-  const tblPrefix = settings?.tableCaptionPrefix ?? 'Table';
+  const capMode = (settings?.captionNumbering ?? 'simple') as string;
+  const imgPrefix = settings?.imageCaptionPrefix ?? '';
+  const tblPrefix = settings?.tableCaptionPrefix ?? '';
   const h = [0, 0, 0, 0, 0, 0];
   let imgCnt = 0;
   let tblCnt = 0;
@@ -358,13 +364,17 @@ function buildIdMap(doc: import('@tiptap/pm/model').Node): Map<string, string> {
       imgCnt++;
       const caption = (node.attrs.caption as string) || '';
       const id = (node.attrs.id as string | null | undefined) || `figure-${imgCnt}`;
-      idMap.set(id, caption ? `${imgPrefix} ${imgCnt}: ${caption}` : `${imgPrefix} ${imgCnt}`);
+      const numbering = capMode === 'hierarchical' ? `${h1}.${imgCnt}` : `${imgCnt}`;
+      const num = imgPrefix ? `${imgPrefix}${numbering}` : numbering;
+      idMap.set(id, caption ? `${num} ${caption}` : num);
     }
     if (node.type.name === 'table') {
       tblCnt++;
       const caption = (node.attrs.caption as string) || '';
       const id = (node.attrs.id as string | null | undefined) || `table-${tblCnt}`;
-      idMap.set(id, caption ? `${tblPrefix} ${tblCnt}: ${caption}` : `${tblPrefix} ${tblCnt}`);
+      const numbering = capMode === 'hierarchical' ? `${h1}.${tblCnt}` : `${tblCnt}`;
+      const num = tblPrefix ? `${tblPrefix}${numbering}` : numbering;
+      idMap.set(id, caption ? `${num} ${caption}` : num);
     }
     if (node.type.name === 'mathBlock') {
       eqGlobal++;

@@ -99,8 +99,8 @@ body {
   min-height: 100vh;
   outline: none;
   counter-reset: h1-counter h2-counter h3-counter table-counter image-counter;
-  --image-caption-prefix: 'Image';
-  --table-caption-prefix: 'Table';
+  --image-caption-prefix: '';
+  --table-caption-prefix: '';
   --heading-h1-color: #A50034;
   --heading-h2-color: #A50034;
   --heading-h3-color: #A50034;
@@ -225,8 +225,8 @@ body {
 .image-caption-display:hover { background-color: var(--list-hover-bg); }
 .image-caption-display.no-caption { opacity: 0.3; }
 .image-caption-display.no-caption:hover { opacity: 1; }
-.simple-numbering .image-caption-display .caption-label::after { content: var(--image-caption-prefix) " " counter(image-counter) ": "; font-weight: bold; font-size: 0.95em; }
-.hierarchical-numbering .image-caption-display .caption-label::after { content: var(--image-caption-prefix) " " counter(h1-counter) "." counter(image-counter) ": "; font-weight: bold; font-size: 0.95em; }
+.simple-numbering .image-caption-display .caption-label::after { content: var(--image-caption-prefix) counter(image-counter) " "; font-weight: bold; font-size: 0.95em; }
+.hierarchical-numbering .image-caption-display .caption-label::after { content: var(--image-caption-prefix) counter(h1-counter) "." counter(image-counter) " "; font-weight: bold; font-size: 0.95em; }
 .image-caption-display .caption-text { font-weight: bold; font-size: 0.95em; }
 .image-caption-display .caption-placeholder { font-style: italic; font-size: 0.9em; color: var(--description-fg); }
 .image-caption-display .caption-edit-icon { opacity: 0; transition: opacity 0.2s; font-size: 14px; color: var(--description-fg); }
@@ -242,8 +242,8 @@ body {
 .table-caption-display:hover { background-color: var(--list-hover-bg); }
 .table-caption-display.no-caption { opacity: 0.3; }
 .table-caption-display.no-caption:hover { opacity: 1; }
-.simple-numbering .table-caption-display .caption-label::after { content: var(--table-caption-prefix) " " counter(table-counter) ": "; font-weight: bold; font-size: 0.95em; }
-.hierarchical-numbering .table-caption-display .caption-label::after { content: var(--table-caption-prefix) " " counter(h1-counter) "." counter(table-counter) ": "; font-weight: bold; font-size: 0.95em; }
+.simple-numbering .table-caption-display .caption-label::after { content: var(--table-caption-prefix) counter(table-counter) " "; font-weight: bold; font-size: 0.95em; }
+.hierarchical-numbering .table-caption-display .caption-label::after { content: var(--table-caption-prefix) counter(h1-counter) "." counter(table-counter) " "; font-weight: bold; font-size: 0.95em; }
 .caption-text { font-weight: bold; font-size: 0.95em; }
 .caption-placeholder { font-style: italic; font-size: 0.9em; color: var(--description-fg); }
 .caption-edit-icon { opacity: 0; transition: opacity 0.2s; font-size: 14px; color: var(--description-fg); }
