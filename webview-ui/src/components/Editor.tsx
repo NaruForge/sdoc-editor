@@ -21,6 +21,7 @@ import { CrossReferenceDialog } from './CrossReferenceDialog';
 import { DiagramDialog } from './DiagramDialog';
 import { SidePanel, type SidePanelTab } from './SidePanel';
 import { collectTargets } from '../extensions/CrossReference';
+import { CROSSREF_RESYNC_META } from '../extensions/CrossReference';
 import type { RefTarget } from '../extensions/CrossReference';
 import type { DocumentSettings } from '@shared/types';
 
@@ -69,6 +70,21 @@ export const Editor: React.FC = () => {
     },
     pendingEditRef,
   });
+
+  // Trigger CrossRef label re-sync when caption prefix or numbering settings change
+  const prevPrefixRef = useRef({ img: '', tbl: '', eqMode: '', capMode: '' });
+  useEffect(() => {
+    const { imageCaptionPrefix, tableCaptionPrefix, equationNumbering, captionNumbering } = state.settings;
+    const prev = prevPrefixRef.current;
+    const changed = prev.img !== imageCaptionPrefix || prev.tbl !== tableCaptionPrefix
+      || prev.eqMode !== equationNumbering || prev.capMode !== captionNumbering;
+    prevPrefixRef.current = { img: imageCaptionPrefix, tbl: tableCaptionPrefix, eqMode: equationNumbering, capMode: captionNumbering };
+    if (changed && editor) {
+      const { tr } = editor.state;
+      tr.setMeta(CROSSREF_RESYNC_META, true);
+      editor.view.dispatch(tr);
+    }
+  }, [state.settings, editor]);
 
   const { postMessage, handleViewJson, handleExport, handleImport, handleMetaChange } = useEditorMessages({
     editor,

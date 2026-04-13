@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { useEditorContext } from '../context/EditorContext';
 import type { DocumentSettings } from '@shared/types';
 
@@ -22,6 +22,26 @@ const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({ title, defaultO
       </button>
       {open && <div className="settings-section-body">{children}</div>}
     </div>
+  );
+};
+
+/** Text input with local state — commits on Enter or blur, not on every keystroke */
+const DeferredTextInput: React.FC<{
+  value: string;
+  onCommit: (value: string) => void;
+  className?: string;
+}> = ({ value, onCommit, className }) => {
+  const [local, setLocal] = useState(value);
+  useEffect(() => { setLocal(value); }, [value]);
+  return (
+    <input
+      type="text"
+      className={className}
+      value={local}
+      onChange={(e) => setLocal(e.target.value)}
+      onKeyDown={(e) => { if (e.key === 'Enter') { e.currentTarget.blur(); } }}
+      onBlur={() => { if (local !== value) onCommit(local); }}
+    />
   );
 };
 
@@ -103,20 +123,18 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({ on
       <CollapsibleSection title="캡션">
         <div className="settings-row">
           <label className="settings-label">이미지 접두사</label>
-          <input
-            type="text"
+          <DeferredTextInput
             className="settings-text-input"
             value={mergedSettings.imageCaptionPrefix}
-            onChange={(e) => updateField('captionImagePrefix', e.target.value)}
+            onCommit={(v) => updateField('captionImagePrefix', v)}
           />
         </div>
         <div className="settings-row">
           <label className="settings-label">표 접두사</label>
-          <input
-            type="text"
+          <DeferredTextInput
             className="settings-text-input"
             value={mergedSettings.tableCaptionPrefix}
-            onChange={(e) => updateField('captionTablePrefix', e.target.value)}
+            onCommit={(v) => updateField('captionTablePrefix', v)}
           />
         </div>
         <div className="settings-row">

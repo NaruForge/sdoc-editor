@@ -1,8 +1,9 @@
 # Decision Log
 
 | Date | Task | Agent/Author | Decision | Rationale |
-|------|------|-------------|----------|-----------|
-| 2026-04-13 | SDOC-020 | @copilot | CSS `counter-reset` → `counter-set`으로 교체하여 heading 번호 리셋 | CSS Lists Level 3에서 `counter-reset`은 새로운 scope를 생성하여 flat sibling 구조에 전파되지 않음. `counter-set`은 기존 scope의 값만 변경하므로 ProseMirror의 flat DOM에서 정상 동작. 브라우저 테스트로 검증 완료 |
+|------|------|-------------|----------|-----------|| 2026-04-13 | SDOC-021 | @copilot | 텍스트 입력에 DeferredTextInput (로컬 state + Enter/blur 확정) | 매 키스트로크마다 Extension Host 라운드트립 + 파일 쓰기 발생 → 로컬 state로 입력 완료 후 1회만 반영 |
+| 2026-04-13 | SDOC-021 | @copilot | CrossRef `buildIdMap`/`collectTargets`에서 `window.__editorSettings` prefix 동적 참조 | "Figure"/"Table" 하드코딩 제거, 사용자 설정 접두사와 동기화 |
+| 2026-04-13 | SDOC-021 | @copilot | `CROSSREF_RESYNC_META` transaction meta로 settings 변경 시 appendTransaction 트리거 | appendTransaction은 docChanged만 감지하므로, settings 변경은 별도 meta 트리거 필요 || 2026-04-13 | SDOC-020 | @copilot | CSS `counter-reset` → `counter-set`으로 교체하여 heading 번호 리셋 | CSS Lists Level 3에서 `counter-reset`은 새로운 scope를 생성하여 flat sibling 구조에 전파되지 않음. `counter-set`은 기존 scope의 값만 변경하므로 ProseMirror의 flat DOM에서 정상 동작. 브라우저 테스트로 검증 완료 |
 | 2026-04-13 | SDOC-020 | @copilot | `body`에 모든 카운터 초기화 후 `counter-set`으로 리셋 (export HTML) | Export HTML도 동일한 flat sibling 구조이므로 같은 패턴 적용. `body { counter-reset: h1 h2 h3 h4; }` + `h1 { counter-set: h2 0 h3 0 h4 0; }` |
 | 2026-04-13 | SDOC-019 | @copilot | `resolveSettings()` 3단계 우선순위 머지: meta.settings > VS Code Preference > SETTINGS_DEFAULTS | 기존 문서 하위호환 100% (meta.settings 없으면 VS Code 값 폴백), 새 문서는 문서별 독립 설정 가능 |
 | 2026-04-13 | SDOC-019 | @copilot | SidePanel 래퍼로 TOC + Settings 탭 전환 구조 구현 (standalone TOC 대체) | 단일 사이드바 영역에서 탭으로 전환하는 UX가 공간 효율적, 기존 TOC 동작 100% 보존 |

@@ -13,6 +13,9 @@ export interface RefTarget {
 const crossRefPluginKey = new PluginKey('crossReference');
 const crossRefSyncKey = new PluginKey('crossReferenceSync');
 
+/** Dispatch this meta on any transaction to force CrossRef label re-sync */
+export const CROSSREF_RESYNC_META = 'crossRefResync';
+
 export const CrossReference = Extension.create({
   name: 'crossReference',
 
@@ -24,7 +27,9 @@ export const CrossReference = Extension.create({
       new Plugin({
         key: crossRefSyncKey,
         appendTransaction(transactions, _oldState, newState) {
-          if (!transactions.some(tr => tr.docChanged)) return null;
+          const hasDocChange = transactions.some(tr => tr.docChanged);
+          const hasResync = transactions.some(tr => tr.getMeta(CROSSREF_RESYNC_META));
+          if (!hasDocChange && !hasResync) return null;
 
           const idMap = buildIdMap(newState.doc);
           if (idMap.size === 0) return null;
@@ -268,7 +273,10 @@ export function collectTargets(editor: any): RefTarget[] {
   const targets: RefTarget[] = [];
   if (!json?.content) return targets;
 
-  const mode = (window.__editorSettings?.equationNumbering ?? 'sequential') as string;
+  const settings = window.__editorSettings;
+  const mode = (settings?.equationNumbering ?? 'sequential') as string;
+  const imgPrefix = settings?.imageCaptionPrefix ?? 'Image';
+  const tblPrefix = settings?.tableCaptionPrefix ?? 'Table';
   const h = [0, 0, 0, 0, 0, 0];
   let imgCnt = 0;
   let tblCnt = 0;
@@ -291,13 +299,13 @@ export function collectTargets(editor: any): RefTarget[] {
       imgCnt++;
       const caption = node.attrs?.caption || '';
       const id = node.attrs?.id || `figure-${imgCnt}`;
-      targets.push({ id, type: 'figure', label: caption ? `Figure ${imgCnt}: ${caption}` : `Figure ${imgCnt}` });
+      targets.push({ id, type: 'figure', label: caption ? `${imgPrefix} ${imgCnt}: ${caption}` : `${imgPrefix} ${imgCnt}` });
     }
     if (node.type === 'table') {
       tblCnt++;
       const caption = node.attrs?.caption || '';
       const id = node.attrs?.id || `table-${tblCnt}`;
-      targets.push({ id, type: 'table', label: caption ? `Table ${tblCnt}: ${caption}` : `Table ${tblCnt}` });
+      targets.push({ id, type: 'table', label: caption ? `${tblPrefix} ${tblCnt}: ${caption}` : `${tblPrefix} ${tblCnt}` });
     }
     if (node.type === 'mathBlock') {
       eqGlobal++;
@@ -324,7 +332,10 @@ function getTextContent(node: any): string {
  */
 function buildIdMap(doc: import('@tiptap/pm/model').Node): Map<string, string> {
   const idMap = new Map<string, string>();
-  const mode = (window.__editorSettings?.equationNumbering ?? 'sequential') as string;
+  const settings = window.__editorSettings;
+  const mode = (settings?.equationNumbering ?? 'sequential') as string;
+  const imgPrefix = settings?.imageCaptionPrefix ?? 'Image';
+  const tblPrefix = settings?.tableCaptionPrefix ?? 'Table';
   const h = [0, 0, 0, 0, 0, 0];
   let imgCnt = 0;
   let tblCnt = 0;
@@ -347,13 +358,13 @@ function buildIdMap(doc: import('@tiptap/pm/model').Node): Map<string, string> {
       imgCnt++;
       const caption = (node.attrs.caption as string) || '';
       const id = (node.attrs.id as string | null | undefined) || `figure-${imgCnt}`;
-      idMap.set(id, caption ? `Figure ${imgCnt}: ${caption}` : `Figure ${imgCnt}`);
+      idMap.set(id, caption ? `${imgPrefix} ${imgCnt}: ${caption}` : `${imgPrefix} ${imgCnt}`);
     }
     if (node.type.name === 'table') {
       tblCnt++;
       const caption = (node.attrs.caption as string) || '';
       const id = (node.attrs.id as string | null | undefined) || `table-${tblCnt}`;
-      idMap.set(id, caption ? `Table ${tblCnt}: ${caption}` : `Table ${tblCnt}`);
+      idMap.set(id, caption ? `${tblPrefix} ${tblCnt}: ${caption}` : `${tblPrefix} ${tblCnt}`);
     }
     if (node.type.name === 'mathBlock') {
       eqGlobal++;
