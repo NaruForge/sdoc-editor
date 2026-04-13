@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { BubbleMenu } from '@tiptap/react/menus';
 import { Editor } from '@tiptap/react';
 import { Bold, Italic, Underline, Code, Unlink, Highlighter, Palette, Strikethrough, Subscript, Superscript } from 'lucide-react';
@@ -13,6 +13,14 @@ export const BubbleMenuBar: React.FC<BubbleMenuBarProps> = ({ editor }) => {
   const [showHighlightPicker, setShowHighlightPicker] = React.useState(false);
   const colorRef = useRef<HTMLDivElement>(null);
   const highlightRef = useRef<HTMLDivElement>(null);
+
+  // Re-render on editor transaction to reflect active formatting state
+  const [, forceUpdate] = useState(0);
+  useEffect(() => {
+    const handler = () => forceUpdate(v => v + 1);
+    editor.on('transaction', handler);
+    return () => { editor.off('transaction', handler); };
+  }, [editor]);
 
   const currentColor = editor.getAttributes('textStyle').color || '';
   const currentHighlight = editor.getAttributes('highlight').color || '';
