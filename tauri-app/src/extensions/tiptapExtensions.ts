@@ -234,13 +234,12 @@ const EquationNumbering = Extension.create({
               const map = buildEqNumberMap(view.state.doc);
               view.state.doc.forEach((node, offset) => {
                 if (node.type.name !== 'mathBlock') return;
-                // domAtPos(offset+1) gives us a node inside the math-block
+                // nodeDOM(offset) directly returns the NodeView's outer DOM element.
+                // domAtPos() is unreliable for atom nodes because they have no inner positions.
                 try {
-                  const { node: domNode } = view.domAtPos(offset + 1);
-                  const mathDom = (domNode instanceof HTMLElement ? domNode : domNode.parentElement)
-                    ?.closest?.('.math-block') as (HTMLElement & { _setEqNumber?: (l: string | null) => void }) | null;
-                  if (mathDom && typeof mathDom._setEqNumber === 'function') {
-                    mathDom._setEqNumber(map.get(offset) ?? null);
+                  const domEl = view.nodeDOM(offset) as (HTMLElement & { _setEqNumber?: (l: string | null) => void }) | null;
+                  if (domEl && typeof domEl._setEqNumber === 'function') {
+                    domEl._setEqNumber(map.get(offset) ?? null);
                   }
                 } catch {
                   // Node may not yet be in the DOM
