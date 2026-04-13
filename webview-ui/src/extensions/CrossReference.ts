@@ -24,14 +24,18 @@ export const CrossReference = Extension.create({
       new Plugin({
         key: crossRefSyncKey,
         appendTransaction(transactions, _oldState, newState) {
-          // Only run if doc actually changed
           if (!transactions.some(tr => tr.docChanged)) return null;
 
           const idMap = buildIdMap(newState.doc);
           if (idMap.size === 0) return null;
 
-          let tr = newState.tr;
-          let changed = false;
+          // Collect all changes first to avoid position-shifting issues
+          const changes: Array<{
+            pos: number;
+            end: number;
+            newLabel: string;
+            mark: import('@tiptap/pm/model').Mark;
+          }> = [];
 
           newState.doc.descendants((node, pos) => {
             if (node.isText && node.marks.length > 0) {
@@ -42,14 +46,22 @@ export const CrossReference = Extension.create({
                 const targetId = (linkMark.attrs.href as string).slice(1);
                 const newLabel = idMap.get(targetId);
                 if (newLabel && node.text !== newLabel) {
-                  tr = tr.insertText(newLabel, pos, pos + node.nodeSize);
-                  changed = true;
+                  changes.push({ pos, end: pos + node.nodeSize, newLabel, mark: linkMark });
                 }
               }
             }
           });
 
-          return changed ? tr : null;
+          if (changes.length === 0) return null;
+
+          let tr = newState.tr;
+          // Apply back-to-front so earlier changes don't shift subsequent positions
+          for (const change of changes.sort((a, b) => b.pos - a.pos)) {
+            // Use replaceWith + explicit text node to guarantee mark preservation
+            const textNode = newState.schema.text(change.newLabel, [change.mark]);
+            tr = tr.replaceWith(change.pos, change.end, textNode);
+          }
+          return tr;
         },
       }),
 
@@ -296,7 +308,8 @@ function getTextContent(node: any): string {
 
 /**
  * Build id → label map from a ProseMirror doc Node.
- * Used by the appendTransaction sync plugin to update cross-reference texts.
+ * Uses existing id attribute OR falls back to the same slug logic as collectTargets,
+ * because the webview never receives server-assigned IDs (suppressed by pendingApplyEdits).
  */
 function buildIdMap(doc: import('@tiptap/pm/model').Node): Map<string, string> {
   const idMap = new Map<string, string>();
@@ -312,26 +325,21 @@ function buildIdMap(doc: import('@tiptap/pm/model').Node): Map<string, string> {
       if (level === 1) { imgCnt = 0; tblCnt = 0; }
       const nums = h.slice(0, level).join('.') + '.';
       const text = node.textContent;
-      const id = node.attrs.id;
-      if (id) {
-        idMap.set(id, `${nums} ${text}`);
-      }
+      // Fallback to slugify(text) when id not yet assigned (matches collectTargets behavior)
+      const id = (node.attrs.id as string | null | undefined) || slugify(text);
+      idMap.set(id, `${nums} ${text}`);
     }
     if (node.type.name === 'image') {
       imgCnt++;
       const caption = (node.attrs.caption as string) || '';
-      const id = node.attrs.id as string;
-      if (id) {
-        idMap.set(id, caption ? `Figure ${imgCnt}: ${caption}` : `Figure ${imgCnt}`);
-      }
+      const id = (node.attrs.id as string | null | undefined) || `figure-${imgCnt}`;
+      idMap.set(id, caption ? `Figure ${imgCnt}: ${caption}` : `Figure ${imgCnt}`);
     }
     if (node.type.name === 'table') {
       tblCnt++;
       const caption = (node.attrs.caption as string) || '';
-      const id = node.attrs.id as string;
-      if (id) {
-        idMap.set(id, caption ? `Table ${tblCnt}: ${caption}` : `Table ${tblCnt}`);
-      }
+      const id = (node.attrs.id as string | null | undefined) || `table-${tblCnt}`;
+      idMap.set(id, caption ? `Table ${tblCnt}: ${caption}` : `Table ${tblCnt}`);
     }
   });
 
