@@ -2,6 +2,8 @@
 
 | Date | Task | Agent/Author | Decision | Rationale |
 |------|------|-------------|----------|-----------|
+| 2026-04-13 | SDOC-020 | @copilot | CSS `counter-reset` → `counter-set`으로 교체하여 heading 번호 리셋 | CSS Lists Level 3에서 `counter-reset`은 새로운 scope를 생성하여 flat sibling 구조에 전파되지 않음. `counter-set`은 기존 scope의 값만 변경하므로 ProseMirror의 flat DOM에서 정상 동작. 브라우저 테스트로 검증 완료 |
+| 2026-04-13 | SDOC-020 | @copilot | `body`에 모든 카운터 초기화 후 `counter-set`으로 리셋 (export HTML) | Export HTML도 동일한 flat sibling 구조이므로 같은 패턴 적용. `body { counter-reset: h1 h2 h3 h4; }` + `h1 { counter-set: h2 0 h3 0 h4 0; }` |
 | 2026-04-13 | SDOC-019 | @copilot | `resolveSettings()` 3단계 우선순위 머지: meta.settings > VS Code Preference > SETTINGS_DEFAULTS | 기존 문서 하위호환 100% (meta.settings 없으면 VS Code 값 폴백), 새 문서는 문서별 독립 설정 가능 |
 | 2026-04-13 | SDOC-019 | @copilot | SidePanel 래퍼로 TOC + Settings 탭 전환 구조 구현 (standalone TOC 대체) | 단일 사이드바 영역에서 탭으로 전환하는 UX가 공간 효율적, 기존 TOC 동작 100% 보존 |
 | 2026-04-13 | SDOC-019 | @copilot | '기본값 불러오기' = meta.settings를 null로 설정 (삭제) → VS Code 폴백 | 개별 필드 리셋보다 단순, 설정 우선순위 체계와 자연스럽게 연동 |

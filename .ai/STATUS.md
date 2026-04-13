@@ -7,6 +7,7 @@
 - (없음)
 
 ## Done (최근)
+- [SDOC-020](tasks/SDOC-020.md): Heading 번호 매기기 버그 수정 — CSS counter-set (2026-04-13)
 - [SDOC-019](tasks/SDOC-019.md): Settings 아키텍처 리팩토링 — 문서별 설정 분리 + 설정 패널 UI (2026-04-13)
 - [SDOC-018](tasks/SDOC-018.md): Block 수식 자동 번호 + CrossRef 지원 (2026-04-13)
 - [SDOC-017](tasks/SDOC-017.md): 버그 수정 모음 — 날짜 포맷 / BubbleMenu 활성 상태 / CrossRef 자동 동기화 (2026-04-13)

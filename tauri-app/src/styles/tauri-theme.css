@@ -111,11 +111,11 @@ body {
 /* Headings with automatic numbering */
 .show-numbering .ProseMirror h1 {
   font-size: 2em; font-weight: bold; margin: 0.67em 0; padding-bottom: 0.3em;
-  counter-reset: h2-counter h3-counter; counter-increment: h1-counter;
+  counter-set: h2-counter 0 h3-counter 0; counter-increment: h1-counter;
 }
 .show-numbering.show-heading-decoration .ProseMirror h1 { border-bottom: 2px solid var(--heading-h1-color, #A50034); }
 .show-numbering .ProseMirror h1::before { content: counter(h1-counter) ". "; color: var(--heading-h1-color, #A50034); margin-right: 0.3em; }
-.show-numbering .ProseMirror h2 { font-size: 1.5em; font-weight: bold; margin: 0.75em 0; counter-reset: h3-counter; counter-increment: h2-counter; }
+.show-numbering .ProseMirror h2 { font-size: 1.5em; font-weight: bold; margin: 0.75em 0; counter-set: h3-counter 0; counter-increment: h2-counter; }
 .show-numbering .ProseMirror h2::before { content: counter(h1-counter) "." counter(h2-counter) ". "; color: var(--heading-h2-color, #A50034); margin-right: 0.3em; }
 .show-numbering .ProseMirror h3 { font-size: 1.17em; font-weight: bold; margin: 0.83em 0; counter-increment: h3-counter; }
 .show-numbering .ProseMirror h3::before { content: counter(h1-counter) "." counter(h2-counter) "." counter(h3-counter) ". "; color: var(--heading-h3-color, #A50034); margin-right: 0.3em; }

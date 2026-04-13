@@ -514,11 +514,11 @@ function generateHtmlDocument(bodyContent: string, theme?: HtmlTheme, meta?: Sdo
 
     /* Headings with Auto-numbering */
     body {
-      counter-reset: h1;
+      counter-reset: h1 h2 h3 h4;
     }
 
     h1 {
-      counter-reset: h2;
+      counter-set: h2 0 h3 0 h4 0;
       counter-increment: h1;
       font-size: 2em;
       font-weight: ${fw.h1};
@@ -547,7 +547,7 @@ function generateHtmlDocument(bodyContent: string, theme?: HtmlTheme, meta?: Sdo
     }
 
     h2 {
-      counter-reset: h3;
+      counter-set: h3 0 h4 0;
       counter-increment: h2;
       font-size: 1.5em;
       font-weight: ${fw.h2};
@@ -561,7 +561,7 @@ function generateHtmlDocument(bodyContent: string, theme?: HtmlTheme, meta?: Sdo
     }
 
     h3 {
-      counter-reset: h4;
+      counter-set: h4 0;
       counter-increment: h3;
       font-size: 1.25em;
       font-weight: ${fw.h3};

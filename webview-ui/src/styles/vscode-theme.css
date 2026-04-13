@@ -55,7 +55,7 @@ body {
   font-weight: var(--font-weight-h1, 700);
   margin: 0.67em 0;
   padding-bottom: 0.3em;
-  counter-reset: h2-counter h3-counter;
+  counter-set: h2-counter 0 h3-counter 0;
   counter-increment: h1-counter;
 }
 
@@ -73,7 +73,7 @@ body {
   font-size: 1.5em;
   font-weight: var(--font-weight-h2, 600);
   margin: 0.75em 0;
-  counter-reset: h3-counter;
+  counter-set: h3-counter 0;
   counter-increment: h2-counter;
 }
 
