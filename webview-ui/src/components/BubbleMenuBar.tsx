@@ -1,6 +1,6 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef } from 'react';
 import { BubbleMenu } from '@tiptap/react/menus';
-import { Editor } from '@tiptap/react';
+import { Editor, useEditorState } from '@tiptap/react';
 import { Bold, Italic, Underline, Code, Unlink, Highlighter, Palette, Strikethrough, Subscript, Superscript } from 'lucide-react';
 import { TEXT_COLORS, HIGHLIGHT_COLORS } from '../constants/colors';
 
@@ -14,16 +14,22 @@ export const BubbleMenuBar: React.FC<BubbleMenuBarProps> = ({ editor }) => {
   const colorRef = useRef<HTMLDivElement>(null);
   const highlightRef = useRef<HTMLDivElement>(null);
 
-  // Re-render on editor transaction to reflect active formatting state
-  const [, forceUpdate] = useState(0);
-  useEffect(() => {
-    const handler = () => forceUpdate(v => v + 1);
-    editor.on('transaction', handler);
-    return () => { editor.off('transaction', handler); };
-  }, [editor]);
-
-  const currentColor = editor.getAttributes('textStyle').color || '';
-  const currentHighlight = editor.getAttributes('highlight').color || '';
+  const activeState = useEditorState({
+    editor,
+    selector: (ctx) => ({
+      bold: ctx.editor.isActive('bold'),
+      italic: ctx.editor.isActive('italic'),
+      underline: ctx.editor.isActive('underline'),
+      strike: ctx.editor.isActive('strike'),
+      subscript: ctx.editor.isActive('subscript'),
+      superscript: ctx.editor.isActive('superscript'),
+      code: ctx.editor.isActive('code'),
+      highlight: ctx.editor.isActive('highlight'),
+      link: ctx.editor.isActive('link'),
+      textColor: (ctx.editor.getAttributes('textStyle').color as string) || '',
+      highlightColor: (ctx.editor.getAttributes('highlight').color as string) || '',
+    }),
+  });
 
   return (
     <BubbleMenu
@@ -33,49 +39,49 @@ export const BubbleMenuBar: React.FC<BubbleMenuBarProps> = ({ editor }) => {
     >
       <button
         onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleBold().run(); }}
-        className={editor.isActive('bold') ? 'is-active' : ''}
+        className={activeState.bold ? 'is-active' : ''}
         title="Bold"
       >
         <Bold size={14} />
       </button>
       <button
         onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleItalic().run(); }}
-        className={editor.isActive('italic') ? 'is-active' : ''}
+        className={activeState.italic ? 'is-active' : ''}
         title="Italic"
       >
         <Italic size={14} />
       </button>
       <button
         onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleUnderline().run(); }}
-        className={editor.isActive('underline') ? 'is-active' : ''}
+        className={activeState.underline ? 'is-active' : ''}
         title="Underline"
       >
         <Underline size={14} />
       </button>
       <button
         onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleStrike().run(); }}
-        className={editor.isActive('strike') ? 'is-active' : ''}
+        className={activeState.strike ? 'is-active' : ''}
         title="Strikethrough"
       >
         <Strikethrough size={14} />
       </button>
       <button
         onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleSubscript().run(); }}
-        className={editor.isActive('subscript') ? 'is-active' : ''}
+        className={activeState.subscript ? 'is-active' : ''}
         title="Subscript"
       >
         <Subscript size={14} />
       </button>
       <button
         onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleSuperscript().run(); }}
-        className={editor.isActive('superscript') ? 'is-active' : ''}
+        className={activeState.superscript ? 'is-active' : ''}
         title="Superscript"
       >
         <Superscript size={14} />
       </button>
       <button
         onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleCode().run(); }}
-        className={editor.isActive('code') ? 'is-active' : ''}
+        className={activeState.code ? 'is-active' : ''}
         title="Code"
       >
         <Code size={14} />
@@ -85,11 +91,11 @@ export const BubbleMenuBar: React.FC<BubbleMenuBarProps> = ({ editor }) => {
       <div ref={colorRef} className="toolbar-dropdown">
         <button
           onMouseDown={(e) => { e.preventDefault(); setShowColorPicker(v => !v); setShowHighlightPicker(false); }}
-          className={`color-picker-btn ${currentColor ? 'is-active' : ''}`}
+          className={`color-picker-btn ${activeState.textColor ? 'is-active' : ''}`}
           title="텍스트 색상"
         >
           <Palette size={14} />
-          <div className="color-indicator" style={{ width: 14, background: currentColor || 'currentColor', opacity: currentColor ? 1 : 0.4 }} />
+          <div className="color-indicator" style={{ width: 14, background: activeState.textColor || 'currentColor', opacity: activeState.textColor ? 1 : 0.4 }} />
         </button>
         {showColorPicker && (
           <div className="bubble-color-picker" onMouseDown={e => e.preventDefault()}>
@@ -97,7 +103,7 @@ export const BubbleMenuBar: React.FC<BubbleMenuBarProps> = ({ editor }) => {
               <button
                 key={value}
                 title={label}
-                className={currentColor === value ? 'is-active' : ''}
+                className={activeState.textColor === value ? 'is-active' : ''}
                 onMouseDown={(e) => {
                   e.preventDefault();
                   if (value) {
@@ -120,11 +126,11 @@ export const BubbleMenuBar: React.FC<BubbleMenuBarProps> = ({ editor }) => {
       <div ref={highlightRef} className="toolbar-dropdown">
         <button
           onMouseDown={(e) => { e.preventDefault(); setShowHighlightPicker(v => !v); setShowColorPicker(false); }}
-          className={`color-picker-btn ${editor.isActive('highlight') ? 'is-active' : ''}`}
+          className={`color-picker-btn ${activeState.highlight ? 'is-active' : ''}`}
           title="하이라이트"
         >
           <Highlighter size={14} />
-          <div className="color-indicator" style={{ width: 14, background: currentHighlight || '#fef08a', opacity: editor.isActive('highlight') ? 1 : 0.4 }} />
+          <div className="color-indicator" style={{ width: 14, background: activeState.highlightColor || '#fef08a', opacity: activeState.highlight ? 1 : 0.4 }} />
         </button>
         {showHighlightPicker && (
           <div className="bubble-color-picker" onMouseDown={e => e.preventDefault()}>
@@ -132,7 +138,7 @@ export const BubbleMenuBar: React.FC<BubbleMenuBarProps> = ({ editor }) => {
               <button
                 key={value}
                 title={label}
-                className={currentHighlight === value ? 'is-active' : ''}
+                className={activeState.highlightColor === value ? 'is-active' : ''}
                 onMouseDown={(e) => {
                   e.preventDefault();
                   if (value) {
@@ -151,7 +157,7 @@ export const BubbleMenuBar: React.FC<BubbleMenuBarProps> = ({ editor }) => {
         )}
       </div>
 
-      {editor.isActive('link') && (
+      {activeState.link && (
         <button
           onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().unsetLink().run(); }}
           className="unlink-button"
