@@ -2,6 +2,9 @@
 
 | Date | Task | Agent/Author | Decision | Rationale |
 |------|------|-------------|----------|-----------|
+| 2026-04-13 | SDOC-017 | @copilot | Export 날짜를 `YYYY-MM-DD`로 포맷 (`formatDate()` 헬퍼) | ISO 타임스탬프(`T01:16:20.722Z`)는 문서 메타데이터에 불필요한 정보. YYYY-MM-DD가 국제 표준(ISO 8601 날짜)이자 가독성 최적 |
+| 2026-04-13 | SDOC-017 | @copilot | BubbleMenu 활성 상태에 `useEditorState()` 사용 (transaction 구독 대신) | tiptap v3 BubbleMenu는 `createPortal`로 렌더링되어 부모 리렌더 전파가 불안정. `useSyncExternalStore` 기반 `useEditorState()`는 portal 내부에서도 안정적으로 동작 |
+| 2026-04-13 | SDOC-017 | @copilot | CrossRef 동기화를 `appendTransaction` 플러그인으로 webview 내부에서 처리 | Extension Host 라운드트립(echo suppression 문제)보다 webview 내부 직접 처리가 실시간성 우수. ProseMirror `appendTransaction`은 트랜잭션 후 즉시 교정 tr을 삽입하는 표준 패턴 |
 | 2026-04-13 | SDOC-016 | @copilot | Math 노드 타입 전환에 `tr.replaceWith()` 사용 (setNodeMarkup 대신) | mathBlock(group:block)과 mathInline(group:inline)은 다른 그룹이므로 setNodeMarkup으로 타입 변경 불가. delete+insert 패턴 필요 |
 | 2026-04-13 | SDOC-016 | @copilot | 하이브리드 편집 UX: click→인라인+프리뷰, dblclick→Dialog | Notion/Obsidian 패턴. 빠른 편집은 인라인, 고급 편집(예제/타입토글)은 Dialog로 분리 |
 | 2026-04-09 | SDOC-015 | @copilot | ESLint v10 flat config + eslint-config-prettier | ESLint v10은 flat config 필수, Prettier 충돌 방지를 위해 eslint-config-prettier 사용 |

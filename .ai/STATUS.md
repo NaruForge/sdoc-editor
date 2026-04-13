@@ -4,10 +4,11 @@
 - (없음)
 
 ## In Progress
-- [SDOC-016](tasks/SDOC-016.md): Math 편집 UX 개선 — 하이브리드 편집 + Inline/Block 토글
+- (없음)
 
 ## Done (최근)
-- [SDOC-015](tasks/SDOC-015.md): 코드베이스 리팩토링 — 하네스 엔지니어링 기반 구축 (2026-04-13)
+- [SDOC-017](tasks/SDOC-017.md): 버그 수정 모음 — 날짜 포맷 / BubbleMenu 활성 상태 / CrossRef 자동 동기화 (2026-04-13)
+- [SDOC-016](tasks/SDOC-016.md): Math 편집 UX 개선 — 하이브리드 편집 + Inline/Block 토글 (2026-04-13)
 - [SDOC-014](tasks/SDOC-014.md): Markdown Table 변환 개선 — 복잡 테이블 HTML 폴백 + 안정성 강화 (2026-04-09, v0.4.1)
 - [SDOC-013](tasks/SDOC-013.md): Markdown Export RAG 최적화 — Pandoc 앵커 + Converter 동기화 (2026-04-09, v0.4.0)
 - [SDOC-012](tasks/SDOC-012.md): Export 폰트 임베딩 최적화 — WOFF2 + weight 필터 (2026-04-08, v0.3.9)

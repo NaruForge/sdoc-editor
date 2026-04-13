@@ -2,10 +2,10 @@
 ats: "0.1"
 id: SDOC-016
 title: "Math 편집 UX 개선 — 하이브리드 편집 + Inline/Block 토글"
-status: in-progress
+status: done
 priority: medium
 created: 2026-04-13T22:00:00+09:00
-modified: 2026-04-13T22:00:00+09:00
+modified: 2026-04-13T23:30:00+09:00
 author: "copilot"
 ---
 
@@ -48,5 +48,8 @@ Notion/Obsidian 스타일의 하이브리드 편집 UX를 적용하여:
 - [x] Math 편집 CSS 클래스 추가 (vscode-theme.css + tauri-theme.css)
 - [x] MathBlock NodeView 재작성 (라이브 프리뷰 + 툴바 + 더블클릭)
 - [x] MathInline NodeView 재작성 (플로팅 패널 + 툴바 + 더블클릭)
+- [x] tauri-app 동기화 (MathBlock, MathInline, Editor.tsx, tauri-theme.css)
+- [x] 빌드 검증 (tsc --noEmit 0 errors, VSIX 빌드 성공 v0.4.2)
+- [x] 커밋 및 푸시 (2c1c4d7)
 - [x] tauri-app 동기화
 - [x] 빌드 검증 및 STATUS.md 갱신
