@@ -21,6 +21,11 @@ export const MathBlock = Node.create({
         parseHTML: (element) => element.getAttribute('data-latex') || '',
         renderHTML: (attributes) => ({ 'data-latex': attributes.latex }),
       },
+      id: {
+        default: null,
+        parseHTML: (element) => element.getAttribute('data-id') || null,
+        renderHTML: (attributes) => attributes.id ? { 'data-id': attributes.id } : {},
+      },
     };
   },
 
@@ -44,8 +49,17 @@ export const MathBlock = Node.create({
       dom.title = '클릭하여 수식 편집 · 더블클릭으로 Dialog';
 
       // --- Rendered math (visible when NOT editing) ---
+      const renderedWrapper = document.createElement('div');
+      renderedWrapper.classList.add('math-block-rendered-row');
+      dom.appendChild(renderedWrapper);
+
       const rendered = document.createElement('div');
-      dom.appendChild(rendered);
+      renderedWrapper.appendChild(rendered);
+
+      const eqNumber = document.createElement('span');
+      eqNumber.classList.add('eq-number');
+      eqNumber.style.display = 'none';
+      renderedWrapper.appendChild(eqNumber);
 
       // --- Edit container (visible when editing) ---
       const editContainer = document.createElement('div');
@@ -110,6 +124,16 @@ export const MathBlock = Node.create({
       };
 
       renderKatex(currentLatex, rendered, true);
+
+      // Expose eq number setter directly on DOM for EquationNumbering plugin
+      (dom as HTMLElement & { _setEqNumber?: (label: string | null) => void })._setEqNumber = (label) => {
+        if (label == null) {
+          eqNumber.style.display = 'none';
+        } else {
+          eqNumber.textContent = `(${label})`;
+          eqNumber.style.display = '';
+        }
+      };
 
       const commitEdit = () => {
         if (!isEditing) return;

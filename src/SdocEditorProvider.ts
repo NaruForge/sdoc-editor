@@ -76,6 +76,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
           fontWeightH1: config.get<string>('font.h1', 'Bold'),
           fontWeightH2: config.get<string>('font.h2', 'SemiBold'),
           fontWeightH3: config.get<string>('font.h3', 'SemiBold'),
+          equationNumbering: config.get<string>('equation.numbering', 'sequential'),
         },
       });
     };
@@ -242,7 +243,8 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
 
     // Assign auto-ids and sync cross-reference text
     const withIds = SdocEditorProvider.assignAutoIds(cleaned);
-    const synced = SdocEditorProvider.syncCrossReferences(withIds);
+    const eqNumbering = vscode.workspace.getConfiguration('structuredDocEditor').get<string>('equation.numbering', 'sequential') as 'sequential' | 'hierarchical';
+    const synced = SdocEditorProvider.syncCrossReferences(withIds, eqNumbering);
 
     // Read existing file to preserve metadata
     const existingText = document.getText();
@@ -1139,8 +1141,8 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     return sharedAssignAutoIds(doc);
   }
 
-  private static syncCrossReferences(doc: any): any {
-    return sharedSyncCrossReferences(doc);
+  private static syncCrossReferences(doc: any, equationNumbering: 'sequential' | 'hierarchical' = 'sequential'): any {
+    return sharedSyncCrossReferences(doc, equationNumbering);
   }
 
   private getHtmlForWebview(webview: vscode.Webview): string {

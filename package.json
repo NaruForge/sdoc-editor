@@ -100,6 +100,19 @@
           ],
           "description": "Caption numbering style for images and tables"
         },
+        "structuredDocEditor.equation.numbering": {
+          "type": "string",
+          "default": "sequential",
+          "enum": [
+            "sequential",
+            "hierarchical"
+          ],
+          "enumDescriptions": [
+            "Sequential numbering across the document: (1), (2), (3), ...",
+            "Hierarchical numbering per H1 section: (1.1), (1.2), (2.1), ..."
+          ],
+          "description": "Numbering style for block equations"
+        },
         "structuredDocEditor.heading.numbering": {
           "type": "boolean",
           "default": true,

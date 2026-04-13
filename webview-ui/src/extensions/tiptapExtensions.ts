@@ -2,6 +2,7 @@ import { StarterKit } from '@tiptap/starter-kit';
 import { Extension } from '@tiptap/core';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
+import { EditorView } from '@tiptap/pm/view';
 import { Underline } from '@tiptap/extension-underline';
 import { TextStyle } from '@tiptap/extension-text-style';
 import { Color } from '@tiptap/extension-color';
@@ -188,6 +189,71 @@ const HeadingKeyboardShortcuts = Extension.create({
   },
 });
 
+/* ===== Equation Numbering ===== */
+const eqNumberingKey = new PluginKey('equationNumbering');
+
+/**
+ * Build a map of { pos → equationNumber } for all mathBlock nodes.
+ * Numbering mode is read from window.__editorSettings.equationNumbering:
+ *   'sequential' → (1), (2), (3) across the entire document
+ *   'hierarchical' → (1.1), (1.2), (2.1) resetting per H1
+ */
+function buildEqNumberMap(doc: import('@tiptap/pm/model').Node): Map<number, string> {
+  const mode = (window.__editorSettings?.equationNumbering ?? 'sequential');
+  const map = new Map<number, string>();
+  let h1 = 0;
+  let eqGlobal = 0;
+  let eqInSection = 0;
+
+  doc.forEach((node, offset) => {
+    if (node.type.name === 'heading' && node.attrs.level === 1) {
+      h1++;
+      eqInSection = 0;
+    }
+    if (node.type.name === 'mathBlock') {
+      eqGlobal++;
+      eqInSection++;
+      const label = mode === 'hierarchical'
+        ? `${h1}.${eqInSection}`
+        : `${eqGlobal}`;
+      map.set(offset, label);
+    }
+  });
+  return map;
+}
+
+const EquationNumbering = Extension.create({
+  name: 'equationNumbering',
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        key: eqNumberingKey,
+        view() {
+          return {
+            update(view: EditorView) {
+              const map = buildEqNumberMap(view.state.doc);
+              view.state.doc.forEach((node, offset) => {
+                if (node.type.name !== 'mathBlock') return;
+                // domAtPos(offset+1) gives us a node inside the math-block
+                try {
+                  const { node: domNode } = view.domAtPos(offset + 1);
+                  const mathDom = (domNode instanceof HTMLElement ? domNode : domNode.parentElement)
+                    ?.closest?.('.math-block') as (HTMLElement & { _setEqNumber?: (l: string | null) => void }) | null;
+                  if (mathDom && typeof mathDom._setEqNumber === 'function') {
+                    mathDom._setEqNumber(map.get(offset) ?? null);
+                  }
+                } catch {
+                  // Node may not yet be in the DOM
+                }
+              });
+            },
+          };
+        },
+      }),
+    ];
+  },
+});
+
 export const tiptapExtensions = [
   StarterKit.configure({
     codeBlock: false,
@@ -224,6 +290,7 @@ export const tiptapExtensions = [
   HeadingKeyboardShortcuts,
   CrossReference,
   SectionFold,
+  EquationNumbering,
   Extension.create({
     name: 'internalLinkClick',
     addProseMirrorPlugins() {

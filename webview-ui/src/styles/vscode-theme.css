@@ -1653,6 +1653,34 @@ body {
   height: auto;
 }
 
+/* ===== Equation (MathBlock) Wrapper & Numbering ===== */
+
+.math-block {
+  position: relative;
+}
+
+.math-block-rendered-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.math-block-rendered-row > :first-child {
+  flex: 1;
+  text-align: center;
+}
+
+.eq-number {
+  flex-shrink: 0;
+  min-width: 2.5em;
+  text-align: right;
+  font-size: 0.9em;
+  color: var(--vscode-foreground);
+  opacity: 0.75;
+  font-family: var(--vscode-editor-font-family, monospace);
+  user-select: none;
+}
+
 /* ===== Math Edit UI ===== */
 
 /* Container for block math editing UI */

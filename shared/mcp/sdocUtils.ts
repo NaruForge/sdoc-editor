@@ -124,6 +124,7 @@ export function assignAutoIds(doc: any): any {
   const usedIds = new Set<string>();
   let imageCounter = 0;
   let tableCounter = 0;
+  let eqCounter = 0;
 
   const uniqueId = (base: string): string => {
     let id = base;
@@ -158,17 +159,26 @@ export function assignAutoIds(doc: any): any {
       else usedIds.add(existing);
       return { ...node, attrs: { ...node.attrs, id } };
     }
+    if (node.type === 'mathBlock') {
+      eqCounter++;
+      const existing = node.attrs?.id;
+      const id = existing || uniqueId(`eq-${eqCounter}`);
+      if (!existing) usedIds.add(id);
+      else usedIds.add(existing);
+      return { ...node, attrs: { ...node.attrs, id } };
+    }
     return node;
   })};
 
   return cloned;
 }
 
-export function syncCrossReferences(doc: any): any {
+export function syncCrossReferences(doc: any, equationNumbering: 'sequential' | 'hierarchical' = 'sequential'): any {
   if (!doc?.content) return doc;
 
   const idMap = new Map<string, string>();
   let h1 = 0; let imgCnt = 0; let tblCnt = 0;
+  let eqGlobal = 0; let eqInSection = 0;
   const h = [0, 0, 0, 0, 0, 0];
 
   for (const node of doc.content) {
@@ -176,7 +186,7 @@ export function syncCrossReferences(doc: any): any {
       const level: number = node.attrs?.level || 1;
       h[level - 1]++;
       for (let j = level; j < 6; j++) h[j] = 0;
-      if (level === 1) { h1++; imgCnt = 0; tblCnt = 0; }
+      if (level === 1) { h1++; imgCnt = 0; tblCnt = 0; eqInSection = 0; }
       const nums = h.slice(0, level).join('.') + '.';
       const text = getNodeText(node);
       if (node.attrs?.id) {
@@ -197,6 +207,14 @@ export function syncCrossReferences(doc: any): any {
       const label = caption ? `Table ${tblCnt}: ${caption}` : `Table ${tblCnt}`;
       if (node.attrs?.id) {
         idMap.set(node.attrs.id, label);
+      }
+    }
+    if (node.type === 'mathBlock') {
+      eqGlobal++;
+      eqInSection++;
+      const eqLabel = equationNumbering === 'hierarchical' ? `${h1}.${eqInSection}` : `${eqGlobal}`;
+      if (node.attrs?.id) {
+        idMap.set(node.attrs.id, `(${eqLabel})`);
       }
     }
   }
@@ -229,6 +247,7 @@ export interface QueryResult {
   headings: Array<{ id: string; level: number; text: string; numbering: string }>;
   figures: Array<{ id: string; caption: string; number: number }>;
   tables: Array<{ id: string; caption: string; number: number }>;
+  equations: Array<{ id: string; number: number }>;
   crossReferences: Array<{ href: string; text: string; targetExists: boolean }>;
 }
 
@@ -237,6 +256,7 @@ export function queryDocumentStructure(doc: any): QueryResult {
     headings: [],
     figures: [],
     tables: [],
+    equations: [],
     crossReferences: [],
   };
 
@@ -245,6 +265,7 @@ export function queryDocumentStructure(doc: any): QueryResult {
   const h = [0, 0, 0, 0, 0, 0];
   let imgCnt = 0;
   let tblCnt = 0;
+  let eqCnt = 0;
   const allIds = new Set<string>();
 
   // First pass: collect all IDs and build structure
@@ -271,6 +292,12 @@ export function queryDocumentStructure(doc: any): QueryResult {
       const id = node.attrs?.id || '';
       if (id) allIds.add(id);
       result.tables.push({ id, caption: node.attrs?.caption || '', number: tblCnt });
+    }
+    if (node.type === 'mathBlock') {
+      eqCnt++;
+      const id = node.attrs?.id || '';
+      if (id) allIds.add(id);
+      result.equations.push({ id, number: eqCnt });
     }
   }
 

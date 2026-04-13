@@ -36,6 +36,7 @@ interface ExportSettings {
   imageCaptionPrefix?: string;
   tableCaptionPrefix?: string;
   captionNumbering?: 'simple' | 'hierarchical';
+  equationNumbering?: 'sequential' | 'hierarchical';
   exportImagePath?: 'relative' | 'absolute';
   selfContained?: 'none' | 'images-only' | 'full';
   embeddedAssets?: EmbeddedAssets;
@@ -55,6 +56,8 @@ interface ConvertContext {
   imageCounter: number;
   tableCounter: number;
   h1Counter: number;
+  eqGlobal: number;
+  eqInSection: number;
 }
 
 /**
@@ -66,6 +69,8 @@ export function convertJsonToHtml(json: TiptapNode, theme?: HtmlTheme, settings?
     imageCounter: 0,
     tableCounter: 0,
     h1Counter: 0,
+    eqGlobal: 0,
+    eqInSection: 0,
   };
   const bodyContent = convertNode(json, ctx);
   return generateHtmlDocument(bodyContent, theme, meta, ctx);
@@ -79,7 +84,7 @@ function convertNode(node: TiptapNode, ctx: ConvertContext): string {
     case 'heading': {
       const level = node.attrs?.level || 1;
       const headingText = node.content ? convertInlineContent(node.content, ctx) : '';
-      if (level === 1) { ctx.h1Counter++; ctx.imageCounter = 0; ctx.tableCounter = 0; }
+      if (level === 1) { ctx.h1Counter++; ctx.imageCounter = 0; ctx.tableCounter = 0; ctx.eqInSection = 0; }
       const hId = node.attrs?.id ? ` id="${escapeHtml(node.attrs.id as string)}"` : '';
       const hAlign = node.attrs?.textAlign ? ` style="text-align:${node.attrs.textAlign}"` : '';
       return `<h${level}${hId}${hAlign}>${headingText}</h${level}>`;
@@ -146,8 +151,17 @@ function convertNode(node: TiptapNode, ctx: ConvertContext): string {
     case 'mathInline':
       return `<span class="math-inline" data-latex="${escapeHtml((node.attrs?.latex as string) || '')}">\\(${escapeHtml((node.attrs?.latex as string) || '')}\\)</span>`;
 
-    case 'mathBlock':
-      return `<div class="math-block" data-latex="${escapeHtml((node.attrs?.latex as string) || '')}">\\[${escapeHtml((node.attrs?.latex as string) || '')}\\]</div>`;
+    case 'mathBlock': {
+      ctx.eqGlobal++;
+      ctx.eqInSection++;
+      const eqMode = ctx.settings.equationNumbering ?? 'sequential';
+      const eqLabel = eqMode === 'hierarchical' ? `${ctx.h1Counter}.${ctx.eqInSection}` : `${ctx.eqGlobal}`;
+      const latex = (node.attrs?.latex as string) || '';
+      const eqId = node.attrs?.id ? ` id="${escapeHtml(node.attrs.id as string)}"` : '';
+      // Append \tag{N} so KaTeX renders the number inside the equation
+      const taggedLatex = latex + `\\tag{${eqLabel}}`;
+      return `<div class="math-block"${eqId} data-latex="${escapeHtml(taggedLatex)}">\\[${escapeHtml(taggedLatex)}\\]</div>`;
+    }
 
     case 'diagram':
       return `<pre class="mermaid">${escapeHtml((node.attrs?.code as string) || '')}</pre>`;

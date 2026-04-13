@@ -5,7 +5,7 @@ title: "버그 수정 모음 — 날짜 포맷 / BubbleMenu 활성 상태 / Cros
 status: done
 priority: high
 created: 2026-04-13T23:30:00+09:00
-modified: 2026-04-13T23:30:00+09:00
+modified: 2026-04-13T11:12:00+09:00
 author: "copilot"
 ---
 
@@ -61,3 +61,8 @@ SDOC-016 완료 직후 사용자 피드백으로 보고된 이슈들.
   - `cf907ea`: fix(bubble-menu): reflect active formatting state on text selection (1차, 미작동)
   - `debe96c`: fix(bubble-menu): use useEditorState for reactive active state (최종)
   - `2fdf3a0`: fix(crossref): auto-sync cross-reference text on source change
+- [x] **재검토 (2026-04-13)**: CrossRef 동기화 3가지 버그 재수정
+  - `buildIdMap` fallback 추가 (id 없는 노드 → slugify/figure-N/table-N)
+  - appendTransaction 변경 수집 후 역순 적용 (position shifting 방지)
+  - replaceWith + schema.text() 로 링크 마크 보존
+  - `771edd3`: fix(crossref): fix real-time sync - buildIdMap fallback + back-to-front + mark preservation

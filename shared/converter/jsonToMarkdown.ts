@@ -17,6 +17,7 @@ interface ExportSettings {
   imageCaptionPrefix?: string;
   tableCaptionPrefix?: string;
   captionNumbering?: 'simple' | 'hierarchical';
+  equationNumbering?: 'sequential' | 'hierarchical';
 }
 
 export interface SdocMeta {
@@ -32,6 +33,8 @@ interface ConvertContext {
   imageCounter: number;
   tableCounter: number;
   h1Counter: number;
+  eqGlobal: number;
+  eqInSection: number;
 }
 
 /**
@@ -43,6 +46,8 @@ export function convertJsonToMarkdown(json: TiptapNode, settings?: ExportSetting
     imageCounter: 0,
     tableCounter: 0,
     h1Counter: 0,
+    eqGlobal: 0,
+    eqInSection: 0,
   };
   let frontMatter = '';
   if (meta && (meta.title || meta.author || meta.version || meta.created || meta.modified)) {
@@ -66,7 +71,7 @@ function convertNode(node: TiptapNode, ctx: ConvertContext): string {
       const level = node.attrs?.level || 1;
       const headingPrefix = '#'.repeat(level as number);
       const headingText = node.content ? convertInlineContent(node.content, ctx) : '';
-      if (level === 1) { ctx.h1Counter++; ctx.imageCounter = 0; ctx.tableCounter = 0; }
+      if (level === 1) { ctx.h1Counter++; ctx.imageCounter = 0; ctx.tableCounter = 0; ctx.eqInSection = 0; }
       const anchor = node.attrs?.id ? ` {#${node.attrs.id}}` : '';
       return `${headingPrefix} ${headingText}${anchor}\n`;
     }
@@ -113,8 +118,15 @@ function convertNode(node: TiptapNode, ctx: ConvertContext): string {
     case 'mathInline':
       return `$${node.attrs?.latex || ''}$`;
 
-    case 'mathBlock':
-      return `$$\n${node.attrs?.latex || ''}\n$$\n`;
+    case 'mathBlock': {
+      ctx.eqGlobal++;
+      ctx.eqInSection++;
+      const eqMode = ctx.settings.equationNumbering ?? 'sequential';
+      const eqLabel = eqMode === 'hierarchical' ? `${ctx.h1Counter}.${ctx.eqInSection}` : `${ctx.eqGlobal}`;
+      const latex = node.attrs?.latex || '';
+      const eqId = node.attrs?.id ? `\n<a id="${node.attrs.id}"></a>` : '';
+      return `${eqId}\n$$\n${latex}\\tag{${eqLabel}}\n$$\n`;
+    }
 
     case 'diagram': {
       const diagLang = node.attrs?.language || 'mermaid';

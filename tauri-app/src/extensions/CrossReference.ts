@@ -5,7 +5,7 @@ import type { SuggestionProps, SuggestionKeyDownProps } from '@tiptap/suggestion
 
 export interface RefTarget {
   id: string;
-  type: 'heading' | 'figure' | 'table';
+  type: 'heading' | 'figure' | 'table' | 'equation';
   label: string;
   level?: number;
 }
@@ -117,7 +117,7 @@ export const CrossReference = Extension.create({
 
             const groups: Record<string, RefTarget[]> = {};
             for (const t of currentItems) {
-              const cat = t.type === 'heading' ? 'Headings' : t.type === 'figure' ? 'Figures' : 'Tables';
+              const cat = t.type === 'heading' ? 'Headings' : t.type === 'figure' ? 'Figures' : t.type === 'table' ? 'Tables' : 'Equations';
               (groups[cat] ??= []).push(t);
             }
 
@@ -135,7 +135,7 @@ export const CrossReference = Extension.create({
 
                 const icon = document.createElement('span');
                 icon.className = 'crossref-icon';
-                icon.textContent = item.type === 'heading' ? '§' : item.type === 'figure' ? '🖼' : '▦';
+                icon.textContent = item.type === 'heading' ? '§' : item.type === 'figure' ? '🖼' : item.type === 'table' ? '▦' : '∑';
                 el.appendChild(icon);
 
                 const label = document.createElement('span');
@@ -268,16 +268,20 @@ export function collectTargets(editor: any): RefTarget[] {
   const targets: RefTarget[] = [];
   if (!json?.content) return targets;
 
+  const mode = (window.__editorSettings?.equationNumbering ?? 'sequential') as string;
   const h = [0, 0, 0, 0, 0, 0];
   let imgCnt = 0;
   let tblCnt = 0;
+  let eqGlobal = 0;
+  let eqInSection = 0;
+  let h1 = 0;
 
   for (const node of json.content) {
     if (node.type === 'heading') {
       const level = node.attrs?.level || 1;
       h[level - 1]++;
       for (let j = level; j < 6; j++) h[j] = 0;
-      if (level === 1) { imgCnt = 0; tblCnt = 0; }
+      if (level === 1) { imgCnt = 0; tblCnt = 0; h1++; eqInSection = 0; }
       const nums = h.slice(0, level).join('.') + '.';
       const text = getTextContent(node);
       const id = node.attrs?.id || slugify(text);
@@ -294,6 +298,13 @@ export function collectTargets(editor: any): RefTarget[] {
       const caption = node.attrs?.caption || '';
       const id = node.attrs?.id || `table-${tblCnt}`;
       targets.push({ id, type: 'table', label: caption ? `Table ${tblCnt}: ${caption}` : `Table ${tblCnt}` });
+    }
+    if (node.type === 'mathBlock') {
+      eqGlobal++;
+      eqInSection++;
+      const eqLabel = mode === 'hierarchical' ? `${h1}.${eqInSection}` : `${eqGlobal}`;
+      const id = node.attrs?.id || `eq-${eqGlobal}`;
+      targets.push({ id, type: 'equation', label: `(${eqLabel})` });
     }
   }
 
@@ -313,19 +324,22 @@ function getTextContent(node: any): string {
  */
 function buildIdMap(doc: import('@tiptap/pm/model').Node): Map<string, string> {
   const idMap = new Map<string, string>();
+  const mode = (window.__editorSettings?.equationNumbering ?? 'sequential') as string;
   const h = [0, 0, 0, 0, 0, 0];
   let imgCnt = 0;
   let tblCnt = 0;
+  let eqGlobal = 0;
+  let eqInSection = 0;
+  let h1 = 0;
 
   doc.forEach((node) => {
     if (node.type.name === 'heading') {
       const level: number = node.attrs.level || 1;
       h[level - 1]++;
       for (let j = level; j < 6; j++) h[j] = 0;
-      if (level === 1) { imgCnt = 0; tblCnt = 0; }
+      if (level === 1) { imgCnt = 0; tblCnt = 0; h1++; eqInSection = 0; }
       const nums = h.slice(0, level).join('.') + '.';
       const text = node.textContent;
-      // Fallback to slugify(text) when id not yet assigned (matches collectTargets behavior)
       const id = (node.attrs.id as string | null | undefined) || slugify(text);
       idMap.set(id, `${nums} ${text}`);
     }
@@ -340,6 +354,13 @@ function buildIdMap(doc: import('@tiptap/pm/model').Node): Map<string, string> {
       const caption = (node.attrs.caption as string) || '';
       const id = (node.attrs.id as string | null | undefined) || `table-${tblCnt}`;
       idMap.set(id, caption ? `Table ${tblCnt}: ${caption}` : `Table ${tblCnt}`);
+    }
+    if (node.type.name === 'mathBlock') {
+      eqGlobal++;
+      eqInSection++;
+      const eqLabel = mode === 'hierarchical' ? `${h1}.${eqInSection}` : `${eqGlobal}`;
+      const id = (node.attrs.id as string | null | undefined) || `eq-${eqGlobal}`;
+      idMap.set(id, `(${eqLabel})`);
     }
   });
 

@@ -17,6 +17,7 @@ interface ExportSettings {
   imageCaptionPrefix?: string;
   tableCaptionPrefix?: string;
   captionNumbering?: 'simple' | 'hierarchical';
+  equationNumbering?: 'sequential' | 'hierarchical';
 }
 
 export interface SdocMeta {
@@ -32,6 +33,8 @@ interface ConvertContext {
   imageCounter: number;
   tableCounter: number;
   h1Counter: number;
+  eqGlobal: number;
+  eqInSection: number;
 }
 
 /**
@@ -43,6 +46,8 @@ export function convertJsonToAdoc(json: TiptapNode, settings?: ExportSettings, m
     imageCounter: 0,
     tableCounter: 0,
     h1Counter: 0,
+    eqGlobal: 0,
+    eqInSection: 0,
   };
   // Add AsciiDoc document attributes
   let docAttributes = ':sectnums:\n:sectnumlevels: 4\n';
@@ -64,7 +69,7 @@ function convertNode(node: TiptapNode, ctx: ConvertContext): string {
       const level = node.attrs?.level || 1;
       const headingPrefix = '='.repeat(level + 1);
       const headingText = node.content ? convertInlineContent(node.content, ctx) : '';
-      if (level === 1) { ctx.h1Counter++; ctx.imageCounter = 0; ctx.tableCounter = 0; }
+      if (level === 1) { ctx.h1Counter++; ctx.imageCounter = 0; ctx.tableCounter = 0; ctx.eqInSection = 0; }
       const hAnchor = node.attrs?.id ? `[[${node.attrs.id}]]\n` : '';
       return `${hAnchor}${headingPrefix} ${headingText}\n`;
     }
@@ -113,6 +118,19 @@ function convertNode(node: TiptapNode, ctx: ConvertContext): string {
       const diagLang = node.attrs?.language || 'mermaid';
       const diagCode = node.attrs?.code || '';
       return `[${diagLang}]\n....\n${diagCode}\n....\n`;
+    }
+
+    case 'mathInline':
+      return `stem:[${(node.attrs?.latex as string) || ''}]`;
+
+    case 'mathBlock': {
+      ctx.eqGlobal++;
+      ctx.eqInSection++;
+      const eqMode = ctx.settings.equationNumbering ?? 'sequential';
+      const eqLabel = eqMode === 'hierarchical' ? `${ctx.h1Counter}.${ctx.eqInSection}` : `${ctx.eqGlobal}`;
+      const latex = (node.attrs?.latex as string) || '';
+      const idAttr = node.attrs?.id ? `id="${node.attrs.id}", ` : '';
+      return `[${idAttr}stem, options="nowrap"]\n++++\n${latex}\\tag{${eqLabel}}\n++++\n`;
     }
 
     case 'table':

@@ -5,6 +5,7 @@ export interface EditorSettings {
   imageCaptionPrefix: string;
   tableCaptionPrefix: string;
   captionNumbering: 'simple' | 'hierarchical';
+  equationNumbering: 'sequential' | 'hierarchical';
   headingNumbering: boolean;
   headingDecoration: boolean;
   headingH1Color: string;
@@ -18,6 +19,7 @@ export const defaultSettings: EditorSettings = {
   imageCaptionPrefix: 'Image',
   tableCaptionPrefix: 'Table',
   captionNumbering: 'simple',
+  equationNumbering: 'sequential',
   headingNumbering: true,
   headingDecoration: true,
   headingH1Color: '#A50034',

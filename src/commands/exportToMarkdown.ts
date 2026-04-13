@@ -51,6 +51,7 @@ export async function exportToMarkdown(context: vscode.ExtensionContext) {
       imageCaptionPrefix: config.get<string>('caption.imagePrefix', 'Image'),
       tableCaptionPrefix: config.get<string>('caption.tablePrefix', 'Table'),
       captionNumbering: config.get<'simple' | 'hierarchical'>('caption.numbering', 'simple'),
+      equationNumbering: config.get<'sequential' | 'hierarchical'>('equation.numbering', 'sequential'),
     };
 
     // Convert to Markdown
