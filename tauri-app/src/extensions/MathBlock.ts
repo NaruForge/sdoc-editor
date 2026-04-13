@@ -41,58 +41,89 @@ export const MathBlock = Node.create({
       dom.classList.add('math-block');
       dom.setAttribute('contenteditable', 'false');
       dom.style.cursor = 'pointer';
-      dom.title = '클릭하여 수식 편집';
+      dom.title = '클릭하여 수식 편집 · 더블클릭으로 Dialog';
 
+      // --- Rendered math (visible when NOT editing) ---
       const rendered = document.createElement('div');
       dom.appendChild(rendered);
 
+      // --- Edit container (visible when editing) ---
+      const editContainer = document.createElement('div');
+      editContainer.classList.add('math-edit-container');
+      editContainer.style.display = 'none';
+      dom.appendChild(editContainer);
+
+      // Toolbar
+      const toolbar = document.createElement('div');
+      toolbar.classList.add('math-edit-toolbar');
+      editContainer.appendChild(toolbar);
+
+      const typeLabel = document.createElement('span');
+      typeLabel.classList.add('math-edit-type-label');
+      typeLabel.textContent = 'Block';
+      toolbar.appendChild(typeLabel);
+
+      const toggleBtn = document.createElement('button');
+      toggleBtn.classList.add('math-edit-btn');
+      toggleBtn.textContent = '→ Inline';
+      toggleBtn.title = '인라인 수식으로 변환';
+      toolbar.appendChild(toggleBtn);
+
+      const dialogBtn = document.createElement('button');
+      dialogBtn.classList.add('math-edit-btn');
+      dialogBtn.textContent = '⬒ Dialog';
+      dialogBtn.title = 'Dialog에서 편집';
+      toolbar.appendChild(dialogBtn);
+
+      // Textarea
       const textarea = document.createElement('textarea');
       textarea.rows = 3;
       textarea.spellcheck = false;
-      textarea.style.display = 'none';
-      textarea.style.width = '100%';
-      textarea.style.boxSizing = 'border-box';
-      textarea.style.fontFamily = 'var(--vscode-editor-font-family, monospace)';
-      textarea.style.fontSize = '0.9em';
-      textarea.style.border = '1px solid var(--vscode-focusBorder, #007fd4)';
-      textarea.style.borderRadius = '3px';
-      textarea.style.padding = '4px 8px';
-      textarea.style.background = 'var(--vscode-input-background, #1e1e1e)';
-      textarea.style.color = 'var(--vscode-input-foreground, #d4d4d4)';
-      textarea.style.outline = 'none';
-      textarea.style.resize = 'vertical';
-      dom.appendChild(textarea);
+      textarea.classList.add('math-edit-input');
+      editContainer.appendChild(textarea);
 
-      const renderMath = (latex: string) => {
+      // Live preview
+      const livePreview = document.createElement('div');
+      livePreview.classList.add('math-edit-preview', 'math-edit-preview--block');
+      editContainer.appendChild(livePreview);
+
+      const renderKatex = (latex: string, target: HTMLElement, displayMode: boolean) => {
         try {
-          katex.render(latex || '\\square', rendered, {
+          katex.render(latex || '\\square', target, {
             throwOnError: false,
-            displayMode: true,
+            displayMode,
             output: 'htmlAndMathml',
           });
         } catch {
-          rendered.textContent = latex;
+          target.textContent = latex;
         }
       };
 
-      renderMath(currentLatex);
+      const stripDelimiters = (raw: string): string => {
+        const v = raw.trim();
+        if (v.startsWith('$$') && v.endsWith('$$') && v.length >= 4) return v.slice(2, -2).trim();
+        return v;
+      };
+
+      const updateLivePreview = () => {
+        renderKatex(stripDelimiters(textarea.value), livePreview, true);
+      };
+
+      renderKatex(currentLatex, rendered, true);
 
       const commitEdit = () => {
         if (!isEditing) return;
         isEditing = false;
-        let value = textarea.value.trim();
-        if (value.startsWith('$$') && value.endsWith('$$') && value.length >= 4) {
-          value = value.slice(2, -2).trim();
-        }
-        currentLatex = value;
-        textarea.style.display = 'none';
+        currentLatex = stripDelimiters(textarea.value);
+        editContainer.style.display = 'none';
         rendered.style.display = '';
-        renderMath(currentLatex);
+        renderKatex(currentLatex, rendered, true);
         if (typeof getPos === 'function') {
           const pos = getPos();
           if (pos != null) {
-            const tr = editor.state.tr.setNodeMarkup(pos, undefined, { latex: value });
-            editor.view.dispatch(tr);
+            editor.view.dispatch(
+              editor.state.tr.setNodeMarkup(pos, undefined, { latex: currentLatex })
+            );
           }
         }
       };
@@ -100,7 +131,7 @@ export const MathBlock = Node.create({
       const cancelEdit = () => {
         if (!isEditing) return;
         isEditing = false;
-        textarea.style.display = 'none';
+        editContainer.style.display = 'none';
         rendered.style.display = '';
       };
 
@@ -108,12 +139,56 @@ export const MathBlock = Node.create({
         if (isEditing) return;
         isEditing = true;
         textarea.value = `$$${currentLatex}$$`;
-        textarea.style.display = 'block';
+        editContainer.style.display = '';
         rendered.style.display = 'none';
+        updateLivePreview();
         requestAnimationFrame(() => { textarea.focus(); textarea.select(); });
       };
 
-      dom.addEventListener('click', (e) => { e.stopPropagation(); enterEditMode(); });
+      const openDialog = () => {
+        if (typeof getPos !== 'function') return;
+        const pos = getPos();
+        if (pos == null) return;
+        if (isEditing) currentLatex = stripDelimiters(textarea.value);
+        cancelEdit();
+        (window as any).__showMathDialog?.(currentLatex, true, pos);
+      };
+
+      const toggleToInline = () => {
+        if (typeof getPos !== 'function') return;
+        const pos = getPos();
+        if (pos == null) return;
+        if (isEditing) currentLatex = stripDelimiters(textarea.value);
+        isEditing = false;
+        editContainer.style.display = 'none';
+        rendered.style.display = '';
+
+        const { tr } = editor.state;
+        const blockNode = tr.doc.nodeAt(pos);
+        if (!blockNode) return;
+        tr.replaceWith(pos, pos + blockNode.nodeSize,
+          editor.schema.nodes.paragraph.create(null,
+            editor.schema.nodes.mathInline.create({ latex: currentLatex })
+          )
+        );
+        editor.view.dispatch(tr);
+        (window as any).__editorFlushUpdate?.();
+      };
+
+      // Single click → inline edit
+      dom.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (!isEditing) enterEditMode();
+      });
+
+      // Double click → open dialog
+      dom.addEventListener('dblclick', (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        openDialog();
+      });
+
+      textarea.addEventListener('input', updateLivePreview);
       textarea.addEventListener('keydown', (e) => {
         e.stopPropagation();
         if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); commitEdit(); }
@@ -123,12 +198,19 @@ export const MathBlock = Node.create({
       textarea.addEventListener('mousedown', (e) => e.stopPropagation());
       textarea.addEventListener('click', (e) => e.stopPropagation());
 
+      // Toolbar buttons — mousedown preventDefault keeps textarea focused
+      const preventBlur = (e: Event) => { e.preventDefault(); e.stopPropagation(); };
+      toggleBtn.addEventListener('mousedown', preventBlur);
+      toggleBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleToInline(); });
+      dialogBtn.addEventListener('mousedown', preventBlur);
+      dialogBtn.addEventListener('click', (e) => { e.stopPropagation(); openDialog(); });
+
       return {
         dom,
         update(updatedNode) {
           if (updatedNode.type !== node.type) return false;
           currentLatex = updatedNode.attrs.latex;
-          if (!isEditing) renderMath(currentLatex);
+          if (!isEditing) renderKatex(currentLatex, rendered, true);
           return true;
         },
         stopEvent: () => true,

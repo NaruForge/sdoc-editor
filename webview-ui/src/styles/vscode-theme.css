@@ -1652,3 +1652,107 @@ body {
   max-width: 100%;
   height: auto;
 }
+
+/* ===== Math Edit UI ===== */
+
+/* Container for block math editing UI */
+.math-edit-container {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Shared input style for math editing (textarea for block, input for inline) */
+.math-edit-input {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 0.9em;
+  border: 1px solid var(--vscode-focusBorder, #007fd4);
+  border-radius: 3px;
+  padding: 4px 8px;
+  background: var(--vscode-input-background, #1e1e1e);
+  color: var(--vscode-input-foreground, #d4d4d4);
+  outline: none;
+  resize: vertical;
+}
+
+.math-edit-input--inline {
+  display: inline-block;
+  width: auto;
+  min-width: 80px;
+  padding: 1px 4px;
+  resize: none;
+}
+
+/* Live preview pane below the input */
+.math-edit-preview {
+  padding: 6px 8px;
+  background: var(--vscode-editor-background, #1e1e1e);
+  border: 1px dashed var(--vscode-editorWidget-border, #454545);
+  border-radius: 3px;
+  min-height: 24px;
+  display: flex;
+  align-items: center;
+  overflow: auto;
+  opacity: 0.85;
+}
+
+.math-edit-preview--block {
+  justify-content: center;
+}
+
+/* Toolbar row with toggle + dialog buttons */
+.math-edit-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 0;
+}
+
+/* Current type label */
+.math-edit-type-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--vscode-descriptionForeground, #999);
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: var(--vscode-badge-background, #4d4d4d);
+  color: var(--vscode-badge-foreground, #fff);
+  user-select: none;
+}
+
+/* Small action buttons in the math edit toolbar */
+.math-edit-btn {
+  font-size: 11px;
+  padding: 1px 6px;
+  border: 1px solid var(--vscode-button-secondaryBorder, transparent);
+  border-radius: 3px;
+  background: var(--vscode-button-secondaryBackground, #3a3d41);
+  color: var(--vscode-button-secondaryForeground, #ccc);
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.math-edit-btn:hover {
+  background: var(--vscode-button-secondaryHoverBackground, #505357);
+}
+
+/* Floating panel for inline math (preview + toolbar) */
+.math-edit-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 50;
+  min-width: 200px;
+  max-width: 400px;
+  background: var(--vscode-editorWidget-background, #252526);
+  border: 1px solid var(--vscode-editorWidget-border, #454545);
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}

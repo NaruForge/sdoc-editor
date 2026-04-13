@@ -42,56 +42,93 @@ export const MathInline = Node.create({
       dom.classList.add('math-inline');
       dom.setAttribute('contenteditable', 'false');
       dom.style.cursor = 'pointer';
-      dom.title = '클릭하여 수식 편집';
+      dom.style.position = 'relative';
+      dom.title = '클릭하여 수식 편집 · 더블클릭으로 Dialog';
 
+      // --- Rendered math (visible when NOT editing) ---
       const rendered = document.createElement('span');
       dom.appendChild(rendered);
 
+      // --- Input (visible when editing) ---
       const input = document.createElement('input');
       input.type = 'text';
       input.spellcheck = false;
+      input.classList.add('math-edit-input', 'math-edit-input--inline');
       input.style.display = 'none';
-      input.style.fontFamily = 'var(--vscode-editor-font-family, monospace)';
-      input.style.fontSize = '0.9em';
-      input.style.border = '1px solid var(--vscode-focusBorder, #007fd4)';
-      input.style.borderRadius = '3px';
-      input.style.padding = '1px 4px';
-      input.style.background = 'var(--vscode-input-background, #1e1e1e)';
-      input.style.color = 'var(--vscode-input-foreground, #d4d4d4)';
-      input.style.outline = 'none';
-      input.style.minWidth = '80px';
       dom.appendChild(input);
 
-      const renderMath = (latex: string) => {
+      // --- Floating edit panel (preview + toolbar) ---
+      const editPanel = document.createElement('div');
+      editPanel.classList.add('math-edit-panel');
+      editPanel.style.display = 'none';
+      dom.appendChild(editPanel);
+
+      const livePreview = document.createElement('div');
+      livePreview.classList.add('math-edit-preview');
+      editPanel.appendChild(livePreview);
+
+      const toolbar = document.createElement('div');
+      toolbar.classList.add('math-edit-toolbar');
+      editPanel.appendChild(toolbar);
+
+      const typeLabel = document.createElement('span');
+      typeLabel.classList.add('math-edit-type-label');
+      typeLabel.textContent = 'Inline';
+      toolbar.appendChild(typeLabel);
+
+      const toggleBtn = document.createElement('button');
+      toggleBtn.classList.add('math-edit-btn');
+      toggleBtn.textContent = '→ Block';
+      toggleBtn.title = '블록 수식으로 변환';
+      toolbar.appendChild(toggleBtn);
+
+      const dialogBtn = document.createElement('button');
+      dialogBtn.classList.add('math-edit-btn');
+      dialogBtn.textContent = '⬒ Dialog';
+      dialogBtn.title = 'Dialog에서 편집';
+      toolbar.appendChild(dialogBtn);
+
+      const renderKatex = (latex: string, target: HTMLElement, displayMode: boolean) => {
         try {
-          katex.render(latex || '\\square', rendered, {
+          katex.render(latex || '\\square', target, {
             throwOnError: false,
-            displayMode: false,
+            displayMode,
             output: 'htmlAndMathml',
           });
         } catch {
-          rendered.textContent = latex;
+          target.textContent = latex;
         }
       };
 
-      renderMath(currentLatex);
+      const stripDelimiters = (raw: string): string => {
+        const v = raw.trim();
+        if (v.startsWith('$') && v.endsWith('$') && v.length >= 2) {
+          const inner = v.slice(1, -1);
+          if (!inner.startsWith('$')) return inner.trim();
+        }
+        return v;
+      };
+
+      const updateLivePreview = () => {
+        renderKatex(stripDelimiters(input.value), livePreview, false);
+      };
+
+      renderKatex(currentLatex, rendered, false);
 
       const commitEdit = () => {
         if (!isEditing) return;
         isEditing = false;
-        let value = input.value.trim();
-        if (value.startsWith('$') && value.endsWith('$') && value.length >= 2) {
-          value = value.slice(1, -1);
-        }
-        currentLatex = value;
+        currentLatex = stripDelimiters(input.value);
         input.style.display = 'none';
+        editPanel.style.display = 'none';
         rendered.style.display = '';
-        renderMath(currentLatex);
+        renderKatex(currentLatex, rendered, false);
         if (typeof getPos === 'function') {
           const pos = getPos();
           if (pos != null) {
-            const tr = editor.state.tr.setNodeMarkup(pos, undefined, { latex: value });
-            editor.view.dispatch(tr);
+            editor.view.dispatch(
+              editor.state.tr.setNodeMarkup(pos, undefined, { latex: currentLatex })
+            );
           }
         }
       };
@@ -100,6 +137,7 @@ export const MathInline = Node.create({
         if (!isEditing) return;
         isEditing = false;
         input.style.display = 'none';
+        editPanel.style.display = 'none';
         rendered.style.display = '';
       };
 
@@ -109,13 +147,66 @@ export const MathInline = Node.create({
         input.value = `$${currentLatex}$`;
         input.style.display = 'inline-block';
         input.style.width = `${Math.max(80, currentLatex.length * 9 + 30)}px`;
+        editPanel.style.display = '';
         rendered.style.display = 'none';
+        updateLivePreview();
         requestAnimationFrame(() => { input.focus(); input.select(); });
       };
 
-      dom.addEventListener('click', (e) => { e.stopPropagation(); enterEditMode(); });
+      const openDialog = () => {
+        if (typeof getPos !== 'function') return;
+        const pos = getPos();
+        if (pos == null) return;
+        if (isEditing) currentLatex = stripDelimiters(input.value);
+        cancelEdit();
+        (window as any).__showMathDialog?.(currentLatex, false, pos);
+      };
+
+      const toggleToBlock = () => {
+        if (typeof getPos !== 'function') return;
+        const pos = getPos();
+        if (pos == null) return;
+        if (isEditing) currentLatex = stripDelimiters(input.value);
+        isEditing = false;
+        input.style.display = 'none';
+        editPanel.style.display = 'none';
+        rendered.style.display = '';
+
+        const { tr } = editor.state;
+        const inlineNode = tr.doc.nodeAt(pos);
+        if (!inlineNode) return;
+        const $pos = tr.doc.resolve(pos);
+        const mathBlockType = editor.schema.nodes.mathBlock;
+
+        if ($pos.parent.childCount === 1 && $pos.parent.type.name === 'paragraph') {
+          tr.replaceWith($pos.before($pos.depth), $pos.after($pos.depth),
+            mathBlockType.create({ latex: currentLatex })
+          );
+        } else {
+          const parentEnd = $pos.after($pos.depth);
+          tr.delete(pos, pos + inlineNode.nodeSize);
+          tr.insert(tr.mapping.map(parentEnd), mathBlockType.create({ latex: currentLatex }));
+        }
+        editor.view.dispatch(tr);
+        (window as any).__editorFlushUpdate?.();
+      };
+
+      // Single click → inline edit
+      dom.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (!isEditing) enterEditMode();
+      });
+
+      // Double click → open dialog
+      dom.addEventListener('dblclick', (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        openDialog();
+      });
+
       input.addEventListener('input', () => {
         input.style.width = `${Math.max(80, input.value.length * 8 + 20)}px`;
+        updateLivePreview();
       });
       input.addEventListener('keydown', (e) => {
         e.stopPropagation();
@@ -126,12 +217,20 @@ export const MathInline = Node.create({
       input.addEventListener('mousedown', (e) => e.stopPropagation());
       input.addEventListener('click', (e) => e.stopPropagation());
 
+      // Toolbar buttons — mousedown preventDefault keeps input focused
+      const preventBlur = (e: Event) => { e.preventDefault(); e.stopPropagation(); };
+      toggleBtn.addEventListener('mousedown', preventBlur);
+      toggleBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleToBlock(); });
+      dialogBtn.addEventListener('mousedown', preventBlur);
+      dialogBtn.addEventListener('click', (e) => { e.stopPropagation(); openDialog(); });
+      editPanel.addEventListener('mousedown', preventBlur);
+
       return {
         dom,
         update(updatedNode) {
           if (updatedNode.type !== node.type) return false;
           currentLatex = updatedNode.attrs.latex;
-          if (!isEditing) renderMath(currentLatex);
+          if (!isEditing) renderKatex(currentLatex, rendered, false);
           return true;
         },
         stopEvent: () => true,

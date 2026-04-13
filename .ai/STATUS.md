@@ -4,7 +4,7 @@
 - (없음)
 
 ## In Progress
-- (없음)
+- [SDOC-016](tasks/SDOC-016.md): Math 편집 UX 개선 — 하이브리드 편집 + Inline/Block 토글
 
 ## Done (최근)
 - [SDOC-015](tasks/SDOC-015.md): 코드베이스 리팩토링 — 하네스 엔지니어링 기반 구축 (2026-04-13)

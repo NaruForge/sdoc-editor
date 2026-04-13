@@ -195,13 +195,46 @@ export const Editor: React.FC = () => {
 
     if (dialogs.mathDialog?.pos !== null && dialogs.mathDialog?.pos !== undefined) {
       const pos = dialogs.mathDialog.pos;
-      editor.chain().focus().command(({ tr }) => {
-        const nodeType = isBlock
-          ? editor.schema.nodes.mathBlock
-          : editor.schema.nodes.mathInline;
-        tr.setNodeMarkup(pos, nodeType, { latex });
-        return true;
-      }).run();
+      const currentNode = editor.state.doc.nodeAt(pos);
+      const currentIsBlock = currentNode?.type.name === 'mathBlock';
+
+      if (currentIsBlock === isBlock) {
+        // Same type — update attributes only
+        editor.chain().focus().command(({ tr }) => {
+          tr.setNodeMarkup(pos, undefined, { latex });
+          return true;
+        }).run();
+      } else if (isBlock) {
+        // Inline → Block: delete inline, insert block
+        editor.chain().focus().command(({ tr }) => {
+          const node = tr.doc.nodeAt(pos);
+          if (!node) return false;
+          const $pos = tr.doc.resolve(pos);
+          const mathBlockType = editor.schema.nodes.mathBlock;
+          if ($pos.parent.childCount === 1 && $pos.parent.type.name === 'paragraph') {
+            // Sole child of paragraph — replace entire paragraph with block
+            tr.replaceWith($pos.before($pos.depth), $pos.after($pos.depth), mathBlockType.create({ latex }));
+          } else {
+            // Has siblings — delete inline, insert block after paragraph
+            const parentEnd = $pos.after($pos.depth);
+            tr.delete(pos, pos + node.nodeSize);
+            tr.insert(tr.mapping.map(parentEnd), mathBlockType.create({ latex }));
+          }
+          return true;
+        }).run();
+      } else {
+        // Block → Inline: replace block with paragraph containing inline
+        editor.chain().focus().command(({ tr }) => {
+          const node = tr.doc.nodeAt(pos);
+          if (!node) return false;
+          const mathInlineType = editor.schema.nodes.mathInline;
+          const paragraphType = editor.schema.nodes.paragraph;
+          tr.replaceWith(pos, pos + node.nodeSize,
+            paragraphType.create(null, mathInlineType.create({ latex }))
+          );
+          return true;
+        }).run();
+      }
     } else if (isBlock) {
       (editor.chain().focus() as unknown as Record<string, (l: string) => { run: () => void }>).insertMathBlock(latex).run();
     } else {
