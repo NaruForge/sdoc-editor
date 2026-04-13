@@ -101,6 +101,7 @@ body {
   counter-reset: h1-counter h2-counter h3-counter table-counter image-counter;
   --image-caption-prefix: '';
   --table-caption-prefix: '';
+  --caption-separator: ' ';
   --heading-h1-color: #A50034;
   --heading-h2-color: #A50034;
   --heading-h3-color: #A50034;
@@ -225,8 +226,8 @@ body {
 .image-caption-display:hover { background-color: var(--list-hover-bg); }
 .image-caption-display.no-caption { opacity: 0.3; }
 .image-caption-display.no-caption:hover { opacity: 1; }
-.simple-numbering .image-caption-display .caption-label::after { content: var(--image-caption-prefix) counter(image-counter) " "; font-weight: bold; font-size: 0.95em; }
-.hierarchical-numbering .image-caption-display .caption-label::after { content: var(--image-caption-prefix) counter(h1-counter) "." counter(image-counter) " "; font-weight: bold; font-size: 0.95em; }
+.sequential-numbering .image-caption-display .caption-label::after { content: var(--image-caption-prefix) counter(image-counter) var(--caption-separator); font-weight: bold; font-size: 0.95em; }
+.hierarchical-numbering .image-caption-display .caption-label::after { content: var(--image-caption-prefix) counter(h1-counter) "." counter(image-counter) var(--caption-separator); font-weight: bold; font-size: 0.95em; }
 .image-caption-display .caption-text { font-weight: bold; font-size: 0.95em; }
 .image-caption-display .caption-placeholder { font-style: italic; font-size: 0.9em; color: var(--description-fg); }
 .image-caption-display .caption-edit-icon { opacity: 0; transition: opacity 0.2s; font-size: 14px; color: var(--description-fg); }
@@ -242,8 +243,10 @@ body {
 .table-caption-display:hover { background-color: var(--list-hover-bg); }
 .table-caption-display.no-caption { opacity: 0.3; }
 .table-caption-display.no-caption:hover { opacity: 1; }
-.simple-numbering .table-caption-display .caption-label::after { content: var(--table-caption-prefix) counter(table-counter) " "; font-weight: bold; font-size: 0.95em; }
-.hierarchical-numbering .table-caption-display .caption-label::after { content: var(--table-caption-prefix) counter(h1-counter) "." counter(table-counter) " "; font-weight: bold; font-size: 0.95em; }
+.sequential-numbering .table-caption-display .caption-label::after { content: var(--table-caption-prefix) counter(table-counter) var(--caption-separator); font-weight: bold; font-size: 0.95em; }
+.hierarchical-numbering .table-caption-display .caption-label::after { content: var(--table-caption-prefix) counter(h1-counter) "." counter(table-counter) var(--caption-separator); font-weight: bold; font-size: 0.95em; }
+.sequential-numbering[data-table-number-style="roman"] .table-caption-display .caption-label::after { content: var(--table-caption-prefix) counter(table-counter, upper-roman) var(--caption-separator); font-weight: bold; font-size: 0.95em; }
+.hierarchical-numbering[data-table-number-style="roman"] .table-caption-display .caption-label::after { content: var(--table-caption-prefix) counter(h1-counter) "." counter(table-counter, upper-roman) var(--caption-separator); font-weight: bold; font-size: 0.95em; }
 .caption-text { font-weight: bold; font-size: 0.95em; }
 .caption-placeholder { font-style: italic; font-size: 0.9em; color: var(--description-fg); }
 .caption-edit-icon { opacity: 0; transition: opacity 0.2s; font-size: 14px; color: var(--description-fg); }
@@ -460,9 +463,9 @@ body {
 .document-header { border-bottom: 1px solid var(--panel-border); padding: 12px 16px 10px; background-color: var(--editor-bg); }
 .editor-title-area { padding: 32px 24px 24px; }
 .editor-title-input {
-  width: 100%; font-size: 2.5em; font-weight: 700; color: var(--editor-fg); background: transparent;
+  width: 100%; font-size: 2.5em; font-weight: var(--font-weight-h1, 700); color: var(--editor-fg); background: transparent;
   border: none; border-bottom: 2px solid transparent; outline: none; padding: 4px 0;
-  font-family: Georgia, 'Times New Roman', serif; letter-spacing: -0.02em; line-height: 1.2; transition: border-color 0.2s;
+  font-family: 'Legacy Font 2.0', var(--font-family, sans-serif); letter-spacing: -0.02em; line-height: 1.2; transition: border-color 0.2s;
 }
 .editor-title-input:focus { border-bottom-color: var(--focus-border); }
 .editor-title-input::placeholder { color: var(--disabled-fg); font-style: italic; }

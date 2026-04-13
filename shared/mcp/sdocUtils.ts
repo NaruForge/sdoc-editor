@@ -178,9 +178,17 @@ export function assignAutoIds(doc: any): any {
   return cloned;
 }
 
-export function syncCrossReferences(doc: any, equationNumbering: 'sequential' | 'hierarchical' = 'sequential'): any {
+import { getCaptionPreset, toRoman, type CaptionStyleName } from '../settingsResolver';
+
+export function syncCrossReferences(
+  doc: any,
+  equationNumbering: 'sequential' | 'hierarchical' = 'sequential',
+  captionStyle: CaptionStyleName = 'modern',
+  crossRefIncludeCaption = false,
+): any {
   if (!doc?.content) return doc;
 
+  const preset = getCaptionPreset(captionStyle);
   const idMap = new Map<string, string>();
   let h1 = 0; let imgCnt = 0; let tblCnt = 0;
   let eqGlobal = 0; let eqInSection = 0;
@@ -201,7 +209,8 @@ export function syncCrossReferences(doc: any, equationNumbering: 'sequential' | 
     if (node.type === 'image') {
       imgCnt++;
       const caption = node.attrs?.caption || '';
-      const label = caption ? `Figure ${imgCnt}: ${caption}` : `Figure ${imgCnt}`;
+      const num = `${preset.figurePrefix}${imgCnt}`;
+      const label = crossRefIncludeCaption && caption ? `${num}${preset.separator}${caption}` : num;
       if (node.attrs?.id) {
         idMap.set(node.attrs.id, label);
       }
@@ -209,7 +218,9 @@ export function syncCrossReferences(doc: any, equationNumbering: 'sequential' | 
     if (node.type === 'table') {
       tblCnt++;
       const caption = node.attrs?.caption || '';
-      const label = caption ? `Table ${tblCnt}: ${caption}` : `Table ${tblCnt}`;
+      const tblNum = preset.tableNumberStyle === 'roman' ? toRoman(tblCnt) : `${tblCnt}`;
+      const num = `${preset.tablePrefix}${tblNum}`;
+      const label = crossRefIncludeCaption && caption ? `${num}${preset.separator}${caption}` : num;
       if (node.attrs?.id) {
         idMap.set(node.attrs.id, label);
       }
@@ -217,9 +228,12 @@ export function syncCrossReferences(doc: any, equationNumbering: 'sequential' | 
     if (node.type === 'mathBlock') {
       eqGlobal++;
       eqInSection++;
-      const eqLabel = equationNumbering === 'hierarchical' ? `${h1}.${eqInSection}` : `${eqGlobal}`;
+      const eqNum = equationNumbering === 'hierarchical' ? `${h1}.${eqInSection}` : `${eqGlobal}`;
+      const eqLabel = preset.equationParens
+        ? `${preset.equationPrefix}(${eqNum})`
+        : `${preset.equationPrefix}${eqNum}`;
       if (node.attrs?.id) {
-        idMap.set(node.attrs.id, `(${eqLabel})`);
+        idMap.set(node.attrs.id, eqLabel);
       }
     }
   }

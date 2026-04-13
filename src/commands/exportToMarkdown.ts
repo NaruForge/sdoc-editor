@@ -50,11 +50,14 @@ export async function exportToMarkdown(context: vscode.ExtensionContext) {
     const exportSettings = {
       imageCaptionPrefix: config.get<string>('caption.imagePrefix', ''),
       tableCaptionPrefix: config.get<string>('caption.tablePrefix', ''),
-      captionNumbering: config.get<'simple' | 'hierarchical'>('caption.numbering', 'simple'),
+      equationCaptionPrefix: config.get<string>('caption.equationPrefix', ''),
+      captionSeparator: config.get<string>('caption.separator', ' '),
+      captionImageSeparator: config.get<string>('caption.imageSeparator', ' '),
+      captionTableSeparator: config.get<string>('caption.tableSeparator', ' '),
+      captionEquationSeparator: config.get<string>('caption.equationSeparator', ''),
+      captionNumbering: config.get<'sequential' | 'hierarchical'>('caption.numbering', 'sequential'),
       equationNumbering: config.get<'sequential' | 'hierarchical'>('equation.numbering', 'sequential'),
     };
-
-    // Convert to Markdown
     const markdownContent = convertJsonToMarkdown(json, exportSettings, meta);
 
     // Generate .md file in the same directory

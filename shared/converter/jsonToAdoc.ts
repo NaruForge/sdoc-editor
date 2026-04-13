@@ -1,4 +1,5 @@
 import { formatDate, formatCaptionLabel } from './utils';
+import { toRoman } from '../settingsResolver';
 
 interface TiptapNode {
   type: string;
@@ -16,7 +17,11 @@ interface TiptapMark {
 interface ExportSettings {
   imageCaptionPrefix?: string;
   tableCaptionPrefix?: string;
-  captionNumbering?: 'simple' | 'hierarchical';
+  equationCaptionPrefix?: string;
+  captionSeparator?: string;
+  tableNumberStyle?: 'arabic' | 'roman';
+  equationParens?: boolean;
+  captionNumbering?: 'sequential' | 'hierarchical';
   equationNumbering?: 'sequential' | 'hierarchical';
 }
 
@@ -128,9 +133,15 @@ function convertNode(node: TiptapNode, ctx: ConvertContext): string {
       ctx.eqInSection++;
       const eqMode = ctx.settings.equationNumbering ?? 'sequential';
       const eqLabel = eqMode === 'hierarchical' ? `${ctx.h1Counter}.${ctx.eqInSection}` : `${ctx.eqGlobal}`;
+      const eqPrefix = ctx.settings.equationCaptionPrefix ?? '';
       const latex = (node.attrs?.latex as string) || '';
       const idAttr = node.attrs?.id ? `id="${node.attrs.id}", ` : '';
-      return `[${idAttr}stem, options="nowrap"]\n++++\n${latex}\\tag{${eqLabel}}\n++++\n`;
+      const parens = ctx.settings.equationParens ?? true;
+      const tagContent = eqPrefix
+        ? (parens ? `${eqPrefix}(${eqLabel})` : `${eqPrefix}${eqLabel}`)
+        : (parens ? `(${eqLabel})` : `${eqLabel}`);
+      const taggedLatex = `${latex}\\tag*{${tagContent}}`;
+      return `[${idAttr}stem, options="nowrap"]\n++++\n${taggedLatex}\n++++\n`;
     }
 
     case 'table':
@@ -196,10 +207,11 @@ function convertTable(table: TiptapNode, ctx: ConvertContext): string {
   if (caption) {
     ctx.tableCounter++;
     const prefix = ctx.settings.tableCaptionPrefix ?? '';
+    const tblNum = ctx.settings.tableNumberStyle === 'roman' ? toRoman(ctx.tableCounter) : `${ctx.tableCounter}`;
     const numbering = ctx.settings.captionNumbering === 'hierarchical'
-      ? `${ctx.h1Counter}.${ctx.tableCounter}`
-      : `${ctx.tableCounter}`;
-    adoc += `.${formatCaptionLabel(prefix, numbering, caption as string)}\n`;
+      ? `${ctx.h1Counter}.${tblNum}`
+      : tblNum;
+    adoc += `.${formatCaptionLabel(prefix, numbering, caption as string, ctx.settings.captionSeparator ?? ' ')}\n`;
   }
 
   const hasHeader = table.content[0]?.content?.some(
@@ -262,7 +274,7 @@ function convertImage(node: TiptapNode, ctx: ConvertContext): string {
     const numbering = ctx.settings.captionNumbering === 'hierarchical'
       ? `${ctx.h1Counter}.${ctx.imageCounter}`
       : `${ctx.imageCounter}`;
-    adoc += `.${formatCaptionLabel(prefix, numbering, caption as string)}\n`;
+    adoc += `.${formatCaptionLabel(prefix, numbering, caption as string, ctx.settings.captionSeparator ?? ' ')}\n`;
   }
 
   adoc += `image::${src}[`;

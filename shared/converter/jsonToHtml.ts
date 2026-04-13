@@ -13,6 +13,7 @@ interface TiptapMark {
 
 import hljs from 'highlight.js';
 import { escapeHtml, formatDate, formatCaptionLabel } from './utils';
+import { toRoman } from '../settingsResolver';
 
 interface HtmlTheme {
   companyLogo?: string;
@@ -35,7 +36,11 @@ interface EmbeddedAssets {
 interface ExportSettings {
   imageCaptionPrefix?: string;
   tableCaptionPrefix?: string;
-  captionNumbering?: 'simple' | 'hierarchical';
+  equationCaptionPrefix?: string;
+  captionSeparator?: string;
+  tableNumberStyle?: 'arabic' | 'roman';
+  equationParens?: boolean;
+  captionNumbering?: 'sequential' | 'hierarchical';
   equationNumbering?: 'sequential' | 'hierarchical';
   exportImagePath?: 'relative' | 'absolute';
   selfContained?: 'none' | 'images-only' | 'full';
@@ -156,10 +161,14 @@ function convertNode(node: TiptapNode, ctx: ConvertContext): string {
       ctx.eqInSection++;
       const eqMode = ctx.settings.equationNumbering ?? 'sequential';
       const eqLabel = eqMode === 'hierarchical' ? `${ctx.h1Counter}.${ctx.eqInSection}` : `${ctx.eqGlobal}`;
+      const eqPrefix = ctx.settings.equationCaptionPrefix ?? '';
       const latex = (node.attrs?.latex as string) || '';
       const eqId = node.attrs?.id ? ` id="${escapeHtml(node.attrs.id as string)}"` : '';
-      // Append \tag{N} so KaTeX renders the number inside the equation
-      const taggedLatex = latex + `\\tag{${eqLabel}}`;
+      const parens = ctx.settings.equationParens ?? true;
+      const tagContent = eqPrefix
+        ? (parens ? `${eqPrefix}(${eqLabel})` : `${eqPrefix}${eqLabel}`)
+        : (parens ? `(${eqLabel})` : `${eqLabel}`);
+      const taggedLatex = `${latex}\\tag*{${tagContent}}`;
       return `<div class="math-block"${eqId} data-latex="${escapeHtml(taggedLatex)}">\\[${escapeHtml(taggedLatex)}\\]</div>`;
     }
 
@@ -213,9 +222,10 @@ function convertTable(table: TiptapNode, ctx: ConvertContext): string {
   const align = table.attrs?.align || 'left';
   const width = table.attrs?.width || '100%';
   const prefix = ctx.settings.tableCaptionPrefix ?? '';
+  const tblNum = ctx.settings.tableNumberStyle === 'roman' ? toRoman(ctx.tableCounter) : `${ctx.tableCounter}`;
   const numbering = ctx.settings.captionNumbering === 'hierarchical'
-    ? `${ctx.h1Counter}.${ctx.tableCounter}`
-    : `${ctx.tableCounter}`;
+    ? `${ctx.h1Counter}.${tblNum}`
+    : tblNum;
 
   const hasHeader = table.content[0]?.content?.some(
     (cell: TiptapNode) => cell.type === 'tableHeader'
@@ -225,7 +235,7 @@ function convertTable(table: TiptapNode, ctx: ConvertContext): string {
   html += `<table${tId} style="width: ${width}; text-align: ${align};" class="doc-table">`;
 
   if (caption) {
-    html += `\n  <caption>${formatCaptionLabel(prefix, numbering, escapeHtml(caption as string))}</caption>`;
+    html += `\n  <caption>${formatCaptionLabel(prefix, numbering, escapeHtml(caption as string), ctx.settings.captionSeparator ?? ' ')}</caption>`;
   }
 
   if (hasHeader && table.content[0]) {
@@ -317,7 +327,7 @@ function convertImage(node: TiptapNode, ctx: ConvertContext): string {
   }
 
   if (caption) {
-    html += `\n  <figcaption>${formatCaptionLabel(prefix, numbering, escapeHtml(caption))}</figcaption>`;
+    html += `\n  <figcaption>${formatCaptionLabel(prefix, numbering, escapeHtml(caption), ctx.settings.captionSeparator ?? ' ')}</figcaption>`;
   }
 
   html += '\n</figure>';

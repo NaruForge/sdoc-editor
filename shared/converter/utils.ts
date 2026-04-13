@@ -1,3 +1,5 @@
+export { toRoman } from '../settingsResolver';
+
 export function escapeHtml(text: string): string {
   return text
     .replace(/&/g, '&amp;')
@@ -21,13 +23,19 @@ export function formatDate(isoString: string): string {
 }
 
 /**
- * Build a caption label string: "prefix numbering caption"
- * - If prefix is non-empty, format is: "prefix<numbering> <caption>"
+ * Build a caption label string: "prefix numbering separator caption"
+ * - If prefix is non-empty: "prefix<numbering><separator><caption>"
  *   (prefix already includes trailing space/punctuation as the user desires)
- * - If prefix is empty, format is: "<numbering> <caption>"
- * - If caption is empty, omit the trailing caption part
+ * - If prefix is empty: "<numbering><separator><caption>"
+ * - separator defaults to ' ' (single space) if not specified
+ * - If caption is empty, omit the trailing separator+caption part
+ *
+ * Examples:
+ *   formatCaptionLabel('Fig. ', '1', 'Photo', '. ')  → "Fig. 1. Photo"
+ *   formatCaptionLabel('Figure ', '1', 'Photo', ': ') → "Figure 1: Photo"
+ *   formatCaptionLabel('', '1', 'Photo')               → "1 Photo"
  */
-export function formatCaptionLabel(prefix: string, numbering: string, caption?: string): string {
+export function formatCaptionLabel(prefix: string, numbering: string, caption?: string, separator = ' '): string {
   const num = prefix ? `${prefix}${numbering}` : numbering;
-  return caption ? `${num} ${caption}` : num;
+  return caption ? `${num}${separator}${caption}` : num;
 }

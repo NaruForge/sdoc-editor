@@ -2,6 +2,7 @@ import { Extension } from '@tiptap/core';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Suggestion } from '@tiptap/suggestion';
 import type { SuggestionProps, SuggestionKeyDownProps } from '@tiptap/suggestion';
+import { toRoman } from '@shared/settingsResolver';
 
 export interface RefTarget {
   id: string;
@@ -275,9 +276,14 @@ export function collectTargets(editor: any): RefTarget[] {
 
   const settings = window.__editorSettings;
   const mode = (settings?.equationNumbering ?? 'sequential') as string;
-  const capMode = (settings?.captionNumbering ?? 'simple') as string;
+  const capMode = (settings?.captionNumbering ?? 'sequential') as string;
   const imgPrefix = settings?.imageCaptionPrefix ?? '';
   const tblPrefix = settings?.tableCaptionPrefix ?? '';
+  const eqPrefix = settings?.equationCaptionPrefix ?? '';
+  const sep = settings?.captionSeparator ?? ' ';
+  const showCaption = settings?.crossRefIncludeCaption ?? false;
+  const tblStyle = settings?.tableNumberStyle ?? 'arabic';
+  const eqParens = settings?.equationParens ?? false;
   const h = [0, 0, 0, 0, 0, 0];
   let imgCnt = 0;
   let tblCnt = 0;
@@ -301,23 +307,24 @@ export function collectTargets(editor: any): RefTarget[] {
       const caption = node.attrs?.caption || '';
       const id = node.attrs?.id || `figure-${imgCnt}`;
       const numbering = capMode === 'hierarchical' ? `${h1}.${imgCnt}` : `${imgCnt}`;
-      const num = imgPrefix ? `${imgPrefix}${numbering}` : numbering;
-      targets.push({ id, type: 'figure', label: caption ? `${num} ${caption}` : num });
+      const num = `${imgPrefix}${numbering}`;
+      targets.push({ id, type: 'figure', label: (showCaption && caption) ? `${num}${sep}${caption}` : num });
     }
     if (node.type === 'table') {
       tblCnt++;
       const caption = node.attrs?.caption || '';
       const id = node.attrs?.id || `table-${tblCnt}`;
-      const numbering = capMode === 'hierarchical' ? `${h1}.${tblCnt}` : `${tblCnt}`;
-      const num = tblPrefix ? `${tblPrefix}${numbering}` : numbering;
-      targets.push({ id, type: 'table', label: caption ? `${num} ${caption}` : num });
+      const rawNum = capMode === 'hierarchical' ? `${h1}.${tblCnt}` : (tblStyle === 'roman' ? toRoman(tblCnt) : `${tblCnt}`);
+      const num = `${tblPrefix}${rawNum}`;
+      targets.push({ id, type: 'table', label: (showCaption && caption) ? `${num}${sep}${caption}` : num });
     }
     if (node.type === 'mathBlock') {
       eqGlobal++;
       eqInSection++;
       const eqLabel = mode === 'hierarchical' ? `${h1}.${eqInSection}` : `${eqGlobal}`;
       const id = node.attrs?.id || `eq-${eqGlobal}`;
-      targets.push({ id, type: 'equation', label: `(${eqLabel})` });
+      const label = eqParens ? `${eqPrefix}(${eqLabel})` : `${eqPrefix}${eqLabel}`;
+      targets.push({ id, type: 'equation', label });
     }
   }
 
@@ -339,9 +346,14 @@ function buildIdMap(doc: import('@tiptap/pm/model').Node): Map<string, string> {
   const idMap = new Map<string, string>();
   const settings = window.__editorSettings;
   const mode = (settings?.equationNumbering ?? 'sequential') as string;
-  const capMode = (settings?.captionNumbering ?? 'simple') as string;
+  const capMode = (settings?.captionNumbering ?? 'sequential') as string;
   const imgPrefix = settings?.imageCaptionPrefix ?? '';
   const tblPrefix = settings?.tableCaptionPrefix ?? '';
+  const eqPrefix = settings?.equationCaptionPrefix ?? '';
+  const sep = settings?.captionSeparator ?? ' ';
+  const showCaption = settings?.crossRefIncludeCaption ?? false;
+  const tblStyle = settings?.tableNumberStyle ?? 'arabic';
+  const eqParens = settings?.equationParens ?? false;
   const h = [0, 0, 0, 0, 0, 0];
   let imgCnt = 0;
   let tblCnt = 0;
@@ -365,23 +377,24 @@ function buildIdMap(doc: import('@tiptap/pm/model').Node): Map<string, string> {
       const caption = (node.attrs.caption as string) || '';
       const id = (node.attrs.id as string | null | undefined) || `figure-${imgCnt}`;
       const numbering = capMode === 'hierarchical' ? `${h1}.${imgCnt}` : `${imgCnt}`;
-      const num = imgPrefix ? `${imgPrefix}${numbering}` : numbering;
-      idMap.set(id, caption ? `${num} ${caption}` : num);
+      const num = `${imgPrefix}${numbering}`;
+      idMap.set(id, (showCaption && caption) ? `${num}${sep}${caption}` : num);
     }
     if (node.type.name === 'table') {
       tblCnt++;
       const caption = (node.attrs.caption as string) || '';
       const id = (node.attrs.id as string | null | undefined) || `table-${tblCnt}`;
-      const numbering = capMode === 'hierarchical' ? `${h1}.${tblCnt}` : `${tblCnt}`;
-      const num = tblPrefix ? `${tblPrefix}${numbering}` : numbering;
-      idMap.set(id, caption ? `${num} ${caption}` : num);
+      const rawNum = capMode === 'hierarchical' ? `${h1}.${tblCnt}` : (tblStyle === 'roman' ? toRoman(tblCnt) : `${tblCnt}`);
+      const num = `${tblPrefix}${rawNum}`;
+      idMap.set(id, (showCaption && caption) ? `${num}${sep}${caption}` : num);
     }
     if (node.type.name === 'mathBlock') {
       eqGlobal++;
       eqInSection++;
       const eqLabel = mode === 'hierarchical' ? `${h1}.${eqInSection}` : `${eqGlobal}`;
       const id = (node.attrs.id as string | null | undefined) || `eq-${eqGlobal}`;
-      idMap.set(id, `(${eqLabel})`);
+      const label = eqParens ? `${eqPrefix}(${eqLabel})` : `${eqPrefix}${eqLabel}`;
+      idMap.set(id, label);
     }
   });
 

@@ -43,7 +43,7 @@ pub struct AppSettings {
 
 fn default_image_caption_prefix() -> String { "Image".to_string() }
 fn default_table_caption_prefix() -> String { "Table".to_string() }
-fn default_caption_numbering() -> String { "simple".to_string() }
+fn default_caption_numbering() -> String { "sequential".to_string() }
 fn default_true() -> bool { true }
 fn default_lg_red() -> String { "#A50034".to_string() }
 fn default_center() -> String { "center".to_string() }

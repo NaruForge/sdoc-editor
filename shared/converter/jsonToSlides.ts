@@ -13,6 +13,7 @@ interface TiptapMark {
 
 import hljs from 'highlight.js';
 import { escapeHtml, formatCaptionLabel } from './utils';
+import { toRoman } from '../settingsResolver';
 
 export interface SlideTheme {
   companyLogo?: string;
@@ -28,7 +29,11 @@ export interface SlideTheme {
 export interface SlideSettings {
   imageCaptionPrefix?: string;
   tableCaptionPrefix?: string;
-  captionNumbering?: 'simple' | 'hierarchical';
+  equationCaptionPrefix?: string;
+  captionSeparator?: string;
+  tableNumberStyle?: 'arabic' | 'roman';
+  equationParens?: boolean;
+  captionNumbering?: 'sequential' | 'hierarchical';
   slideBreak?: 'h1-only' | 'h1-h2-vertical';
   showTitleSlide?: boolean;
   transition?: 'none' | 'fade' | 'slide' | 'convex' | 'concave' | 'zoom';
@@ -271,8 +276,9 @@ function convertTable(table: TiptapNode, ctx: ConvertContext): string {
   ctx.tableCounter++;
   const caption = table.attrs?.caption;
   const prefix = ctx.settings.tableCaptionPrefix ?? '';
+  const tblNum = ctx.settings.tableNumberStyle === 'roman' ? toRoman(ctx.tableCounter) : `${ctx.tableCounter}`;
   const numbering = ctx.settings.captionNumbering === 'hierarchical'
-    ? `${ctx.h1Counter}.${ctx.tableCounter}` : `${ctx.tableCounter}`;
+    ? `${ctx.h1Counter}.${tblNum}` : tblNum;
 
   const hasHeader = table.content[0]?.content?.some((cell: TiptapNode) => cell.type === 'tableHeader');
   const tId = table.attrs?.id ? ` id="${escapeHtml(table.attrs.id as string)}"` : '';
@@ -280,7 +286,7 @@ function convertTable(table: TiptapNode, ctx: ConvertContext): string {
   let html = `        <table${tId} class="slide-table">`;
 
   if (caption) {
-    html += `\n          <caption>${formatCaptionLabel(prefix, numbering, escapeHtml(caption as string))}</caption>`;
+    html += `\n          <caption>${formatCaptionLabel(prefix, numbering, escapeHtml(caption as string), ctx.settings.captionSeparator ?? ' ')}</caption>`;
   }
 
   if (hasHeader && table.content[0]) {
@@ -337,7 +343,7 @@ function convertImage(node: TiptapNode, ctx: ConvertContext): string {
   let html = `        <figure class="slide-image"${figId}>`;
   html += `\n          <img src="${escapeHtml(src)}" alt="${escapeHtml(alt)}">`;
   if (caption) {
-    html += `\n          <figcaption>${formatCaptionLabel(prefix, numbering, escapeHtml(caption))}</figcaption>`;
+    html += `\n          <figcaption>${formatCaptionLabel(prefix, numbering, escapeHtml(caption), ctx.settings.captionSeparator ?? ' ')}</figcaption>`;
   }
   html += '\n        </figure>';
   return html;

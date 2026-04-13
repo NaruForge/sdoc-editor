@@ -164,7 +164,7 @@ export interface ExportOptions {
   format: ExportFormat;
   imageCaptionPrefix?: string;
   tableCaptionPrefix?: string;
-  captionNumbering?: 'simple' | 'hierarchical';
+  captionNumbering?: 'sequential' | 'hierarchical';
 }
 
 export function exportSdoc(input: string | object, options: ExportOptions): string {
@@ -179,7 +179,7 @@ export function exportSdoc(input: string | object, options: ExportOptions): stri
   const settings = {
     imageCaptionPrefix: options.imageCaptionPrefix || 'Image',
     tableCaptionPrefix: options.tableCaptionPrefix || 'Table',
-    captionNumbering: options.captionNumbering || 'simple',
+    captionNumbering: options.captionNumbering || 'sequential',
   };
 
   switch (options.format) {

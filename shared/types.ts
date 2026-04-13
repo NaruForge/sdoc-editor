@@ -20,6 +20,8 @@ export interface TiptapMark {
 
 // ─── Document Metadata ──────────────────────────────────────────
 
+export type CaptionStyleName = 'ieee' | 'iso' | 'modern' | 'korean';
+
 /** Per-document settings that override VS Code workspace defaults. */
 export interface DocumentSettings {
   headingNumbering?: boolean;
@@ -27,10 +29,10 @@ export interface DocumentSettings {
   headingH1Color?: string;
   headingH2Color?: string;
   headingH3Color?: string;
-  captionImagePrefix?: string;
-  captionTablePrefix?: string;
-  captionNumbering?: 'simple' | 'hierarchical';
+  captionStyle?: CaptionStyleName;
+  captionNumbering?: 'sequential' | 'hierarchical';
   equationNumbering?: 'sequential' | 'hierarchical';
+  crossRefIncludeCaption?: boolean;
 }
 
 export interface SdocMeta {
@@ -47,7 +49,12 @@ export interface SdocMeta {
 export interface ExportSettings {
   imageCaptionPrefix?: string;
   tableCaptionPrefix?: string;
-  captionNumbering?: 'simple' | 'hierarchical';
+  equationCaptionPrefix?: string;
+  captionSeparator?: string;
+  captionNumbering?: 'sequential' | 'hierarchical';
+  equationNumbering?: 'sequential' | 'hierarchical';
+  tableNumberStyle?: 'arabic' | 'roman';
+  equationParens?: boolean;
 }
 
 export interface HtmlExportSettings extends ExportSettings {
@@ -93,7 +100,11 @@ export interface SlideTheme {
 export interface SlideSettings {
   imageCaptionPrefix?: string;
   tableCaptionPrefix?: string;
-  captionNumbering?: 'simple' | 'hierarchical';
+  equationCaptionPrefix?: string;
+  captionSeparator?: string;
+  captionNumbering?: 'sequential' | 'hierarchical';
+  tableNumberStyle?: 'arabic' | 'roman';
+  equationParens?: boolean;
   slideBreak?: 'h1-only' | 'h1-h2-vertical';
   showTitleSlide?: boolean;
   transition?: 'none' | 'fade' | 'slide' | 'convex' | 'concave' | 'zoom';

@@ -2,6 +2,10 @@
 
 | Date | Task | Agent/Author | Decision | Rationale |
 |------|------|-------------|----------|-----------|
+| 2026-04-13 | SDOC-023 | @copilot | `captionEquationPrefix` 괄호 내부에 삽입 `(prefix+N)` | 수식 번호 괄호 형태는 학술 표준 유지, prefix는 괄호 안 번호 앞에 삽입 ("Eq. "→"(Eq. 1)", "식 "→"(식 1)"). 괄호 제거는 사용자 요구사항에 없음 |
+| 2026-04-13 | SDOC-023 | @copilot | `captionSeparator` 단일 설정으로 이미지/표 공통 적용 | "이미지와 표의 구분자를 각각" 요청 없음. 단일 설정이 UX 단순화. 필요 시 분리 가능 |
+| 2026-04-13 | SDOC-023 | @copilot | `formatCaptionLabel()` separator 파라미터 기본값 `' '` | 기존 코드와 100% 호환, 기본값 변경 없이 separator 미전달 시 기존 동작 유지 |
+| 2026-04-13 | SDOC-023 | @copilot | CSS `--caption-separator` 변수: `content: ... var(--caption-separator)` | CSS counter 기반 에디터 미리보기에도 구분자 적용. JS로 `setProperty`로 동적 제어 |
 | 2026-04-13 | SDOC-022 | @copilot | 캡션 포맷을 `prefix + numbering + " " + caption`으로 통일, 기본 prefix 빈 문자열 | 사용자가 접두사에 구분자(": ", ". " 등)까지 포함하여 완전 제어. "Fig. 1 text", "그림 1 text", "1 text" 모두 가능 |
 | 2026-04-13 | SDOC-022 | @copilot | `formatCaptionLabel()` 헬퍼를 shared/converter/utils.ts에 추가 | 컨버터 4개의 캡션 포맷 로직 중복 제거, 단일 소스 |
 | 2026-04-13 | SDOC-022 | @copilot | CrossRef에 `captionNumbering` 설정 반영: simple/hierarchical 모드 | 기존에는 항상 simple만 사용했으나, CSS와 export는 hierarchical을 지원했음. CrossRef도 동일하게 반영 |

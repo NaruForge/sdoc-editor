@@ -1,6 +1,6 @@
-import React, { useCallback, useState, useEffect } from 'react';
+import React, { useCallback } from 'react';
 import { useEditorContext } from '../context/EditorContext';
-import type { DocumentSettings } from '@shared/types';
+import type { DocumentSettings, CaptionStyleName } from '@shared/types';
 
 interface DocumentSettingsPanelProps {
   onUpdateSettings: (settings: Partial<DocumentSettings> | null) => void;
@@ -25,25 +25,12 @@ const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({ title, defaultO
   );
 };
 
-/** Text input with local state — commits on Enter or blur, not on every keystroke */
-const DeferredTextInput: React.FC<{
-  value: string;
-  onCommit: (value: string) => void;
-  className?: string;
-}> = ({ value, onCommit, className }) => {
-  const [local, setLocal] = useState(value);
-  useEffect(() => { setLocal(value); }, [value]);
-  return (
-    <input
-      type="text"
-      className={className}
-      value={local}
-      onChange={(e) => setLocal(e.target.value)}
-      onKeyDown={(e) => { if (e.key === 'Enter') { e.currentTarget.blur(); } }}
-      onBlur={() => { if (local !== value) onCommit(local); }}
-    />
-  );
-};
+const CAPTION_STYLE_OPTIONS: { value: CaptionStyleName; label: string; description: string }[] = [
+  { value: 'ieee', label: 'IEEE (간결형)', description: 'Fig. 1, Table I, (1)' },
+  { value: 'iso', label: 'ISO/IEC (정석형)', description: 'Figure 1, Table 1, Equation (1)' },
+  { value: 'modern', label: 'Modern (현대형)', description: 'Figure 1, Table 1, Equation 1' },
+  { value: 'korean', label: 'Korean (한국형)', description: '그림 1, 표 1, 식 (1)' },
+];
 
 export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({ onUpdateSettings }) => {
   const { state } = useEditorContext();
@@ -53,6 +40,14 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({ on
   const updateField = useCallback(<K extends keyof DocumentSettings>(key: K, value: DocumentSettings[K]) => {
     const next = { ...docSettings, [key]: value };
     onUpdateSettings(next);
+  }, [docSettings, onUpdateSettings]);
+
+  const handleNumberingModeChange = useCallback((mode: 'sequential' | 'hierarchical') => {
+    onUpdateSettings({
+      ...docSettings,
+      captionNumbering: mode === 'hierarchical' ? 'hierarchical' : 'sequential',
+      equationNumbering: mode,
+    });
   }, [docSettings, onUpdateSettings]);
 
   const handleResetAll = useCallback(() => {
@@ -120,22 +115,21 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({ on
         </div>
       </CollapsibleSection>
 
-      <CollapsibleSection title="캡션">
+      <CollapsibleSection title="캡션 / 번호">
         <div className="settings-row">
-          <label className="settings-label">이미지 접두사</label>
-          <DeferredTextInput
-            className="settings-text-input"
-            value={mergedSettings.imageCaptionPrefix}
-            onCommit={(v) => updateField('captionImagePrefix', v)}
-          />
+          <label className="settings-label">캡션 스타일</label>
+          <select
+            className="settings-select"
+            value={mergedSettings.captionStyle}
+            onChange={(e) => updateField('captionStyle', e.target.value as CaptionStyleName)}
+          >
+            {CAPTION_STYLE_OPTIONS.map(opt => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
         </div>
-        <div className="settings-row">
-          <label className="settings-label">표 접두사</label>
-          <DeferredTextInput
-            className="settings-text-input"
-            value={mergedSettings.tableCaptionPrefix}
-            onCommit={(v) => updateField('captionTablePrefix', v)}
-          />
+        <div className="settings-hint">
+          {CAPTION_STYLE_OPTIONS.find(o => o.value === mergedSettings.captionStyle)?.description}
         </div>
         <div className="settings-row">
           <label className="settings-label">번호 방식</label>
@@ -143,52 +137,33 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({ on
             <label className="settings-radio-label">
               <input
                 type="radio"
-                name="captionNumbering"
-                value="simple"
-                checked={mergedSettings.captionNumbering === 'simple'}
-                onChange={() => updateField('captionNumbering', 'simple')}
-              />
-              Simple
-            </label>
-            <label className="settings-radio-label">
-              <input
-                type="radio"
-                name="captionNumbering"
-                value="hierarchical"
-                checked={mergedSettings.captionNumbering === 'hierarchical'}
-                onChange={() => updateField('captionNumbering', 'hierarchical')}
-              />
-              Hierarchical
-            </label>
-          </div>
-        </div>
-      </CollapsibleSection>
-
-      <CollapsibleSection title="방정식">
-        <div className="settings-row">
-          <label className="settings-label">번호 방식</label>
-          <div className="settings-radio-group">
-            <label className="settings-radio-label">
-              <input
-                type="radio"
-                name="equationNumbering"
+                name="numberingMode"
                 value="sequential"
-                checked={mergedSettings.equationNumbering === 'sequential'}
-                onChange={() => updateField('equationNumbering', 'sequential')}
+                checked={mergedSettings.captionNumbering !== 'hierarchical'}
+                onChange={() => handleNumberingModeChange('sequential')}
               />
               Sequential
             </label>
             <label className="settings-radio-label">
               <input
                 type="radio"
-                name="equationNumbering"
+                name="numberingMode"
                 value="hierarchical"
-                checked={mergedSettings.equationNumbering === 'hierarchical'}
-                onChange={() => updateField('equationNumbering', 'hierarchical')}
+                checked={mergedSettings.captionNumbering === 'hierarchical'}
+                onChange={() => handleNumberingModeChange('hierarchical')}
               />
               Hierarchical
             </label>
           </div>
+        </div>
+        <div className="settings-row">
+          <label className="settings-label">CrossRef에 캡션 포함</label>
+          <input
+            type="checkbox"
+            className="settings-toggle"
+            checked={mergedSettings.crossRefIncludeCaption}
+            onChange={(e) => updateField('crossRefIncludeCaption', e.target.checked)}
+          />
         </div>
       </CollapsibleSection>
 
@@ -196,7 +171,7 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({ on
         <button
           className="settings-reset-btn"
           onClick={handleResetAll}
-          title="문서별 설정을 삭제하고 VS Code 전역 설정으로 복원합니다"
+          title="문서별 설정을 삭제하고 전역 설정으로 복원합니다"
         >
           🔄 기본값 불러오기
         </button>

@@ -10,7 +10,12 @@ import type { TiptapNode, SdocMeta, DocumentSettings } from '../types';
 export interface EditorSettings {
   imageCaptionPrefix: string;
   tableCaptionPrefix: string;
-  captionNumbering: 'simple' | 'hierarchical';
+  equationCaptionPrefix: string;
+  captionSeparator: string;
+  imageCaptionSeparator: string;
+  tableCaptionSeparator: string;
+  equationCaptionSeparator: string;
+  captionNumbering: 'sequential' | 'hierarchical';
   equationNumbering: 'sequential' | 'hierarchical';
   headingNumbering: boolean;
   headingDecoration: boolean;

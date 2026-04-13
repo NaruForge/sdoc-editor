@@ -82,21 +82,24 @@ export const Editor: React.FC<EditorProps> = ({ adapter, initialDoc, initialMeta
     if (proseMirrorEl) {
       proseMirrorEl.style.setProperty('--image-caption-prefix', `'${settings.imageCaptionPrefix}'`);
       proseMirrorEl.style.setProperty('--table-caption-prefix', `'${settings.tableCaptionPrefix}'`);
+      proseMirrorEl.style.setProperty('--caption-separator', `'${settings.captionSeparator}'`);
+      proseMirrorEl.dataset.tableNumberStyle = settings.tableNumberStyle;
       proseMirrorEl.style.setProperty('--heading-h1-color', settings.headingH1Color);
       proseMirrorEl.style.setProperty('--heading-h2-color', settings.headingH2Color);
       proseMirrorEl.style.setProperty('--heading-h3-color', settings.headingH3Color);
     }
+    document.documentElement.style.setProperty('--font-weight-h1', '700');
     setShowNumbering(settings.headingNumbering);
   }, [state.settings]);
 
-  // Trigger CrossRef label re-sync when caption prefix or numbering settings change
-  const prevPrefixRef = useRef({ img: '', tbl: '', eqMode: '', capMode: '' });
+  // Trigger CrossRef label re-sync when caption settings change
+  const prevPrefixRef = useRef({ style: '', eqMode: '', capMode: '', includeCaption: false });
   useEffect(() => {
-    const { imageCaptionPrefix, tableCaptionPrefix, equationNumbering, captionNumbering } = state.settings;
+    const { captionStyle, equationNumbering, captionNumbering, crossRefIncludeCaption } = state.settings;
     const prev = prevPrefixRef.current;
-    const changed = prev.img !== imageCaptionPrefix || prev.tbl !== tableCaptionPrefix
-      || prev.eqMode !== equationNumbering || prev.capMode !== captionNumbering;
-    prevPrefixRef.current = { img: imageCaptionPrefix, tbl: tableCaptionPrefix, eqMode: equationNumbering, capMode: captionNumbering };
+    const changed = prev.style !== captionStyle || prev.eqMode !== equationNumbering
+      || prev.capMode !== captionNumbering || prev.includeCaption !== crossRefIncludeCaption;
+    prevPrefixRef.current = { style: captionStyle, eqMode: equationNumbering, capMode: captionNumbering, includeCaption: crossRefIncludeCaption };
     if (changed && editor) {
       const { tr } = editor.state;
       tr.setMeta(CROSSREF_RESYNC_META, true);
@@ -190,7 +193,7 @@ export const Editor: React.FC<EditorProps> = ({ adapter, initialDoc, initialMeta
     const exportSettings = {
       imageCaptionPrefix: settings.imageCaptionPrefix,
       tableCaptionPrefix: settings.tableCaptionPrefix,
-      captionNumbering: settings.captionNumbering as 'simple' | 'hierarchical',
+      captionNumbering: settings.captionNumbering as 'sequential' | 'hierarchical',
       exportImagePath: settings.exportImagePath as 'relative' | 'absolute',
     };
     const currentMeta = { ...meta };
@@ -517,7 +520,7 @@ export const Editor: React.FC<EditorProps> = ({ adapter, initialDoc, initialMeta
               onChange={(e) => handleMetaChange('title', e.target.value)} placeholder="문서 제목을 입력하세요" />
           </div>
           <EditorContent editor={editor}
-            className={`${showNumbering ? 'show-numbering' : 'hide-numbering'} ${state.settings.headingDecoration ? 'show-heading-decoration' : ''} ${state.settings.captionNumbering === 'hierarchical' ? 'hierarchical-numbering' : 'simple-numbering'}`}
+            className={`${showNumbering ? 'show-numbering' : 'hide-numbering'} ${state.settings.headingDecoration ? 'show-heading-decoration' : ''} ${state.settings.captionNumbering === 'hierarchical' ? 'hierarchical-numbering' : 'sequential-numbering'}`}
           />
         </div>
       </div>

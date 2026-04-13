@@ -7,6 +7,10 @@
 - (없음)
 
 ## Done (최근)
+- [SDOC-026](tasks/SDOC-026.md): 캡션 프리셋 시스템 — 자유 입력 → 4가지 표준 드롭다운 (2025-07-15)
+- [SDOC-025](tasks/SDOC-025.md): 구분자 미적용 버그 수정 + CrossRef 캡션 표시 여부 설정 (2026-04-13)
+- [SDOC-024](tasks/SDOC-024.md): 제목 폰트 적용 + 이미지/표 구분자 분리 + 수식 접두사 형태 개선 (2026-04-13)
+- [SDOC-023](tasks/SDOC-023.md): 수식 접두사 설정 + 캡션 번호-텍스트 구분자 설정 (2026-04-13)
 - [SDOC-022](tasks/SDOC-022.md): 캡션 포맷 통일 + CrossRef hierarchical 번호 지원 (2026-04-13)
 - [SDOC-021](tasks/SDOC-021.md): 설정 패널 UX 개선 — 텍스트 입력 디바운스 + CrossRef 동적 라벨 (2026-04-13)
 - [SDOC-020](tasks/SDOC-020.md): Heading 번호 매기기 버그 수정 — CSS counter-set (2026-04-13)

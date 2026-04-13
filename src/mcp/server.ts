@@ -81,7 +81,7 @@ server.tool(
     format: z.enum(['html', 'markdown', 'asciidoc']).describe('Export format'),
     imageCaptionPrefix: z.string().optional().describe('Prefix for image captions (default: "Image")'),
     tableCaptionPrefix: z.string().optional().describe('Prefix for table captions (default: "Table")'),
-    captionNumbering: z.enum(['simple', 'hierarchical']).optional().describe('Caption numbering style'),
+    captionNumbering: z.enum(['sequential', 'hierarchical']).optional().describe('Caption numbering style'),
   },
   async ({ input, format, imageCaptionPrefix, tableCaptionPrefix, captionNumbering }) => {
     let content = input;

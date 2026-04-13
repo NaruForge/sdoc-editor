@@ -1,12 +1,18 @@
 import React, { createContext, useContext, useReducer, ReactNode } from 'react';
 import { JSONContent } from '@tiptap/react';
-import type { DocumentSettings } from '@shared/types';
+import type { DocumentSettings, CaptionStyleName } from '@shared/types';
 
 export interface EditorSettings {
+  captionStyle: CaptionStyleName;
   imageCaptionPrefix: string;
   tableCaptionPrefix: string;
-  captionNumbering: 'simple' | 'hierarchical';
+  equationCaptionPrefix: string;
+  captionSeparator: string;
+  tableNumberStyle: 'arabic' | 'roman';
+  equationParens: boolean;
+  captionNumbering: 'sequential' | 'hierarchical';
   equationNumbering: 'sequential' | 'hierarchical';
+  crossRefIncludeCaption: boolean;
   headingNumbering: boolean;
   headingDecoration: boolean;
   headingH1Color: string;
@@ -17,10 +23,16 @@ export interface EditorSettings {
 }
 
 export const defaultSettings: EditorSettings = {
-  imageCaptionPrefix: 'Image',
-  tableCaptionPrefix: 'Table',
-  captionNumbering: 'simple',
+  captionStyle: 'modern',
+  imageCaptionPrefix: 'Figure ',
+  tableCaptionPrefix: 'Table ',
+  equationCaptionPrefix: 'Equation ',
+  captionSeparator: ': ',
+  tableNumberStyle: 'arabic',
+  equationParens: false,
+  captionNumbering: 'sequential',
   equationNumbering: 'sequential',
+  crossRefIncludeCaption: false,
   headingNumbering: true,
   headingDecoration: true,
   headingH1Color: '#A50034',

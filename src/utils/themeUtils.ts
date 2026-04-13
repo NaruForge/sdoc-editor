@@ -64,7 +64,7 @@ export function readExportSettings(config: vscode.WorkspaceConfiguration): Recor
   return {
     imageCaptionPrefix: config.get<string>('caption.imagePrefix', ''),
     tableCaptionPrefix: config.get<string>('caption.tablePrefix', ''),
-    captionNumbering: config.get<'simple' | 'hierarchical'>('caption.numbering', 'simple'),
+    captionNumbering: config.get<'sequential' | 'hierarchical'>('caption.numbering', 'sequential'),
     exportImagePath: config.get<'relative' | 'absolute'>('export.imagePath', 'relative'),
   };
 }

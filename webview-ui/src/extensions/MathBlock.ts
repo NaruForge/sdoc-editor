@@ -130,7 +130,9 @@ export const MathBlock = Node.create({
         if (label == null) {
           eqNumber.style.display = 'none';
         } else {
-          eqNumber.textContent = `(${label})`;
+          const prefix = window.__editorSettings?.equationCaptionPrefix ?? '';
+          const parens = window.__editorSettings?.equationParens ?? false;
+          eqNumber.textContent = parens ? `${prefix}(${label})` : `${prefix}${label}`;
           eqNumber.style.display = '';
         }
       };

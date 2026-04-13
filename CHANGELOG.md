@@ -5,6 +5,28 @@ All notable changes to the "Structured Doc Editor" extension will be documented 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.3] - 2026-04-14
+
+### Added
+- **캡션 프리셋 시스템**: 접두사·구분자 자유 입력 대신 4가지 표준 프리셋 드롭다운으로 변경
+  - **IEEE (간결형)**: Fig. 1, Table I (로마 숫자), (1)
+  - **ISO/IEC (정석형)**: Figure 1, Table 1, Equation (1)
+  - **Modern (현대형)**: Figure 1, Table 1, Equation 1
+  - **Korean (한국형)**: 그림 1, 표 1, 식 (1)
+- **로마 숫자 표 번호 (IEEE)**: IEEE 프리셋 선택 시 표 번호가 I, II, III 형식으로 표시
+- **번호 방식 통합**: 이미지·표·수식 번호 방식(Sequential/Hierarchical)을 단일 컨트롤로 통합
+- **`caption.style` VS Code 설정**: `ieee` / `iso` / `modern` / `korean` 중 선택
+- **`caption.crossRefIncludeCaption` 설정**: 교차 참조에 캡션 텍스트 포함 여부 제어
+
+### Changed
+- **문서 설정 패널 간소화**: 6개 이상의 텍스트 입력 필드 → 캡션 스타일 드롭다운 1개
+- **번호 방식 용어 통일**: `Simple` → `Sequential` 으로 전체 교체 (UI, 타입, 설정값, 스키마)
+- **Equation 태그 형식**: 프리셋별 괄호 포함 여부 자동 적용 (IEEE·ISO·Korean: `(1)`, Modern: `1`)
+- **구분자 통합**: 이미지·표·수식 각각이던 구분자 설정을 프리셋의 단일 구분자로 통합
+
+### Removed
+- **설정 제거**: `caption.imagePrefix`, `caption.tablePrefix`, `caption.equationPrefix`, `caption.separator`, `caption.imageSeparator`, `caption.tableSeparator`, `caption.equationSeparator`
+
 ## [0.4.1] - 2026-04-09
 
 ### Fixed

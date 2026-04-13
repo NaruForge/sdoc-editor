@@ -2,7 +2,7 @@
   "name": "structured-doc-editor",
   "displayName": "Structured Doc Editor",
   "description": "WYSIWYG editor for .tiptap.json/.sdoc files with Markdown/AsciiDoc/HTML export",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "publisher": "lgm-control-contributor-01",
   "engines": {
     "vscode": "^1.85.0"
@@ -77,28 +77,40 @@
     "configuration": {
       "title": "Structured Doc Editor",
       "properties": {
-        "structuredDocEditor.caption.imagePrefix": {
+        "structuredDocEditor.caption.style": {
           "type": "string",
-          "default": "",
-          "description": "Prefix for image captions, placed before the number (e.g., 'Fig. ', 'Image ', '그림 '). Include trailing space/punctuation as desired."
+          "default": "modern",
+          "enum": [
+            "ieee",
+            "iso",
+            "modern",
+            "korean"
+          ],
+          "enumDescriptions": [
+            "IEEE (간결형): Fig. 1, Table I, (1)",
+            "ISO/IEC (정석형): Figure 1, Table 1, Equation (1)",
+            "Modern (현대형): Figure 1, Table 1, Equation 1",
+            "Korean (한국형): 그림 1, 표 1, 식 (1)"
+          ],
+          "description": "Caption style preset that controls prefixes, separators, table number format, and equation parentheses"
         },
-        "structuredDocEditor.caption.tablePrefix": {
-          "type": "string",
-          "default": "",
-          "description": "Prefix for table captions, placed before the number (e.g., 'Table ', '표 '). Include trailing space/punctuation as desired."
+        "structuredDocEditor.caption.crossRefIncludeCaption": {
+          "type": "boolean",
+          "default": false,
+          "description": "Include caption text in cross-reference labels (e.g., 'Figure 1: Title' instead of 'Figure 1')"
         },
         "structuredDocEditor.caption.numbering": {
           "type": "string",
-          "default": "simple",
+          "default": "sequential",
           "enum": [
-            "simple",
+            "sequential",
             "hierarchical"
           ],
           "enumDescriptions": [
-            "Simple sequential numbering (1, 2, 3, ...)",
+            "Sequential numbering (1, 2, 3, ...)",
             "Hierarchical numbering based on heading sections (1.1, 1.2, 2.1, ...)"
           ],
-          "description": "Caption numbering style for images and tables"
+          "description": "Caption numbering style for images, tables, and equations"
         },
         "structuredDocEditor.equation.numbering": {
           "type": "string",

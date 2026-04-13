@@ -13,8 +13,8 @@ import {
   syncCrossReferences as sharedSyncCrossReferences,
   extractTitle as sharedExtractTitle,
 } from '../shared/mcp/sdocUtils';
-import { resolveSettings } from '../shared/settingsResolver';
-import type { DocumentSettings } from '../shared/types';
+import { resolveSettings, getCaptionPreset } from '../shared/settingsResolver';
+import type { DocumentSettings, CaptionStyleName } from '../shared/types';
 
 export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
   private static readonly SDOC_VERSION = '1.0';
@@ -66,10 +66,10 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         headingH1Color: config.get<string>('heading.h1Color', '#A50034'),
         headingH2Color: config.get<string>('heading.h2Color', '#A50034'),
         headingH3Color: config.get<string>('heading.h3Color', '#A50034'),
-        captionImagePrefix: config.get<string>('caption.imagePrefix', ''),
-        captionTablePrefix: config.get<string>('caption.tablePrefix', ''),
-        captionNumbering: config.get<'simple' | 'hierarchical'>('caption.numbering', 'simple'),
+        captionStyle: config.get<CaptionStyleName>('caption.style', 'modern'),
+        captionNumbering: config.get<'sequential' | 'hierarchical'>('caption.numbering', 'sequential'),
         equationNumbering: config.get<'sequential' | 'hierarchical'>('equation.numbering', 'sequential'),
+        crossRefIncludeCaption: config.get<boolean>('caption.crossRefIncludeCaption', false),
       };
     };
 
@@ -88,13 +88,20 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       const vscodeDefaults = readVscodeDocDefaults();
       const docSettings = readDocSettings();
       const resolved = resolveSettings(docSettings, vscodeDefaults);
+      const preset = getCaptionPreset(resolved.captionStyle);
       webviewPanel.webview.postMessage({
         type: 'settingsChanged',
         settings: {
-          imageCaptionPrefix: resolved.captionImagePrefix,
-          tableCaptionPrefix: resolved.captionTablePrefix,
+          captionStyle: resolved.captionStyle,
+          imageCaptionPrefix: preset.figurePrefix,
+          tableCaptionPrefix: preset.tablePrefix,
+          equationCaptionPrefix: preset.equationPrefix,
+          captionSeparator: preset.separator,
+          tableNumberStyle: preset.tableNumberStyle,
+          equationParens: preset.equationParens,
           captionNumbering: resolved.captionNumbering,
           equationNumbering: resolved.equationNumbering,
+          crossRefIncludeCaption: resolved.crossRefIncludeCaption,
           headingNumbering: resolved.headingNumbering,
           headingDecoration: resolved.headingDecoration,
           headingH1Color: resolved.headingH1Color,
@@ -291,14 +298,17 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       // intentionally ignored: parse errors during editing
     }
 
-    // Resolve equationNumbering from doc settings > VS Code > default
+    // Resolve settings from doc settings > VS Code > default
     const config = vscode.workspace.getConfiguration('structuredDocEditor');
     const docEqNumbering = existingMeta.settings?.equationNumbering;
     const eqNumbering = (docEqNumbering || config.get<string>('equation.numbering', 'sequential')) as 'sequential' | 'hierarchical';
+    const docCaptionStyle = existingMeta.settings?.captionStyle;
+    const captionStyle = (docCaptionStyle || config.get<string>('caption.style', 'modern')) as CaptionStyleName;
+    const crossRefIncludeCaption = existingMeta.settings?.crossRefIncludeCaption ?? config.get<boolean>('caption.crossRefIncludeCaption', false);
 
     // Assign auto-ids and sync cross-reference text
     const withIds = SdocEditorProvider.assignAutoIds(cleaned);
-    const synced = SdocEditorProvider.syncCrossReferences(withIds, eqNumbering);
+    const synced = SdocEditorProvider.syncCrossReferences(withIds, eqNumbering, captionStyle, crossRefIncludeCaption);
 
     // Wrap in sdoc envelope, preserving settings
     const sdocFile: Record<string, unknown> = {
@@ -891,19 +901,26 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       headingH1Color: config.get<string>('heading.h1Color', '#A50034'),
       headingH2Color: config.get<string>('heading.h2Color', '#A50034'),
       headingH3Color: config.get<string>('heading.h3Color', '#A50034'),
-      captionImagePrefix: config.get<string>('caption.imagePrefix', ''),
-      captionTablePrefix: config.get<string>('caption.tablePrefix', ''),
-      captionNumbering: config.get<'simple' | 'hierarchical'>('caption.numbering', 'simple'),
+      captionStyle: config.get<CaptionStyleName>('caption.style', 'modern'),
+      captionNumbering: config.get<'sequential' | 'hierarchical'>('caption.numbering', 'sequential'),
       equationNumbering: config.get<'sequential' | 'hierarchical'>('equation.numbering', 'sequential'),
+      crossRefIncludeCaption: config.get<boolean>('caption.crossRefIncludeCaption', false),
     };
     const resolved = resolveSettings(settings ?? undefined, vscodeDefaults);
+    const preset = getCaptionPreset(resolved.captionStyle);
     webviewPanel.webview.postMessage({
       type: 'settingsChanged',
       settings: {
-        imageCaptionPrefix: resolved.captionImagePrefix,
-        tableCaptionPrefix: resolved.captionTablePrefix,
+        captionStyle: resolved.captionStyle,
+        imageCaptionPrefix: preset.figurePrefix,
+        tableCaptionPrefix: preset.tablePrefix,
+        equationCaptionPrefix: preset.equationPrefix,
+        captionSeparator: preset.separator,
+        tableNumberStyle: preset.tableNumberStyle,
+        equationParens: preset.equationParens,
         captionNumbering: resolved.captionNumbering,
         equationNumbering: resolved.equationNumbering,
+        crossRefIncludeCaption: resolved.crossRefIncludeCaption,
         headingNumbering: resolved.headingNumbering,
         headingDecoration: resolved.headingDecoration,
         headingH1Color: resolved.headingH1Color,
@@ -1060,15 +1077,19 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       const config = vscode.workspace.getConfiguration('structuredDocEditor');
       const selfContained = config.get<'none' | 'images-only' | 'full'>('export.selfContained', 'images-only');
       const vscodeDefaults: Partial<DocumentSettings> = {
-        captionImagePrefix: config.get<string>('caption.imagePrefix', ''),
-        captionTablePrefix: config.get<string>('caption.tablePrefix', ''),
-        captionNumbering: config.get<'simple' | 'hierarchical'>('caption.numbering', 'simple'),
+        captionStyle: config.get<CaptionStyleName>('caption.style', 'modern'),
+        captionNumbering: config.get<'sequential' | 'hierarchical'>('caption.numbering', 'sequential'),
         equationNumbering: config.get<'sequential' | 'hierarchical'>('equation.numbering', 'sequential'),
       };
       const resolved = resolveSettings(meta.settings as Partial<DocumentSettings> | undefined, vscodeDefaults);
+      const preset = getCaptionPreset(resolved.captionStyle);
       const exportSettings: Record<string, unknown> = {
-        imageCaptionPrefix: resolved.captionImagePrefix,
-        tableCaptionPrefix: resolved.captionTablePrefix,
+        imageCaptionPrefix: preset.figurePrefix,
+        tableCaptionPrefix: preset.tablePrefix,
+        equationCaptionPrefix: preset.equationPrefix,
+        captionSeparator: preset.separator,
+        tableNumberStyle: preset.tableNumberStyle,
+        equationParens: preset.equationParens,
         captionNumbering: resolved.captionNumbering,
         equationNumbering: resolved.equationNumbering,
         exportImagePath: config.get<'relative' | 'absolute'>('export.imagePath', 'relative'),
@@ -1276,8 +1297,13 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     return sharedAssignAutoIds(doc);
   }
 
-  private static syncCrossReferences(doc: any, equationNumbering: 'sequential' | 'hierarchical' = 'sequential'): any {
-    return sharedSyncCrossReferences(doc, equationNumbering);
+  private static syncCrossReferences(
+    doc: unknown,
+    equationNumbering: 'sequential' | 'hierarchical' = 'sequential',
+    captionStyle: CaptionStyleName = 'modern',
+    crossRefIncludeCaption = false,
+  ): unknown {
+    return sharedSyncCrossReferences(doc, equationNumbering, captionStyle, crossRefIncludeCaption);
   }
 
   private getHtmlForWebview(webview: vscode.Webview): string {

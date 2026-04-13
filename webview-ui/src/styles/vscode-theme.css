@@ -28,6 +28,7 @@ body {
   /* Caption prefix custom properties (set via JS from VS Code settings) */
   --image-caption-prefix: '';
   --table-caption-prefix: '';
+  --caption-separator: ' ';
   /* Heading colors (set via JS from VS Code settings) */
   --heading-h1-color: #A50034;
   --heading-h2-color: #A50034;
@@ -424,15 +425,15 @@ body {
 }
 
 /* Simple numbering (default) */
-.simple-numbering .image-caption-display .caption-label::after {
-  content: var(--image-caption-prefix) counter(image-counter) " ";
+.sequential-numbering .image-caption-display .caption-label::after {
+  content: var(--image-caption-prefix) counter(image-counter) var(--caption-separator);
   font-weight: bold;
   font-size: 0.95em;
 }
 
 /* Hierarchical numbering: uses h1-counter prefix */
 .hierarchical-numbering .image-caption-display .caption-label::after {
-  content: var(--image-caption-prefix) counter(h1-counter) "." counter(image-counter) " ";
+  content: var(--image-caption-prefix) counter(h1-counter) "." counter(image-counter) var(--caption-separator);
   font-weight: bold;
   font-size: 0.95em;
 }
@@ -493,16 +494,30 @@ body {
   opacity: 1;
 }
 
-/* Simple numbering (default) */
-.simple-numbering .table-caption-display .caption-label::after {
-  content: var(--table-caption-prefix) counter(table-counter) " ";
+/* Simple numbering (default) — arabic */
+.sequential-numbering .table-caption-display .caption-label::after {
+  content: var(--table-caption-prefix) counter(table-counter) var(--caption-separator);
   font-weight: bold;
   font-size: 0.95em;
 }
 
-/* Hierarchical numbering */
+/* Simple numbering — roman (IEEE) */
+.sequential-numbering[data-table-number-style="roman"] .table-caption-display .caption-label::after {
+  content: var(--table-caption-prefix) counter(table-counter, upper-roman) var(--caption-separator);
+  font-weight: bold;
+  font-size: 0.95em;
+}
+
+/* Hierarchical numbering — arabic */
 .hierarchical-numbering .table-caption-display .caption-label::after {
-  content: var(--table-caption-prefix) counter(h1-counter) "." counter(table-counter) " ";
+  content: var(--table-caption-prefix) counter(h1-counter) "." counter(table-counter) var(--caption-separator);
+  font-weight: bold;
+  font-size: 0.95em;
+}
+
+/* Hierarchical numbering — roman (IEEE) */
+.hierarchical-numbering[data-table-number-style="roman"] .table-caption-display .caption-label::after {
+  content: var(--table-caption-prefix) counter(h1-counter) "." counter(table-counter, upper-roman) var(--caption-separator);
   font-weight: bold;
   font-size: 0.95em;
 }
@@ -1229,14 +1244,14 @@ body {
 .editor-title-input {
   width: 100%;
   font-size: 2.5em;
-  font-weight: 700;
+  font-weight: var(--font-weight-h1, 700);
   color: var(--vscode-foreground);
   background: transparent;
   border: none;
   border-bottom: 2px solid transparent;
   outline: none;
   padding: 4px 0;
-  font-family: Georgia, 'Times New Roman', serif;
+  font-family: 'Legacy Font 2.0', var(--vscode-font-family), sans-serif;
   letter-spacing: -0.02em;
   line-height: 1.2;
   transition: border-color 0.2s;
