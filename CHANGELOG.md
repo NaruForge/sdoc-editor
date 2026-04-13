@@ -21,7 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - **문서 설정 패널 간소화**: 6개 이상의 텍스트 입력 필드 → 캡션 스타일 드롭다운 1개
 - **번호 방식 용어 통일**: `Simple` → `Sequential` 으로 전체 교체 (UI, 타입, 설정값, 스키마)
-- **Equation 태그 형식**: 프리셋별 괄호 포함 여부 자동 적용 (IEEE·ISO·Korean: `(1)`, Modern: `1`)
+- **방정식 우측 태그 고정**: 에디터 내 방정식 우측 번호는 프리셋에 관계없이 항상 `(N)` / `(H1.N)` 형태로 표시
+- **교차 참조 레이블**: 프리셋에 따라 `(1)` / `Equation (1)` / `Equation 1` / `식 (1)` 형태로 표시
 - **구분자 통합**: 이미지·표·수식 각각이던 구분자 설정을 프리셋의 단일 구분자로 통합
 
 ### Removed

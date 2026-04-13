@@ -2,6 +2,7 @@
 
 | Date | Task | Agent/Author | Decision | Rationale |
 |------|------|-------------|----------|-----------|
+| 2026-04-14 | SDOC-027 | @copilot | 방정식 우측 렌더링 태그는 항상 `(N)` 고정, CrossRef 레이블만 프리셋 따름 | 국제 표준 문서(IEEE, ISO, AMS 등) 관행상 방정식 우측 태그는 `(N)` 형태가 원칙. CrossRef 참조 텍스트에서만 프리셋 스타일 적용이 의미 있음 |
 | 2026-04-13 | SDOC-023 | @copilot | `captionEquationPrefix` 괄호 내부에 삽입 `(prefix+N)` | 수식 번호 괄호 형태는 학술 표준 유지, prefix는 괄호 안 번호 앞에 삽입 ("Eq. "→"(Eq. 1)", "식 "→"(식 1)"). 괄호 제거는 사용자 요구사항에 없음 |
 | 2026-04-13 | SDOC-023 | @copilot | `captionSeparator` 단일 설정으로 이미지/표 공통 적용 | "이미지와 표의 구분자를 각각" 요청 없음. 단일 설정이 UX 단순화. 필요 시 분리 가능 |
 | 2026-04-13 | SDOC-023 | @copilot | `formatCaptionLabel()` separator 파라미터 기본값 `' '` | 기존 코드와 100% 호환, 기본값 변경 없이 separator 미전달 시 기존 동작 유지 |
