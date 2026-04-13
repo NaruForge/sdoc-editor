@@ -1,3 +1,5 @@
+import { formatDate } from './utils';
+
 interface TiptapNode {
   type: string;
   content?: TiptapNode[];
@@ -47,8 +49,8 @@ export function convertJsonToAdoc(json: TiptapNode, settings?: ExportSettings, m
   if (meta?.title) { docAttributes += `= ${meta.title}\n`; }
   if (meta?.author) { docAttributes += `:author: ${meta.author}\n`; }
   if (meta?.version) { docAttributes += `:revnumber: ${meta.version}\n`; }
-  if (meta?.modified) { docAttributes += `:revdate: ${meta.modified}\n`; }
-  if (meta?.created) { docAttributes += `:created: ${meta.created}\n`; }
+  if (meta?.modified) { docAttributes += `:revdate: ${formatDate(meta.modified)}\n`; }
+  if (meta?.created) { docAttributes += `:created: ${formatDate(meta.created)}\n`; }
   docAttributes += '\n';
   return docAttributes + convertNode(json, ctx).trim() + '\n';
 }

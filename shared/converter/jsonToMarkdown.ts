@@ -1,3 +1,5 @@
+import { formatDate } from './utils';
+
 interface TiptapNode {
   type: string;
   content?: TiptapNode[];
@@ -48,8 +50,8 @@ export function convertJsonToMarkdown(json: TiptapNode, settings?: ExportSetting
     if (meta.title) { frontMatter += `title: "${meta.title}"\n`; }
     if (meta.author) { frontMatter += `author: "${meta.author}"\n`; }
     if (meta.version) { frontMatter += `version: "${meta.version}"\n`; }
-    if (meta.created) { frontMatter += `created: "${meta.created}"\n`; }
-    if (meta.modified) { frontMatter += `modified: "${meta.modified}"\n`; }
+    if (meta.created) { frontMatter += `created: "${formatDate(meta.created)}"\n`; }
+    if (meta.modified) { frontMatter += `modified: "${formatDate(meta.modified)}"\n`; }
     frontMatter += '---\n\n';
   }
   return frontMatter + convertNode(json, ctx).trim() + '\n';

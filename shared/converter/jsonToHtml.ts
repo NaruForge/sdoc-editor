@@ -12,7 +12,7 @@ interface TiptapMark {
 }
 
 import hljs from 'highlight.js';
-import { escapeHtml } from './utils';
+import { escapeHtml, formatDate } from './utils';
 
 interface HtmlTheme {
   companyLogo?: string;
@@ -789,8 +789,8 @@ function generateHtmlDocument(bodyContent: string, theme?: HtmlTheme, meta?: Sdo
   <div class="document-meta">
     ${meta.author ? `<span class="meta-item"><strong>Author:</strong> ${escapeHtml(meta.author)}</span>` : ''}
     ${meta.version ? `<span class="meta-item"><strong>Version:</strong> ${escapeHtml(meta.version)}</span>` : ''}
-    ${meta.created ? `<span class="meta-item"><strong>Created:</strong> ${escapeHtml(meta.created)}</span>` : ''}
-    ${meta.modified ? `<span class="meta-item"><strong>Modified:</strong> ${escapeHtml(meta.modified)}</span>` : ''}
+    ${meta.created ? `<span class="meta-item"><strong>Created:</strong> ${escapeHtml(formatDate(meta.created))}</span>` : ''}
+    ${meta.modified ? `<span class="meta-item"><strong>Modified:</strong> ${escapeHtml(formatDate(meta.modified))}</span>` : ''}
   </div>
   ` : ''}
 
