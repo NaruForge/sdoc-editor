@@ -1,5 +1,5 @@
 import { Extension } from '@tiptap/core';
-import { PluginKey } from '@tiptap/pm/state';
+import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Suggestion } from '@tiptap/suggestion';
 import type { SuggestionProps, SuggestionKeyDownProps } from '@tiptap/suggestion';
 
@@ -11,14 +11,50 @@ export interface RefTarget {
 }
 
 const crossRefPluginKey = new PluginKey('crossReference');
+const crossRefSyncKey = new PluginKey('crossReferenceSync');
 
 export const CrossReference = Extension.create({
   name: 'crossReference',
 
   addProseMirrorPlugins() {
+    const editor = this.editor;
+
     return [
+      // Cross-reference text sync plugin
+      new Plugin({
+        key: crossRefSyncKey,
+        appendTransaction(transactions, _oldState, newState) {
+          // Only run if doc actually changed
+          if (!transactions.some(tr => tr.docChanged)) return null;
+
+          const idMap = buildIdMap(newState.doc);
+          if (idMap.size === 0) return null;
+
+          let tr = newState.tr;
+          let changed = false;
+
+          newState.doc.descendants((node, pos) => {
+            if (node.isText && node.marks.length > 0) {
+              const linkMark = node.marks.find(
+                m => m.type.name === 'link' && m.attrs.href?.startsWith('#')
+              );
+              if (linkMark) {
+                const targetId = (linkMark.attrs.href as string).slice(1);
+                const newLabel = idMap.get(targetId);
+                if (newLabel && node.text !== newLabel) {
+                  tr = tr.insertText(newLabel, pos, pos + node.nodeSize);
+                  changed = true;
+                }
+              }
+            }
+          });
+
+          return changed ? tr : null;
+        },
+      }),
+
       Suggestion<RefTarget, RefTarget>({
-        editor: this.editor,
+        editor,
         pluginKey: crossRefPluginKey,
         char: '@',
         allowSpaces: true,
@@ -256,4 +292,48 @@ function getTextContent(node: any): string {
   if (node.type === 'text') return node.text || '';
   if (!node.content) return '';
   return node.content.map(getTextContent).join('');
+}
+
+/**
+ * Build id → label map from a ProseMirror doc Node.
+ * Used by the appendTransaction sync plugin to update cross-reference texts.
+ */
+function buildIdMap(doc: import('@tiptap/pm/model').Node): Map<string, string> {
+  const idMap = new Map<string, string>();
+  const h = [0, 0, 0, 0, 0, 0];
+  let imgCnt = 0;
+  let tblCnt = 0;
+
+  doc.forEach((node) => {
+    if (node.type.name === 'heading') {
+      const level: number = node.attrs.level || 1;
+      h[level - 1]++;
+      for (let j = level; j < 6; j++) h[j] = 0;
+      if (level === 1) { imgCnt = 0; tblCnt = 0; }
+      const nums = h.slice(0, level).join('.') + '.';
+      const text = node.textContent;
+      const id = node.attrs.id;
+      if (id) {
+        idMap.set(id, `${nums} ${text}`);
+      }
+    }
+    if (node.type.name === 'image') {
+      imgCnt++;
+      const caption = (node.attrs.caption as string) || '';
+      const id = node.attrs.id as string;
+      if (id) {
+        idMap.set(id, caption ? `Figure ${imgCnt}: ${caption}` : `Figure ${imgCnt}`);
+      }
+    }
+    if (node.type.name === 'table') {
+      tblCnt++;
+      const caption = (node.attrs.caption as string) || '';
+      const id = node.attrs.id as string;
+      if (id) {
+        idMap.set(id, caption ? `Table ${tblCnt}: ${caption}` : `Table ${tblCnt}`);
+      }
+    }
+  });
+
+  return idMap;
 }
