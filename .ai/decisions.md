@@ -2,6 +2,14 @@
 
 | Date | Task | Agent/Author | Decision | Rationale |
 |------|------|-------------|----------|-----------|
+| 2026-04-13 | SDOC-019 | @copilot | `resolveSettings()` 3단계 우선순위 머지: meta.settings > VS Code Preference > SETTINGS_DEFAULTS | 기존 문서 하위호환 100% (meta.settings 없으면 VS Code 값 폴백), 새 문서는 문서별 독립 설정 가능 |
+| 2026-04-13 | SDOC-019 | @copilot | SidePanel 래퍼로 TOC + Settings 탭 전환 구조 구현 (standalone TOC 대체) | 단일 사이드바 영역에서 탭으로 전환하는 UX가 공간 효율적, 기존 TOC 동작 100% 보존 |
+| 2026-04-13 | SDOC-019 | @copilot | '기본값 불러오기' = meta.settings를 null로 설정 (삭제) → VS Code 폴백 | 개별 필드 리셋보다 단순, 설정 우선순위 체계와 자연스럽게 연동 |
+| 2026-04-13 | SDOC-019 | @contributor-01 | 설정 패널을 오른쪽 사이드바에 배치, TOC와 탭 전환 | TOC 패턴과 일치하는 UX, 에디터 영역 침범 최소화 |
+| 2026-04-13 | SDOC-019 | @contributor-01 | 설정 패널 내부를 3개 접이식 그룹(제목, 캡션, 방정식)으로 구성 | 9개 설정의 논리적 그룹화, 접이식으로 공간 효율 |
+| 2026-04-13 | SDOC-019 | @contributor-01 | 컬러피커에 `<input type="color">` 사용 (시스템 컬러피커) | VS Code 스타일과 일관, 별도 라이브러리 불필요 |
+| 2026-04-13 | SDOC-019 | @contributor-01 | '기본값 불러오기' 버튼 1개로 전체 초기화 (meta.settings 삭제 → VS Code 폴백) | 개별 리셋보다 단순, 설정 우선순위 체계와 자연스럽게 연동 |
+| 2026-04-13 | SDOC-019 | @contributor-01 | Toolbar에 ⚙️ 아이콘 버튼 추가 (TOC 버튼 옆) | 발견성 높은 위치, TOC 토글과 동일한 패턴 |
 | 2026-04-13 | SDOC-017 | @copilot | Export 날짜를 `YYYY-MM-DD`로 포맷 (`formatDate()` 헬퍼) | ISO 타임스탬프(`T01:16:20.722Z`)는 문서 메타데이터에 불필요한 정보. YYYY-MM-DD가 국제 표준(ISO 8601 날짜)이자 가독성 최적 |
 | 2026-04-13 | SDOC-017 | @copilot | BubbleMenu 활성 상태에 `useEditorState()` 사용 (transaction 구독 대신) | tiptap v3 BubbleMenu는 `createPortal`로 렌더링되어 부모 리렌더 전파가 불안정. `useSyncExternalStore` 기반 `useEditorState()`는 portal 내부에서도 안정적으로 동작 |
 | 2026-04-13 | SDOC-017 | @copilot | CrossRef 동기화를 `appendTransaction` 플러그인으로 webview 내부에서 처리 | Extension Host 라운드트립(echo suppression 문제)보다 webview 내부 직접 처리가 실시간성 우수. ProseMirror `appendTransaction`은 트랜잭션 후 즉시 교정 tr을 삽입하는 표준 패턴 |

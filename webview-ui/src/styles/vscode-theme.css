@@ -1784,3 +1784,219 @@ body {
   flex-direction: column;
   gap: 4px;
 }
+
+/* ===== Side Panel (TOC + Settings tabs) ===== */
+.side-panel {
+  width: 240px;
+  min-width: 200px;
+  max-width: 280px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+  border-right: 1px solid var(--vscode-panel-border);
+  background-color: var(--vscode-sideBar-background, var(--vscode-editor-background));
+  display: flex;
+  flex-direction: column;
+}
+
+.side-panel-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--vscode-panel-border);
+  flex-shrink: 0;
+}
+
+.side-panel-tab {
+  flex: 1;
+  padding: 6px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--vscode-foreground);
+  opacity: 0.6;
+  cursor: pointer;
+  transition: opacity 0.15s, border-color 0.15s;
+  font-family: var(--vscode-font-family);
+}
+
+.side-panel-tab:hover {
+  opacity: 0.85;
+}
+
+.side-panel-tab.active {
+  opacity: 1;
+  border-bottom-color: var(--vscode-focusBorder, #007acc);
+}
+
+.side-panel-content {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.side-panel .toc-panel {
+  width: auto;
+  min-width: unset;
+  max-width: unset;
+  border-right: none;
+  position: static;
+  max-height: none;
+}
+
+/* ===== Document Settings Panel ===== */
+.settings-panel {
+  padding: 8px 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-panel-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--vscode-sideBarTitle-foreground, var(--vscode-foreground));
+  padding: 4px 14px 8px;
+  border-bottom: 1px solid var(--vscode-panel-border);
+  margin-bottom: 4px;
+}
+
+.settings-section {
+  border-bottom: 1px solid var(--vscode-panel-border);
+}
+
+.settings-section-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  background: transparent;
+  border: none;
+  color: var(--vscode-foreground);
+  cursor: pointer;
+  font-family: var(--vscode-font-family);
+}
+
+.settings-section-header:hover {
+  background-color: var(--vscode-list-hoverBackground);
+}
+
+.settings-chevron {
+  font-size: 9px;
+  transition: transform 0.15s;
+  display: inline-block;
+}
+
+.settings-chevron.open {
+  transform: rotate(90deg);
+}
+
+.settings-section-body {
+  padding: 4px 12px 10px;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 0;
+  gap: 8px;
+}
+
+.settings-label {
+  font-size: 12px;
+  color: var(--vscode-foreground);
+  flex-shrink: 0;
+  min-width: 60px;
+}
+
+.settings-toggle {
+  accent-color: var(--vscode-focusBorder, #007acc);
+  cursor: pointer;
+}
+
+.settings-color-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.settings-color {
+  width: 28px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 3px;
+  cursor: pointer;
+  background: transparent;
+}
+
+.settings-color-value {
+  font-size: 11px;
+  font-family: monospace;
+  color: var(--vscode-descriptionForeground);
+}
+
+.settings-text-input {
+  width: 100px;
+  padding: 3px 6px;
+  font-size: 12px;
+  background-color: var(--vscode-input-background, #3c3c3c);
+  color: var(--vscode-input-foreground, #cccccc);
+  border: 1px solid var(--vscode-input-border, #3c3c3c);
+  border-radius: 3px;
+  outline: none;
+  font-family: var(--vscode-font-family);
+}
+
+.settings-text-input:focus {
+  border-color: var(--vscode-focusBorder, #007acc);
+}
+
+.settings-radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.settings-radio-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--vscode-foreground);
+  cursor: pointer;
+}
+
+.settings-radio-label input[type="radio"] {
+  accent-color: var(--vscode-focusBorder, #007acc);
+  cursor: pointer;
+}
+
+.settings-footer {
+  padding: 12px;
+  border-top: 1px solid var(--vscode-panel-border);
+}
+
+.settings-reset-btn {
+  width: 100%;
+  padding: 6px 12px;
+  font-size: 12px;
+  background-color: var(--vscode-button-secondaryBackground, #3a3d41);
+  color: var(--vscode-button-secondaryForeground, #cccccc);
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  font-family: var(--vscode-font-family);
+  transition: background-color 0.15s;
+}
+
+.settings-reset-btn:hover {
+  background-color: var(--vscode-button-secondaryHoverBackground, #45494e);
+}

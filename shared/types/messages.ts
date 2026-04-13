@@ -3,7 +3,7 @@
  * Single source of truth — both sides should reference these types.
  */
 
-import type { TiptapNode, SdocMeta } from '../types';
+import type { TiptapNode, SdocMeta, DocumentSettings } from '../types';
 
 // ─── Editor Settings (Extension → Webview) ─────────────────────
 
@@ -11,6 +11,7 @@ export interface EditorSettings {
   imageCaptionPrefix: string;
   tableCaptionPrefix: string;
   captionNumbering: 'simple' | 'hierarchical';
+  equationNumbering: 'sequential' | 'hierarchical';
   headingNumbering: boolean;
   headingDecoration: boolean;
   headingH1Color: string;
@@ -40,6 +41,11 @@ export interface UpdateMessage {
 export interface SettingsChangedMessage {
   type: 'settingsChanged';
   settings: EditorSettings;
+}
+
+export interface DocSettingsChangedMessage {
+  type: 'docSettingsChanged';
+  docSettings: Partial<DocumentSettings> | null;
 }
 
 export interface MetaUpdateMessage {
@@ -103,6 +109,7 @@ export type ExtensionToWebviewMessage =
   | InitMessage
   | UpdateMessage
   | SettingsChangedMessage
+  | DocSettingsChangedMessage
   | MetaUpdateMessage
   | ImportContentMessage
   | ImportHtmlToWebviewMessage
@@ -186,6 +193,11 @@ export interface UpdateMetaMessage {
   meta: Partial<SdocMeta>;
 }
 
+export interface UpdateDocSettingsMessage {
+  type: 'updateDocSettings';
+  settings: Partial<DocumentSettings> | null;
+}
+
 export type WebviewToExtensionMessage =
   | ReadyMessage
   | EditMessage
@@ -201,7 +213,8 @@ export type WebviewToExtensionMessage =
   | BrowseSdocFilesMessage
   | ImportMarkdownMessage
   | ImportHtmlFromWebviewMessage
-  | UpdateMetaMessage;
+  | UpdateMetaMessage
+  | UpdateDocSettingsMessage;
 
 // ─── SdocBook Messages (Webview → Extension) ───────────────────
 

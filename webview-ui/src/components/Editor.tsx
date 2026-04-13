@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { EditorContent, type JSONContent } from '@tiptap/react';
 import { useTiptapEditor } from '../hooks/useTiptapEditor';
 import { useEditorContext } from '../context/EditorContext';
@@ -19,14 +19,16 @@ import { MathDialog } from './MathDialog';
 import { EditorContextMenu } from './EditorContextMenu';
 import { CrossReferenceDialog } from './CrossReferenceDialog';
 import { DiagramDialog } from './DiagramDialog';
-import { TableOfContents } from './TableOfContents';
+import { SidePanel, type SidePanelTab } from './SidePanel';
 import { collectTargets } from '../extensions/CrossReference';
 import type { RefTarget } from '../extensions/CrossReference';
+import type { DocumentSettings } from '@shared/types';
 
 export const Editor: React.FC = () => {
   const { state, dispatch } = useEditorContext();
   const [showNumbering, setShowNumbering] = useState(true);
-  const [showToc, setShowToc] = useState(false);
+  const [showSidePanel, setShowSidePanel] = useState(false);
+  const [sidePanelTab, setSidePanelTab] = useState<SidePanelTab>('toc');
   const [meta, setMeta] = useState<MetaState>({ title: '', author: '', version: '', created: '', modified: '' });
   const { dialogs, dialogDispatch, openTableContextMenu, openEditorContextMenu } = useDialogState();
   const pendingEditRef = useRef(false);
@@ -85,6 +87,28 @@ export const Editor: React.FC = () => {
   const handleToggleDecoration = () => {
     dispatch({ type: 'SET_SETTINGS', payload: { headingDecoration: !state.settings.headingDecoration } });
   };
+
+  const handleToggleToc = useCallback(() => {
+    if (showSidePanel && sidePanelTab === 'toc') {
+      setShowSidePanel(false);
+    } else {
+      setSidePanelTab('toc');
+      setShowSidePanel(true);
+    }
+  }, [showSidePanel, sidePanelTab]);
+
+  const handleToggleSettings = useCallback(() => {
+    if (showSidePanel && sidePanelTab === 'settings') {
+      setShowSidePanel(false);
+    } else {
+      setSidePanelTab('settings');
+      setShowSidePanel(true);
+    }
+  }, [showSidePanel, sidePanelTab]);
+
+  const handleUpdateDocSettings = useCallback((settings: Partial<DocumentSettings> | null) => {
+    postMessage({ type: 'updateDocSettings', settings });
+  }, [postMessage]);
 
   const handleContextMenu = (event: React.MouseEvent) => {
     event.preventDefault();
@@ -425,8 +449,10 @@ export const Editor: React.FC = () => {
         onToggleNumbering={handleToggleNumbering}
         showDecoration={state.settings.headingDecoration}
         onToggleDecoration={handleToggleDecoration}
-        showToc={showToc}
-        onToggleToc={() => setShowToc(v => !v)}
+        showToc={showSidePanel && sidePanelTab === 'toc'}
+        onToggleToc={handleToggleToc}
+        showSettings={showSidePanel && sidePanelTab === 'settings'}
+        onToggleSettings={handleToggleSettings}
         onInsertLink={handleInsertLink}
         onInsertMath={handleInsertMath}
         onInsertDiagram={handleInsertDiagram}
@@ -437,9 +463,15 @@ export const Editor: React.FC = () => {
         onImport={handleImport}
       />
       {editor && <BubbleMenuBar editor={editor} />}
-      <div className={`editor-body-layout${showToc ? ' editor-body-with-toc' : ''}`}>
-        {showToc && (
-          <TableOfContents editor={editor} showNumbering={showNumbering} />
+      <div className={`editor-body-layout${showSidePanel ? ' editor-body-with-toc' : ''}`}>
+        {showSidePanel && (
+          <SidePanel
+            activeTab={sidePanelTab}
+            onTabChange={(tab) => setSidePanelTab(tab)}
+            editor={editor}
+            showNumbering={showNumbering}
+            onUpdateDocSettings={handleUpdateDocSettings}
+          />
         )}
         <div className="editor-content-area" onContextMenu={handleContextMenu}>
           <div className="editor-title-area">

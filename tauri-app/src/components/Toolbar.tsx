@@ -36,6 +36,7 @@ import {
   AlignJustify,
   BookOpen,
   GitGraph,
+  Settings,
 } from 'lucide-react';
 import { TEXT_COLORS, HIGHLIGHT_COLORS } from '../constants/colors';
 
@@ -48,6 +49,8 @@ interface ToolbarProps {
   onToggleDecoration: () => void;
   showToc: boolean;
   onToggleToc: () => void;
+  showSettings: boolean;
+  onToggleSettings: () => void;
   onInsertDrawio?: () => void;
   onInsertImage?: () => void;
   onInsertLink?: () => void;
@@ -58,7 +61,7 @@ interface ToolbarProps {
   onImport?: (format: 'markdown' | 'html') => void;
 }
 
-export const Toolbar: React.FC<ToolbarProps> = ({ editor, onViewJson, showNumbering, onToggleNumbering, showDecoration, onToggleDecoration, showToc, onToggleToc, onInsertDrawio, onInsertImage, onInsertLink, onInsertMath, onInsertDiagram, onInsertCrossRef, onExport, onImport }) => {
+export const Toolbar: React.FC<ToolbarProps> = ({ editor, onViewJson, showNumbering, onToggleNumbering, showDecoration, onToggleDecoration, showToc, onToggleToc, showSettings, onToggleSettings, onInsertDrawio, onInsertImage, onInsertLink, onInsertMath, onInsertDiagram, onInsertCrossRef, onExport, onImport }) => {
   const [showInsertMenu, setShowInsertMenu] = useState(false);
   const [showTableSub, setShowTableSub] = useState(false);
   const [showCustomSize, setShowCustomSize] = useState(false);
@@ -593,6 +596,14 @@ export const Toolbar: React.FC<ToolbarProps> = ({ editor, onViewJson, showNumber
       >
         <BookOpen size={16} />
         <span style={{ marginLeft: '4px' }}>TOC</span>
+      </Button>
+
+      <Button
+        onClick={onToggleSettings}
+        isActive={showSettings}
+        title={showSettings ? "Hide Document Settings" : "Show Document Settings"}
+      >
+        <Settings size={16} />
       </Button>
 
     </div>

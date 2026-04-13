@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useReducer, ReactNode } from 'react';
 import { JSONContent } from '@tiptap/react';
+import type { DocumentSettings } from '@shared/types';
 
 export interface EditorSettings {
   imageCaptionPrefix: string;
@@ -33,17 +34,20 @@ interface EditorState {
   doc: JSONContent | null;
   isReady: boolean;
   settings: EditorSettings;
+  docSettings: Partial<DocumentSettings> | null;
 }
 
 type EditorAction =
   | { type: 'SET_DOC'; payload: JSONContent }
   | { type: 'SET_READY'; payload: boolean }
-  | { type: 'SET_SETTINGS'; payload: Partial<EditorSettings> };
+  | { type: 'SET_SETTINGS'; payload: Partial<EditorSettings> }
+  | { type: 'SET_DOC_SETTINGS'; payload: Partial<DocumentSettings> | null };
 
 const initialState: EditorState = {
   doc: null,
   isReady: false,
   settings: defaultSettings,
+  docSettings: null,
 };
 
 const editorReducer = (state: EditorState, action: EditorAction): EditorState => {
@@ -54,6 +58,8 @@ const editorReducer = (state: EditorState, action: EditorAction): EditorState =>
       return { ...state, isReady: action.payload };
     case 'SET_SETTINGS':
       return { ...state, settings: { ...state.settings, ...action.payload } };
+    case 'SET_DOC_SETTINGS':
+      return { ...state, docSettings: action.payload };
     default:
       return state;
   }

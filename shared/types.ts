@@ -20,12 +20,26 @@ export interface TiptapMark {
 
 // ─── Document Metadata ──────────────────────────────────────────
 
+/** Per-document settings that override VS Code workspace defaults. */
+export interface DocumentSettings {
+  headingNumbering?: boolean;
+  headingDecoration?: boolean;
+  headingH1Color?: string;
+  headingH2Color?: string;
+  headingH3Color?: string;
+  captionImagePrefix?: string;
+  captionTablePrefix?: string;
+  captionNumbering?: 'simple' | 'hierarchical';
+  equationNumbering?: 'sequential' | 'hierarchical';
+}
+
 export interface SdocMeta {
   title?: string;
   author?: string;
   version?: string;
   created?: string;
   modified?: string;
+  settings?: Partial<DocumentSettings>;
 }
 
 // ─── Export Settings ────────────────────────────────────────────

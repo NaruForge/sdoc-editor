@@ -15,6 +15,7 @@ export interface SdocMeta {
   version?: string;
   created?: string;
   modified?: string;
+  settings?: Record<string, unknown>;
 }
 
 const SDOC_VERSION = '1.0';
@@ -37,7 +38,7 @@ export function unwrapSdoc(parsed: any): { meta: SdocMeta; doc: any } {
 }
 
 export function wrapSdoc(doc: any, meta: SdocMeta): SdocEnvelope {
-  return {
+  const envelope: SdocEnvelope = {
     sdoc: SDOC_VERSION,
     meta: {
       title: meta.title || '',
@@ -48,6 +49,10 @@ export function wrapSdoc(doc: any, meta: SdocMeta): SdocEnvelope {
     },
     doc,
   };
+  if (meta.settings && Object.keys(meta.settings).length > 0) {
+    envelope.meta.settings = meta.settings;
+  }
+  return envelope;
 }
 
 export function createEmptySdoc(meta: Partial<SdocMeta>): SdocEnvelope {

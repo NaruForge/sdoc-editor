@@ -5,7 +5,7 @@ import { convertJsonToHtml, convertJsonToAdoc, convertJsonToMarkdown, convertJso
 import { detectBrowser, printToPdf } from './utils/browserDetect';
 import { resolveFontWeight, generateFontFaceCSS, loadBundledFontsAsBase64 } from './utils/fontUtils';
 import { convertImagePathsToWebviewUris, convertWebviewUrisToRelativePaths, embedImagesAsBase64 } from './utils/imageUtils';
-import { resolveCompanyLogo, readFontWeights, buildHtmlTheme, readExportSettings } from './utils/themeUtils';
+import { resolveCompanyLogo, readFontWeights, buildHtmlTheme } from './utils/themeUtils';
 import {
   unwrapSdoc as sharedUnwrapSdoc,
   migrateAttributes as sharedMigrateAttributes,
@@ -13,6 +13,8 @@ import {
   syncCrossReferences as sharedSyncCrossReferences,
   extractTitle as sharedExtractTitle,
 } from '../shared/mcp/sdocUtils';
+import { resolveSettings } from '../shared/settingsResolver';
+import type { DocumentSettings } from '../shared/types';
 
 export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
   private static readonly SDOC_VERSION = '1.0';
@@ -56,19 +58,48 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview);
 
     // Read and send editor settings to webview
+    const readVscodeDocDefaults = (): Partial<DocumentSettings> => {
+      const config = vscode.workspace.getConfiguration('structuredDocEditor');
+      return {
+        headingNumbering: config.get<boolean>('heading.numbering', true),
+        headingDecoration: config.get<boolean>('heading.decoration', true),
+        headingH1Color: config.get<string>('heading.h1Color', '#A50034'),
+        headingH2Color: config.get<string>('heading.h2Color', '#A50034'),
+        headingH3Color: config.get<string>('heading.h3Color', '#A50034'),
+        captionImagePrefix: config.get<string>('caption.imagePrefix', 'Image'),
+        captionTablePrefix: config.get<string>('caption.tablePrefix', 'Table'),
+        captionNumbering: config.get<'simple' | 'hierarchical'>('caption.numbering', 'simple'),
+        equationNumbering: config.get<'sequential' | 'hierarchical'>('equation.numbering', 'sequential'),
+      };
+    };
+
+    const readDocSettings = (): Partial<DocumentSettings> | undefined => {
+      try {
+        const text = document.getText();
+        const parsed = text.trim() ? JSON.parse(text) : {};
+        return parsed?.meta?.settings;
+      } catch {
+        return undefined;
+      }
+    };
+
     const sendSettings = () => {
       const config = vscode.workspace.getConfiguration('structuredDocEditor');
+      const vscodeDefaults = readVscodeDocDefaults();
+      const docSettings = readDocSettings();
+      const resolved = resolveSettings(docSettings, vscodeDefaults);
       webviewPanel.webview.postMessage({
         type: 'settingsChanged',
         settings: {
-          imageCaptionPrefix: config.get<string>('caption.imagePrefix', 'Image'),
-          tableCaptionPrefix: config.get<string>('caption.tablePrefix', 'Table'),
-          captionNumbering: config.get<string>('caption.numbering', 'simple'),
-          headingNumbering: config.get<boolean>('heading.numbering', true),
-          headingDecoration: config.get<boolean>('heading.decoration', true),
-          headingH1Color: config.get<string>('heading.h1Color', '#A50034'),
-          headingH2Color: config.get<string>('heading.h2Color', '#A50034'),
-          headingH3Color: config.get<string>('heading.h3Color', '#A50034'),
+          imageCaptionPrefix: resolved.captionImagePrefix,
+          tableCaptionPrefix: resolved.captionTablePrefix,
+          captionNumbering: resolved.captionNumbering,
+          equationNumbering: resolved.equationNumbering,
+          headingNumbering: resolved.headingNumbering,
+          headingDecoration: resolved.headingDecoration,
+          headingH1Color: resolved.headingH1Color,
+          headingH2Color: resolved.headingH2Color,
+          headingH3Color: resolved.headingH3Color,
           defaultImageAlignment: config.get<string>('image.defaultAlignment', 'center'),
           exportImagePath: config.get<string>('export.imagePath', 'relative'),
           fontWeightBody: config.get<string>('font.body', 'Regular'),
@@ -76,8 +107,12 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
           fontWeightH1: config.get<string>('font.h1', 'Bold'),
           fontWeightH2: config.get<string>('font.h2', 'SemiBold'),
           fontWeightH3: config.get<string>('font.h3', 'SemiBold'),
-          equationNumbering: config.get<string>('equation.numbering', 'sequential'),
         },
+      });
+      // Also send raw doc-level settings so the Settings Panel knows what's overridden
+      webviewPanel.webview.postMessage({
+        type: 'docSettingsChanged',
+        docSettings: docSettings || null,
       });
     };
 
@@ -164,6 +199,9 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         case 'updateMeta':
           await this.updateMeta(document, message.meta);
           break;
+        case 'updateDocSettings':
+          await this.updateDocSettings(document, webviewPanel, message.settings);
+          break;
       }
     });
 
@@ -241,11 +279,6 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     // Clean up text nodes (trim trailing whitespace, remove empty text nodes)
     const cleaned = SdocEditorProvider.cleanTextNodes(convertedContent);
 
-    // Assign auto-ids and sync cross-reference text
-    const withIds = SdocEditorProvider.assignAutoIds(cleaned);
-    const eqNumbering = vscode.workspace.getConfiguration('structuredDocEditor').get<string>('equation.numbering', 'sequential') as 'sequential' | 'hierarchical';
-    const synced = SdocEditorProvider.syncCrossReferences(withIds, eqNumbering);
-
     // Read existing file to preserve metadata
     const existingText = document.getText();
     let existingMeta: any = {};
@@ -255,11 +288,20 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         existingMeta = existing.meta;
       }
     } catch {
-      // Ignore parse errors
+      // intentionally ignored: parse errors during editing
     }
 
-    // Wrap in sdoc envelope
-    const sdocFile = {
+    // Resolve equationNumbering from doc settings > VS Code > default
+    const config = vscode.workspace.getConfiguration('structuredDocEditor');
+    const docEqNumbering = existingMeta.settings?.equationNumbering;
+    const eqNumbering = (docEqNumbering || config.get<string>('equation.numbering', 'sequential')) as 'sequential' | 'hierarchical';
+
+    // Assign auto-ids and sync cross-reference text
+    const withIds = SdocEditorProvider.assignAutoIds(cleaned);
+    const synced = SdocEditorProvider.syncCrossReferences(withIds, eqNumbering);
+
+    // Wrap in sdoc envelope, preserving settings
+    const sdocFile: Record<string, unknown> = {
       sdoc: SdocEditorProvider.SDOC_VERSION,
       meta: {
         title: existingMeta.title || '',
@@ -267,6 +309,9 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         version: existingMeta.version || '0.1',
         created: existingMeta.created || new Date().toISOString(),
         modified: new Date().toISOString(),
+        ...(existingMeta.settings && Object.keys(existingMeta.settings).length > 0
+          ? { settings: existingMeta.settings }
+          : {}),
       },
       doc: synced,
     };
@@ -802,6 +847,83 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     await vscode.workspace.applyEdit(edit);
   }
 
+  /** Save per-document settings into meta.settings, then re-send merged settings to webview. */
+  private async updateDocSettings(
+    document: vscode.TextDocument,
+    webviewPanel: vscode.WebviewPanel,
+    settings: Partial<DocumentSettings> | null,
+  ): Promise<void> {
+    const edit = new vscode.WorkspaceEdit();
+    const fullRange = new vscode.Range(
+      document.positionAt(0),
+      document.positionAt(document.getText().length)
+    );
+
+    const existingText = document.getText();
+    let parsed: any;
+    try {
+      parsed = existingText.trim() ? JSON.parse(existingText) : {};
+    } catch {
+      return;
+    }
+
+    if (!parsed.sdoc) return;
+    if (!parsed.meta) parsed.meta = {};
+
+    if (settings && Object.keys(settings).length > 0) {
+      parsed.meta.settings = settings;
+    } else {
+      delete parsed.meta.settings;
+    }
+    parsed.meta.modified = new Date().toISOString();
+
+    const json = JSON.stringify(parsed, null, 2);
+    edit.replace(document.uri, fullRange, json);
+
+    this.pendingApplyEdits++;
+    await vscode.workspace.applyEdit(edit);
+
+    // Re-read and re-send merged settings so the webview reflects the change
+    const config = vscode.workspace.getConfiguration('structuredDocEditor');
+    const vscodeDefaults: Partial<DocumentSettings> = {
+      headingNumbering: config.get<boolean>('heading.numbering', true),
+      headingDecoration: config.get<boolean>('heading.decoration', true),
+      headingH1Color: config.get<string>('heading.h1Color', '#A50034'),
+      headingH2Color: config.get<string>('heading.h2Color', '#A50034'),
+      headingH3Color: config.get<string>('heading.h3Color', '#A50034'),
+      captionImagePrefix: config.get<string>('caption.imagePrefix', 'Image'),
+      captionTablePrefix: config.get<string>('caption.tablePrefix', 'Table'),
+      captionNumbering: config.get<'simple' | 'hierarchical'>('caption.numbering', 'simple'),
+      equationNumbering: config.get<'sequential' | 'hierarchical'>('equation.numbering', 'sequential'),
+    };
+    const resolved = resolveSettings(settings ?? undefined, vscodeDefaults);
+    webviewPanel.webview.postMessage({
+      type: 'settingsChanged',
+      settings: {
+        imageCaptionPrefix: resolved.captionImagePrefix,
+        tableCaptionPrefix: resolved.captionTablePrefix,
+        captionNumbering: resolved.captionNumbering,
+        equationNumbering: resolved.equationNumbering,
+        headingNumbering: resolved.headingNumbering,
+        headingDecoration: resolved.headingDecoration,
+        headingH1Color: resolved.headingH1Color,
+        headingH2Color: resolved.headingH2Color,
+        headingH3Color: resolved.headingH3Color,
+        defaultImageAlignment: config.get<string>('image.defaultAlignment', 'center'),
+        exportImagePath: config.get<string>('export.imagePath', 'relative'),
+        fontWeightBody: config.get<string>('font.body', 'Regular'),
+        fontWeightBold: config.get<string>('font.bold', 'Bold'),
+        fontWeightH1: config.get<string>('font.h1', 'Bold'),
+        fontWeightH2: config.get<string>('font.h2', 'SemiBold'),
+        fontWeightH3: config.get<string>('font.h3', 'SemiBold'),
+      },
+    });
+    webviewPanel.webview.postMessage({
+      type: 'docSettingsChanged',
+      docSettings: settings || null,
+    });
+  }
+
   private async openLinkedDocument(
     currentDocument: vscode.TextDocument,
     relPath: string,
@@ -934,10 +1056,23 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       // Convert webview URIs back to relative paths
       let convertedDoc = convertWebviewUrisToRelativePaths(doc);
 
-      // Read export settings
+      // Read export settings — merge doc-level settings over VS Code defaults
       const config = vscode.workspace.getConfiguration('structuredDocEditor');
       const selfContained = config.get<'none' | 'images-only' | 'full'>('export.selfContained', 'images-only');
-      const exportSettings = readExportSettings(config);
+      const vscodeDefaults: Partial<DocumentSettings> = {
+        captionImagePrefix: config.get<string>('caption.imagePrefix', 'Image'),
+        captionTablePrefix: config.get<string>('caption.tablePrefix', 'Table'),
+        captionNumbering: config.get<'simple' | 'hierarchical'>('caption.numbering', 'simple'),
+        equationNumbering: config.get<'sequential' | 'hierarchical'>('equation.numbering', 'sequential'),
+      };
+      const resolved = resolveSettings(meta.settings as Partial<DocumentSettings> | undefined, vscodeDefaults);
+      const exportSettings: Record<string, unknown> = {
+        imageCaptionPrefix: resolved.captionImagePrefix,
+        tableCaptionPrefix: resolved.captionTablePrefix,
+        captionNumbering: resolved.captionNumbering,
+        equationNumbering: resolved.equationNumbering,
+        exportImagePath: config.get<'relative' | 'absolute'>('export.imagePath', 'relative'),
+      };
 
       // For HTML, PDF, and slides, apply selfContained settings
       const needsSelfContained = format === 'html' || format === 'pdf' || format === 'slides';

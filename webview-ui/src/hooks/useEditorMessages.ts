@@ -71,6 +71,9 @@ export function useEditorMessages({
         dispatch({ type: 'SET_SETTINGS', payload: s });
         break;
       }
+      case 'docSettingsChanged':
+        dispatch({ type: 'SET_DOC_SETTINGS', payload: message.docSettings ?? null });
+        break;
       case 'metaUpdate':
         setMeta(prev => ({ ...prev, ...message.meta }));
         break;
