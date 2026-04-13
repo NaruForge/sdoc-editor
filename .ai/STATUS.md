@@ -7,6 +7,7 @@
 - (없음)
 
 ## Done (최근)
+- [SDOC-018](tasks/SDOC-018.md): Block 수식 자동 번호 + CrossRef 지원 (2026-04-13)
 - [SDOC-017](tasks/SDOC-017.md): 버그 수정 모음 — 날짜 포맷 / BubbleMenu 활성 상태 / CrossRef 자동 동기화 (2026-04-13)
 - [SDOC-016](tasks/SDOC-016.md): Math 편집 UX 개선 — 하이브리드 편집 + Inline/Block 토글 (2026-04-13)
 - [SDOC-014](tasks/SDOC-014.md): Markdown Table 변환 개선 — 복잡 테이블 HTML 폴백 + 안정성 강화 (2026-04-09, v0.4.1)
