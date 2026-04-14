@@ -605,7 +605,73 @@ body {
   flex: 1;
   min-width: 0;
   height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* inner scroll region */
+.editor-scroll-area {
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
+}
+
+/* ===== Editor Zoom Bar ===== */
+.editor-zoom-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  height: 28px;
+  flex-shrink: 0;
+  border-top: 1px solid var(--border-color, rgba(128,128,128,0.2));
+  background: var(--editor-bg);
+  user-select: none;
+}
+
+.editor-zoom-bar .zoom-btn {
+  background: none;
+  border: 1px solid transparent;
+  color: var(--editor-fg);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 4px;
+  opacity: 0.65;
+  border-radius: 3px;
+}
+
+.editor-zoom-bar .zoom-btn:hover {
+  opacity: 1;
+  border-color: var(--accent-color, rgba(128,128,128,0.4));
+}
+
+.editor-zoom-bar .zoom-slider {
+  flex: 1;
+  height: 4px;
+  cursor: pointer;
+  accent-color: var(--accent-color, #007fd4);
+  opacity: 0.8;
+}
+
+.editor-zoom-bar .zoom-slider:hover { opacity: 1; }
+
+.editor-zoom-bar .zoom-label {
+  background: none;
+  border: none;
+  color: var(--editor-fg);
+  cursor: pointer;
+  font-size: 11px;
+  min-width: 38px;
+  text-align: right;
+  opacity: 0.65;
+  padding: 0;
+}
+
+.editor-zoom-bar .zoom-label:hover {
+  opacity: 1;
+  text-decoration: underline;
 }
 
 /* ===== Table of Contents Panel ===== */

@@ -22,6 +22,7 @@ import { EditorContextMenu } from './EditorContextMenu';
 import { CrossReferenceDialog } from './CrossReferenceDialog';
 import { ActivityBar } from './ActivityBar';
 import { SidePanel, type ActivityTab } from './SidePanel';
+import { ZoomBar } from './ZoomBar';
 import { collectTargets } from '../extensions/CrossReference';
 import { CROSSREF_RESYNC_META } from '../extensions/CrossReference';
 import type { RefTarget } from '../extensions/CrossReference';
@@ -57,6 +58,10 @@ export const Editor: React.FC<EditorProps> = ({ adapter, initialDoc, initialMeta
   const [showNumbering, setShowNumbering] = useState(true);
   const [showSidePanel, setShowSidePanel] = useState(false);
   const [sidePanelTab, setSidePanelTab] = useState<ActivityTab>('toc');
+  const [zoom, setZoom] = useState<number>(() => {
+    const saved = localStorage.getItem('sdoc-editor-zoom');
+    return saved ? parseInt(saved, 10) : 100;
+  });
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [showTableProperties, setShowTableProperties] = useState(false);
   const [pendingImage, setPendingImage] = useState<{ blob: Blob; dataUrl: string } | null>(null);
@@ -255,6 +260,12 @@ export const Editor: React.FC<EditorProps> = ({ adapter, initialDoc, initialMeta
       setShowSidePanel(true);
     }
   }, [showSidePanel, sidePanelTab]);
+
+  const handleZoomChange = useCallback((value: number) => {
+    const clamped = Math.min(200, Math.max(60, value));
+    setZoom(clamped);
+    localStorage.setItem('sdoc-editor-zoom', String(clamped));
+  }, []);
 
   const handleUpdateDocSettings = useCallback((_settings: Partial<DocumentSettings> | null) => {
     // Tauri: doc settings would be saved via invoke — for now, update local state
@@ -513,13 +524,18 @@ export const Editor: React.FC<EditorProps> = ({ adapter, initialDoc, initialMeta
           />
         )}
         <div className="editor-content-area" onContextMenu={handleContextMenu}>
-          <div className="editor-title-area">
-            <input className="editor-title-input" value={meta.title}
-              onChange={(e) => handleMetaChange('title', e.target.value)} placeholder="문서 제목을 입력하세요" />
+          <div className="editor-scroll-area">
+            <div style={{ zoom: zoom / 100 }}>
+              <div className="editor-title-area">
+                <input className="editor-title-input" value={meta.title}
+                  onChange={(e) => handleMetaChange('title', e.target.value)} placeholder="문서 제목을 입력하세요" />
+              </div>
+              <EditorContent editor={editor}
+                className={`${showNumbering ? 'show-numbering' : 'hide-numbering'} ${state.settings.headingDecoration ? 'show-heading-decoration' : ''} ${state.settings.captionNumbering === 'hierarchical' ? 'hierarchical-numbering' : 'sequential-numbering'}`}
+              />
+            </div>
           </div>
-          <EditorContent editor={editor}
-            className={`${showNumbering ? 'show-numbering' : 'hide-numbering'} ${state.settings.headingDecoration ? 'show-heading-decoration' : ''} ${state.settings.captionNumbering === 'hierarchical' ? 'hierarchical-numbering' : 'sequential-numbering'}`}
-          />
+          <ZoomBar zoom={zoom} onZoomChange={handleZoomChange} />
         </div>
       </div>
       {editorContextMenu && <EditorContextMenu position={editorContextMenu} onInsertImage={handleInsertImage} onInsertDrawio={handleInsertDrawio} onInsertEquation={handleInsertMath} isLinkActive={editor?.isActive('link') ?? false} onRemoveLink={() => editor?.chain().focus().unsetLink().run()} onClose={() => setEditorContextMenu(null)} />}
