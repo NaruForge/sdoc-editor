@@ -7,6 +7,7 @@
 - (없음)
 
 ## Done (최근)
+- [SDOC-039](tasks/SDOC-039.md): 우클릭 컨텍스트 메뉴 — Toolbar 삽입 기능 통합 (2026-04-14)
 - [SDOC-038](tasks/SDOC-038.md): LOF/LOT — 그림 목록 / 표 목록 사이드패널 (2026-04-14)
 - [SDOC-037](tasks/SDOC-037.md): TOC Fold/Unfold — 하위 계층 접기/펼치기 (2026-04-14)
 - [SDOC-036](tasks/SDOC-036.md): TOC 클릭 스크롤 위치 개선 — center → start (2026-04-14)

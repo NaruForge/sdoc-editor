@@ -560,14 +560,22 @@ export const Editor: React.FC = () => {
           <ZoomBar zoom={zoom} onZoomChange={handleZoomChange} />
         </div>
       </div>
-      {dialogs.editorContextMenu && (
+      {dialogs.editorContextMenu && editor && (
         <EditorContextMenu
           position={dialogs.editorContextMenu}
+          editor={editor}
           onInsertImage={handleInsertImage}
           onInsertDrawio={handleInsertDrawio}
           onInsertEquation={handleInsertMath}
-          isLinkActive={editor?.isActive('link') ?? false}
-          onRemoveLink={() => editor?.chain().focus().unsetLink().run()}
+          onInsertTable={(rows, cols) => {
+            dialogDispatch({ type: 'CLOSE_EDITOR_CONTEXT_MENU' });
+            editor.chain().focus().insertTable({ rows, cols, withHeaderRow: true }).run();
+          }}
+          onInsertLink={handleInsertLink}
+          onInsertDiagram={handleInsertDiagram}
+          onInsertCrossRef={() => { dialogDispatch({ type: 'CLOSE_EDITOR_CONTEXT_MENU' }); dialogDispatch({ type: 'OPEN_CROSSREF_DIALOG' }); }}
+          isLinkActive={editor.isActive('link')}
+          onRemoveLink={() => editor.chain().focus().unsetLink().run()}
           onClose={() => dialogDispatch({ type: 'CLOSE_EDITOR_CONTEXT_MENU' })}
         />
       )}

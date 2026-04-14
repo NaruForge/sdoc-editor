@@ -572,7 +572,20 @@ export const Editor: React.FC<EditorProps> = ({ adapter, initialDoc, initialMeta
           <ZoomBar zoom={zoom} onZoomChange={handleZoomChange} />
         </div>
       </div>
-      {editorContextMenu && <EditorContextMenu position={editorContextMenu} onInsertImage={handleInsertImage} onInsertDrawio={handleInsertDrawio} onInsertEquation={handleInsertMath} isLinkActive={editor?.isActive('link') ?? false} onRemoveLink={() => editor?.chain().focus().unsetLink().run()} onClose={() => setEditorContextMenu(null)} />}
+      {editorContextMenu && editor && <EditorContextMenu
+        position={editorContextMenu}
+        editor={editor}
+        onInsertImage={handleInsertImage}
+        onInsertDrawio={handleInsertDrawio}
+        onInsertEquation={handleInsertMath}
+        onInsertTable={(rows, cols) => { setEditorContextMenu(null); editor.chain().focus().insertTable({ rows, cols, withHeaderRow: true }).run(); }}
+        onInsertLink={handleInsertLink}
+        onInsertDiagram={handleInsertDiagram}
+        onInsertCrossRef={() => { setEditorContextMenu(null); setShowCrossRefDialog(true); }}
+        isLinkActive={editor.isActive('link')}
+        onRemoveLink={() => editor.chain().focus().unsetLink().run()}
+        onClose={() => setEditorContextMenu(null)}
+      />}
       {contextMenu && editor && <TableContextMenu editor={editor} position={contextMenu} onClose={() => setContextMenu(null)} onOpenProperties={() => { setContextMenu(null); setShowTableProperties(true); }} />}
       {showTableProperties && editor && <TablePropertiesModal editor={editor} onClose={() => setShowTableProperties(false)} />}
       {pendingImage && <ImageNameDialog defaultName={`image-${Date.now()}`} onConfirm={handleImageNameConfirm} onCancel={() => setPendingImage(null)} />}
