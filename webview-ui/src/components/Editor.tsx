@@ -19,7 +19,8 @@ import { MathDialog } from './MathDialog';
 import { EditorContextMenu } from './EditorContextMenu';
 import { CrossReferenceDialog } from './CrossReferenceDialog';
 import { DiagramDialog } from './DiagramDialog';
-import { SidePanel, type SidePanelTab } from './SidePanel';
+import { ActivityBar } from './ActivityBar';
+import { SidePanel, type ActivityTab } from './SidePanel';
 import { collectTargets } from '../extensions/CrossReference';
 import { CROSSREF_RESYNC_META } from '../extensions/CrossReference';
 import type { RefTarget } from '../extensions/CrossReference';
@@ -29,7 +30,7 @@ export const Editor: React.FC = () => {
   const { state, dispatch } = useEditorContext();
   const [showNumbering, setShowNumbering] = useState(true);
   const [showSidePanel, setShowSidePanel] = useState(false);
-  const [sidePanelTab, setSidePanelTab] = useState<SidePanelTab>('toc');
+  const [sidePanelTab, setSidePanelTab] = useState<ActivityTab>('toc');
   const [meta, setMeta] = useState<MetaState>({ title: '', author: '', version: '', created: '', modified: '' });
   const { dialogs, dialogDispatch, openTableContextMenu, openEditorContextMenu } = useDialogState();
   const pendingEditRef = useRef(0);
@@ -108,20 +109,11 @@ export const Editor: React.FC = () => {
     dispatch({ type: 'SET_SETTINGS', payload: { headingDecoration: !state.settings.headingDecoration } });
   };
 
-  const handleToggleToc = useCallback(() => {
-    if (showSidePanel && sidePanelTab === 'toc') {
+  const handleActivityTabClick = useCallback((tab: ActivityTab) => {
+    if (showSidePanel && sidePanelTab === tab) {
       setShowSidePanel(false);
     } else {
-      setSidePanelTab('toc');
-      setShowSidePanel(true);
-    }
-  }, [showSidePanel, sidePanelTab]);
-
-  const handleToggleSettings = useCallback(() => {
-    if (showSidePanel && sidePanelTab === 'settings') {
-      setShowSidePanel(false);
-    } else {
-      setSidePanelTab('settings');
+      setSidePanelTab(tab);
       setShowSidePanel(true);
     }
   }, [showSidePanel, sidePanelTab]);
@@ -453,7 +445,7 @@ export const Editor: React.FC = () => {
   }
 
   return (
-    <>
+    <div className="editor-shell">
       <DocumentHeader
         author={meta.author}
         version={meta.version}
@@ -464,33 +456,31 @@ export const Editor: React.FC = () => {
       />
       <Toolbar
         editor={editor}
-        onViewJson={handleViewJson}
-        showNumbering={showNumbering}
-        onToggleNumbering={handleToggleNumbering}
-        showDecoration={state.settings.headingDecoration}
-        onToggleDecoration={handleToggleDecoration}
-        showToc={showSidePanel && sidePanelTab === 'toc'}
-        onToggleToc={handleToggleToc}
-        showSettings={showSidePanel && sidePanelTab === 'settings'}
-        onToggleSettings={handleToggleSettings}
         onInsertLink={handleInsertLink}
         onInsertMath={handleInsertMath}
         onInsertDiagram={handleInsertDiagram}
         onInsertCrossRef={() => dialogDispatch({ type: 'OPEN_CROSSREF_DIALOG' })}
         onInsertImage={handleInsertImage}
         onInsertDrawio={handleInsertDrawio}
-        onExport={handleExport}
-        onImport={handleImport}
       />
       {editor && <BubbleMenuBar editor={editor} />}
       <div className={`editor-body-layout${showSidePanel ? ' editor-body-with-toc' : ''}`}>
+        <ActivityBar
+          activeTab={showSidePanel ? sidePanelTab : null}
+          onTabClick={handleActivityTabClick}
+        />
         {showSidePanel && (
           <SidePanel
             activeTab={sidePanelTab}
-            onTabChange={(tab) => setSidePanelTab(tab)}
             editor={editor}
             showNumbering={showNumbering}
+            onToggleNumbering={handleToggleNumbering}
+            showDecoration={state.settings.headingDecoration}
+            onToggleDecoration={handleToggleDecoration}
             onUpdateDocSettings={handleUpdateDocSettings}
+            onViewJson={handleViewJson}
+            onExport={handleExport}
+            onImport={handleImport}
           />
         )}
         <div className="editor-content-area" onContextMenu={handleContextMenu}>
@@ -627,6 +617,6 @@ export const Editor: React.FC = () => {
           onClose={() => dialogDispatch({ type: 'CLOSE_CROSSREF_DIALOG' })}
         />
       )}
-    </>
+    </div>
   );
 };

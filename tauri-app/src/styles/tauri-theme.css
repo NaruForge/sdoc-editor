@@ -85,18 +85,40 @@
   --vscode-editor-font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
 }
 
+html,
 body {
+  height: 100%;
+  overflow: hidden;
   margin: 0;
   padding: 0;
+}
+
+body {
   background-color: var(--editor-bg);
   color: var(--editor-fg);
+}
+
+#root {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Editor top-level shell */
+.editor-shell {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .ProseMirror {
   background-color: var(--editor-bg);
   color: var(--editor-fg);
   padding: 16px;
-  min-height: 100vh;
+  min-height: 100%;
   outline: none;
   counter-reset: h1-counter h2-counter h3-counter table-counter image-counter;
   --image-caption-prefix: '';
@@ -268,9 +290,9 @@ body {
 .ProseMirror th { font-weight: bold; text-align: left; background-color: var(--inactive-selection-bg); }
 .ProseMirror .selectedCell { background-color: var(--selection-bg); }
 
-/* Toolbar */
+/* Toolbar — fixed, does not scroll */
 .toolbar {
-  position: sticky; top: 0; background-color: var(--editor-bg); border-bottom: 1px solid var(--panel-border);
+  flex-shrink: 0; background-color: var(--editor-bg); border-bottom: 1px solid var(--panel-border);
   padding: 8px; display: flex; gap: 4px; flex-wrap: wrap; z-index: 10;
 }
 .toolbar-button {
@@ -460,7 +482,7 @@ body {
 .ProseMirror a:hover, .ProseMirror .editor-link:hover { color: #A50034; text-decoration: underline; }
 
 /* Document Header */
-.document-header { border-bottom: 1px solid var(--panel-border); padding: 12px 16px 10px; background-color: var(--editor-bg); }
+.document-header { flex-shrink: 0; border-bottom: 1px solid var(--panel-border); padding: 12px 16px 10px; background-color: var(--editor-bg); }
 .editor-title-area { padding: 32px 24px 24px; }
 .editor-title-input {
   width: 100%; font-size: 2.5em; font-weight: var(--font-weight-h1, 700); color: var(--editor-fg); background: transparent;
@@ -573,14 +595,16 @@ body {
 .editor-body-layout {
   display: flex;
   flex-direction: row;
-  align-items: flex-start;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .editor-body-layout .editor-content-area {
   flex: 1;
   min-width: 0;
-  overflow: auto;
+  height: 100%;
+  overflow-y: auto;
 }
 
 /* ===== Table of Contents Panel ===== */
@@ -856,15 +880,13 @@ body {
   gap: 4px;
 }
 
-/* ===== Side Panel (TOC + Settings tabs) ===== */
+/* ===== Side Panel (4-tab) ===== */
 .side-panel {
   width: 240px;
   min-width: 200px;
   max-width: 280px;
   flex-shrink: 0;
-  position: sticky;
-  top: 0;
-  max-height: calc(100vh - 80px);
+  height: 100%;
   overflow-y: auto;
   border-right: 1px solid var(--panel-border);
   background-color: var(--editor-bg);
@@ -1012,3 +1034,44 @@ body {
 .callout-variant-btn { background: none; border: 1px solid transparent; border-radius: 3px; cursor: pointer; font-size: 13px; padding: 2px 4px; line-height: 1; }
 .callout-variant-btn:hover, .callout-variant-btn.is-active { background-color: rgba(90,93,94,.31); }
 .bubble-menu-separator { width: 1px; background-color: var(--panel-border); margin: 2px 2px; align-self: stretch; }
+
+/* ===== Activity Bar ===== */
+.activity-bar {
+  width: 36px;
+  flex-shrink: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4px 0;
+  gap: 2px;
+  background: var(--panel-bg, #1e1e1e);
+  border-right: 1px solid var(--panel-border, #333);
+  overflow-y: auto;
+}
+.activity-bar-icon {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--text-primary, #ccc);
+  opacity: 0.55;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: opacity 0.1s, background 0.1s;
+}
+.activity-bar-icon:hover { opacity: 1; background: rgba(90,93,94,.31); }
+.activity-bar-icon.is-active { opacity: 1; background: var(--btn-primary-bg, #0078d4); color: #fff; }
+
+/* ===== Side Panel (4-tab) new elements ===== */
+.side-panel-section { padding: 8px 0; }
+.side-panel-section-title { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted, #888); padding: 4px 12px 6px; display: flex; align-items: center; gap: 5px; }
+.side-panel-toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 4px 12px; }
+.side-panel-toggle-label { font-size: 12px; color: var(--text-primary, #ccc); }
+.side-panel-toggle-btn { padding: 2px 8px; font-size: 11px; border-radius: 3px; border: 1px solid var(--panel-border, #333); cursor: pointer; background: transparent; color: var(--text-primary, #ccc); }
+.side-panel-toggle-btn.is-active { background: var(--btn-primary-bg, #0078d4); color: #fff; border-color: transparent; }
+.side-panel-file-btn { width: 100%; text-align: left; padding: 5px 12px; font-size: 12px; background: transparent; border: none; cursor: pointer; color: var(--text-primary, #ccc); display: flex; align-items: center; gap: 6px; }
+.side-panel-file-btn:hover { background: rgba(90,93,94,.2); }

@@ -1,6 +1,6 @@
 # Structured Doc Editor
 
-> **v0.4.4** — Blockquote/Callout 블록 + 저장 버그 수정, BlockExit 키보드 단축키
+> **v0.4.5** — Activity Bar 4탭 + Toolbar 슬림화 + 스크롤 격리 레이아웃 개선
 
 `.sdoc` / `.tiptap.json` 파일을 위한 WYSIWYG 구조화 문서 에디터입니다.
 
@@ -12,8 +12,9 @@
 |---|---|
 | WYSIWYG 편집 | Tiptap/ProseMirror 기반 리치 텍스트 에디터 |
 | JSON 저장 | pretty-printed JSON으로 저장 — Git diff 최적화 |
-| 내보내기 | Markdown, AsciiDoc, 테마 적용 HTML, PDF, **슬라이드** |
-| 가져오기 | Markdown, HTML → `.sdoc` 변환 |
+| **Activity Bar** | 에디터 좌측 4탭 아이콘 스트립 (뷰 컨트롤 / TOC / 문서설정 / 파일작업) |
+| 내보내기 | Markdown, AsciiDoc, 테마 적용 HTML, PDF, **슬라이드** (Activity Bar 파일 탭) |
+| 가져오기 | Markdown, HTML → `.sdoc` 변환 (Activity Bar 파일 탭) |
 | 텍스트 꾸미기 | 굵게, 기울임, 밑줄, 취소선, 코드, **텍스트 색상**, **하이라이트(음영)** |
 | 수학 수식 | KaTeX 인라인 / 블록 수식 |
 | 코드 블록 | lowlight 기반 구문 강조 (100+ 언어) |
@@ -26,7 +27,7 @@
 | 교차 참조 | `@` 입력으로 heading·figure·table 참조 삽입 및 번호 자동 동기화 |
 | 섹션 접기 | heading 옆 토글로 섹션별 접기/펼치기 |
 | 할 일 목록 | 체크박스 태스크 리스트 |
-| 문서 메타데이터 | Title, Author, Version 인라인 편집 |
+| 문서 메타데이터 | Title, Author, Version 인라인 편집 (항상 고정 표시) |
 | 슬라이드 내보내기 | H1 기준 자동 분리, reveal.js 기반 프레젠테이션 HTML 생성 |
 | 내장 폰트 | Legacy Font 2.0 (Light / Regular / SemiBold / Bold) 번들 |
 | 자동 업데이트 | 공유 폴더 기반 사내 자동 업데이트 |

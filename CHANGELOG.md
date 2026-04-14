@@ -5,6 +5,30 @@ All notable changes to the "Structured Doc Editor" extension will be documented 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.5] - 2026-04-15
+
+### Added
+- **Activity Bar** (VS Code 스타일 세로 아이콘 스트립): 에디터 좌측에 항상 표시되는 4탭 Activity Bar 추가
+  - `🔢` 뷰 컨트롤: 헤딩 번호 매김 / 헤딩 장식(색상·선) 토글 — SidePanel로 이동
+  - `📑` 목차 (TOC): 문서 내 헤딩 트리 탐색
+  - `⚙️` 문서 설정: 개별 문서별 캡션·폰트·색상 설정
+  - `📥` 파일 작업: 내보내기(HTML/PDF/Markdown/AsciiDoc/Slides) + 가져오기(Markdown/HTML) + JSON 소스 보기
+  - 같은 탭 아이콘 재클릭 시 SidePanel 닫힘 (토글)
+
+### Changed
+- **Toolbar 슬림화 (29개 → 12개 컨트롤)**:
+  - `Aa▾` 드롭다운: 취소선 / 위 첨자 / 아래 첨자 통합
+  - `≡▾` 정렬 드롭다운: 현재 활성 정렬 아이콘 표시 + 4종 선택
+  - Export / Import / View JSON → Activity Bar `📥 파일` 탭으로 이동
+  - 번호 매김 / 헤딩 장식 토글 → Activity Bar `🔢 뷰` 탭으로 이동
+  - TOC / Settings 버튼 → Activity Bar 아이콘으로 대체
+
+### Fixed
+- **Meta 데이터(작성자/버전/일시) 영역 고정**: 본문 스크롤 시 Meta 헤더가 함께 올라가던 문제 수정
+- **Activity Bar / SidePanel 스크롤 격리**: 본문 스크롤 시 좌측 SideBar도 함께 스크롤되던 문제 수정
+  - `editor-shell` 컨테이너 (`height: 100vh, overflow: hidden`) 도입
+  - `editor-content-area` 만 독립 스크롤 영역으로 지정
+
 ## [0.4.4] - 2026-04-14
 
 ### Added
