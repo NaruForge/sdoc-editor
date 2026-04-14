@@ -240,6 +240,19 @@ function convertSlideNode(node: TiptapNode, ctx: ConvertContext): string {
     case 'diagram':
       return `        <pre class="mermaid">${escapeHtml((node.attrs?.code as string) || '')}</pre>`;
 
+    case 'blockquote': {
+      const bqContent = node.content ? node.content.map(n => convertSlideNode(n, ctx)).join('') : '';
+      return `        <blockquote>${bqContent}</blockquote>`;
+    }
+
+    case 'callout': {
+      const variant = (node.attrs?.variant as string) || 'note';
+      const calloutIcons: Record<string, string> = { note: '📝', info: 'ℹ️', tip: '💡', warning: '⚠️', danger: '🚨' };
+      const calloutLabels: Record<string, string> = { note: 'Note', info: 'Info', tip: 'Tip', warning: 'Warning', danger: 'Danger' };
+      const innerContent = node.content ? node.content.map(n => convertSlideNode(n, ctx)).join('') : '';
+      return `        <div class="callout callout-${variant}"><div class="callout-header"><span>${calloutIcons[variant] ?? calloutIcons.note}</span><span>${calloutLabels[variant] ?? calloutLabels.note}</span></div><div class="callout-content">${innerContent}</div></div>`;
+    }
+
     case 'table':
       return convertTable(node, ctx);
 

@@ -5,6 +5,27 @@ All notable changes to the "Structured Doc Editor" extension will be documented 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.4] - 2026-04-14
+
+### Added
+- **Blockquote 인용 블록**: StarterKit 기본 blockquote 활성화, Markdown export 시 `> line` 형식, AsciiDoc 표준 quote block 형식으로 변환
+- **Callout / Admonition 블록**: 5가지 variant (note/info/tip/warning/danger) with 이모지 헤더
+  - **Markdown export**: GitHub Alerts 형식 (`> [!NOTE]` 등)
+  - **AsciiDoc export**: 표준 Admonition 타입(NOTE/TIP/IMPORTANT/WARNING/CAUTION)으로 매핑
+  - **BubbleMenu variant picker**: Callout 내부 커서 시 variant 변경 가능
+- **BlockExit 키보드 단축키**: Blockquote/Callout 탈출 메커니즘 개선
+  - Enter (빈 마지막 문단) → 블록 밖으로 탈출 후 새 paragraph 생성
+  - Backspace (빈 첫 문단) → 블록 해제/삭제
+
+### Fixed
+- **[Critical] 저장 시 입력 내용 소실 버그 (Race Condition)**:
+  - `onWillSaveTextDocument` + `requestFlush`로 저장 전 webview 상태 강제 동기화
+  - `saveRequested` 플래그로 dirty 상태 정확한 추적 및 재저장 트리거 가능
+  - 메시지 처리 순차 큐(`Promise.then` 체이닝)로 edit→save 순서 보장
+- **pendingApplyEdits 카운터 공유 문제**: 싱글턴 Provider에서 복수 문서 열 때 카운터 간섭 → `Map<string, number>`로 문서별 분리
+- **pendingEditRef boolean 가드 한계**: 연속 edit 전송 시 echo-back 소실 → number 카운터로 개별 추적
+- **블록 객체 간 텍스트 삽입 불가**: 연속 blockquote/callout 사이 또는 내부에서 일반 텍스트 줄 добавитиが 불가능 → BlockExit 확장으로 통합 해결
+
 ## [0.4.3] - 2026-04-14
 
 ### Added

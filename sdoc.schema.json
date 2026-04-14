@@ -77,6 +77,8 @@
         { "$ref": "#/definitions/imageNode" },
         { "$ref": "#/definitions/mathBlockNode" },
         { "$ref": "#/definitions/diagramNode" },
+        { "$ref": "#/definitions/blockquoteNode" },
+        { "$ref": "#/definitions/calloutNode" },
         { "$ref": "#/definitions/hardBreakNode" }
       ]
     },
@@ -394,6 +396,43 @@
       "required": ["type"],
       "properties": {
         "type": { "const": "hardBreak" }
+      },
+      "additionalProperties": false
+    },
+
+    "blockquoteNode": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "const": "blockquote" },
+        "content": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/blockNode" }
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "calloutNode": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "const": "callout" },
+        "attrs": {
+          "type": "object",
+          "properties": {
+            "variant": {
+              "type": "string",
+              "enum": ["note", "info", "tip", "warning", "danger"],
+              "description": "Visual style of the callout block."
+            }
+          },
+          "additionalProperties": false
+        },
+        "content": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/blockNode" }
+        }
       },
       "additionalProperties": false
     },

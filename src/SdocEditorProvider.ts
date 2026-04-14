@@ -34,7 +34,10 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     return providerRegistration;
   }
 
-  private pendingApplyEdits = 0;
+  /** Per-document pending apply-edit counter to suppress echo-back */
+  private pendingApplyEdits = new Map<string, number>();
+  /** Per-document flush resolver: resolves when an edit arrives after a requestFlush */
+  private pendingFlushResolvers = new Map<string, () => void>();
 
   constructor(private readonly context: vscode.ExtensionContext) {}
 
@@ -158,66 +161,96 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       }
     };
 
-    // Handle messages from webview
-    webviewPanel.webview.onDidReceiveMessage(async (message) => {
-      switch (message.type) {
-        case 'ready':
-          sendUpdate();
-          break;
-        case 'edit':
-          await this.updateDocument(document, message.content);
-          break;
-        case 'viewJson':
-          await this.openJsonView(document);
-          break;
-        case 'saveImage':
-          await this.saveImage(document, webviewPanel.webview, message);
-          break;
-        case 'createDrawio':
-          await this.createDrawioFile(document, webviewPanel.webview, message);
-          break;
-        case 'importDrawio':
-          await this.importDrawioFile(document, webviewPanel.webview);
-          break;
-        case 'openDrawio':
-          await this.openDrawioFile(document, message);
-          break;
-        case 'insertExistingImage':
-          await this.insertExistingImage(document, webviewPanel.webview);
-          break;
-        case 'replaceImage':
-          await this.replaceImage(document, webviewPanel.webview, message.pos);
-          break;
-        case 'export':
-          await this.exportDocument(document, message.format);
-          break;
-        case 'openDocument':
-          await this.openLinkedDocument(document, message.path, message.anchor);
-          break;
-        case 'browseSdocFiles':
-          await this.browseSdocFiles(document, webviewPanel.webview);
-          break;
-        case 'importMarkdown':
-          await this.importMarkdown(document, webviewPanel);
-          break;
-        case 'importHtml':
-          await this.importHtml(document, webviewPanel);
-          break;
-        case 'updateMeta':
-          await this.updateMeta(document, message.meta);
-          break;
-        case 'updateDocSettings':
-          await this.updateDocSettings(document, webviewPanel, message.settings);
-          break;
-      }
+    // Handle messages from webview (sequential queue to preserve order)
+    let messageQueue: Promise<void> = Promise.resolve();
+    webviewPanel.webview.onDidReceiveMessage((message) => {
+      messageQueue = messageQueue.then(async () => {
+        switch (message.type) {
+          case 'ready':
+            sendUpdate();
+            break;
+          case 'edit':
+            await this.updateDocument(document, message.content);
+            this.resolveFlush(document);
+            // If the webview requested a save (Ctrl+S while debounce pending), trigger save now
+            if (message.saveRequested && document.isDirty) {
+              await document.save();
+            }
+            break;
+          case 'flushComplete':
+            this.resolveFlush(document);
+            break;
+          case 'viewJson':
+            await this.openJsonView(document);
+            break;
+          case 'saveImage':
+            await this.saveImage(document, webviewPanel.webview, message);
+            break;
+          case 'createDrawio':
+            await this.createDrawioFile(document, webviewPanel.webview, message);
+            break;
+          case 'importDrawio':
+            await this.importDrawioFile(document, webviewPanel.webview);
+            break;
+          case 'openDrawio':
+            await this.openDrawioFile(document, message);
+            break;
+          case 'insertExistingImage':
+            await this.insertExistingImage(document, webviewPanel.webview);
+            break;
+          case 'replaceImage':
+            await this.replaceImage(document, webviewPanel.webview, message.pos);
+            break;
+          case 'export':
+            await this.exportDocument(document, message.format);
+            break;
+          case 'openDocument':
+            await this.openLinkedDocument(document, message.path, message.anchor);
+            break;
+          case 'browseSdocFiles':
+            await this.browseSdocFiles(document, webviewPanel.webview);
+            break;
+          case 'importMarkdown':
+            await this.importMarkdown(document, webviewPanel);
+            break;
+          case 'importHtml':
+            await this.importHtml(document, webviewPanel);
+            break;
+          case 'updateMeta':
+            await this.updateMeta(document, message.meta);
+            break;
+          case 'updateDocSettings':
+            await this.updateDocSettings(document, webviewPanel, message.settings);
+            break;
+        }
+      });
+    });
+
+    // Flush webview state before save to prevent data loss
+    const willSaveSubscription = vscode.workspace.onWillSaveTextDocument((e) => {
+      if (e.document.uri.toString() !== document.uri.toString()) return;
+
+      const flushPromise = new Promise<void>((resolve) => {
+        const key = document.uri.toString();
+        this.pendingFlushResolvers.set(key, resolve);
+        webviewPanel.webview.postMessage({ type: 'requestFlush' });
+        // Timeout to prevent hanging saves if webview is unresponsive
+        setTimeout(() => {
+          if (this.pendingFlushResolvers.has(key)) {
+            this.pendingFlushResolvers.delete(key);
+            resolve();
+          }
+        }, 1000);
+      });
+
+      e.waitUntil(flushPromise);
     });
 
     // Handle external document changes
     const changeDocumentSubscription = vscode.workspace.onDidChangeTextDocument((e) => {
       if (e.document.uri.toString() === document.uri.toString()) {
         // Don't send update if we caused the change
-        if (this.pendingApplyEdits > 0) {
-          this.pendingApplyEdits--;
+        if (this.consumePendingEdit(document)) {
           return;
         }
 
@@ -268,8 +301,11 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     // Cleanup
     webviewPanel.onDidDispose(() => {
       changeDocumentSubscription.dispose();
+      willSaveSubscription.dispose();
       drawioWatcher.dispose();
       settingsSubscription.dispose();
+      this.pendingApplyEdits.delete(document.uri.toString());
+      this.pendingFlushResolvers.delete(document.uri.toString());
     });
   }
 
@@ -330,8 +366,35 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     const json = JSON.stringify(sdocFile, null, 2);
     edit.replace(document.uri, fullRange, json);
 
-    this.pendingApplyEdits++;
+    this.incrementPendingEdits(document);
     await vscode.workspace.applyEdit(edit);
+  }
+
+  /** Increment per-document pending edit counter */
+  private incrementPendingEdits(document: vscode.TextDocument): void {
+    const key = document.uri.toString();
+    this.pendingApplyEdits.set(key, (this.pendingApplyEdits.get(key) ?? 0) + 1);
+  }
+
+  /** Decrement per-document pending edit counter; returns true if it was consumed */
+  private consumePendingEdit(document: vscode.TextDocument): boolean {
+    const key = document.uri.toString();
+    const count = this.pendingApplyEdits.get(key) ?? 0;
+    if (count > 0) {
+      this.pendingApplyEdits.set(key, count - 1);
+      return true;
+    }
+    return false;
+  }
+
+  /** Resolve any pending flush for this document */
+  private resolveFlush(document: vscode.TextDocument): void {
+    const key = document.uri.toString();
+    const resolver = this.pendingFlushResolvers.get(key);
+    if (resolver) {
+      this.pendingFlushResolvers.delete(key);
+      resolver();
+    }
   }
 
   private async openJsonView(document: vscode.TextDocument): Promise<void> {
@@ -853,7 +916,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     const json = JSON.stringify(parsed, null, 2);
     edit.replace(document.uri, fullRange, json);
 
-    this.pendingApplyEdits++;
+    this.incrementPendingEdits(document);
     await vscode.workspace.applyEdit(edit);
   }
 
@@ -890,7 +953,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     const json = JSON.stringify(parsed, null, 2);
     edit.replace(document.uri, fullRange, json);
 
-    this.pendingApplyEdits++;
+    this.incrementPendingEdits(document);
     await vscode.workspace.applyEdit(edit);
 
     // Re-read and re-send merged settings so the webview reflects the change

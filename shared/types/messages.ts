@@ -103,6 +103,10 @@ export interface DrawioFileUpdatedMessage {
   newWebviewUri: string;
 }
 
+export interface RequestFlushMessage {
+  type: 'requestFlush';
+}
+
 export interface SdocFileBrowseResultMessage {
   type: 'sdocFileBrowseResult';
   path: string;
@@ -123,6 +127,7 @@ export type ExtensionToWebviewMessage =
   | ImageInsertedMessage
   | ImageReplacedMessage
   | DrawioFileUpdatedMessage
+  | RequestFlushMessage
   | SdocFileBrowseResultMessage;
 
 // ─── Webview → Extension Messages ───────────────────────────────
@@ -134,6 +139,7 @@ export interface ReadyMessage {
 export interface EditMessage {
   type: 'edit';
   content: TiptapNode;
+  saveRequested?: boolean;
 }
 
 export interface ViewJsonMessage {
@@ -203,6 +209,10 @@ export interface UpdateDocSettingsMessage {
   settings: Partial<DocumentSettings> | null;
 }
 
+export interface FlushCompleteMessage {
+  type: 'flushComplete';
+}
+
 export type WebviewToExtensionMessage =
   | ReadyMessage
   | EditMessage
@@ -219,7 +229,8 @@ export type WebviewToExtensionMessage =
   | ImportMarkdownMessage
   | ImportHtmlFromWebviewMessage
   | UpdateMetaMessage
-  | UpdateDocSettingsMessage;
+  | UpdateDocSettingsMessage
+  | FlushCompleteMessage;
 
 // ─── SdocBook Messages (Webview → Extension) ───────────────────
 

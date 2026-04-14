@@ -975,3 +975,40 @@ body {
   font-family: var(--font-family); transition: background-color 0.15s;
 }
 .settings-reset-btn:hover { opacity: 0.9; }
+
+/* ===== Blockquote ===== */
+.ProseMirror blockquote {
+  margin: 1em 0;
+  padding: 0.6em 1em;
+  border-left: 4px solid var(--focus-border, #007acc);
+  background-color: rgba(0,122,204,0.06);
+  border-radius: 0 4px 4px 0;
+}
+.ProseMirror blockquote p { margin: 0; }
+.ProseMirror blockquote p + p { margin-top: 0.5em; }
+
+/* ===== Callout / Admonition ===== */
+.callout-block {
+  margin: 1em 0; padding: 0.75em 1em;
+  border-radius: 6px; border-left: 4px solid;
+  display: flex; flex-direction: column; gap: 0.3em;
+}
+.callout-header { display: flex; align-items: center; gap: 0.5em; font-weight: 600; font-size: 0.9em; user-select: none; }
+.callout-icon { font-size: 1em; line-height: 1; }
+.callout-label { text-transform: uppercase; letter-spacing: 0.05em; font-size: 0.78em; }
+.callout-content > p:first-child { margin-top: 0; }
+.callout-content > p:last-child { margin-bottom: 0; }
+.callout-block[data-variant="note"]    { background: rgba(100,116,139,.1); border-color: #64748b; }
+.callout-block[data-variant="note"]    .callout-header { color: #64748b; }
+.callout-block[data-variant="info"]    { background: rgba(14,165,233,.1);  border-color: #0ea5e9; }
+.callout-block[data-variant="info"]    .callout-header { color: #0ea5e9; }
+.callout-block[data-variant="tip"]     { background: rgba(34,197,94,.1);   border-color: #22c55e; }
+.callout-block[data-variant="tip"]     .callout-header { color: #22c55e; }
+.callout-block[data-variant="warning"] { background: rgba(245,158,11,.1);  border-color: #f59e0b; }
+.callout-block[data-variant="warning"] .callout-header { color: #f59e0b; }
+.callout-block[data-variant="danger"]  { background: rgba(239,68,68,.1);   border-color: #ef4444; }
+.callout-block[data-variant="danger"]  .callout-header { color: #ef4444; }
+.callout-variant-picker { display: flex; gap: 2px; padding: 2px 4px; }
+.callout-variant-btn { background: none; border: 1px solid transparent; border-radius: 3px; cursor: pointer; font-size: 13px; padding: 2px 4px; line-height: 1; }
+.callout-variant-btn:hover, .callout-variant-btn.is-active { background-color: rgba(90,93,94,.31); }
+.bubble-menu-separator { width: 1px; background-color: var(--panel-border); margin: 2px 2px; align-self: stretch; }

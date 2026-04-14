@@ -1,6 +1,6 @@
 # Structured Doc Editor
 
-> **v0.4.3** — 캡션 프리셋 시스템, Sequential/Hierarchical 번호 방식 통합
+> **v0.4.4** — Blockquote/Callout 블록 + 저장 버그 수정, BlockExit 키보드 단축키
 
 `.sdoc` / `.tiptap.json` 파일을 위한 WYSIWYG 구조화 문서 에디터입니다.
 
@@ -17,6 +17,8 @@
 | 텍스트 꾸미기 | 굵게, 기울임, 밑줄, 취소선, 코드, **텍스트 색상**, **하이라이트(음영)** |
 | 수학 수식 | KaTeX 인라인 / 블록 수식 |
 | 코드 블록 | lowlight 기반 구문 강조 (100+ 언어) |
+| **Blockquote** | 인용 블록 (`> text` Markdown 형식) — Markdown/AsciiDoc 호환성 |
+| **Callout / Admonition** | 5가지 Variant (📝 Note, ℹ️ Info, 💡 Tip, ⚠️ Warning, 🚨 Danger) — GitHub Alerts / AsciiDoc Admonition 매핑 |
 | 표 | 캡션, 정렬, 너비 설정 / 컨텍스트 메뉴로 행·열 조작 |
 | 이미지 | 클립보드 붙여넣기, 캡션, 정렬 |
 | Mermaid 다이어그램 | 플로우차트·시퀀스·ER·간트 등 라이브 렌더링 / 분할 편집 창 + 6종 템플릿 |

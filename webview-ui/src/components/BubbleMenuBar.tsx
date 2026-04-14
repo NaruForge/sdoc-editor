@@ -1,8 +1,9 @@
 import React, { useRef } from 'react';
 import { BubbleMenu } from '@tiptap/react/menus';
 import { Editor, useEditorState } from '@tiptap/react';
-import { Bold, Italic, Underline, Code, Unlink, Highlighter, Palette, Strikethrough, Subscript, Superscript } from 'lucide-react';
+import { Bold, Italic, Underline, Code, Unlink, Highlighter, Palette, Strikethrough, Subscript, Superscript, Quote } from 'lucide-react';
 import { TEXT_COLORS, HIGHLIGHT_COLORS } from '../constants/colors';
+import { CALLOUT_ICONS, CALLOUT_LABELS, type CalloutVariant } from '../extensions/Callout';
 
 interface BubbleMenuBarProps {
   editor: Editor;
@@ -26,6 +27,9 @@ export const BubbleMenuBar: React.FC<BubbleMenuBarProps> = ({ editor }) => {
       code: ctx.editor.isActive('code'),
       highlight: ctx.editor.isActive('highlight'),
       link: ctx.editor.isActive('link'),
+      blockquote: ctx.editor.isActive('blockquote'),
+      callout: ctx.editor.isActive('callout'),
+      calloutVariant: (ctx.editor.getAttributes('callout').variant as CalloutVariant) || null,
       textColor: (ctx.editor.getAttributes('textStyle').color as string) || '',
       highlightColor: (ctx.editor.getAttributes('highlight').color as string) || '',
     }),
@@ -165,6 +169,37 @@ export const BubbleMenuBar: React.FC<BubbleMenuBarProps> = ({ editor }) => {
         >
           <Unlink size={14} />
         </button>
+      )}
+
+      {/* Blockquote 토글 */}
+      <button
+        onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleBlockquote().run(); }}
+        className={activeState.blockquote ? 'is-active' : ''}
+        title="Blockquote"
+      >
+        <Quote size={14} />
+      </button>
+
+      {/* Callout variant 선택 */}
+      {activeState.callout && (
+        <>
+          <div className="bubble-menu-separator" />
+          <div className="callout-variant-picker">
+            {(Object.entries(CALLOUT_ICONS) as [CalloutVariant, string][]).map(([variant, icon]) => (
+              <button
+                key={variant}
+                title={CALLOUT_LABELS[variant]}
+                className={`callout-variant-btn ${activeState.calloutVariant === variant ? 'is-active' : ''}`}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  editor.chain().focus().updateAttributes('callout', { variant }).run();
+                }}
+              >
+                {icon}
+              </button>
+            ))}
+          </div>
+        </>
       )}
     </BubbleMenu>
   );

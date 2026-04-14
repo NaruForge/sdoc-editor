@@ -125,6 +125,19 @@ function convertNode(node: TiptapNode, ctx: ConvertContext): string {
       return `[${diagLang}]\n....\n${diagCode}\n....\n`;
     }
 
+    case 'blockquote': {
+      const bqContent = node.content ? node.content.map(n => convertNode(n, ctx)).join('').trim() : '';
+      return `[quote]\n____\n${bqContent}\n____\n`;
+    }
+
+    case 'callout': {
+      const variant = (node.attrs?.variant as string) || 'note';
+      const adocMap: Record<string, string> = { note: 'NOTE', info: 'NOTE', tip: 'TIP', warning: 'WARNING', danger: 'CAUTION' };
+      const adocType = adocMap[variant] ?? 'NOTE';
+      const innerContent = node.content ? node.content.map(n => convertNode(n, ctx)).join('').trim() : '';
+      return `${adocType}: ${innerContent}\n`;
+    }
+
     case 'mathInline':
       return `stem:[${(node.attrs?.latex as string) || ''}]`;
 

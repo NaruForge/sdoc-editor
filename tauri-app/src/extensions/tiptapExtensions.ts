@@ -1,6 +1,6 @@
 import { StarterKit } from '@tiptap/starter-kit';
 import { Extension } from '@tiptap/core';
-import { Plugin, PluginKey } from '@tiptap/pm/state';
+import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import { EditorView } from '@tiptap/pm/view';
 import { Underline } from '@tiptap/extension-underline';
@@ -23,6 +23,7 @@ import { DiagramBlock } from './DiagramBlock';
 import { CrossReference } from './CrossReference';
 import { Subscript } from '@tiptap/extension-subscript';
 import { Superscript } from '@tiptap/extension-superscript';
+import { Callout } from './Callout';
 
 /* ===== Section Fold (Collapse) ===== */
 const sectionFoldKey = new PluginKey<Set<number>>('sectionFold');
@@ -253,10 +254,90 @@ const EquationNumbering = Extension.create({
   },
 });
 
+/* ===== Block Exit (Blockquote / Callout escape) ===== */
+const WRAPPER_TYPES = ['blockquote', 'callout'];
+
+const BlockExit = Extension.create({
+  name: 'blockExit',
+
+  addKeyboardShortcuts() {
+    return {
+      Enter: ({ editor }) => {
+        const { state } = editor;
+        const { $head, empty } = state.selection;
+
+        if (!empty) return false;
+        if ($head.parent.type.name !== 'paragraph' || $head.parent.content.size !== 0) return false;
+
+        for (let d = $head.depth - 1; d >= 0; d--) {
+          const wrapper = $head.node(d);
+          if (!WRAPPER_TYPES.includes(wrapper.type.name)) continue;
+
+          // Must be the last child of the wrapper
+          const indexInParent = $head.index(d);
+          if (indexInParent !== wrapper.childCount - 1) return false;
+
+          const emptyFrom = $head.before($head.depth);
+          const emptyTo = $head.after($head.depth);
+          const afterWrapper = $head.after(d);
+
+          const { tr } = state;
+          tr.delete(emptyFrom, emptyTo);
+          const mappedAfter = tr.mapping.map(afterWrapper);
+          const newPara = state.schema.nodes.paragraph.create();
+          tr.insert(mappedAfter, newPara);
+          tr.setSelection(TextSelection.create(tr.doc, mappedAfter + 1));
+          editor.view.dispatch(tr);
+          return true;
+        }
+        return false;
+      },
+
+      Backspace: ({ editor }) => {
+        const { state } = editor;
+        const { $head, empty } = state.selection;
+
+        if (!empty) return false;
+        if ($head.parent.type.name !== 'paragraph') return false;
+        if ($head.parent.content.size !== 0 || $head.parentOffset !== 0) return false;
+
+        for (let d = $head.depth - 1; d >= 0; d--) {
+          const wrapper = $head.node(d);
+          if (!WRAPPER_TYPES.includes(wrapper.type.name)) continue;
+
+          const indexInParent = $head.index(d);
+          if (indexInParent !== 0) return false;
+
+          const wrapperFrom = $head.before(d);
+          const { tr } = state;
+
+          if (wrapper.childCount === 1) {
+            // Only child — replace wrapper with empty paragraph
+            tr.replaceWith(wrapperFrom, wrapperFrom + wrapper.nodeSize, state.schema.nodes.paragraph.create());
+            tr.setSelection(TextSelection.create(tr.doc, wrapperFrom + 1));
+          } else {
+            // Has siblings — delete first empty paragraph
+            const emptyFrom = $head.before($head.depth);
+            const emptyTo = $head.after($head.depth);
+            tr.delete(emptyFrom, emptyTo);
+            // Insert paragraph before wrapper
+            tr.insert(wrapperFrom, state.schema.nodes.paragraph.create());
+            tr.setSelection(TextSelection.create(tr.doc, wrapperFrom + 1));
+          }
+          editor.view.dispatch(tr);
+          return true;
+        }
+        return false;
+      },
+    };
+  },
+});
+
 export const tiptapExtensions = [
   StarterKit.configure({
     codeBlock: false,
   }),
+  Callout,
   CustomCodeBlock,
   Underline,
   TaskList,
@@ -287,6 +368,7 @@ export const tiptapExtensions = [
     types: ['heading', 'paragraph'],
   }),
   HeadingKeyboardShortcuts,
+  BlockExit,
   CrossReference,
   SectionFold,
   EquationNumbering,

@@ -3,8 +3,8 @@ import { useRef, useEffect, useCallback, MutableRefObject } from 'react';
 import { tiptapExtensions } from '../extensions/tiptapExtensions';
 
 interface UseTiptapEditorOptions {
-  onUpdate: (content: JSONContent) => void;
-  pendingEditRef: MutableRefObject<boolean>;
+  onUpdate: (content: JSONContent, saveRequested?: boolean) => void;
+  pendingEditRef: MutableRefObject<number>;
 }
 
 export const useTiptapEditor = ({ onUpdate, pendingEditRef }: UseTiptapEditorOptions) => {
@@ -27,7 +27,7 @@ export const useTiptapEditor = ({ onUpdate, pendingEditRef }: UseTiptapEditorOpt
 
       debounceTimerRef.current = setTimeout(() => {
         const json = editor.getJSON();
-        pendingEditRef.current = true;
+        pendingEditRef.current++;
         onUpdate(json);
       }, 300);
     },
@@ -54,7 +54,7 @@ export const useTiptapEditor = ({ onUpdate, pendingEditRef }: UseTiptapEditorOpt
     }
   };
 
-  const flushUpdate = useCallback(() => {
+  const flushUpdate = useCallback((saveRequested = false) => {
     if (!editor) return;
 
     // Clear any pending debounce
@@ -65,8 +65,8 @@ export const useTiptapEditor = ({ onUpdate, pendingEditRef }: UseTiptapEditorOpt
 
     // Immediately send current state
     const json = editor.getJSON();
-    pendingEditRef.current = true;
-    onUpdate(json);
+    pendingEditRef.current++;
+    onUpdate(json, saveRequested);
   }, [editor, onUpdate]);
 
   // Flush pending edits on Ctrl+S so save always captures the latest state
@@ -75,7 +75,7 @@ export const useTiptapEditor = ({ onUpdate, pendingEditRef }: UseTiptapEditorOpt
     const dom = editor.view.dom;
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-        flushUpdate();
+        flushUpdate(true);
       }
     };
     dom.addEventListener('keydown', handleKeyDown);

@@ -175,6 +175,19 @@ function convertNode(node: TiptapNode, ctx: ConvertContext): string {
     case 'diagram':
       return `<pre class="mermaid">${escapeHtml((node.attrs?.code as string) || '')}</pre>`;
 
+    case 'blockquote': {
+      const bqContent = node.content ? node.content.map(n => convertNode(n, ctx)).join('') : '';
+      return `<blockquote>${bqContent}</blockquote>`;
+    }
+
+    case 'callout': {
+      const variant = (node.attrs?.variant as string) || 'note';
+      const calloutIcons: Record<string, string> = { note: '📝', info: 'ℹ️', tip: '💡', warning: '⚠️', danger: '🚨' };
+      const calloutLabels: Record<string, string> = { note: 'Note', info: 'Info', tip: 'Tip', warning: 'Warning', danger: 'Danger' };
+      const innerContent = node.content ? node.content.map(n => convertNode(n, ctx)).join('') : '';
+      return `<div class="callout callout-${variant}"><div class="callout-header"><span class="callout-icon">${calloutIcons[variant] ?? calloutIcons.note}</span><span class="callout-label">${calloutLabels[variant] ?? calloutLabels.note}</span></div><div class="callout-content">${innerContent}</div></div>`;
+    }
+
     case 'table':
       return convertTable(node, ctx);
 
@@ -798,6 +811,47 @@ function generateHtmlDocument(bodyContent: string, theme?: HtmlTheme, meta?: Sdo
     /* Math Styles */
     .math-inline { display: inline; }
     .math-block { display: block; text-align: center; margin: 1em 0; overflow-x: auto; }
+
+    /* Blockquote */
+    blockquote {
+      margin: 1em 0;
+      padding: 0.6em 1em;
+      border-left: 4px solid ${primaryColor};
+      background-color: rgba(0,0,0,0.04);
+      border-radius: 0 4px 4px 0;
+    }
+    blockquote p { margin: 0; }
+    blockquote p + p { margin-top: 0.5em; }
+
+    /* Callout */
+    .callout {
+      margin: 1em 0;
+      padding: 0.75em 1em;
+      border-radius: 6px;
+      border-left: 4px solid;
+    }
+    .callout-header {
+      display: flex;
+      align-items: center;
+      gap: 0.4em;
+      font-weight: 700;
+      font-size: 0.82em;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 0.4em;
+    }
+    .callout-content > p:first-child { margin-top: 0; }
+    .callout-content > p:last-child { margin-bottom: 0; }
+    .callout-note   { background: rgba(100,116,139,.1); border-color: #64748b; }
+    .callout-note   .callout-header { color: #64748b; }
+    .callout-info   { background: rgba(14,165,233,.1);  border-color: #0ea5e9; }
+    .callout-info   .callout-header { color: #0ea5e9; }
+    .callout-tip    { background: rgba(34,197,94,.1);   border-color: #22c55e; }
+    .callout-tip    .callout-header { color: #22c55e; }
+    .callout-warning{ background: rgba(245,158,11,.1);  border-color: #f59e0b; }
+    .callout-warning .callout-header { color: #f59e0b; }
+    .callout-danger { background: rgba(239,68,68,.1);   border-color: #ef4444; }
+    .callout-danger .callout-header { color: #ef4444; }
   </style>
   ${generateScriptTags(ctx?.settings || {})}
 </head>

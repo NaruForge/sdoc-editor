@@ -145,6 +145,18 @@ function convertNode(node: TiptapNode, ctx: ConvertContext): string {
       return `\`\`\`${diagLang}\n${diagCode}\n\`\`\`\n`;
     }
 
+    case 'blockquote': {
+      const bqContent = node.content ? node.content.map(n => convertNode(n, ctx)).join('').trim() : '';
+      return bqContent.split('\n').map(line => `> ${line}`).join('\n') + '\n';
+    }
+
+    case 'callout': {
+      const variant = ((node.attrs?.variant as string) || 'note').toUpperCase();
+      const innerLines = node.content ? node.content.map(n => convertNode(n, ctx)).join('').trim().split('\n') : [];
+      const quotedLines = innerLines.map(line => `> ${line}`).join('\n');
+      return `> [!${variant}]\n${quotedLines}\n`;
+    }
+
     case 'table':
       return convertTable(node, ctx);
 

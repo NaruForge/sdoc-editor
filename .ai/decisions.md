@@ -2,6 +2,17 @@
 
 | Date | Task | Agent/Author | Decision | Rationale |
 |------|------|-------------|----------|-----------|
+| 2026-04-14 | SDOC-031 | @copilot | `onWillSaveTextDocument` + `requestFlush` + `saveRequested` 3중 보호 | `onWillSaveTextDocument`는 dirty 문서 저장 시 webview flush를 보장. `saveRequested` 플래그는 clean 문서에서도 edit 적용 후 재저장을 트리거 |
+| 2026-04-14 | SDOC-031 | @copilot | 메시지 처리를 순차 큐로 변경 (`Promise.then` 체이닝) | async 핸들러 간 동시 실행 방지. `edit` → `requestSave` 순서 보장이 필수 |
+| 2026-04-14 | SDOC-031 | @copilot | `pendingApplyEdits`를 `Map<string, number>`로 문서별 분리 | 싱글턴 Provider에서 복수 문서 열 때 카운터 혼선 방지 |
+| 2026-04-14 | SDOC-031 | @copilot | `pendingEditRef`를 boolean → number 카운터로 변경 | 연속 edit 전송 시 여러 개의 'update' echo-back을 개별 차감 |
+| 2026-04-14 | SDOC-031 | @copilot | `BlockExit` 확장으로 blockquote/callout 공통 탈출 패턴 구현 | Enter(빈 마지막 문단→탈출) + Backspace(빈 첫 문단→해제) 패턴을 단일 Extension으로 통합 |
+| 2026-04-14 | SDOC-029 | @copilot | StarterKit 기본 Blockquote 확장 활성화 (별도 import 불필요) | StarterKit이 이미 Blockquote를 포함하므로 tiptapExtensions 배열에 등록만으로 완성. 별도 커스텀 노드 불필요 |
+| 2026-04-14 | SDOC-029 | @copilot | Markdown export: `> line` 형식, AsciiDoc: `[quote]\n____\n...\n____` | GFM 표준 blockquote 구문, AsciiDoc 표준 quote block 구문 사용 |
+| 2026-04-14 | SDOC-030 | @copilot | Callout을 커스텀 NodeView로 구현 (헤더+콘텐츠 DOM 분리) | `renderHTML`만으로는 헤더(아이콘+레이블) + ContentDOM 분리 불가. NodeView가 필요 |
+| 2026-04-14 | SDOC-030 | @copilot | Markdown export: GitHub Alerts (`> [!NOTE]`) 매핑 | GitHub, GitLab 등 현대 Markdown 렌더러가 지원하는 사실상 표준. Obsidian Callout과도 유사 |
+| 2026-04-14 | SDOC-030 | @copilot | AsciiDoc export: `danger` variant를 `CAUTION`으로 매핑 | AsciiDoc 5개 Admonition 타입(NOTE/TIP/IMPORTANT/WARNING/CAUTION) 중 `danger`에 가장 가까운 것이 CAUTION |
+| 2026-04-14 | SDOC-030 | @copilot | BubbleMenu에서 Callout 활성화 시에만 variant picker 표시 | 텍스트 선택 시 기본 BubbleMenu에 항상 표시하면 과부하. 커서가 callout 내부에 있을 때만 conditional rendering |
 | 2026-04-14 | SDOC-027 | @copilot | 방정식 우측 렌더링 태그는 항상 `(N)` 고정, CrossRef 레이블만 프리셋 따름 | 국제 표준 문서(IEEE, ISO, AMS 등) 관행상 방정식 우측 태그는 `(N)` 형태가 원칙. CrossRef 참조 텍스트에서만 프리셋 스타일 적용이 의미 있음 |
 | 2026-04-13 | SDOC-023 | @copilot | `captionEquationPrefix` 괄호 내부에 삽입 `(prefix+N)` | 수식 번호 괄호 형태는 학술 표준 유지, prefix는 괄호 안 번호 앞에 삽입 ("Eq. "→"(Eq. 1)", "식 "→"(식 1)"). 괄호 제거는 사용자 요구사항에 없음 |
 | 2026-04-13 | SDOC-023 | @copilot | `captionSeparator` 단일 설정으로 이미지/표 공통 적용 | "이미지와 표의 구분자를 각각" 요청 없음. 단일 설정이 UX 단순화. 필요 시 분리 가능 |

@@ -37,7 +37,10 @@ import {
   BookOpen,
   GitGraph,
   Settings,
+  Quote,
+  MessageSquareWarning,
 } from 'lucide-react';
+import { CALLOUT_ICONS, CALLOUT_LABELS, type CalloutVariant } from '../extensions/Callout';
 import { TEXT_COLORS, HIGHLIGHT_COLORS } from '../constants/colors';
 
 interface ToolbarProps {
@@ -64,6 +67,7 @@ interface ToolbarProps {
 export const Toolbar: React.FC<ToolbarProps> = ({ editor, onViewJson, showNumbering, onToggleNumbering, showDecoration, onToggleDecoration, showToc, onToggleToc, showSettings, onToggleSettings, onInsertDrawio, onInsertImage, onInsertLink, onInsertMath, onInsertDiagram, onInsertCrossRef, onExport, onImport }) => {
   const [showInsertMenu, setShowInsertMenu] = useState(false);
   const [showTableSub, setShowTableSub] = useState(false);
+  const [showCalloutSub, setShowCalloutSub] = useState(false);
   const [showCustomSize, setShowCustomSize] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showImportMenu, setShowImportMenu] = useState(false);
@@ -139,6 +143,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({ editor, onViewJson, showNumber
   const closeInsertMenu = () => {
     setShowInsertMenu(false);
     setShowTableSub(false);
+    setShowCalloutSub(false);
     setShowCustomSize(false);
   };
 
@@ -356,11 +361,17 @@ export const Toolbar: React.FC<ToolbarProps> = ({ editor, onViewJson, showNumber
       >
         <ListChecks size={16} />
       </Button>
+      <Button
+        onClick={() => editor.chain().focus().toggleBlockquote().run()}
+        isActive={editor.isActive('blockquote')}
+        title="Blockquote"
+      >
+        <Quote size={16} />
+      </Button>
 
       <div className="toolbar-separator" />
 
-      {/* Unified Insert Menu */}
-      <div ref={insertMenuRef} className="toolbar-dropdown">
+      {/* Unified Insert Menu */}      <div ref={insertMenuRef} className="toolbar-dropdown">
         <Button
           onClick={() => setShowInsertMenu(!showInsertMenu)}
           title="Insert..."
@@ -481,6 +492,39 @@ export const Toolbar: React.FC<ToolbarProps> = ({ editor, onViewJson, showNumber
               <span style={{ fontSize: '15px', lineHeight: '15px', width: '15px', textAlign: 'center' }}>—</span>
               <span>Horizontal Rule</span>
             </button>
+
+            {/* Callout */}
+            <div
+              className="insert-menu-item has-sub"
+              onMouseEnter={() => setShowCalloutSub(true)}
+              onMouseLeave={() => setShowCalloutSub(false)}
+            >
+              <MessageSquareWarning size={15} />
+              <span>Callout</span>
+              <ChevronRight size={14} className="insert-menu-arrow" />
+              {showCalloutSub && (
+                <div className="insert-submenu">
+                  {(Object.entries(CALLOUT_ICONS) as [CalloutVariant, string][]).map(([variant, icon]) => (
+                    <button
+                      key={variant}
+                      className="insert-menu-item"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        closeInsertMenu();
+                        editor.chain().focus().insertContent({
+                          type: 'callout',
+                          attrs: { variant },
+                          content: [{ type: 'paragraph' }],
+                        }).run();
+                      }}
+                    >
+                      <span>{icon}</span>
+                      <span>{CALLOUT_LABELS[variant]}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
 
             {/* Cross Reference */}
             {onInsertCrossRef && (

@@ -7,6 +7,13 @@
 - (없음)
 
 ## Done (최근)
+- [SDOC-031](tasks/SDOC-031.md): 버그 수정 — 저장 시 내용 소실 + 블록 객체 간 텍스트 삽입 불가 (2026-04-14)
+- [SDOC-030](tasks/SDOC-030.md): Callout / Admonition 블록 구현 (2026-04-14)
+- [SDOC-029](tasks/SDOC-029.md): Blockquote 인용 블록 구현 (2026-04-14)
+- [SDOC-028](tasks/SDOC-028.md): Callout / Blockquote / Footnote 기능 평가 및 구현 계획 (2026-04-14)
+
+## Done (최근)
+- [SDOC-028](tasks/SDOC-028.md): Callout / Blockquote / Footnote 기능 평가 및 구현 계획 (2026-04-14)
 - [SDOC-027](tasks/SDOC-027.md): 방정식 태그와 CrossRef 레이블 분리 (2026-04-14)
 - [SDOC-026](tasks/SDOC-026.md): 캡션 프리셋 시스템 — 자유 입력 → 4가지 표준 드롭다운 (2026-04-14)
 - [SDOC-025](tasks/SDOC-025.md): 구분자 미적용 버그 수정 + CrossRef 캡션 표시 여부 설정 (2026-04-13)

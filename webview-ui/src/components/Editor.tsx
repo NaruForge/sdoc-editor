@@ -32,7 +32,7 @@ export const Editor: React.FC = () => {
   const [sidePanelTab, setSidePanelTab] = useState<SidePanelTab>('toc');
   const [meta, setMeta] = useState<MetaState>({ title: '', author: '', version: '', created: '', modified: '' });
   const { dialogs, dialogDispatch, openTableContextMenu, openEditorContextMenu } = useDialogState();
-  const pendingEditRef = useRef(false);
+  const pendingEditRef = useRef(0);
   const setContentRef = useRef<((content: JSONContent) => void) | null>(null);
   const initDoneRef = useRef(false);
 
@@ -69,8 +69,8 @@ export const Editor: React.FC = () => {
   const postMessageRef = useRef<(msg: Record<string, unknown>) => void>(() => {});
 
   const { editor, setContent, flushUpdate } = useTiptapEditor({
-    onUpdate: (content) => {
-      postMessageRef.current({ type: 'edit', content });
+    onUpdate: (content, saveRequested) => {
+      postMessageRef.current({ type: 'edit', content, saveRequested });
     },
     pendingEditRef,
   });

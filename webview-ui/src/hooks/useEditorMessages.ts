@@ -17,7 +17,7 @@ interface UseEditorMessagesOptions {
   flushUpdate: () => void;
   setContentRef: MutableRefObject<((content: JSONContent) => void) | null>;
   initDoneRef: MutableRefObject<boolean>;
-  pendingEditRef: MutableRefObject<boolean>;
+  pendingEditRef: MutableRefObject<number>;
   setMeta: React.Dispatch<React.SetStateAction<MetaState>>;
 }
 
@@ -53,12 +53,19 @@ export function useEditorMessages({
         }
         break;
       case 'update':
-        if (pendingEditRef.current) {
-          pendingEditRef.current = false;
+        if (pendingEditRef.current > 0) {
+          pendingEditRef.current--;
           break;
         }
         if (setContentRef.current) {
           setContentRef.current(message.content);
+        }
+        break;
+      case 'requestFlush':
+        if (ed) {
+          flush();
+        } else {
+          postMessage({ type: 'flushComplete' });
         }
         break;
       case 'settingsChanged': {

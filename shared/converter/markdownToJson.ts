@@ -200,6 +200,39 @@ export function convertMarkdownToJson(markdown: string): TiptapNode {
       continue;
     }
 
+    // Blockquote / GitHub Alerts (> text or > [!TYPE])
+    if (/^>\s/.test(line) || line.trim() === '>') {
+      const blockLines: string[] = [];
+      while (i < lines.length && (/^>\s?/.test(lines[i]) || lines[i].trim() === '>')) {
+        blockLines.push(lines[i].replace(/^>\s?/, ''));
+        i++;
+      }
+      // Detect GitHub Alert: first line is [!NOTE] / [!WARNING] etc.
+      const alertMatch = blockLines[0]?.match(/^\[!(NOTE|INFO|TIP|WARNING|DANGER|CAUTION)\]/i);
+      if (alertMatch) {
+        const rawType = alertMatch[1].toLowerCase();
+        const variantMap: Record<string, string> = { note: 'note', info: 'info', tip: 'tip', warning: 'warning', danger: 'danger', caution: 'danger' };
+        const variant = variantMap[rawType] ?? 'note';
+        const innerText = blockLines.slice(1).join('\n');
+        doc.content!.push({
+          type: 'callout',
+          attrs: { variant },
+          content: innerText.trim()
+            ? [{ type: 'paragraph', content: parseInline(innerText.trim()) }]
+            : [{ type: 'paragraph' }],
+        });
+      } else {
+        const innerText = blockLines.join('\n').trim();
+        doc.content!.push({
+          type: 'blockquote',
+          content: innerText
+            ? [{ type: 'paragraph', content: parseInline(innerText) }]
+            : [{ type: 'paragraph' }],
+        });
+      }
+      continue;
+    }
+
     // Paragraph (collect consecutive non-empty, non-block lines)
     const paraLines: string[] = [];
     while (
@@ -211,7 +244,9 @@ export function convertMarkdownToJson(markdown: string): TiptapNode {
       !lines[i].match(/^\s*[-*+]\s/) &&
       !lines[i].match(/^\s*\d+\.\s/) &&
       lines[i].trim() !== '$$' &&
-      !/^(---|\*\*\*|___)\s*$/.test(lines[i])
+      !/^(---|\*\*\*|___)\s*$/.test(lines[i]) &&
+      !/^>\s?/.test(lines[i]) &&
+      lines[i].trim() !== '>'
     ) {
       paraLines.push(lines[i]);
       i++;

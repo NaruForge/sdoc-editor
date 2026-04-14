@@ -752,6 +752,13 @@ body {
   color: var(--vscode-button-foreground);
 }
 
+.bubble-menu-separator {
+  width: 1px;
+  background-color: var(--vscode-editorWidget-border);
+  margin: 2px 2px;
+  align-self: stretch;
+}
+
 /* Color / Highlight picker in bubble menu */
 .bubble-color-picker {
   position: absolute;
@@ -2014,4 +2021,134 @@ body {
 
 .settings-reset-btn:hover {
   background-color: var(--vscode-button-secondaryHoverBackground, #45494e);
+}
+
+/* ===== Blockquote ===== */
+.ProseMirror blockquote {
+  margin: 1em 0;
+  padding: 0.6em 1em;
+  border-left: 4px solid var(--vscode-textBlockQuote-border, #007acc);
+  background-color: var(--vscode-textBlockQuote-background, rgba(0,122,204,0.06));
+  border-radius: 0 4px 4px 0;
+  color: var(--vscode-foreground);
+}
+
+.ProseMirror blockquote p {
+  margin: 0;
+}
+
+.ProseMirror blockquote p + p {
+  margin-top: 0.5em;
+}
+
+/* ===== Callout / Admonition ===== */
+.callout-block {
+  margin: 1em 0;
+  padding: 0.75em 1em;
+  border-radius: 6px;
+  border-left: 4px solid;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3em;
+}
+
+.callout-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  font-weight: 600;
+  font-size: 0.9em;
+  user-select: none;
+}
+
+.callout-icon {
+  font-size: 1em;
+  line-height: 1;
+}
+
+.callout-label {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.78em;
+}
+
+.callout-content {
+  padding-left: 0.25em;
+}
+
+.callout-content > p:first-child {
+  margin-top: 0;
+}
+
+.callout-content > p:last-child {
+  margin-bottom: 0;
+}
+
+/* variant: note */
+.callout-block[data-variant="note"] {
+  background-color: rgba(100, 116, 139, 0.1);
+  border-color: #64748b;
+}
+.callout-block[data-variant="note"] .callout-header {
+  color: #64748b;
+}
+
+/* variant: info */
+.callout-block[data-variant="info"] {
+  background-color: rgba(14, 165, 233, 0.1);
+  border-color: #0ea5e9;
+}
+.callout-block[data-variant="info"] .callout-header {
+  color: #0ea5e9;
+}
+
+/* variant: tip */
+.callout-block[data-variant="tip"] {
+  background-color: rgba(34, 197, 94, 0.1);
+  border-color: #22c55e;
+}
+.callout-block[data-variant="tip"] .callout-header {
+  color: #22c55e;
+}
+
+/* variant: warning */
+.callout-block[data-variant="warning"] {
+  background-color: rgba(245, 158, 11, 0.1);
+  border-color: #f59e0b;
+}
+.callout-block[data-variant="warning"] .callout-header {
+  color: #f59e0b;
+}
+
+/* variant: danger */
+.callout-block[data-variant="danger"] {
+  background-color: rgba(239, 68, 68, 0.1);
+  border-color: #ef4444;
+}
+.callout-block[data-variant="danger"] .callout-header {
+  color: #ef4444;
+}
+
+/* Callout variant picker (BubbleMenu + Toolbar) */
+.callout-variant-picker {
+  display: flex;
+  gap: 2px;
+  padding: 2px 4px;
+}
+
+.callout-variant-btn {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 2px 4px;
+  line-height: 1;
+  transition: background 0.15s;
+}
+
+.callout-variant-btn:hover,
+.callout-variant-btn.is-active {
+  background-color: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
+  border-color: var(--vscode-contrastBorder, transparent);
 }
