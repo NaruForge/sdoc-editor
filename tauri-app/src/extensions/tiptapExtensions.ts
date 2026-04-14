@@ -451,7 +451,7 @@ export const tiptapExtensions = [
                   event.preventDefault();
                   const dom = view.nodeDOM(targetPos);
                   if (dom && dom instanceof HTMLElement) {
-                    dom.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    dom.scrollIntoView({ behavior: 'smooth', block: 'start' });
                   }
                   return true;
                 }

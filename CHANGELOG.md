@@ -5,6 +5,25 @@ All notable changes to the "Structured Doc Editor" extension will be documented 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.6] - 2026-04-14
+
+### Added
+- **TOC Fold/Unfold**: 목차 항목 좌측 chevron 버튼으로 하위 계층 접기/펼치기
+  - 하위 항목이 있는 헤딩에만 토글 버튼 표시 (없으면 공간 유지, 레이아웃 흔들림 없음)
+  - Stack 기반 알고리즘으로 직·간접 하위 항목 모두 숨김 처리
+- **LOF (그림 목록)**: Activity Bar에 📸 그림 목록 탭 추가
+  - 문서 내 모든 이미지를 "그림 N. 캡션" 형식으로 나열
+  - 항목 클릭 시 해당 이미지로 커서 이동 + 스크롤 (캡션 없는 경우 *캡션 없음* 표시)
+- **LOT (표 목록)**: Activity Bar에 표 목록 탭 추가
+  - 문서 내 모든 표를 "표 N. 캡션" 형식으로 나열
+  - 항목 클릭 시 해당 표로 커서 이동 + 스크롤
+
+### Changed
+- **Activity Bar 4탭 → 6탭**: 뷰컨트롤 / TOC / **그림 목록** / **표 목록** / 문서 설정 / 파일 작업
+
+### Fixed
+- **TOC 클릭 스크롤 위치**: `block: 'center'` → `block: 'start'` 변경. 클릭한 헤딩이 뷰포트 상단에 위치하여 섹션 내용을 최대한 볼 수 있음. 앵커 링크(`#id`) 클릭도 동일 적용
+
 ## [0.4.5] - 2026-04-15
 
 ### Added

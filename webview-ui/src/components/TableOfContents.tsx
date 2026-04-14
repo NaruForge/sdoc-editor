@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { ChevronRight, ChevronDown } from 'lucide-react';
 import { Editor as TiptapEditor } from '@tiptap/react';
 
 interface TocEntry {
@@ -27,9 +28,50 @@ function computeNumbering(entries: TocEntry[]): string[] {
   });
 }
 
+/** Returns true if the entry at idx has at least one subordinate entry */
+function hasChildren(entries: TocEntry[], idx: number): boolean {
+  const level = entries[idx].level;
+  for (let i = idx + 1; i < entries.length; i++) {
+    if (entries[i].level <= level) return false;
+    if (entries[i].level > level) return true;
+  }
+  return false;
+}
+
+/**
+ * Computes visibility for each entry based on collapsed state.
+ * Uses a stack-based algorithm: an entry is hidden if any ancestor
+ * in its chain is currently collapsed.
+ */
+function computeVisibility(entries: TocEntry[], collapsed: Set<number>): boolean[] {
+  const visible: boolean[] = new Array(entries.length).fill(true);
+  const stack: { level: number; pos: number }[] = [];
+  for (let i = 0; i < entries.length; i++) {
+    const entry = entries[i];
+    // Pop stack items at the same or deeper level (they are siblings/descendants, not ancestors)
+    while (stack.length > 0 && stack[stack.length - 1].level >= entry.level) {
+      stack.pop();
+    }
+    // If any remaining ancestor is collapsed, this entry is hidden
+    visible[i] = !stack.some(s => collapsed.has(s.pos));
+    stack.push({ level: entry.level, pos: entry.pos });
+  }
+  return visible;
+}
+
 export const TableOfContents: React.FC<TableOfContentsProps> = ({ editor, showNumbering }) => {
   const [entries, setEntries] = useState<TocEntry[]>([]);
   const [activePos, setActivePos] = useState<number>(-1);
+  const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
+
+  const toggleCollapse = (pos: number) => {
+    setCollapsed(prev => {
+      const next = new Set(prev);
+      if (next.has(pos)) next.delete(pos);
+      else next.add(pos);
+      return next;
+    });
+  };
 
   const buildEntries = useCallback(() => {
     if (!editor) return;
@@ -87,13 +129,14 @@ export const TableOfContents: React.FC<TableOfContentsProps> = ({ editor, showNu
     // Scroll the DOM heading into view
     const domNode = editor.view.nodeDOM(entry.pos) as HTMLElement | null;
     if (domNode) {
-      domNode.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      domNode.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } else if (entry.id) {
-      document.getElementById(entry.id)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      document.getElementById(entry.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   };
 
   const numbering = showNumbering ? computeNumbering(entries) : null;
+  const visibility = computeVisibility(entries, collapsed);
 
   if (entries.length === 0) {
     return (
@@ -108,19 +151,38 @@ export const TableOfContents: React.FC<TableOfContentsProps> = ({ editor, showNu
     <div className="toc-panel">
       <div className="toc-title">목차</div>
       <nav className="toc-nav">
-        {entries.map((entry, idx) => (
-          <button
-            key={`${entry.pos}-${idx}`}
-            className={`toc-entry toc-level-${entry.level} ${activePos === entry.pos ? 'toc-active' : ''}`}
-            onClick={() => handleClick(entry)}
-            title={entry.text}
-          >
-            {numbering && (
-              <span className="toc-number">{numbering[idx]}</span>
-            )}
-            <span className="toc-text">{entry.text}</span>
-          </button>
-        ))}
+        {entries.map((entry, idx) => {
+          if (!visibility[idx]) return null;
+          const isCollapsed = collapsed.has(entry.pos);
+          const showToggle = hasChildren(entries, idx);
+          return (
+            <div
+              key={`${entry.pos}-${idx}`}
+              className={`toc-entry toc-level-${entry.level} ${activePos === entry.pos ? 'toc-active' : ''}`}
+            >
+              <button
+                className="toc-toggle"
+                aria-label={isCollapsed ? '펼치기' : '접기'}
+                style={{ visibility: showToggle ? 'visible' : 'hidden' }}
+                onClick={() => toggleCollapse(entry.pos)}
+              >
+                {isCollapsed
+                  ? <ChevronRight size={12} />
+                  : <ChevronDown size={12} />}
+              </button>
+              <button
+                className="toc-label"
+                onClick={() => handleClick(entry)}
+                title={entry.text}
+              >
+                {numbering && (
+                  <span className="toc-number">{numbering[idx]}</span>
+                )}
+                <span className="toc-text">{entry.text}</span>
+              </button>
+            </div>
+          );
+        })}
       </nav>
     </div>
   );

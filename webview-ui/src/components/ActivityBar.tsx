@@ -1,5 +1,5 @@
 import React from 'react';
-import { ListOrdered as NumberIcon, BookOpen, Settings, FolderOpen } from 'lucide-react';
+import { ListOrdered as NumberIcon, BookOpen, Settings, FolderOpen, Image, Table2 } from 'lucide-react';
 import type { ActivityTab } from './SidePanel';
 
 interface ActivityBarProps {
@@ -10,6 +10,8 @@ interface ActivityBarProps {
 const TABS: { id: ActivityTab; icon: React.ReactNode; title: string }[] = [
   { id: 'view', icon: <NumberIcon size={18} />, title: '뷰 컨트롤 (번호/장식)' },
   { id: 'toc', icon: <BookOpen size={18} />, title: '목차 (TOC)' },
+  { id: 'lof', icon: <Image size={18} />, title: '그림 목록 (LOF)' },
+  { id: 'lot', icon: <Table2 size={18} />, title: '표 목록 (LOT)' },
   { id: 'settings', icon: <Settings size={18} />, title: '문서 설정' },
   { id: 'file', icon: <FolderOpen size={18} />, title: '파일 작업 (내보내기/가져오기)' },
 ];

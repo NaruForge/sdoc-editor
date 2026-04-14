@@ -1,11 +1,13 @@
 import React from 'react';
 import { Editor as TiptapEditor } from '@tiptap/react';
 import { TableOfContents } from './TableOfContents';
+import { ListOfFigures } from './ListOfFigures';
+import { ListOfTables } from './ListOfTables';
 import { DocumentSettingsPanel } from './DocumentSettingsPanel';
 import type { DocumentSettings } from '@shared/types';
 import { FileJson, Download, Upload, Loader2 } from 'lucide-react';
 
-export type ActivityTab = 'view' | 'toc' | 'settings' | 'file';
+export type ActivityTab = 'view' | 'toc' | 'lof' | 'lot' | 'settings' | 'file';
 
 // Legacy alias kept for any other imports that still reference SidePanelTab
 export type SidePanelTab = ActivityTab;
@@ -50,6 +52,12 @@ export const SidePanel: React.FC<SidePanelProps> = ({
         )}
         {activeTab === 'toc' && (
           <TableOfContents editor={editor} showNumbering={showNumbering} />
+        )}
+        {activeTab === 'lof' && (
+          <ListOfFigures editor={editor} />
+        )}
+        {activeTab === 'lot' && (
+          <ListOfTables editor={editor} />
         )}
         {activeTab === 'settings' && (
           <DocumentSettingsPanel onUpdateSettings={onUpdateDocSettings} />

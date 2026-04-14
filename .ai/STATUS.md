@@ -7,6 +7,9 @@
 - (없음)
 
 ## Done (최근)
+- [SDOC-038](tasks/SDOC-038.md): LOF/LOT — 그림 목록 / 표 목록 사이드패널 (2026-04-14)
+- [SDOC-037](tasks/SDOC-037.md): TOC Fold/Unfold — 하위 계층 접기/펼치기 (2026-04-14)
+- [SDOC-036](tasks/SDOC-036.md): TOC 클릭 스크롤 위치 개선 — center → start (2026-04-14)
 - [SDOC-035](tasks/SDOC-035.md): 마우스 뒤로가기 버튼 → 커서 히스토리 네비게이션 (2026-04-14, merged to main)
 
 ## Done (최근)
