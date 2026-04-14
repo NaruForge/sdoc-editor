@@ -118,6 +118,7 @@ body {
   background-color: var(--editor-bg);
   color: var(--editor-fg);
   padding: 16px;
+  padding-bottom: 40vh; /* 문서 하단 여백: 뷰포트 높이의 40% */
   min-height: 100%;
   outline: none;
   counter-reset: h1-counter h2-counter h3-counter table-counter image-counter;

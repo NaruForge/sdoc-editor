@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.4.5] - 2026-04-15
 
 ### Added
+- **문서 하단 스크롤 여백**: 에디터 최하단에 뷰포트 40% 높이의 여백 추가. Enter 반복 입력 없이 편리하게 문서 말미를 편집 가능. 원본 데이터 무변경 (CSS `padding-bottom` 처리)
+- **내보내기 진행 표시 + 중복 방지**: 대용량 문서(Slides 등) 변환 시 VS Code 상태 표시줄에 진행률 표시. 중복 실행 방지 락으로 완료 알림 중복 제거
 - **Activity Bar** (VS Code 스타일 세로 아이콘 스트립): 에디터 좌측에 항상 표시되는 4탭 Activity Bar 추가
   - `🔢` 뷰 컨트롤: 헤딩 번호 매김 / 헤딩 장식(색상·선) 토글 — SidePanel로 이동
   - `📑` 목차 (TOC): 문서 내 헤딩 트리 탐색

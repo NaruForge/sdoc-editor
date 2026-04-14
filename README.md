@@ -1,6 +1,6 @@
 # Structured Doc Editor
 
-> **v0.4.5** — Activity Bar 4탭 + Toolbar 슬림화 + 스크롤 격리 레이아웃 개선
+> **v0.4.5** — Activity Bar 4탭 + Toolbar 슬림화 + 스크롤 격리 + 내보내기 진행 표시 + 하단 스크롤 여백
 
 `.sdoc` / `.tiptap.json` 파일을 위한 WYSIWYG 구조화 문서 에디터입니다.
 
