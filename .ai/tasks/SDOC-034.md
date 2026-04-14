@@ -5,7 +5,7 @@ title: "에디터 배율(Zoom) 조절 슬라이더"
 status: done
 priority: medium
 created: 2026-04-14T10:00:00+09:00
-modified: 2026-04-14T10:30:00+09:00
+modified: 2026-04-14T11:00:00+09:00
 author: "@copilot"
 ---
 

@@ -608,6 +608,7 @@ body {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  position: relative;
 }
 
 /* inner scroll region */
@@ -617,55 +618,61 @@ body {
   overflow-y: auto;
 }
 
-/* ===== Editor Zoom Bar ===== */
+/* ===== Editor Zoom Bar (floating pill, bottom-right) ===== */
 .editor-zoom-bar {
+  position: absolute;
+  bottom: 14px;
+  right: 18px;
+  z-index: 10;
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 0 12px;
-  height: 28px;
-  flex-shrink: 0;
-  border-top: 1px solid var(--border-color, rgba(128,128,128,0.2));
+  gap: 3px;
+  padding: 3px 8px;
   background: var(--editor-bg);
+  border: 1px solid var(--border-color, rgba(128,128,128,0.25));
+  border-radius: 20px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.18);
   user-select: none;
+  opacity: 0.55;
+  transition: opacity 0.15s ease;
 }
+
+.editor-zoom-bar:hover { opacity: 1; }
 
 .editor-zoom-bar .zoom-btn {
   background: none;
-  border: 1px solid transparent;
+  border: none;
   color: var(--editor-fg);
   cursor: pointer;
-  font-size: 16px;
+  font-size: 14px;
   line-height: 1;
-  padding: 0 4px;
-  opacity: 0.65;
+  padding: 0 3px;
+  opacity: 0.8;
   border-radius: 3px;
 }
 
 .editor-zoom-bar .zoom-btn:hover {
   opacity: 1;
-  border-color: var(--accent-color, rgba(128,128,128,0.4));
+  background: rgba(128,128,128,0.15);
 }
 
 .editor-zoom-bar .zoom-slider {
-  flex: 1;
-  height: 4px;
+  width: 76px;
+  flex: none;
+  height: 3px;
   cursor: pointer;
   accent-color: var(--accent-color, #007fd4);
-  opacity: 0.8;
 }
-
-.editor-zoom-bar .zoom-slider:hover { opacity: 1; }
 
 .editor-zoom-bar .zoom-label {
   background: none;
   border: none;
   color: var(--editor-fg);
   cursor: pointer;
-  font-size: 11px;
-  min-width: 38px;
+  font-size: 10px;
+  min-width: 30px;
   text-align: right;
-  opacity: 0.65;
+  opacity: 0.8;
   padding: 0;
 }
 
