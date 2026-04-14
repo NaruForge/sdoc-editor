@@ -485,6 +485,23 @@ export const Editor: React.FC<EditorProps> = ({ adapter, initialDoc, initialMeta
     return () => { editorElement.removeEventListener('paste', handlePaste as any); };
   }, [editor]);
 
+  // Mouse back/forward button (Button3 = back, Button4 = forward) → cursor history navigation
+  useEffect(() => {
+    if (!editor) return;
+    const handleMouseNav = (e: MouseEvent) => {
+      if (e.button !== 3 && e.button !== 4) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.button === 3) {
+        editor.commands.navigateBack();
+      } else {
+        editor.commands.navigateForward();
+      }
+    };
+    document.addEventListener('mousedown', handleMouseNav, { capture: true });
+    return () => { document.removeEventListener('mousedown', handleMouseNav, { capture: true }); };
+  }, [editor]);
+
   if (!editor) {
     return <div style={{ padding: '20px', textAlign: 'center' }}>Loading editor...</div>;
   }
