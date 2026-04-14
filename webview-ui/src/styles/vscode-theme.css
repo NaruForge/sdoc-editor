@@ -2278,3 +2278,8 @@ body {
 .side-panel-file-btn:hover {
   background: var(--vscode-list-hoverBackground);
 }
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}

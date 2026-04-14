@@ -1075,3 +1075,8 @@ body {
 .side-panel-toggle-btn.is-active { background: var(--btn-primary-bg, #0078d4); color: #fff; border-color: transparent; }
 .side-panel-file-btn { width: 100%; text-align: left; padding: 5px 12px; font-size: 12px; background: transparent; border: none; cursor: pointer; color: var(--text-primary, #ccc); display: flex; align-items: center; gap: 6px; }
 .side-panel-file-btn:hover { background: rgba(90,93,94,.2); }
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}

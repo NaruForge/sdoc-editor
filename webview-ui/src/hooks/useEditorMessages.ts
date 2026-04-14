@@ -1,4 +1,4 @@
-import { useRef, MutableRefObject } from 'react';
+import { useRef, useState, MutableRefObject } from 'react';
 import { Editor as TiptapEditor, type JSONContent } from '@tiptap/react';
 import { useEditorContext, resolveFontWeight } from '../context/EditorContext';
 import { useVSCodeMessaging } from './useVSCodeMessaging';
@@ -35,6 +35,8 @@ export function useEditorMessages({
 
   const flushRef = useRef(flushUpdate);
   flushRef.current = flushUpdate;
+
+  const [isExporting, setIsExporting] = useState(false);
 
   const { postMessage } = useVSCodeMessaging((message) => {
     const ed = editorRef.current;
@@ -156,6 +158,12 @@ export function useEditorMessages({
           flush();
         }
         break;
+      case 'exportStarted':
+        setIsExporting(true);
+        break;
+      case 'exportDone':
+        setIsExporting(false);
+        break;
     }
   });
 
@@ -182,5 +190,6 @@ export function useEditorMessages({
     handleExport,
     handleImport,
     handleMetaChange,
+    isExporting,
   };
 }

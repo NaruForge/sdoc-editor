@@ -3,7 +3,7 @@ import { Editor as TiptapEditor } from '@tiptap/react';
 import { TableOfContents } from './TableOfContents';
 import { DocumentSettingsPanel } from './DocumentSettingsPanel';
 import type { DocumentSettings } from '@shared/types';
-import { FileJson, Download, Upload } from 'lucide-react';
+import { FileJson, Download, Upload, Loader2 } from 'lucide-react';
 
 export type ActivityTab = 'view' | 'toc' | 'settings' | 'file';
 
@@ -21,6 +21,7 @@ interface SidePanelProps {
   onViewJson?: () => void;
   onExport?: (format: 'html' | 'adoc' | 'markdown' | 'pdf' | 'slides') => void;
   onImport?: (format: 'markdown' | 'html') => void;
+  isExporting?: boolean;
 }
 
 export const SidePanel: React.FC<SidePanelProps> = ({
@@ -34,6 +35,7 @@ export const SidePanel: React.FC<SidePanelProps> = ({
   onViewJson,
   onExport,
   onImport,
+  isExporting = false,
 }) => {
   return (
     <div className="side-panel">
@@ -57,6 +59,7 @@ export const SidePanel: React.FC<SidePanelProps> = ({
             onViewJson={onViewJson}
             onExport={onExport}
             onImport={onImport}
+            isExporting={isExporting}
           />
         )}
       </div>
@@ -110,6 +113,7 @@ interface FilePanelProps {
   onViewJson?: () => void;
   onExport?: (format: 'html' | 'adoc' | 'markdown' | 'pdf' | 'slides') => void;
   onImport?: (format: 'markdown' | 'html') => void;
+  isExporting?: boolean;
 }
 
 const EXPORT_FORMATS: { format: 'html' | 'adoc' | 'markdown' | 'pdf' | 'slides'; label: string }[] = [
@@ -125,19 +129,24 @@ const IMPORT_FORMATS: { format: 'markdown' | 'html'; label: string }[] = [
   { format: 'html', label: 'HTML' },
 ];
 
-const FilePanel: React.FC<FilePanelProps> = ({ onViewJson, onExport, onImport }) => (
+const FilePanel: React.FC<FilePanelProps> = ({ onViewJson, onExport, onImport, isExporting = false }) => (
   <div className="side-panel-section">
     {onExport && (
       <>
         <div className="side-panel-section-title">
           <Download size={13} style={{ marginRight: 4, flexShrink: 0 }} />
           내보내기
+          {isExporting && (
+            <Loader2 size={12} style={{ marginLeft: 'auto', animation: 'spin 1s linear infinite', flexShrink: 0 }} />
+          )}
         </div>
         {EXPORT_FORMATS.map(({ format, label }) => (
           <button
             key={format}
             className="side-panel-file-btn"
-            onClick={() => onExport(format)}
+            onClick={() => !isExporting && onExport(format)}
+            disabled={isExporting}
+            style={{ opacity: isExporting ? 0.5 : 1, cursor: isExporting ? 'not-allowed' : 'pointer' }}
           >
             {label}
           </button>

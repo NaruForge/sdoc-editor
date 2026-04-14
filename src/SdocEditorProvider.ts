@@ -38,6 +38,8 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
   private pendingApplyEdits = new Map<string, number>();
   /** Per-document flush resolver: resolves when an edit arrives after a requestFlush */
   private pendingFlushResolvers = new Map<string, () => void>();
+  /** Per-document export-in-progress guard (prevents duplicate concurrent exports) */
+  private exportInProgress = new Set<string>();
 
   constructor(private readonly context: vscode.ExtensionContext) {}
 
@@ -202,7 +204,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
             await this.replaceImage(document, webviewPanel.webview, message.pos);
             break;
           case 'export':
-            await this.exportDocument(document, message.format);
+            await this.exportDocument(document, message.format, webviewPanel.webview);
             break;
           case 'openDocument':
             await this.openLinkedDocument(document, message.path, message.anchor);
@@ -304,8 +306,10 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       willSaveSubscription.dispose();
       drawioWatcher.dispose();
       settingsSubscription.dispose();
-      this.pendingApplyEdits.delete(document.uri.toString());
-      this.pendingFlushResolvers.delete(document.uri.toString());
+      const key = document.uri.toString();
+      this.pendingApplyEdits.delete(key);
+      this.pendingFlushResolvers.delete(key);
+      this.exportInProgress.delete(key);
     });
   }
 
@@ -1124,9 +1128,50 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
 
   private async exportDocument(
     document: vscode.TextDocument,
-    format: 'html' | 'adoc' | 'markdown' | 'pdf' | 'slides'
+    format: 'html' | 'adoc' | 'markdown' | 'pdf' | 'slides',
+    webview: vscode.Webview
+  ): Promise<void> {
+    const docKey = document.uri.toString();
+
+    // Guard: prevent duplicate concurrent exports for the same document
+    if (this.exportInProgress.has(docKey)) {
+      vscode.window.showWarningMessage('이미 내보내기가 진행 중입니다. 잠시 기다려 주세요.');
+      return;
+    }
+
+    const formatLabels: Record<string, string> = {
+      html: 'HTML', pdf: 'PDF', markdown: 'Markdown', adoc: 'AsciiDoc', slides: 'Slides',
+    };
+    const label = formatLabels[format] ?? format.toUpperCase();
+
+    this.exportInProgress.add(docKey);
+    webview.postMessage({ type: 'exportStarted', format });
+
+    try {
+      await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: `내보내기 중 (${label})`,
+          cancellable: false,
+        },
+        async (progress) => {
+          await this._doExport(document, format, label, progress);
+        }
+      );
+    } finally {
+      this.exportInProgress.delete(docKey);
+      webview.postMessage({ type: 'exportDone' });
+    }
+  }
+
+  private async _doExport(
+    document: vscode.TextDocument,
+    format: 'html' | 'adoc' | 'markdown' | 'pdf' | 'slides',
+    label: string,
+    progress: vscode.Progress<{ message?: string; increment?: number }>
   ): Promise<void> {
     try {
+      progress.report({ message: '문서 읽는 중...', increment: 5 });
       const text = document.getText();
       let parsed = text.trim() ? JSON.parse(text) : { sdoc: SdocEditorProvider.SDOC_VERSION, meta: {}, doc: { type: 'doc', content: [] } };
 
@@ -1161,12 +1206,14 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       // For HTML, PDF, and slides, apply selfContained settings
       const needsSelfContained = format === 'html' || format === 'pdf' || format === 'slides';
       if (needsSelfContained && selfContained !== 'none') {
+        progress.report({ message: '이미지 처리 중...', increment: 20 });
         const documentDir = path.dirname(document.uri.fsPath);
         convertedDoc = await embedImagesAsBase64(convertedDoc, documentDir);
         exportSettings.selfContained = selfContained;
       }
       // PDF always embeds images regardless of setting
       if (format === 'pdf' && selfContained === 'none') {
+        progress.report({ message: '이미지 처리 중...', increment: 20 });
         const documentDir = path.dirname(document.uri.fsPath);
         convertedDoc = await embedImagesAsBase64(convertedDoc, documentDir);
         exportSettings.selfContained = 'images-only';
@@ -1174,11 +1221,11 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
 
       let content: string;
       let ext: string;
-      let label: string;
 
       switch (format) {
         case 'html':
         case 'pdf': {
+          progress.report({ message: 'HTML 변환 중...', increment: 30 });
           const companyLogo = await resolveCompanyLogo(
             config.get<string>('theme.companyLogo') || '',
             this.context.extensionPath,
@@ -1208,6 +1255,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
             const tempHtmlPath = document.uri.fsPath.replace(/(\.tiptap\.json|\.sdoc)$/, '.tmp.html');
             const pdfPath = document.uri.fsPath.replace(/(\.tiptap\.json|\.sdoc)$/, '.pdf');
 
+          progress.report({ message: 'PDF 인쇄 중...', increment: 40 });
             fs.writeFileSync(tempHtmlPath, content, 'utf-8');
             try {
               await printToPdf(browserPath, tempHtmlPath, pdfPath);
@@ -1227,10 +1275,10 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
           }
 
           ext = '.html';
-          label = 'HTML';
           break;
         }
         case 'slides': {
+          progress.report({ message: '슬라이드 변환 중...', increment: 30 });
           const slideLogo = await resolveCompanyLogo(
             config.get<string>('theme.companyLogo') || '',
             this.context.extensionPath,
@@ -1253,6 +1301,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
 
           content = convertJsonToSlides(convertedDoc, slideTheme, slideSettings, meta);
 
+          progress.report({ message: '파일 쓰는 중...', increment: 30 });
           const slideUri = document.uri.with({
             path: document.uri.path.replace(/(\..+)$/, '.slides.html'),
           });
@@ -1269,17 +1318,18 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
           return;
         }
         case 'adoc':
+          progress.report({ message: 'AsciiDoc 변환 중...', increment: 50 });
           content = convertJsonToAdoc(convertedDoc, exportSettings, meta);
           ext = '.adoc';
-          label = 'AsciiDoc';
           break;
         case 'markdown':
+          progress.report({ message: 'Markdown 변환 중...', increment: 50 });
           content = convertJsonToMarkdown(convertedDoc, exportSettings, meta);
           ext = '.md';
-          label = 'Markdown';
           break;
       }
 
+      progress.report({ message: '파일 쓰는 중...', increment: 20 });
       const outputUri = document.uri.with({
         path: document.uri.path.replace(/(\.tiptap\.json|\.sdoc)$/, ext),
       });

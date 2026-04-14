@@ -107,6 +107,15 @@ export interface RequestFlushMessage {
   type: 'requestFlush';
 }
 
+export interface ExportStartedMessage {
+  type: 'exportStarted';
+  format: 'html' | 'adoc' | 'markdown' | 'pdf' | 'slides';
+}
+
+export interface ExportDoneMessage {
+  type: 'exportDone';
+}
+
 export interface SdocFileBrowseResultMessage {
   type: 'sdocFileBrowseResult';
   path: string;
@@ -128,6 +137,8 @@ export type ExtensionToWebviewMessage =
   | ImageReplacedMessage
   | DrawioFileUpdatedMessage
   | RequestFlushMessage
+  | ExportStartedMessage
+  | ExportDoneMessage
   | SdocFileBrowseResultMessage;
 
 // ─── Webview → Extension Messages ───────────────────────────────

@@ -91,7 +91,7 @@ export const Editor: React.FC = () => {
     }
   }, [state.settings, editor]);
 
-  const { postMessage, handleViewJson, handleExport, handleImport, handleMetaChange } = useEditorMessages({
+  const { postMessage, handleViewJson, handleExport, handleImport, handleMetaChange, isExporting } = useEditorMessages({
     editor,
     flushUpdate,
     setContentRef,
@@ -481,6 +481,7 @@ export const Editor: React.FC = () => {
             onViewJson={handleViewJson}
             onExport={handleExport}
             onImport={handleImport}
+            isExporting={isExporting}
           />
         )}
         <div className="editor-content-area" onContextMenu={handleContextMenu}>
