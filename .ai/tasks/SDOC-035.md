@@ -2,10 +2,10 @@
 ats: "0.1"
 id: SDOC-035
 title: "마우스 뒤로가기 버튼 → 이전 커서 위치 복원 (Cursor History Navigation)"
-status: in-progress
+status: done
 priority: low
 created: 2026-04-14T11:30:00+09:00
-modified: 2026-04-14T12:00:00+09:00
+modified: 2026-04-14T12:30:00+09:00
 author: "@copilot"
 ---
 
