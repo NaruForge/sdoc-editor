@@ -7,6 +7,7 @@
 - (없음)
 
 ## Done (최근)
+- [SDOC-035](tasks/SDOC-035.md): 마우스 뒤로가기 버튼 → 커서 히스토리 네비게이션 기술 분석 (2026-04-14)
 - [SDOC-034](tasks/SDOC-034.md): 에디터 배율(Zoom) 조절 슬라이더 (2026-04-14)
 - [SDOC-033](tasks/SDOC-033.md): 레이아웃 고정 — Meta/Toolbar/Sidebar 스크롤 격리 (2026-04-15)
 - [SDOC-032](tasks/SDOC-032.md): Toolbar UX 최적화 — Activity Bar 4탭 + Toolbar 슬림화 (29→12개) (2026-04-15)
