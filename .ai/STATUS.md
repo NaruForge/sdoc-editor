@@ -4,7 +4,7 @@
 - (없음)
 
 ## In Progress
-- (없음)
+- [SDOC-035](tasks/SDOC-035.md): 마우스 뒤로가기 버튼 → 커서 히스토리 네비게이션 (feature branch 구현 완료)
 
 ## Done (최근)
 - [SDOC-035](tasks/SDOC-035.md): 마우스 뒤로가기 버튼 → 커서 히스토리 네비게이션 기술 분석 (2026-04-14)

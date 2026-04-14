@@ -1,6 +1,6 @@
 # Structured Doc Editor
 
-> **v0.4.5** — Activity Bar 4탭 + Toolbar 슬림화 + 스크롤 격리 + 내보내기 진행 표시 + 하단 여백 + **Zoom 조절**
+> **v0.4.5** — Activity Bar 4탭 + Toolbar 슬림화 + 스크롤 격리 + 내보내기 진행 표시 + 하단 여백 + Zoom 조절 + **커서 히스토리 네비게이션**
 
 `.sdoc` / `.tiptap.json` 파일을 위한 WYSIWYG 구조화 문서 에디터입니다.
 
@@ -11,6 +11,7 @@
 | 기능 | 설명 |
 |---|---|
 | **에디터 배율 조절** | 우측 하단 플로팅 슬라이더 — 60%~200% zoom, `localStorage` 저장 |
+| **커서 히스토리** | 마우스 뒤로가기/앞으로가기 버튼(Button3/4) + `Alt+←/→` 단축키로 이전 커서 위치 복원 |
 | WYSIWYG 편집 | Tiptap/ProseMirror 기반 리치 텍스트 에디터 |
 | JSON 저장 | pretty-printed JSON으로 저장 — Git diff 최적화 |
 | **Activity Bar** | 에디터 좌측 4탭 아이콘 스트립 (뷰 컨트롤 / TOC / 문서설정 / 파일작업) |

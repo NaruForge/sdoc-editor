@@ -2,10 +2,10 @@
 ats: "0.1"
 id: SDOC-035
 title: "마우스 뒤로가기 버튼 → 이전 커서 위치 복원 (Cursor History Navigation)"
-status: analysis
+status: in-progress
 priority: low
 created: 2026-04-14T11:30:00+09:00
-modified: 2026-04-14T11:30:00+09:00
+modified: 2026-04-14T12:00:00+09:00
 author: "@copilot"
 ---
 
@@ -138,5 +138,9 @@ VS Code는 webview Button4 이벤트를 **기본적으로 "Navigate Back" 명령
 
 ## Progress
 - [x] 기술 분석 완료
-- [ ] VS Code Button4 이벤트 캡처 가능 여부 실험적 검증
-- [ ] 구현 결정 후 태스크 개시
+- [x] VS Code Button4 이벤트 콘케처 구현 (capture: true)
+- [x] CursorHistoryExtension Tiptap Plugin 구현
+- [x] Alt+Left / Alt+Right 키보드 단쳕키 연동
+- [x] tauri-app 동기화
+- [x] 빌드 확인
+- [x] 버그 수정: 커서 이동 후 뷰포트가 따라가지 않는 문제 (scrollCursorIntoViewArea fallback)

@@ -24,6 +24,7 @@ import { CrossReference } from './CrossReference';
 import { Subscript } from '@tiptap/extension-subscript';
 import { Superscript } from '@tiptap/extension-superscript';
 import { Callout } from './Callout';
+import { CursorHistory } from './CursorHistory';
 
 /* ===== Section Fold (Collapse) ===== */
 const sectionFoldKey = new PluginKey<Set<number>>('sectionFold');
@@ -372,6 +373,7 @@ export const tiptapExtensions = [
   CrossReference,
   SectionFold,
   EquationNumbering,
+  CursorHistory,
   Extension.create({
     name: 'internalLinkClick',
     addProseMirrorPlugins() {

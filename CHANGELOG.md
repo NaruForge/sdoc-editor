@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.4.5] - 2026-04-15
 
 ### Added
+- **커서 히스토리 네비게이션**: 마우스 뒤로가기/앞으로가기 버튼(Button3/4) 및 `Alt+←` / `Alt+→` 단축키로 이전·다음 커서 위치 복원
+  - 마우스 클릭 이동 자동 기록 (교차 참조 점프, 섹션 이동 등 포함)
+  - 타이핑 중 매 글자 이동은 기록 생략 (불필요한 히스토리 방지)
+  - ProseMirror Plugin + Tiptap Extension — 원본 데이터 무변경
 - **에디터 배율(Zoom) 조절 슬라이더**: 우측 하단 플로팅 pill 위젯으로 60%~200% 범위를 5% 단계로 조절
   - `−` / `+` 버튼, range 슬라이더, `120%` 텍스트 클릭 시 100% 리셋
   - `localStorage`에 배율 저장 — 재시작 후에도 유지
