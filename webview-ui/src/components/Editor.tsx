@@ -445,7 +445,7 @@ export const Editor: React.FC = () => {
   }
 
   return (
-    <>
+    <div className="editor-shell">
       <DocumentHeader
         author={meta.author}
         version={meta.version}
@@ -617,6 +617,6 @@ export const Editor: React.FC = () => {
           onClose={() => dialogDispatch({ type: 'CLOSE_CROSSREF_DIALOG' })}
         />
       )}
-    </>
+    </div>
   );
 };

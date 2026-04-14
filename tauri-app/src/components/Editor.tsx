@@ -479,7 +479,7 @@ export const Editor: React.FC<EditorProps> = ({ adapter, initialDoc, initialMeta
   }
 
   return (
-    <>
+    <div className="editor-shell">
       <DocumentHeader
         author={meta.author} version={meta.version} created={meta.created} modified={meta.modified}
         onAuthorChange={(value) => handleMetaChange('author', value)}
@@ -534,6 +534,6 @@ export const Editor: React.FC<EditorProps> = ({ adapter, initialDoc, initialMeta
       {mathDialog && <MathDialog initialLatex={mathDialog.latex} isBlock={mathDialog.isBlock} onConfirm={handleMathConfirm} onCancel={() => setMathDialog(null)} />}
       {diagramDialog && <DiagramDialog initialCode={diagramDialog.code} initialLanguage={diagramDialog.language} pos={diagramDialog.pos} onConfirm={handleDiagramConfirm} onCancel={() => setDiagramDialog(null)} />}
       {showCrossRefDialog && editor && <CrossReferenceDialog targets={collectTargets(editor)} onSelect={(target: RefTarget) => { setShowCrossRefDialog(false); editor.chain().focus().insertContent([{ type: 'text', marks: [{ type: 'link', attrs: { href: `#${target.id}` } }], text: target.label }, { type: 'text', text: ' ' }]).run(); }} onClose={() => setShowCrossRefDialog(false)} />}
-    </>
+    </div>
   );
 };
