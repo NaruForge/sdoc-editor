@@ -143,3 +143,4 @@ VS Code는 webview Button4 이벤트를 **기본적으로 "Navigate Back" 명령
 - [x] Alt+Left / Alt+Right 키보드 단쳕키 연동
 - [x] tauri-app 동기화
 - [x] 빌드 확인
+- [x] 버그 수정: 커서 이동 후 뷰포트가 따라가지 않는 문제 (scrollCursorIntoViewArea fallback)

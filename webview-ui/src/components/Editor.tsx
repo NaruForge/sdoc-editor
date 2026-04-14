@@ -451,8 +451,28 @@ export const Editor: React.FC = () => {
   useEffect(() => {
     if (!editor) return;
 
+    const scrollCursorIntoView = () => {
+      // Fallback: manually scroll .editor-scroll-area so the cursor is visible.
+      // ProseMirror's built-in scrollIntoView may not find the custom scroll container
+      // when a CSS zoom wrapper is present.
+      requestAnimationFrame(() => {
+        const sel = window.getSelection();
+        if (!sel || sel.rangeCount === 0) return;
+        const range = sel.getRangeAt(0);
+        const rect = range.getBoundingClientRect();
+        const scrollArea = document.querySelector('.editor-scroll-area') as HTMLElement | null;
+        if (!scrollArea) return;
+        const areaRect = scrollArea.getBoundingClientRect();
+        const margin = 80;
+        if (rect.bottom > areaRect.bottom - margin) {
+          scrollArea.scrollTop += rect.bottom - areaRect.bottom + margin;
+        } else if (rect.top < areaRect.top + margin) {
+          scrollArea.scrollTop -= areaRect.top - rect.top + margin;
+        }
+      });
+    };
+
     const handleMouseNav = (e: MouseEvent) => {
-      // button 3 = Mouse Back (XButton1), button 4 = Mouse Forward (XButton2)
       if (e.button !== 3 && e.button !== 4) return;
       e.preventDefault();
       e.stopPropagation();
@@ -462,6 +482,7 @@ export const Editor: React.FC = () => {
       } else {
         editor.commands.navigateForward();
       }
+      scrollCursorIntoView();
     };
 
     // capture: true — catch before VS Code's own navigation handler

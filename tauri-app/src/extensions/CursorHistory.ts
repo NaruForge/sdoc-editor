@@ -26,6 +26,28 @@ const MAX_HISTORY = 80;
 /** 같은 위치 재기록 방지를 위한 최소 이동 거리 (position 단위) */
 const MIN_MOVE_DISTANCE = 50;
 
+/**
+ * ProseMirror 기본 scrollIntoView는 CSS zoom wrapper가 있을 때
+ * 스크롤 컨테이너를 올바르게 찾지 못할 수 있음.
+ * .editor-scroll-area를 직접 스크롤하는 fallback.
+ */
+function scrollCursorIntoViewArea(): void {
+  requestAnimationFrame(() => {
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+    const rect = sel.getRangeAt(0).getBoundingClientRect();
+    const scrollArea = document.querySelector('.editor-scroll-area') as HTMLElement | null;
+    if (!scrollArea) return;
+    const areaRect = scrollArea.getBoundingClientRect();
+    const margin = 80;
+    if (rect.bottom > areaRect.bottom - margin) {
+      scrollArea.scrollTop += rect.bottom - areaRect.bottom + margin;
+    } else if (rect.top < areaRect.top + margin) {
+      scrollArea.scrollTop -= areaRect.top - rect.top + margin;
+    }
+  });
+}
+
 const cursorHistoryKey = new PluginKey<{
   stack: CursorHistoryEntry[];
   index: number;
@@ -50,7 +72,7 @@ export const CursorHistory = Extension.create({
     return {
       navigateBack:
         () =>
-        ({ state, dispatch, view }) => {
+        ({ state, dispatch }) => {
           const pluginState = cursorHistoryKey.getState(state);
           if (!pluginState) return false;
           const { stack, index } = pluginState;
@@ -72,15 +94,15 @@ export const CursorHistory = Extension.create({
             } catch {
               // leave selection as-is if position is invalid
             }
+            tr.scrollIntoView();
             dispatch(tr);
-            view.dispatch(view.state.tr.scrollIntoView());
           }
           return true;
         },
 
       navigateForward:
         () =>
-        ({ state, dispatch, view }) => {
+        ({ state, dispatch }) => {
           const pluginState = cursorHistoryKey.getState(state);
           if (!pluginState) return false;
           const { stack, index } = pluginState;
@@ -102,8 +124,8 @@ export const CursorHistory = Extension.create({
             } catch {
               // leave selection as-is
             }
+            tr.scrollIntoView();
             dispatch(tr);
-            view.dispatch(view.state.tr.scrollIntoView());
           }
           return true;
         },
@@ -112,8 +134,16 @@ export const CursorHistory = Extension.create({
 
   addKeyboardShortcuts() {
     return {
-      'Alt-ArrowLeft': ({ editor }) => editor.commands.navigateBack(),
-      'Alt-ArrowRight': ({ editor }) => editor.commands.navigateForward(),
+      'Alt-ArrowLeft': ({ editor }) => {
+        const result = editor.commands.navigateBack();
+        if (result) scrollCursorIntoViewArea();
+        return result;
+      },
+      'Alt-ArrowRight': ({ editor }) => {
+        const result = editor.commands.navigateForward();
+        if (result) scrollCursorIntoViewArea();
+        return result;
+      },
     };
   },
 

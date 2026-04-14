@@ -488,6 +488,22 @@ export const Editor: React.FC<EditorProps> = ({ adapter, initialDoc, initialMeta
   // Mouse back/forward button (Button3 = back, Button4 = forward) → cursor history navigation
   useEffect(() => {
     if (!editor) return;
+    const scrollCursorIntoView = () => {
+      requestAnimationFrame(() => {
+        const sel = window.getSelection();
+        if (!sel || sel.rangeCount === 0) return;
+        const rect = sel.getRangeAt(0).getBoundingClientRect();
+        const scrollArea = document.querySelector('.editor-scroll-area') as HTMLElement | null;
+        if (!scrollArea) return;
+        const areaRect = scrollArea.getBoundingClientRect();
+        const margin = 80;
+        if (rect.bottom > areaRect.bottom - margin) {
+          scrollArea.scrollTop += rect.bottom - areaRect.bottom + margin;
+        } else if (rect.top < areaRect.top + margin) {
+          scrollArea.scrollTop -= areaRect.top - rect.top + margin;
+        }
+      });
+    };
     const handleMouseNav = (e: MouseEvent) => {
       if (e.button !== 3 && e.button !== 4) return;
       e.preventDefault();
@@ -497,6 +513,7 @@ export const Editor: React.FC<EditorProps> = ({ adapter, initialDoc, initialMeta
       } else {
         editor.commands.navigateForward();
       }
+      scrollCursorIntoView();
     };
     document.addEventListener('mousedown', handleMouseNav, { capture: true });
     return () => { document.removeEventListener('mousedown', handleMouseNav, { capture: true }); };
