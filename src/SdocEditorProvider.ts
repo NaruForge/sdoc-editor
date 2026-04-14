@@ -1147,20 +1147,47 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     this.exportInProgress.add(docKey);
     webview.postMessage({ type: 'exportStarted', format });
 
+    // ExportResult: info needed to show completion message AFTER withProgress closes
+    type ExportResult = {
+      successMsg: string;
+      actionLabel: string;
+      openUri: vscode.Uri;
+      openKind: 'external' | 'html' | 'text';
+    } | null;
+
+    let result: ExportResult = null;
     try {
-      await vscode.window.withProgress(
+      result = await vscode.window.withProgress(
         {
           location: vscode.ProgressLocation.Notification,
           title: `내보내기 중 (${label})`,
           cancellable: false,
         },
         async (progress) => {
-          await this._doExport(document, format, label, progress);
+          return await this._doExport(document, format, label, progress);
         }
       );
     } finally {
       this.exportInProgress.delete(docKey);
       webview.postMessage({ type: 'exportDone' });
+    }
+
+    // Show success notification AFTER progress notification has closed
+    if (result) {
+      const action = await vscode.window.showInformationMessage(
+        result.successMsg,
+        result.actionLabel
+      );
+      if (action === result.actionLabel) {
+        if (result.openKind === 'external') {
+          await vscode.env.openExternal(result.openUri);
+        } else if (result.openKind === 'html') {
+          await vscode.commands.executeCommand('vscode.open', result.openUri);
+        } else {
+          const openedDoc = await vscode.workspace.openTextDocument(result.openUri);
+          await vscode.window.showTextDocument(openedDoc, { preview: false });
+        }
+      }
     }
   }
 
@@ -1169,7 +1196,12 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     format: 'html' | 'adoc' | 'markdown' | 'pdf' | 'slides',
     label: string,
     progress: vscode.Progress<{ message?: string; increment?: number }>
-  ): Promise<void> {
+  ): Promise<{
+    successMsg: string;
+    actionLabel: string;
+    openUri: vscode.Uri;
+    openKind: 'external' | 'html' | 'text';
+  } | null> {
     try {
       progress.report({ message: '문서 읽는 중...', increment: 5 });
       const text = document.getText();
@@ -1244,7 +1276,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
               vscode.window.showErrorMessage(
                 'Chrome, Edge, or Chromium is required for PDF export. Please install one of these browsers.'
               );
-              return;
+              return null;
             }
 
             // Inject zoom CSS for PDF scale
@@ -1264,14 +1296,12 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
             }
 
             const pdfUri = vscode.Uri.file(pdfPath);
-            const action = await vscode.window.showInformationMessage(
-              `PDF exported: ${pdfUri.fsPath}`,
-              'Open PDF'
-            );
-            if (action === 'Open PDF') {
-              await vscode.env.openExternal(pdfUri);
-            }
-            return;
+            return {
+              successMsg: `PDF exported: ${pdfUri.fsPath}`,
+              actionLabel: 'Open PDF',
+              openUri: pdfUri,
+              openKind: 'external',
+            };
           }
 
           ext = '.html';
@@ -1308,14 +1338,12 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
           const encoder2 = new TextEncoder();
           await vscode.workspace.fs.writeFile(slideUri, encoder2.encode(content));
 
-          const action = await vscode.window.showInformationMessage(
-            `Slides exported: ${slideUri.fsPath}`,
-            'Open in Browser'
-          );
-          if (action === 'Open in Browser') {
-            await vscode.env.openExternal(slideUri);
-          }
-          return;
+          return {
+            successMsg: `Slides exported: ${slideUri.fsPath}`,
+            actionLabel: 'Open in Browser',
+            openUri: slideUri,
+            openKind: 'external',
+          };
         }
         case 'adoc':
           progress.report({ message: 'AsciiDoc 변환 중...', increment: 50 });
@@ -1337,23 +1365,17 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       const encoder = new TextEncoder();
       await vscode.workspace.fs.writeFile(outputUri, encoder.encode(content));
 
-      const action = await vscode.window.showInformationMessage(
-        `${label} exported: ${outputUri.fsPath}`,
-        'Open File'
-      );
-
-      if (action === 'Open File') {
-        if (format === 'html') {
-          await vscode.commands.executeCommand('vscode.open', outputUri);
-        } else {
-          const openedDoc = await vscode.workspace.openTextDocument(outputUri);
-          await vscode.window.showTextDocument(openedDoc, { preview: false });
-        }
-      }
+      return {
+        successMsg: `${label} exported: ${outputUri.fsPath}`,
+        actionLabel: 'Open File',
+        openUri: outputUri,
+        openKind: format === 'html' ? 'html' : 'text',
+      };
     } catch (error) {
       vscode.window.showErrorMessage(
         `Failed to export: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
+      return null;
     }
   }
 
