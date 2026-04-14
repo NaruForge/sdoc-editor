@@ -2152,3 +2152,105 @@ body {
   background-color: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
   border-color: var(--vscode-contrastBorder, transparent);
 }
+
+/* ===== Activity Bar ===== */
+.activity-bar {
+  width: 36px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4px 0;
+  gap: 2px;
+  background: var(--vscode-sideBar-background, var(--vscode-editor-background));
+  border-right: 1px solid var(--vscode-panel-border);
+}
+
+.activity-bar-icon {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--vscode-foreground);
+  opacity: 0.55;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: opacity 0.1s, background 0.1s;
+}
+
+.activity-bar-icon:hover {
+  opacity: 1;
+  background: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
+}
+
+.activity-bar-icon.is-active {
+  opacity: 1;
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+}
+
+/* ===== Side Panel (4-tab) new elements ===== */
+.side-panel-section {
+  padding: 8px 0;
+}
+
+.side-panel-section-title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--vscode-descriptionForeground);
+  padding: 4px 12px 6px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.side-panel-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 12px;
+}
+
+.side-panel-toggle-label {
+  font-size: 12px;
+  color: var(--vscode-foreground);
+}
+
+.side-panel-toggle-btn {
+  padding: 2px 8px;
+  font-size: 11px;
+  border-radius: 3px;
+  border: 1px solid var(--vscode-panel-border);
+  cursor: pointer;
+  background: transparent;
+  color: var(--vscode-foreground);
+}
+
+.side-panel-toggle-btn.is-active {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  border-color: transparent;
+}
+
+.side-panel-file-btn {
+  width: 100%;
+  text-align: left;
+  padding: 5px 12px;
+  font-size: 12px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--vscode-foreground);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.side-panel-file-btn:hover {
+  background: var(--vscode-list-hoverBackground);
+}

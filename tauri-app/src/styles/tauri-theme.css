@@ -1012,3 +1012,42 @@ body {
 .callout-variant-btn { background: none; border: 1px solid transparent; border-radius: 3px; cursor: pointer; font-size: 13px; padding: 2px 4px; line-height: 1; }
 .callout-variant-btn:hover, .callout-variant-btn.is-active { background-color: rgba(90,93,94,.31); }
 .bubble-menu-separator { width: 1px; background-color: var(--panel-border); margin: 2px 2px; align-self: stretch; }
+
+/* ===== Activity Bar ===== */
+.activity-bar {
+  width: 36px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4px 0;
+  gap: 2px;
+  background: var(--panel-bg, #1e1e1e);
+  border-right: 1px solid var(--panel-border, #333);
+}
+.activity-bar-icon {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--text-primary, #ccc);
+  opacity: 0.55;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: opacity 0.1s, background 0.1s;
+}
+.activity-bar-icon:hover { opacity: 1; background: rgba(90,93,94,.31); }
+.activity-bar-icon.is-active { opacity: 1; background: var(--btn-primary-bg, #0078d4); color: #fff; }
+
+/* ===== Side Panel (4-tab) new elements ===== */
+.side-panel-section { padding: 8px 0; }
+.side-panel-section-title { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted, #888); padding: 4px 12px 6px; display: flex; align-items: center; gap: 5px; }
+.side-panel-toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 4px 12px; }
+.side-panel-toggle-label { font-size: 12px; color: var(--text-primary, #ccc); }
+.side-panel-toggle-btn { padding: 2px 8px; font-size: 11px; border-radius: 3px; border: 1px solid var(--panel-border, #333); cursor: pointer; background: transparent; color: var(--text-primary, #ccc); }
+.side-panel-toggle-btn.is-active { background: var(--btn-primary-bg, #0078d4); color: #fff; border-color: transparent; }
+.side-panel-file-btn { width: 100%; text-align: left; padding: 5px 12px; font-size: 12px; background: transparent; border: none; cursor: pointer; color: var(--text-primary, #ccc); display: flex; align-items: center; gap: 6px; }
+.side-panel-file-btn:hover { background: rgba(90,93,94,.2); }

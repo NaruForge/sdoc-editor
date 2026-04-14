@@ -13,18 +13,13 @@ import {
   Heading3,
   Table2,
   Trash2,
-  FileJson,
-  ListOrdered as NumberIcon,
   PenTool,
   Image as ImageIcon,
   Link as LinkIcon,
   Sigma,
-  Download,
-  Upload,
   Plus,
   ChevronRight,
   Hash,
-  RemoveFormatting,
   Palette,
   Highlighter,
   Strikethrough,
@@ -34,53 +29,49 @@ import {
   AlignCenter,
   AlignRight,
   AlignJustify,
-  BookOpen,
   GitGraph,
-  Settings,
   Quote,
   MessageSquareWarning,
+  MoreHorizontal,
 } from 'lucide-react';
 import { CALLOUT_ICONS, CALLOUT_LABELS, type CalloutVariant } from '../extensions/Callout';
 import { TEXT_COLORS, HIGHLIGHT_COLORS } from '../constants/colors';
 
 interface ToolbarProps {
   editor: TiptapEditor | null;
-  onViewJson?: () => void;
-  showNumbering: boolean;
-  onToggleNumbering: () => void;
-  showDecoration: boolean;
-  onToggleDecoration: () => void;
-  showToc: boolean;
-  onToggleToc: () => void;
-  showSettings: boolean;
-  onToggleSettings: () => void;
   onInsertDrawio?: () => void;
   onInsertImage?: () => void;
   onInsertLink?: () => void;
   onInsertMath?: () => void;
   onInsertDiagram?: () => void;
   onInsertCrossRef?: () => void;
-  onExport?: (format: 'html' | 'adoc' | 'markdown' | 'pdf' | 'slides') => void;
-  onImport?: (format: 'markdown' | 'html') => void;
 }
 
-export const Toolbar: React.FC<ToolbarProps> = ({ editor, onViewJson, showNumbering, onToggleNumbering, showDecoration, onToggleDecoration, showToc, onToggleToc, showSettings, onToggleSettings, onInsertDrawio, onInsertImage, onInsertLink, onInsertMath, onInsertDiagram, onInsertCrossRef, onExport, onImport }) => {
+export const Toolbar: React.FC<ToolbarProps> = ({
+  editor,
+  onInsertDrawio,
+  onInsertImage,
+  onInsertLink,
+  onInsertMath,
+  onInsertDiagram,
+  onInsertCrossRef,
+}) => {
   const [showInsertMenu, setShowInsertMenu] = useState(false);
   const [showTableSub, setShowTableSub] = useState(false);
   const [showCalloutSub, setShowCalloutSub] = useState(false);
   const [showCustomSize, setShowCustomSize] = useState(false);
-  const [showExportMenu, setShowExportMenu] = useState(false);
-  const [showImportMenu, setShowImportMenu] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showHighlightPicker, setShowHighlightPicker] = useState(false);
+  const [showAlignMenu, setShowAlignMenu] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
   const colorPickerRef = useRef<HTMLDivElement>(null);
   const highlightPickerRef = useRef<HTMLDivElement>(null);
   const [customRows, setCustomRows] = useState('3');
   const [customCols, setCustomCols] = useState('3');
   const insertMenuRef = useRef<HTMLDivElement>(null);
-  const exportMenuRef = useRef<HTMLDivElement>(null);
-  const importMenuRef = useRef<HTMLDivElement>(null);
-  // Force re-render on every editor transaction so toolbar always reflects current state
+  const alignMenuRef = useRef<HTMLDivElement>(null);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
+
   const [, forceToolbarUpdate] = useState(0);
   useEffect(() => {
     if (!editor) return;
@@ -89,31 +80,27 @@ export const Toolbar: React.FC<ToolbarProps> = ({ editor, onViewJson, showNumber
     return () => { editor.off('transaction', handler); };
   }, [editor]);
 
-  // Close insert menu when clicking outside
+  // Close menus on outside click
   useEffect(() => {
-    if (!showInsertMenu) return;
+    const targets: { open: boolean; ref: React.RefObject<HTMLDivElement | null>; close: () => void }[] = [
+      { open: showInsertMenu, ref: insertMenuRef, close: closeInsertMenu },
+      { open: showAlignMenu, ref: alignMenuRef, close: () => setShowAlignMenu(false) },
+      { open: showMoreMenu, ref: moreMenuRef, close: () => setShowMoreMenu(false) },
+    ];
+    const active = targets.filter(t => t.open);
+    if (!active.length) return;
     const handleClick = (e: MouseEvent) => {
-      if (insertMenuRef.current && !insertMenuRef.current.contains(e.target as Node)) {
-        setShowInsertMenu(false);
-        setShowTableSub(false);
-        setShowCustomSize(false);
-      }
+      active.forEach(({ ref, close }) => {
+        if (ref.current && !ref.current.contains(e.target as Node)) close();
+      });
     };
-    // Defer listener to next tick so the opening mousedown doesn't immediately close it
-    const id = requestAnimationFrame(() => {
-      document.addEventListener('mousedown', handleClick);
-    });
-    return () => {
-      cancelAnimationFrame(id);
-      document.removeEventListener('mousedown', handleClick);
-    };
-  }, [showInsertMenu]);
+    const id = requestAnimationFrame(() => document.addEventListener('mousedown', handleClick));
+    return () => { cancelAnimationFrame(id); document.removeEventListener('mousedown', handleClick); };
+  }, [showInsertMenu, showAlignMenu, showMoreMenu]);
 
-  if (!editor) {
-    return null;
-  }
+  if (!editor) return null;
 
-  const Button: React.FC<{
+  const Btn: React.FC<{
     onClick: () => void;
     isActive?: boolean;
     disabled?: boolean;
@@ -121,10 +108,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({ editor, onViewJson, showNumber
     title?: string;
   }> = ({ onClick, isActive, disabled, children, title }) => (
     <button
-      onMouseDown={(e) => {
-        e.preventDefault(); // Prevent focus loss
-        onClick();
-      }}
+      onMouseDown={(e) => { e.preventDefault(); onClick(); }}
       disabled={disabled}
       title={title}
       className={`toolbar-button ${isActive ? 'is-active' : ''}`}
@@ -135,81 +119,45 @@ export const Toolbar: React.FC<ToolbarProps> = ({ editor, onViewJson, showNumber
 
   const insertTable = (rows: number, cols: number) => {
     editor.chain().focus().insertTable({ rows, cols, withHeaderRow: true }).run();
-    setShowInsertMenu(false);
-    setShowTableSub(false);
-    setShowCustomSize(false);
+    closeInsertMenu();
   };
 
-  const closeInsertMenu = () => {
+  function closeInsertMenu() {
     setShowInsertMenu(false);
     setShowTableSub(false);
     setShowCalloutSub(false);
     setShowCustomSize(false);
-  };
+  }
+
+  // Active alignment icon
+  const activeAlign = editor.isActive({ textAlign: 'center' }) ? <AlignCenter size={16} />
+    : editor.isActive({ textAlign: 'right' }) ? <AlignRight size={16} />
+    : editor.isActive({ textAlign: 'justify' }) ? <AlignJustify size={16} />
+    : <AlignLeft size={16} />;
 
   return (
     <div className="toolbar">
-      {/* Text formatting */}
-      <Button
-        onClick={() => editor.chain().focus().toggleBold().run()}
-        isActive={editor.isActive('bold')}
-        title="Bold (Ctrl+B)"
-      >
+
+      {/* ── 인라인 서식 ──────────────────────────────────── */}
+      <Btn onClick={() => editor.chain().focus().toggleBold().run()} isActive={editor.isActive('bold')} title="굵게 (Ctrl+B)">
         <Bold size={16} />
-      </Button>
-      <Button
-        onClick={() => editor.chain().focus().toggleItalic().run()}
-        isActive={editor.isActive('italic')}
-        title="Italic (Ctrl+I)"
-      >
+      </Btn>
+      <Btn onClick={() => editor.chain().focus().toggleItalic().run()} isActive={editor.isActive('italic')} title="기울임 (Ctrl+I)">
         <Italic size={16} />
-      </Button>
-      <Button
-        onClick={() => editor.chain().focus().toggleUnderline().run()}
-        isActive={editor.isActive('underline')}
-        title="Underline (Ctrl+U)"
-      >
+      </Btn>
+      <Btn onClick={() => editor.chain().focus().toggleUnderline().run()} isActive={editor.isActive('underline')} title="밑줄 (Ctrl+U)">
         <UnderlineIcon size={16} />
-      </Button>
-      <Button
-        onClick={() => editor.chain().focus().toggleStrike().run()}
-        isActive={editor.isActive('strike')}
-        title="Strikethrough"
-      >
-        <Strikethrough size={16} />
-      </Button>
-      <Button
-        onClick={() => editor.chain().focus().toggleSubscript().run()}
-        isActive={editor.isActive('subscript')}
-        title="Subscript"
-      >
-        <Subscript size={16} />
-      </Button>
-      <Button
-        onClick={() => editor.chain().focus().toggleSuperscript().run()}
-        isActive={editor.isActive('superscript')}
-        title="Superscript"
-      >
-        <Superscript size={16} />
-      </Button>
+      </Btn>
       {onInsertLink && (
-        <Button
-          onClick={onInsertLink}
-          isActive={editor.isActive('link')}
-          title="Insert Link (Ctrl+K)"
-        >
+        <Btn onClick={onInsertLink} isActive={editor.isActive('link')} title="링크 삽입 (Ctrl+K)">
           <LinkIcon size={16} />
-        </Button>
+        </Btn>
       )}
 
       {/* 텍스트 색상 */}
       <div ref={colorPickerRef} className="toolbar-dropdown">
         <button
-          onMouseDown={(e) => {
-            e.preventDefault();
-            setShowColorPicker(v => !v);
-            setShowHighlightPicker(false);
-          }}
+          onMouseDown={(e) => { e.preventDefault(); setShowColorPicker(v => !v); setShowHighlightPicker(false); }}
           title="텍스트 색상"
           className={`toolbar-button color-picker-btn ${editor.isActive('textStyle') && editor.getAttributes('textStyle').color ? 'is-active' : ''}`}
         >
@@ -219,21 +167,9 @@ export const Toolbar: React.FC<ToolbarProps> = ({ editor, onViewJson, showNumber
         {showColorPicker && (
           <div className="bubble-color-picker" style={{ top: '100%', left: 0 }} onMouseDown={e => e.preventDefault()}>
             {TEXT_COLORS.map(({ label, value }) => (
-              <button
-                key={value}
-                title={label}
-                className={editor.getAttributes('textStyle').color === value ? 'is-active' : ''}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  if (value) {
-                    editor.chain().focus().setColor(value).run();
-                  } else {
-                    editor.chain().focus().unsetColor().run();
-                  }
-                  setShowColorPicker(false);
-                }}
-                style={{ background: value || 'transparent', border: value ? 'none' : '1px solid #555' }}
-              >
+              <button key={value} title={label} className={editor.getAttributes('textStyle').color === value ? 'is-active' : ''}
+                onMouseDown={(e) => { e.preventDefault(); value ? editor.chain().focus().setColor(value).run() : editor.chain().focus().unsetColor().run(); setShowColorPicker(false); }}
+                style={{ background: value || 'transparent', border: value ? 'none' : '1px solid #555' }}>
                 {!value && <span style={{ fontSize: 10, color: '#aaa' }}>✕</span>}
               </button>
             ))}
@@ -244,11 +180,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({ editor, onViewJson, showNumber
       {/* 하이라이트 */}
       <div ref={highlightPickerRef} className="toolbar-dropdown">
         <button
-          onMouseDown={(e) => {
-            e.preventDefault();
-            setShowHighlightPicker(v => !v);
-            setShowColorPicker(false);
-          }}
+          onMouseDown={(e) => { e.preventDefault(); setShowHighlightPicker(v => !v); setShowColorPicker(false); }}
           title="하이라이트"
           className={`toolbar-button color-picker-btn ${editor.isActive('highlight') ? 'is-active' : ''}`}
         >
@@ -258,22 +190,82 @@ export const Toolbar: React.FC<ToolbarProps> = ({ editor, onViewJson, showNumber
         {showHighlightPicker && (
           <div className="bubble-color-picker" style={{ top: '100%', left: 0 }} onMouseDown={e => e.preventDefault()}>
             {HIGHLIGHT_COLORS.map(({ label, value }) => (
-              <button
-                key={value}
-                title={label}
-                className={editor.getAttributes('highlight').color === value ? 'is-active' : ''}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  if (value) {
-                    editor.chain().focus().setHighlight({ color: value }).run();
-                  } else {
-                    editor.chain().focus().unsetHighlight().run();
-                  }
-                  setShowHighlightPicker(false);
-                }}
-                style={{ background: value || 'transparent', border: value ? 'none' : '1px solid #555' }}
-              >
+              <button key={value} title={label} className={editor.getAttributes('highlight').color === value ? 'is-active' : ''}
+                onMouseDown={(e) => { e.preventDefault(); value ? editor.chain().focus().setHighlight({ color: value }).run() : editor.chain().focus().unsetHighlight().run(); setShowHighlightPicker(false); }}
+                style={{ background: value || 'transparent', border: value ? 'none' : '1px solid #555' }}>
                 {!value && <span style={{ fontSize: 10, color: '#aaa' }}>✕</span>}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* 서식 더보기 (Strike / Sub / Super) */}
+      <div ref={moreMenuRef} className="toolbar-dropdown">
+        <button
+          onMouseDown={(e) => { e.preventDefault(); setShowMoreMenu(v => !v); }}
+          title="서식 더보기"
+          className={`toolbar-button ${editor.isActive('strike') || editor.isActive('subscript') || editor.isActive('superscript') ? 'is-active' : ''}`}
+        >
+          <MoreHorizontal size={16} />
+        </button>
+        {showMoreMenu && (
+          <div className="insert-menu" style={{ minWidth: '160px' }} onMouseDown={e => e.preventDefault()}>
+            <button className={`insert-menu-item${editor.isActive('strike') ? ' is-active' : ''}`}
+              onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleStrike().run(); setShowMoreMenu(false); }}>
+              <Strikethrough size={14} /><span>취소선</span>
+            </button>
+            <button className={`insert-menu-item${editor.isActive('subscript') ? ' is-active' : ''}`}
+              onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleSubscript().run(); setShowMoreMenu(false); }}>
+              <Subscript size={14} /><span>아래 첨자</span>
+            </button>
+            <button className={`insert-menu-item${editor.isActive('superscript') ? ' is-active' : ''}`}
+              onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleSuperscript().run(); setShowMoreMenu(false); }}>
+              <Superscript size={14} /><span>위 첨자</span>
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="toolbar-separator" />
+
+      {/* ── 헤딩 ─────────────────────────────────────────── */}
+      <Btn onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} isActive={editor.isActive('heading', { level: 1 })} title="제목 1 (H1)">
+        <Heading1 size={16} />
+      </Btn>
+      <Btn onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} isActive={editor.isActive('heading', { level: 2 })} title="제목 2 (H2)">
+        <Heading2 size={16} />
+      </Btn>
+      <Btn onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} isActive={editor.isActive('heading', { level: 3 })} title="제목 3 (H3)">
+        <Heading3 size={16} />
+      </Btn>
+
+      <div className="toolbar-separator" />
+
+      {/* ── 정렬 드롭다운 ─────────────────────────────────── */}
+      <div ref={alignMenuRef} className="toolbar-dropdown">
+        <button
+          onMouseDown={(e) => { e.preventDefault(); setShowAlignMenu(v => !v); }}
+          title="텍스트 정렬"
+          className="toolbar-button"
+        >
+          {activeAlign}
+          <ChevronRight size={10} style={{ transform: 'rotate(90deg)', marginLeft: 2 }} />
+        </button>
+        {showAlignMenu && (
+          <div className="insert-menu" style={{ minWidth: '140px' }} onMouseDown={e => e.preventDefault()}>
+            {([
+              { align: 'left', icon: <AlignLeft size={14} />, label: '왼쪽 정렬' },
+              { align: 'center', icon: <AlignCenter size={14} />, label: '가운데 정렬' },
+              { align: 'right', icon: <AlignRight size={14} />, label: '오른쪽 정렬' },
+              { align: 'justify', icon: <AlignJustify size={14} />, label: '양쪽 정렬' },
+            ] as const).map(({ align, icon, label }) => (
+              <button
+                key={align}
+                className={`insert-menu-item${editor.isActive({ textAlign: align }) ? ' is-active' : ''}`}
+                onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().setTextAlign(align).run(); setShowAlignMenu(false); }}
+              >
+                {icon}<span>{label}</span>
               </button>
             ))}
           </div>
@@ -282,158 +274,57 @@ export const Toolbar: React.FC<ToolbarProps> = ({ editor, onViewJson, showNumber
 
       <div className="toolbar-separator" />
 
-      {/* Headings */}
-      <Button
-        onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
-        isActive={editor.isActive('heading', { level: 1 })}
-        title="Heading 1"
-      >
-        <Heading1 size={16} />
-      </Button>
-      <Button
-        onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-        isActive={editor.isActive('heading', { level: 2 })}
-        title="Heading 2"
-      >
-        <Heading2 size={16} />
-      </Button>
-      <Button
-        onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
-        isActive={editor.isActive('heading', { level: 3 })}
-        title="Heading 3"
-      >
-        <Heading3 size={16} />
-      </Button>
-
-      <div className="toolbar-separator" />
-
-      {/* Text Alignment */}
-      <Button
-        onClick={() => editor.chain().focus().setTextAlign('left').run()}
-        isActive={editor.isActive({ textAlign: 'left' })}
-        title="Align Left"
-      >
-        <AlignLeft size={16} />
-      </Button>
-      <Button
-        onClick={() => editor.chain().focus().setTextAlign('center').run()}
-        isActive={editor.isActive({ textAlign: 'center' })}
-        title="Align Center"
-      >
-        <AlignCenter size={16} />
-      </Button>
-      <Button
-        onClick={() => editor.chain().focus().setTextAlign('right').run()}
-        isActive={editor.isActive({ textAlign: 'right' })}
-        title="Align Right"
-      >
-        <AlignRight size={16} />
-      </Button>
-      <Button
-        onClick={() => editor.chain().focus().setTextAlign('justify').run()}
-        isActive={editor.isActive({ textAlign: 'justify' })}
-        title="Justify"
-      >
-        <AlignJustify size={16} />
-      </Button>
-
-      <div className="toolbar-separator" />
-
-      {/* Lists */}
-      <Button
-        onClick={() => editor.chain().focus().toggleBulletList().run()}
-        isActive={editor.isActive('bulletList')}
-        title="Bullet List"
-      >
+      {/* ── 리스트 / 블록 ─────────────────────────────────── */}
+      <Btn onClick={() => editor.chain().focus().toggleBulletList().run()} isActive={editor.isActive('bulletList')} title="글머리 목록">
         <List size={16} />
-      </Button>
-      <Button
-        onClick={() => editor.chain().focus().toggleOrderedList().run()}
-        isActive={editor.isActive('orderedList')}
-        title="Ordered List"
-      >
+      </Btn>
+      <Btn onClick={() => editor.chain().focus().toggleOrderedList().run()} isActive={editor.isActive('orderedList')} title="번호 목록">
         <ListOrdered size={16} />
-      </Button>
-      <Button
-        onClick={() => editor.chain().focus().toggleTaskList().run()}
-        isActive={editor.isActive('taskList')}
-        title="Task List"
-      >
+      </Btn>
+      <Btn onClick={() => editor.chain().focus().toggleTaskList().run()} isActive={editor.isActive('taskList')} title="할 일 목록">
         <ListChecks size={16} />
-      </Button>
-      <Button
-        onClick={() => editor.chain().focus().toggleBlockquote().run()}
-        isActive={editor.isActive('blockquote')}
-        title="Blockquote"
-      >
+      </Btn>
+      <Btn onClick={() => editor.chain().focus().toggleBlockquote().run()} isActive={editor.isActive('blockquote')} title="인용 블록">
         <Quote size={16} />
-      </Button>
+      </Btn>
 
       <div className="toolbar-separator" />
 
-      {/* Unified Insert Menu */}      <div ref={insertMenuRef} className="toolbar-dropdown">
-        <Button
-          onClick={() => setShowInsertMenu(!showInsertMenu)}
-          title="Insert..."
-        >
+      {/* ── 삽입 메뉴 ─────────────────────────────────────── */}
+      <div ref={insertMenuRef} className="toolbar-dropdown">
+        <Btn onClick={() => setShowInsertMenu(!showInsertMenu)} title="삽입...">
           <Plus size={16} />
-          <span style={{ marginLeft: '4px' }}>Insert</span>
-        </Button>
+          <span style={{ marginLeft: '4px' }}>삽입</span>
+        </Btn>
         {showInsertMenu && (
           <div className="insert-menu">
-            {/* Table — with sub-menu */}
-            <div
-              className="insert-menu-item has-sub"
+            {/* Table */}
+            <div className="insert-menu-item has-sub"
               onMouseEnter={() => setShowTableSub(true)}
-              onMouseLeave={() => { setShowTableSub(false); setShowCustomSize(false); }}
-            >
-              <Table2 size={15} />
-              <span>Table</span>
+              onMouseLeave={() => { setShowTableSub(false); setShowCustomSize(false); }}>
+              <Table2 size={15} /><span>표</span>
               <ChevronRight size={14} className="insert-menu-arrow" />
               {showTableSub && (
                 <div className="insert-submenu">
-                  <div style={{ padding: '4px 10px', fontSize: '11px', color: 'var(--vscode-descriptionForeground)' }}>
-                    Select size
-                  </div>
+                  <div style={{ padding: '4px 10px', fontSize: '11px', color: 'var(--vscode-descriptionForeground)' }}>크기 선택</div>
                   {[3, 5, 7, 10].map(size => (
-                    <button
-                      key={size}
-                      className="insert-menu-item"
-                      onMouseDown={(e) => { e.preventDefault(); insertTable(size, size); }}
-                    >
+                    <button key={size} className="insert-menu-item" onMouseDown={(e) => { e.preventDefault(); insertTable(size, size); }}>
                       {size} × {size}
                     </button>
                   ))}
-                  <button
-                    className="insert-menu-item"
-                    onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); setShowCustomSize(true); }}
-                  >
-                    Custom...
+                  <button className="insert-menu-item" onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); setShowCustomSize(true); }}>
+                    사용자 정의...
                   </button>
                   {showCustomSize && (
                     <div style={{ padding: '6px 10px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                       <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                        <input type="number" min="1" max="50" value={customRows}
-                          onChange={(e) => setCustomRows(e.target.value)}
-                          className="insert-size-input" placeholder="R" />
+                        <input type="number" min="1" max="50" value={customRows} onChange={(e) => setCustomRows(e.target.value)} className="insert-size-input" placeholder="행" />
                         <span style={{ fontSize: '12px' }}>×</span>
-                        <input type="number" min="1" max="50" value={customCols}
-                          onChange={(e) => setCustomCols(e.target.value)}
-                          className="insert-size-input" placeholder="C" />
+                        <input type="number" min="1" max="50" value={customCols} onChange={(e) => setCustomCols(e.target.value)} className="insert-size-input" placeholder="열" />
                       </div>
-                      <button
-                        className="insert-menu-item"
-                        style={{ textAlign: 'center', fontWeight: 'bold' }}
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          const r = parseInt(customRows);
-                          const c = parseInt(customCols);
-                          if (!isNaN(r) && !isNaN(c) && r > 0 && c > 0 && r <= 50 && c <= 50) {
-                            insertTable(r, c);
-                          }
-                        }}
-                      >
-                        Insert
+                      <button className="insert-menu-item" style={{ textAlign: 'center', fontWeight: 'bold' }}
+                        onMouseDown={(e) => { e.preventDefault(); const r = parseInt(customRows), c = parseInt(customCols); if (!isNaN(r) && !isNaN(c) && r > 0 && c > 0 && r <= 50 && c <= 50) insertTable(r, c); }}>
+                        삽입
                       </button>
                     </div>
                   )}
@@ -441,214 +332,67 @@ export const Toolbar: React.FC<ToolbarProps> = ({ editor, onViewJson, showNumber
               )}
             </div>
 
-            {/* Image */}
             {onInsertImage && (
               <button className="insert-menu-item" onMouseDown={(e) => { e.preventDefault(); closeInsertMenu(); onInsertImage(); }}>
-                <ImageIcon size={15} />
-                <span>Image</span>
+                <ImageIcon size={15} /><span>이미지</span>
               </button>
             )}
-
-            {/* Draw.io */}
             {onInsertDrawio && (
               <button className="insert-menu-item" onMouseDown={(e) => { e.preventDefault(); closeInsertMenu(); onInsertDrawio(); }}>
-                <PenTool size={15} />
-                <span>Draw.io Diagram</span>
+                <PenTool size={15} /><span>Draw.io 다이어그램</span>
               </button>
             )}
-
-            {/* Math */}
             {onInsertMath && (
               <button className="insert-menu-item" onMouseDown={(e) => { e.preventDefault(); closeInsertMenu(); onInsertMath(); }}>
-                <Sigma size={15} />
-                <span>Math Formula</span>
+                <Sigma size={15} /><span>수식</span>
               </button>
             )}
-
-            {/* Code Block */}
-            <button className="insert-menu-item" onMouseDown={(e) => {
-              e.preventDefault();
-              closeInsertMenu();
-              editor.chain().focus().toggleCodeBlock().run();
-            }}>
-              <Code size={15} />
-              <span>Code Block</span>
+            <button className="insert-menu-item" onMouseDown={(e) => { e.preventDefault(); closeInsertMenu(); editor.chain().focus().toggleCodeBlock().run(); }}>
+              <Code size={15} /><span>코드 블록</span>
             </button>
-
-            {/* Diagram */}
             {onInsertDiagram && (
               <button className="insert-menu-item" onMouseDown={(e) => { e.preventDefault(); closeInsertMenu(); onInsertDiagram(); }}>
-                <GitGraph size={15} />
-                <span>Diagram (Mermaid)</span>
+                <GitGraph size={15} /><span>다이어그램 (Mermaid)</span>
               </button>
             )}
-
-            {/* Horizontal Rule */}
-            <button className="insert-menu-item" onMouseDown={(e) => {
-              e.preventDefault();
-              closeInsertMenu();
-              editor.chain().focus().setHorizontalRule().run();
-            }}>
+            <button className="insert-menu-item" onMouseDown={(e) => { e.preventDefault(); closeInsertMenu(); editor.chain().focus().setHorizontalRule().run(); }}>
               <span style={{ fontSize: '15px', lineHeight: '15px', width: '15px', textAlign: 'center' }}>—</span>
-              <span>Horizontal Rule</span>
+              <span>수평선</span>
             </button>
 
             {/* Callout */}
-            <div
-              className="insert-menu-item has-sub"
+            <div className="insert-menu-item has-sub"
               onMouseEnter={() => setShowCalloutSub(true)}
-              onMouseLeave={() => setShowCalloutSub(false)}
-            >
-              <MessageSquareWarning size={15} />
-              <span>Callout</span>
+              onMouseLeave={() => setShowCalloutSub(false)}>
+              <MessageSquareWarning size={15} /><span>콜아웃</span>
               <ChevronRight size={14} className="insert-menu-arrow" />
               {showCalloutSub && (
                 <div className="insert-submenu">
                   {(Object.entries(CALLOUT_ICONS) as [CalloutVariant, string][]).map(([variant, icon]) => (
-                    <button
-                      key={variant}
-                      className="insert-menu-item"
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        closeInsertMenu();
-                        editor.chain().focus().insertContent({
-                          type: 'callout',
-                          attrs: { variant },
-                          content: [{ type: 'paragraph' }],
-                        }).run();
-                      }}
-                    >
-                      <span>{icon}</span>
-                      <span>{CALLOUT_LABELS[variant]}</span>
+                    <button key={variant} className="insert-menu-item"
+                      onMouseDown={(e) => { e.preventDefault(); closeInsertMenu(); editor.chain().focus().insertContent({ type: 'callout', attrs: { variant }, content: [{ type: 'paragraph' }] }).run(); }}>
+                      <span>{icon}</span><span>{CALLOUT_LABELS[variant]}</span>
                     </button>
                   ))}
                 </div>
               )}
             </div>
 
-            {/* Cross Reference */}
             {onInsertCrossRef && (
               <button className="insert-menu-item" onMouseDown={(e) => { e.preventDefault(); closeInsertMenu(); onInsertCrossRef(); }}>
-                <Hash size={15} />
-                <span>Cross Reference</span>
+                <Hash size={15} /><span>교차 참조</span>
               </button>
             )}
           </div>
         )}
       </div>
 
-      {/* Delete Table (contextual — only shown when inside a table) */}
+      {/* 표 삭제 — 표 내부일 때만 표시 */}
       {editor.isActive('table') && (
-        <Button
-          onClick={() => editor.chain().focus().deleteTable().run()}
-          title="Delete Table"
-        >
+        <Btn onClick={() => editor.chain().focus().deleteTable().run()} title="표 삭제">
           <Trash2 size={16} />
-        </Button>
+        </Btn>
       )}
-
-      <div className="toolbar-separator" />
-
-      {/* View JSON */}
-      {onViewJson && (
-        <Button
-          onClick={onViewJson}
-          title="View JSON Source"
-        >
-          <FileJson size={16} />
-        </Button>
-      )}
-
-      {/* Export */}
-      {onExport && (
-        <div ref={exportMenuRef} className="toolbar-dropdown">
-          <Button
-            onClick={() => setShowExportMenu(!showExportMenu)}
-            title="Export Document"
-          >
-            <Download size={16} />
-            <span style={{ marginLeft: '4px' }}>Export</span>
-          </Button>
-          {showExportMenu && (
-            <div className="insert-menu" style={{ minWidth: '140px' }}>
-              <button className="insert-menu-item" onMouseDown={(e) => { e.preventDefault(); setShowExportMenu(false); onExport('html'); }}>
-                HTML
-              </button>
-              <button className="insert-menu-item" onMouseDown={(e) => { e.preventDefault(); setShowExportMenu(false); onExport('pdf'); }}>
-                PDF
-              </button>
-              <button className="insert-menu-item" onMouseDown={(e) => { e.preventDefault(); setShowExportMenu(false); onExport('markdown'); }}>
-                Markdown
-              </button>
-              <button className="insert-menu-item" onMouseDown={(e) => { e.preventDefault(); setShowExportMenu(false); onExport('adoc'); }}>
-                AsciiDoc
-              </button>
-              <button className="insert-menu-item" onMouseDown={(e) => { e.preventDefault(); setShowExportMenu(false); onExport('slides'); }}>
-                Slides
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Import */}
-      {onImport && (
-        <div ref={importMenuRef} className="toolbar-dropdown">
-          <Button
-            onClick={() => setShowImportMenu(!showImportMenu)}
-            title="Import Document"
-          >
-            <Upload size={16} />
-            <span style={{ marginLeft: '4px' }}>Import</span>
-          </Button>
-          {showImportMenu && (
-            <div className="insert-menu" style={{ minWidth: '140px' }}>
-              <button className="insert-menu-item" onMouseDown={(e) => { e.preventDefault(); setShowImportMenu(false); onImport('markdown'); }}>
-                Markdown
-              </button>
-              <button className="insert-menu-item" onMouseDown={(e) => { e.preventDefault(); setShowImportMenu(false); onImport('html'); }}>
-                HTML
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Toggle Numbering */}
-      <div className="toolbar-separator" />
-      <Button
-        onClick={onToggleNumbering}
-        isActive={showNumbering}
-        title={showNumbering ? "Hide Numbering" : "Show Numbering"}
-      >
-        <NumberIcon size={16} />
-        <span style={{ marginLeft: '4px' }}>1.2.3</span>
-      </Button>
-
-      <Button
-        onClick={onToggleDecoration}
-        isActive={showDecoration}
-        title={showDecoration ? "Hide Heading Decoration" : "Show Heading Decoration"}
-      >
-        <RemoveFormatting size={16} />
-      </Button>
-
-      <Button
-        onClick={onToggleToc}
-        isActive={showToc}
-        title={showToc ? "Hide Table of Contents" : "Show Table of Contents"}
-      >
-        <BookOpen size={16} />
-        <span style={{ marginLeft: '4px' }}>TOC</span>
-      </Button>
-
-      <Button
-        onClick={onToggleSettings}
-        isActive={showSettings}
-        title={showSettings ? "Hide Document Settings" : "Show Document Settings"}
-      >
-        <Settings size={16} />
-      </Button>
 
     </div>
   );

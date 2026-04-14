@@ -20,7 +20,8 @@ import { MathDialog } from './MathDialog';
 import { DiagramDialog } from './DiagramDialog';
 import { EditorContextMenu } from './EditorContextMenu';
 import { CrossReferenceDialog } from './CrossReferenceDialog';
-import { SidePanel } from './SidePanel';
+import { ActivityBar } from './ActivityBar';
+import { SidePanel, type ActivityTab } from './SidePanel';
 import { collectTargets } from '../extensions/CrossReference';
 import { CROSSREF_RESYNC_META } from '../extensions/CrossReference';
 import type { RefTarget } from '../extensions/CrossReference';
@@ -55,7 +56,7 @@ export const Editor: React.FC<EditorProps> = ({ adapter, initialDoc, initialMeta
   const { state, dispatch } = useEditorContext();
   const [showNumbering, setShowNumbering] = useState(true);
   const [showSidePanel, setShowSidePanel] = useState(false);
-  const [sidePanelTab, setSidePanelTab] = useState<'toc' | 'settings'>('toc');
+  const [sidePanelTab, setSidePanelTab] = useState<ActivityTab>('toc');
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [showTableProperties, setShowTableProperties] = useState(false);
   const [pendingImage, setPendingImage] = useState<{ blob: Blob; dataUrl: string } | null>(null);
@@ -246,20 +247,11 @@ export const Editor: React.FC<EditorProps> = ({ adapter, initialDoc, initialMeta
     dispatch({ type: 'SET_SETTINGS', payload: { headingDecoration: !state.settings.headingDecoration } });
   };
 
-  const handleToggleToc = useCallback(() => {
-    if (showSidePanel && sidePanelTab === 'toc') {
+  const handleActivityTabClick = useCallback((tab: ActivityTab) => {
+    if (showSidePanel && sidePanelTab === tab) {
       setShowSidePanel(false);
     } else {
-      setSidePanelTab('toc');
-      setShowSidePanel(true);
-    }
-  }, [showSidePanel, sidePanelTab]);
-
-  const handleToggleSettings = useCallback(() => {
-    if (showSidePanel && sidePanelTab === 'settings') {
-      setShowSidePanel(false);
-    } else {
-      setSidePanelTab('settings');
+      setSidePanelTab(tab);
       setShowSidePanel(true);
     }
   }, [showSidePanel, sidePanelTab]);
@@ -494,24 +486,30 @@ export const Editor: React.FC<EditorProps> = ({ adapter, initialDoc, initialMeta
         onVersionChange={(value) => handleMetaChange('version', value)}
       />
       <Toolbar
-        editor={editor} onViewJson={handleViewJson} showNumbering={showNumbering} onToggleNumbering={handleToggleNumbering}
-        showDecoration={state.settings.headingDecoration} onToggleDecoration={handleToggleDecoration}
-        showToc={showSidePanel && sidePanelTab === 'toc'} onToggleToc={handleToggleToc}
-        showSettings={showSidePanel && sidePanelTab === 'settings'} onToggleSettings={handleToggleSettings}
+        editor={editor}
         onInsertLink={handleInsertLink} onInsertMath={handleInsertMath}
         onInsertDiagram={handleInsertDiagram}
         onInsertCrossRef={() => setShowCrossRefDialog(true)} onInsertImage={handleInsertImage}
-        onInsertDrawio={handleInsertDrawio} onExport={handleExport} onImport={handleImport}
+        onInsertDrawio={handleInsertDrawio}
       />
       {editor && <BubbleMenuBar editor={editor} />}
       <div className={`editor-body-layout${showSidePanel ? ' editor-body-with-toc' : ''}`}>
+        <ActivityBar
+          activeTab={showSidePanel ? sidePanelTab : null}
+          onTabClick={handleActivityTabClick}
+        />
         {showSidePanel && (
           <SidePanel
             activeTab={sidePanelTab}
-            onTabChange={(tab) => setSidePanelTab(tab)}
             editor={editor}
             showNumbering={showNumbering}
+            onToggleNumbering={handleToggleNumbering}
+            showDecoration={state.settings.headingDecoration}
+            onToggleDecoration={handleToggleDecoration}
             onUpdateDocSettings={handleUpdateDocSettings}
+            onViewJson={handleViewJson}
+            onExport={handleExport}
+            onImport={handleImport}
           />
         )}
         <div className="editor-content-area" onContextMenu={handleContextMenu}>

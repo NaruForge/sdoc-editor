@@ -7,6 +7,7 @@
 - (없음)
 
 ## Done (최근)
+- [SDOC-032](tasks/SDOC-032.md): Toolbar UX 최적화 — Activity Bar 4탭 + Toolbar 슬림화 (29→12개) (2026-04-15)
 - [SDOC-031](tasks/SDOC-031.md): 버그 수정 — 저장 시 내용 소실 + 블록 객체 간 텍스트 삽입 불가 (2026-04-14)
 - [SDOC-030](tasks/SDOC-030.md): Callout / Admonition 블록 구현 (2026-04-14)
 - [SDOC-029](tasks/SDOC-029.md): Blockquote 인용 블록 구현 (2026-04-14)
