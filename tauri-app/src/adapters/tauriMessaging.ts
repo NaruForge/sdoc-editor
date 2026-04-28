@@ -5,8 +5,8 @@
  * VS Code APIs. This allows sharing all components between VS Code extension and Tauri app.
  */
 import { invoke } from '@tauri-apps/api/core';
-import { listen, emit, type UnlistenFn } from '@tauri-apps/api/event';
-import { open, save } from '@tauri-apps/plugin-dialog';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { open } from '@tauri-apps/plugin-dialog';
 import { convertFileSrc } from '@tauri-apps/api/core';
 
 export interface TauriMessageHandler {

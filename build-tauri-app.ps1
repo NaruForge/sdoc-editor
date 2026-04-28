@@ -118,6 +118,13 @@ if (-not $SkipFrontendBuild) {
 Write-Step "Tauri 빌드 (Windows Rust toolchain)..."
 Push-Location $UncTauriPath
 try {
+    Write-Host "   → Rust toolchain 고정: 1.90.0" -ForegroundColor DarkGray
+    rustup override set 1.90.0 2>&1 | Write-Host
+    if ($LASTEXITCODE -ne 0) { Write-Fail "rustup override set 1.90.0 실패" }
+
+    $env:CARGO_BUILD_JOBS = "1"
+    Write-Host "   → CARGO_BUILD_JOBS=$env:CARGO_BUILD_JOBS" -ForegroundColor DarkGray
+
     npx @tauri-apps/cli build 2>&1 | Write-Host
     if ($LASTEXITCODE -ne 0) { Write-Fail "tauri build 실패" }
     Write-Ok "Tauri 빌드 완료"

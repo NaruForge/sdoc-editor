@@ -112,9 +112,6 @@ fn get_text_content(node: &serde_json::Value) -> String {
 /// Assign auto IDs to headings, images, and tables.
 pub fn assign_auto_ids(doc: &mut serde_json::Value) {
     let mut used_ids: std::collections::HashSet<String> = std::collections::HashSet::new();
-    let mut h1 = 0u32;
-    let mut h2 = 0u32;
-    let mut h3 = 0u32;
     let mut img_counter = 0u32;
     let mut table_counter = 0u32;
 
@@ -133,22 +130,9 @@ pub fn assign_auto_ids(doc: &mut serde_json::Value) {
                         .and_then(|a| a.get("level"))
                         .and_then(|l| l.as_u64())
                         .unwrap_or(1);
-                    match level {
-                        1 => {
-                            h1 += 1;
-                            h2 = 0;
-                            h3 = 0;
-                            img_counter = 0;
-                            table_counter = 0;
-                        }
-                        2 => {
-                            h2 += 1;
-                            h3 = 0;
-                        }
-                        3 => {
-                            h3 += 1;
-                        }
-                        _ => {}
+                    if level == 1 {
+                        img_counter = 0;
+                        table_counter = 0;
                     }
                     let text = get_text_content(node);
                     let base_id = slugify(&text);

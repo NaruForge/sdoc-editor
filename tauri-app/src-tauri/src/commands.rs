@@ -3,7 +3,7 @@ use crate::settings::*;
 use chrono::Utc;
 use std::fs;
 use std::path::{Path, PathBuf};
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter};
 
 /// State for the currently open document.
 pub struct DocState {
@@ -408,7 +408,6 @@ fn base64_decode(data: &str) -> Result<Vec<u8>, String> {
     };
 
     // Simple base64 decode
-    use std::io::Read;
     let decoded = pure
         .chars()
         .filter(|c| !c.is_whitespace())

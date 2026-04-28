@@ -540,10 +540,8 @@ function parseTable(tableLines: string[]): TiptapNode | null {
     /^\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/.test(line.trim());
 
   const rows: TiptapNode[] = [];
-  let hasHeader = false;
 
   if (tableLines.length >= 2 && isSeparator(tableLines[1])) {
-    hasHeader = true;
     // Header row
     const headerCells = parseRow(tableLines[0]);
     rows.push({

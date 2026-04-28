@@ -9,10 +9,8 @@ import {
   createEmptySdoc,
   assignAutoIds,
   syncCrossReferences,
-  migrateAttributes,
   queryDocumentStructure,
   extractTitle,
-  type SdocEnvelope,
   type SdocMeta,
   type QueryResult,
 } from './sdocUtils';

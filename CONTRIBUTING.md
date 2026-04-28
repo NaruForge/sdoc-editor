@@ -128,15 +128,40 @@ VS Code 없이 독립형 앱으로 실행되는 버전입니다.
 
 - WebView2 런타임 (Windows 11은 기본 내장, Windows 10은 필요 시 [설치](https://developer.microsoft.com/microsoft-edge/webview2/))
 
+### Rust 버전 고정 정책
+
+Tauri 빌드 안정성을 위해 Rust 툴체인을 고정합니다.
+
+- 기준 버전: `1.90.0`
+- 위치: `tauri-app/rust-toolchain.toml`
+- 확인 명령:
+
+```powershell
+cd tauri-app
+rustup show active-toolchain
+rustc --version
+```
+
+`1.90.0-x86_64-pc-windows-msvc`가 보이지 않으면:
+
+```powershell
+rustup toolchain install 1.90.0
+rustup override set 1.90.0
+```
+
 ### 빌드 및 배포
 
 ```powershell
 # 1. Rust 설치
 winget install Rustlang.Rustup
 
-# 2. 의존성 설치 및 빌드
+# 2. (최초 1회) 툴체인 고정
+rustup toolchain install 1.90.0
+
+# 3. 의존성 설치 및 빌드
 cd tauri-app
 npm install
+$env:CARGO_BUILD_JOBS="1"
 npx tauri build
 ```
 
@@ -197,3 +222,23 @@ npx tauri dev    # 핫 리로드 지원
 **변경사항이 반영되지 않음**
 - Watch 모드 사용 시 두 watcher가 모두 실행 중인지 확인
 - Extension Development Host를 중지하고 다시 시작
+
+**Tauri 빌드 중 `STATUS_STACK_BUFFER_OVERRUN (0xc0000409)` 발생**
+- Rust 버전 확인: `rustup show active-toolchain`
+- `tauri-app`에서 `1.90.0`으로 고정되어 있는지 확인
+- 미고정 시:
+  - `rustup toolchain install 1.90.0`
+  - `rustup override set 1.90.0`
+- 병렬 빌드 축소 후 재시도: `$env:CARGO_BUILD_JOBS="1"; npx tauri build`
+
+**`Blocking waiting for file lock on build directory`로 오래 대기함**
+- 같은 디렉터리에서 중복 `cargo/tauri build`가 동시에 실행 중인지 확인
+- 중복 터미널 프로세스를 종료한 뒤 단일 빌드만 실행
+
+**Vite 경고가 많아 빌드 실패처럼 보임**
+- `dynamic import ... also statically imported` 및 `Some chunks are larger than 500 kB`는 경고이며 실패 원인이 아님
+- 실제 실패 여부는 마지막 Exit Code와 `Finished ...`/`failed to build app` 문구로 판단
+
+**Rust warning(`unused import`, `unused variable`)이 출력됨**
+- 현재는 warning 수준이며 바이너리/설치 파일 생성에는 영향 없음
+- 필요하면 `cargo fix --lib -p sdoc-editor`로 정리 가능

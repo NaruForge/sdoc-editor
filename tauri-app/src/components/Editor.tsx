@@ -80,6 +80,12 @@ export const Editor: React.FC<EditorProps> = ({ adapter, initialDoc, initialMeta
   const pendingEditRef = useRef(false);
   const setContentRef = useRef<((content: any) => void) | null>(null);
   const initDoneRef = useRef(false);
+  const postMessageRef = useRef<(msg: Record<string, unknown>) => void>(() => {});
+
+  const { editor, setContent, flushUpdate } = useTiptapEditor({
+    onUpdate: (content) => { postMessageRef.current({ type: 'edit', content }); },
+    pendingEditRef,
+  });
 
   useEffect(() => {
     const { settings } = state;
@@ -184,9 +190,10 @@ export const Editor: React.FC<EditorProps> = ({ adapter, initialDoc, initialMeta
         break;
     }
   });
+  postMessageRef.current = postMessage;
 
   const handleViewJson = () => { postMessage({ type: 'viewJson' }); };
-  const handleExport = async (format: 'html' | 'adoc' | 'markdown' | 'pdf') => {
+  const handleExport = async (format: 'html' | 'adoc' | 'markdown' | 'pdf' | 'slides') => {
     if (!editor) return;
     const { save: saveDlg } = await import('@tauri-apps/plugin-dialog');
     const { convertJsonToHtml } = await import('@shared/converter/jsonToHtml');
@@ -204,18 +211,21 @@ export const Editor: React.FC<EditorProps> = ({ adapter, initialDoc, initialMeta
     };
     const currentMeta = { ...meta };
 
-    let content: string;
-    let ext: string;
-    let filterName: string;
+    let content = '';
+    let ext = '';
+    let filterName = '';
     switch (format) {
       case 'html':
-        content = convertJsonToHtml(doc, {
-          companyName: (await invoke('get_settings') as any).themeCompanyName,
-          primaryColor: (await invoke('get_settings') as any).themePrimaryColor,
-          accentColor: (await invoke('get_settings') as any).themeAccentColor,
-          fontFamily: (await invoke('get_settings') as any).themeFontFamily,
-          customStyles: (await invoke('get_settings') as any).themeCustomStyles,
-        }, exportSettings, currentMeta);
+        {
+          const appSettings = await invoke('get_settings') as any;
+          content = convertJsonToHtml(doc, {
+            companyName: appSettings.themeCompanyName,
+            primaryColor: appSettings.themePrimaryColor,
+            accentColor: appSettings.themeAccentColor,
+            fontFamily: appSettings.themeFontFamily,
+            customStyles: appSettings.themeCustomStyles,
+          }, exportSettings, currentMeta);
+        }
         ext = 'html';
         filterName = 'HTML';
         break;
@@ -229,6 +239,12 @@ export const Editor: React.FC<EditorProps> = ({ adapter, initialDoc, initialMeta
         ext = 'adoc';
         filterName = 'AsciiDoc';
         break;
+      case 'pdf':
+      case 'slides':
+        alert(`${format.toUpperCase()} 내보내기는 아직 Tauri 앱에서 지원되지 않습니다.`);
+        return;
+      default:
+        return;
     }
 
     const path = await saveDlg({
@@ -424,7 +440,9 @@ export const Editor: React.FC<EditorProps> = ({ adapter, initialDoc, initialMeta
     if (!imageContextMenu) return;
     const match = imageContextMenu.src.match(/((?:images|drawio)\/[^?#]+)/);
     const path = match ? './' + match[1] : imageContextMenu.src;
-    navigator.clipboard.writeText(path).then(() => console.log('Path copied:', path));
+    navigator.clipboard.writeText(path).catch((err: unknown) => {
+      console.warn('Failed to copy path to clipboard', err);
+    });
     setImageContextMenu(null);
   };
   const handleImageContextMenuDelete = () => {
@@ -433,11 +451,6 @@ export const Editor: React.FC<EditorProps> = ({ adapter, initialDoc, initialMeta
     setImageContextMenu(null);
     flushUpdate();
   };
-
-  const { editor, setContent, flushUpdate } = useTiptapEditor({
-    onUpdate: (content) => { postMessage({ type: 'edit', content }); },
-    pendingEditRef,
-  });
 
   // Initialize editor with document
   useEffect(() => {

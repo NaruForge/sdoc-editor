@@ -330,7 +330,8 @@ function convertImage(node: TiptapNode, ctx: ConvertContext): string {
       ? ' style="display:block; margin-right:0; margin-left:auto;"'
       : ' style="display:block; margin:0 auto; text-align:center;"';
 
-  const figId = node.attrs?.id ? ` id="${escapeHtml(node.attrs.id)}"` : '';
+  const figNodeId = typeof node.attrs?.id === 'string' ? node.attrs.id : '';
+  const figId = figNodeId ? ` id="${escapeHtml(figNodeId)}"` : '';
   let html = `<figure class="doc-image"${figId}${alignStyle}>`;
 
   if (title) {

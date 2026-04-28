@@ -71,6 +71,45 @@ npm run watch
 - 확장 프로그램만: `npm run build:ext`
 - Webview만: `npm run build:webview`
 
+## Tauri 데스크톱 빌드 (Windows)
+
+Tauri 빌드는 Rust 툴체인 버전을 고정해서 실행하는 것을 권장합니다.
+
+### 권장 툴체인
+
+- Rust `1.90.0` (MSVC)
+- `tauri-app/rust-toolchain.toml` 기준
+
+확인:
+
+```powershell
+cd tauri-app
+rustup show active-toolchain
+rustc --version
+```
+
+최초 1회 설정:
+
+```powershell
+rustup toolchain install 1.90.0
+rustup override set 1.90.0
+```
+
+빌드:
+
+```powershell
+cd tauri-app
+npm install
+$env:CARGO_BUILD_JOBS="1"
+npx tauri build
+```
+
+산출물:
+
+- `tauri-app/target/release/sdoc-editor.exe`
+- `tauri-app/target/release/bundle/msi/*.msi`
+- `tauri-app/target/release/bundle/nsis/*.exe`
+
 ## 에디터 기능 테스트
 
 1. **새 .sdoc 파일 생성**
@@ -164,6 +203,20 @@ HTML 내보내기 시 회사 브랜딩을 적용하려면:
 - .sdoc 파일에 유효한 JSON이 포함되어 있는지 확인
 - VS Code 알림에서 오류 메시지 확인
 - `src/converter/jsonToAdoc.ts`의 변환 로직 확인
+
+### Tauri 빌드 중 STATUS_STACK_BUFFER_OVERRUN (0xc0000409)
+- Rust 버전이 `1.90.0`인지 확인
+- `rustup override set 1.90.0` 적용 후 재시도
+- 병렬 컴파일 축소: `$env:CARGO_BUILD_JOBS="1"`
+
+### Blocking waiting for file lock on build directory
+- 동일 작업공간에서 중복 `tauri build`/`cargo build`를 동시에 실행한 경우 발생
+- 다른 빌드 터미널 종료 후 단일 프로세스로 재실행
+
+### Vite 경고 메시지 과다 출력
+- `dynamic import ... also statically imported`
+- `Some chunks are larger than 500 kB`
+- 위 항목은 경고이며 빌드 실패와는 별개
 
 ## 프로젝트 구조
 

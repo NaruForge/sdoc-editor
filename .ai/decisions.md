@@ -2,6 +2,8 @@
 
 | Date | Task | Agent/Author | Decision | Rationale |
 |------|------|-------------|----------|-----------|
+| 2026-04-28 | SDOC-040 | @copilot | `tauri-app/Cargo.toml` workspace에 `resolver = "2"` 추가 | edition 2021을 사용하는 멤버 crate와 workspace resolver 불일치 경고 제거. resolver="2"가 Rust 2021 edition 권장값 |
+| 2026-04-27 | SDOC-040 | @copilot | Tauri 빌드 툴체인을 `Rust 1.90.0`으로 고정하고 `CARGO_BUILD_JOBS=1`를 기본값으로 문서/스크립트에 반영 | Rust 1.92 환경에서 `STATUS_STACK_BUFFER_OVERRUN (0xc0000409)`가 간헐적으로 발생. 1.90.0 + 단일 job에서 빌드 성공 재현 확인 |
 | 2026-04-14 | SDOC-031 | @copilot | `onWillSaveTextDocument` + `requestFlush` + `saveRequested` 3중 보호 | `onWillSaveTextDocument`는 dirty 문서 저장 시 webview flush를 보장. `saveRequested` 플래그는 clean 문서에서도 edit 적용 후 재저장을 트리거 |
 | 2026-04-14 | SDOC-031 | @copilot | 메시지 처리를 순차 큐로 변경 (`Promise.then` 체이닝) | async 핸들러 간 동시 실행 방지. `edit` → `requestSave` 순서 보장이 필수 |
 | 2026-04-14 | SDOC-031 | @copilot | `pendingApplyEdits`를 `Map<string, number>`로 문서별 분리 | 싱글턴 Provider에서 복수 문서 열 때 카운터 혼선 방지 |

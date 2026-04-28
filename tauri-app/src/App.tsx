@@ -4,7 +4,7 @@ import { listen } from '@tauri-apps/api/event';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { EditorProvider, useEditorContext } from './context/EditorContext';
 import { Editor } from './components/Editor';
-import { createTauriAdapter, type TauriAdapter } from './adapters/tauriMessaging';
+import { createTauriAdapter } from './adapters/tauriMessaging';
 
 type AppView = 'welcome' | 'editor' | 'json';
 

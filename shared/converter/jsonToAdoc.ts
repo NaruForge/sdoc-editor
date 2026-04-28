@@ -71,7 +71,7 @@ function convertNode(node: TiptapNode, ctx: ConvertContext): string {
       return node.content ? node.content.map(n => convertNode(n, ctx)).join('\n') : '';
 
     case 'heading': {
-      const level = node.attrs?.level || 1;
+      const level = typeof node.attrs?.level === 'number' ? node.attrs.level : 1;
       const headingPrefix = '='.repeat(level + 1);
       const headingText = node.content ? convertInlineContent(node.content, ctx) : '';
       if (level === 1) { ctx.h1Counter++; ctx.imageCounter = 0; ctx.tableCounter = 0; ctx.eqInSection = 0; }
