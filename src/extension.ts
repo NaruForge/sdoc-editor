@@ -116,10 +116,11 @@ function migrateVscodeMcpJson(workspaceFsPath: string): void {
 
     delete config.servers['sdoc'];
 
-    if (Object.keys(config.servers).length === 0) {
+    const { servers, ...rest } = config;
+    if (Object.keys(servers).length === 0 && Object.keys(rest).length === 0) {
       fs.rmSync(vscodeMcpPath);
     } else {
-      fs.writeFileSync(vscodeMcpPath, JSON.stringify(config, null, 2) + '\n', 'utf-8');
+      fs.writeFileSync(vscodeMcpPath, JSON.stringify({ ...rest, servers }, null, 2) + '\n', 'utf-8');
     }
   } catch {
     // intentionally ignored: malformed or unreadable .vscode/mcp.json
