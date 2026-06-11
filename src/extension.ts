@@ -105,10 +105,33 @@ export function activate(context: vscode.ExtensionContext) {
   );
 }
 
+function migrateVscodeMcpJson(workspaceFsPath: string): void {
+  const vscodeMcpPath = path.join(workspaceFsPath, '.vscode', 'mcp.json');
+  if (!fs.existsSync(vscodeMcpPath)) return;
+
+  try {
+    const content = fs.readFileSync(vscodeMcpPath, 'utf-8');
+    const config = JSON.parse(content) as { servers?: Record<string, unknown> };
+    if (!config.servers?.['sdoc']) return;
+
+    delete config.servers['sdoc'];
+
+    if (Object.keys(config.servers).length === 0) {
+      fs.rmSync(vscodeMcpPath);
+    } else {
+      fs.writeFileSync(vscodeMcpPath, JSON.stringify(config, null, 2) + '\n', 'utf-8');
+    }
+  } catch {
+    // intentionally ignored: malformed or unreadable .vscode/mcp.json
+  }
+}
+
 function setupMcpInWorkspace(context: vscode.ExtensionContext, workspaceFsPath: string): void {
   const mcpServerPath = path.join(context.extensionPath, 'dist', 'mcp-server.js');
-  const vscodeDir = path.join(workspaceFsPath, '.vscode');
-  const mcpJsonPath = path.join(vscodeDir, 'mcp.json');
+  const githubDir = path.join(workspaceFsPath, '.github');
+  const mcpJsonPath = path.join(githubDir, 'mcp.json');
+
+  migrateVscodeMcpJson(workspaceFsPath);
 
   let config: { servers: Record<string, unknown> } = { servers: {} };
   try {
@@ -125,7 +148,7 @@ function setupMcpInWorkspace(context: vscode.ExtensionContext, workspaceFsPath: 
     args: [mcpServerPath],
   };
 
-  fs.mkdirSync(vscodeDir, { recursive: true });
+  fs.mkdirSync(githubDir, { recursive: true });
   fs.writeFileSync(mcpJsonPath, JSON.stringify(config, null, 2) + '\n', 'utf-8');
 }
 
