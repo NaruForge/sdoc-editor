@@ -5,6 +5,13 @@ All notable changes to the "Structured Doc Editor" extension will be documented 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.7] - 2026-06-12
+
+### Fixed
+- **MCP 설정 경로 마이그레이션**: Copilot CLI가 `.vscode/mcp.json` 지원을 제거함에 따라, "Setup AI Agent" 커맨드가 이제 `.github/mcp.json`에 MCP 서버를 등록합니다.
+  - 기존에 `.vscode/mcp.json`을 사용 중인 프로젝트는 자동으로 마이그레이션됩니다. (`sdoc` 항목 제거, 빈 파일은 삭제)
+  - `.github/mcp.json` 경로는 Copilot CLI 공식 문서([GitHub Copilot CLI 설정 레퍼런스](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-config-dir-reference))에서 지원하는 프로젝트 레벨 MCP 설정 경로입니다.
+
 ## [0.4.6] - 2026-04-14
 
 ### Added
