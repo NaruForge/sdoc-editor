@@ -3,7 +3,7 @@ import { Editor as TiptapEditor } from '@tiptap/react';
 import { TableOfContents } from './TableOfContents';
 import { ListOfFigures } from './ListOfFigures';
 import { ListOfTables } from './ListOfTables';
-import { DocumentSettingsPanel } from './DocumentSettingsPanel';
+import { DocumentSettingsPanel, type PostMessageHandler } from './DocumentSettingsPanel';
 import type { DocumentSettings } from '@shared/types';
 import { FileJson, Download, Upload, Loader2 } from 'lucide-react';
 
@@ -20,6 +20,7 @@ interface SidePanelProps {
   showDecoration: boolean;
   onToggleDecoration: () => void;
   onUpdateDocSettings: (settings: Partial<DocumentSettings> | null) => void;
+  onPostMessage?: PostMessageHandler;
   onViewJson?: () => void;
   onExport?: (format: 'html' | 'adoc' | 'markdown' | 'pdf' | 'slides') => void;
   onImport?: (format: 'markdown' | 'html') => void;
@@ -34,6 +35,7 @@ export const SidePanel: React.FC<SidePanelProps> = ({
   showDecoration,
   onToggleDecoration,
   onUpdateDocSettings,
+  onPostMessage,
   onViewJson,
   onExport,
   onImport,
@@ -60,7 +62,10 @@ export const SidePanel: React.FC<SidePanelProps> = ({
           <ListOfTables editor={editor} />
         )}
         {activeTab === 'settings' && (
-          <DocumentSettingsPanel onUpdateSettings={onUpdateDocSettings} />
+          <DocumentSettingsPanel
+            onUpdateSettings={onUpdateDocSettings}
+            onPostMessage={onPostMessage}
+          />
         )}
         {activeTab === 'file' && (
           <FilePanel

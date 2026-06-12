@@ -2,6 +2,7 @@
 
 | Date | Task | Agent/Author | Decision | Rationale |
 |------|------|-------------|----------|-----------|
+| 2026-06-12 | SDOC-041 | @copilot | `DocumentSettingsPanel`에 선택적 `onPostMessage` prop을 추가하고 CSS file picker는 `state.docSettings` 기준으로 렌더링 | 기존 callback-props 패턴을 유지하면서 문서별 CSS 경로만 정확히 표시/수정하려면 merged settings가 아닌 document override 상태를 직접 써야 함 |
 | 2026-04-28 | SDOC-040 | @copilot | `tauri-app/Cargo.toml` workspace에 `resolver = "2"` 추가 | edition 2021을 사용하는 멤버 crate와 workspace resolver 불일치 경고 제거. resolver="2"가 Rust 2021 edition 권장값 |
 | 2026-04-27 | SDOC-040 | @copilot | Tauri 빌드 툴체인을 `Rust 1.90.0`으로 고정하고 `CARGO_BUILD_JOBS=1`를 기본값으로 문서/스크립트에 반영 | Rust 1.92 환경에서 `STATUS_STACK_BUFFER_OVERRUN (0xc0000409)`가 간헐적으로 발생. 1.90.0 + 단일 job에서 빌드 성공 재현 확인 |
 | 2026-04-14 | SDOC-031 | @copilot | `onWillSaveTextDocument` + `requestFlush` + `saveRequested` 3중 보호 | `onWillSaveTextDocument`는 dirty 문서 저장 시 webview flush를 보장. `saveRequested` 플래그는 clean 문서에서도 edit 적용 후 재저장을 트리거 |

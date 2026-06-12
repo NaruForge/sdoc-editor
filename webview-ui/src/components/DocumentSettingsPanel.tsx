@@ -2,8 +2,11 @@ import React, { useCallback } from 'react';
 import { useEditorContext } from '../context/EditorContext';
 import type { DocumentSettings, CaptionStyleName } from '@shared/types';
 
-interface DocumentSettingsPanelProps {
+export type PostMessageHandler = (msg: Record<string, unknown>) => void;
+
+export interface DocumentSettingsPanelProps {
   onUpdateSettings: (settings: Partial<DocumentSettings> | null) => void;
+  onPostMessage?: PostMessageHandler;
 }
 
 interface CollapsibleSectionProps {
@@ -32,7 +35,20 @@ const CAPTION_STYLE_OPTIONS: { value: CaptionStyleName; label: string; descripti
   { value: 'korean', label: 'Korean (한국형)', description: '그림 1, 표 1, 식 (1)' },
 ];
 
-export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({ onUpdateSettings }) => {
+interface CssFileTargetOption {
+  target: 'slide' | 'html';
+  label: string;
+  pathKey: 'slideCssPath' | 'htmlCssPath';
+}
+
+const CSS_FILE_TARGET_OPTIONS: CssFileTargetOption[] = [
+  { target: 'slide', label: 'Slide CSS', pathKey: 'slideCssPath' },
+  { target: 'html', label: 'HTML CSS', pathKey: 'htmlCssPath' },
+];
+
+const UNSET_CSS_PATH_LABEL = '(설정 안됨)';
+
+export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({ onUpdateSettings, onPostMessage }) => {
   const { state } = useEditorContext();
   const docSettings = state.docSettings;
   const mergedSettings = state.settings;
@@ -53,6 +69,14 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({ on
   const handleResetAll = useCallback(() => {
     onUpdateSettings(null);
   }, [onUpdateSettings]);
+
+  const handleSelectCssFile = useCallback((target: CssFileTargetOption['target']) => {
+    onPostMessage?.({ type: 'selectCssFile', target });
+  }, [onPostMessage]);
+
+  const handleClearCssFile = useCallback((target: CssFileTargetOption['target']) => {
+    onPostMessage?.({ type: 'clearCssFile', target });
+  }, [onPostMessage]);
 
   return (
     <div className="settings-panel">
@@ -165,6 +189,42 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({ on
             onChange={(e) => updateField('crossRefIncludeCaption', e.target.checked)}
           />
         </div>
+      </CollapsibleSection>
+
+      <CollapsibleSection title="스타일 (Export CSS)">
+        {CSS_FILE_TARGET_OPTIONS.map(({ target, label, pathKey }) => {
+          const cssPath = docSettings?.[pathKey];
+          const hasPath = typeof cssPath === 'string' && cssPath.length > 0;
+
+          return (
+            <div className="settings-row" key={target}>
+              <label className="settings-label">{label}</label>
+              <div className="settings-file-picker">
+                <span className="settings-file-path" title={hasPath ? cssPath : UNSET_CSS_PATH_LABEL}>
+                  {hasPath ? cssPath : UNSET_CSS_PATH_LABEL}
+                </span>
+                <button
+                  type="button"
+                  className="settings-file-btn"
+                  onClick={() => handleSelectCssFile(target)}
+                  title={`${label} 선택`}
+                >
+                  📁
+                </button>
+                {hasPath && (
+                  <button
+                    type="button"
+                    className="settings-file-clear-btn"
+                    onClick={() => handleClearCssFile(target)}
+                    title={`${label} 지우기`}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
       </CollapsibleSection>
 
       <div className="settings-footer">

@@ -534,6 +534,7 @@ export const Editor: React.FC = () => {
             showDecoration={state.settings.headingDecoration}
             onToggleDecoration={handleToggleDecoration}
             onUpdateDocSettings={handleUpdateDocSettings}
+            onPostMessage={postMessage}
             onViewJson={handleViewJson}
             onExport={handleExport}
             onImport={handleImport}
