@@ -33,6 +33,8 @@ export interface DocumentSettings {
   captionNumbering?: 'sequential' | 'hierarchical';
   equationNumbering?: 'sequential' | 'hierarchical';
   crossRefIncludeCaption?: boolean;
+  slideCssPath?: string;
+  htmlCssPath?: string;
 }
 
 export interface SdocMeta {

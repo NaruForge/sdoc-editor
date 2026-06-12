@@ -85,6 +85,8 @@ export const SETTINGS_DEFAULTS: Required<DocumentSettings> = {
   captionNumbering: 'sequential',
   equationNumbering: 'sequential',
   crossRefIncludeCaption: false,
+  slideCssPath: '',
+  htmlCssPath: '',
 };
 
 /**
