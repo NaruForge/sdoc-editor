@@ -70,8 +70,13 @@
       },
       {
         "command": "structuredDocEditor.setupAgent",
-        "title": "Setup AI Agent (Instructions + Skills + MCP)",
+        "title": "Setup AI Support (MCP + Instructions)",
         "category": "Structured Doc"
+      }
+    ],
+    "chatSkills": [
+      {
+        "path": "./docs/agent/.github/skills/sdoc-editing/SKILL.md"
       }
     ],
     "configuration": {
