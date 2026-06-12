@@ -160,58 +160,38 @@ async function setupAgent(context: vscode.ExtensionContext): Promise<void> {
     return;
   }
 
-  // Source: docs/agent/.github/ inside the extension
-  const srcGithubDir = path.join(context.extensionPath, 'docs', 'agent', '.github');
-  if (!fs.existsSync(srcGithubDir)) {
-    vscode.window.showErrorMessage(
-      `Agent 파일을 찾을 수 없습니다: ${srcGithubDir}\n확장을 재설치해 주세요.`
-    );
-    return;
-  }
+  const workspaceFsPath = workspaceFolder.uri.fsPath;
 
-  const destGithubDir = path.join(workspaceFolder.uri.fsPath, '.github');
+  // 1. Copy slim instructions file (needed for applyTo auto-loading)
+  const srcInstructionsDir = path.join(context.extensionPath, 'docs', 'agent', '.github', 'instructions');
+  const destInstructionsDir = path.join(workspaceFsPath, '.github', 'instructions');
+  const instructionsFile = 'sdoc-format.instructions.md';
+  const srcPath = path.join(srcInstructionsDir, instructionsFile);
+  const destPath = path.join(destInstructionsDir, instructionsFile);
 
-  // Collect files to copy and detect conflicts
-  const filePairs = collectFilePairs(srcGithubDir, destGithubDir);
-  const conflicts = filePairs.filter(([, dest]) => fs.existsSync(dest));
-
-  if (conflicts.length > 0) {
-    const conflictList = conflicts.map(([, dest]) => path.relative(workspaceFolder.uri.fsPath, dest)).join('\n');
-    const answer = await vscode.window.showWarningMessage(
-      `이미 존재하는 파일이 있습니다. 덮어쓰시겠습니까?`,
-      { modal: true, detail: conflictList },
-      '덮어쓰기', '취소'
-    );
-    if (answer !== '덮어쓰기') { return; }
-  }
-
-  // Copy files
-  for (const [src, dest] of filePairs) {
-    fs.mkdirSync(path.dirname(dest), { recursive: true });
-    fs.copyFileSync(src, dest);
-  }
-
-  // Set up MCP server in .vscode/mcp.json
-  setupMcpInWorkspace(context, workspaceFolder.uri.fsPath);
-
-  vscode.window.showInformationMessage(
-    `AI Agent 설정 완료! ${filePairs.length}개 파일이 .github/ 에 복사되었습니다.`,
-    '확인'
-  );
-}
-
-function collectFilePairs(srcDir: string, destDir: string): [string, string][] {
-  const pairs: [string, string][] = [];
-  for (const entry of fs.readdirSync(srcDir, { withFileTypes: true })) {
-    const srcPath = path.join(srcDir, entry.name);
-    const destPath = path.join(destDir, entry.name);
-    if (entry.isDirectory()) {
-      pairs.push(...collectFilePairs(srcPath, destPath));
+  if (fs.existsSync(srcPath)) {
+    if (fs.existsSync(destPath)) {
+      const answer = await vscode.window.showWarningMessage(
+        `${instructionsFile} 파일이 이미 존재합니다. 덮어쓰시겠습니까?`,
+        '덮어쓰기', '건너뛰기'
+      );
+      if (answer === '덮어쓰기') {
+        fs.mkdirSync(destInstructionsDir, { recursive: true });
+        fs.copyFileSync(srcPath, destPath);
+      }
     } else {
-      pairs.push([srcPath, destPath]);
+      fs.mkdirSync(destInstructionsDir, { recursive: true });
+      fs.copyFileSync(srcPath, destPath);
     }
   }
-  return pairs;
+
+  // 2. Register MCP server
+  setupMcpInWorkspace(context, workspaceFsPath);
+
+  vscode.window.showInformationMessage(
+    'AI Support 설정 완료! Instructions 복사 + MCP 서버 등록 완료.',
+    '확인'
+  );
 }
 
 export function deactivate() {}
