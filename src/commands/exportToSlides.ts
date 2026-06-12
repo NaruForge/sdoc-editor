@@ -4,6 +4,8 @@ import { convertJsonToSlides } from '../../shared/converter';
 import { convertWebviewUrisToRelativePaths, embedImagesAsBase64 } from '../utils/imageUtils';
 import { resolveCompanyLogo, readFontWeights, buildHtmlTheme, readExportSettings } from '../utils/themeUtils';
 import { loadBundledFontsAsBase64 } from '../utils/fontUtils';
+import { resolveCustomCss } from '../utils/cssUtils';
+import type { DocumentSettings } from '../../shared/types';
 
 export async function exportToSlides(context: vscode.ExtensionContext) {
   const activeTab = vscode.window.tabGroups.activeTabGroup.activeTab;
@@ -54,8 +56,21 @@ export async function exportToSlides(context: vscode.ExtensionContext) {
     const fontWeights = readFontWeights(config);
     const usedWeights = new Set(Object.values(fontWeights));
     const embeddedFonts = await loadBundledFontsAsBase64(context.extensionUri, usedWeights);
+
+    // Resolve custom Slide CSS: file path (meta.settings) takes priority over settings string
+    const docSettings = meta?.settings as Partial<DocumentSettings> | undefined;
+    const workspacePath = vscode.workspace.getWorkspaceFolder(documentUri)?.uri.fsPath
+      ?? path.dirname(documentUri.fsPath);
+    const fallbackCustomCss = config.get<string>('theme.customStyles') || '';
+    const resolvedSlideCss = await resolveCustomCss(
+      docSettings?.slideCssPath,
+      workspacePath,
+      fallbackCustomCss,
+    );
+
     const theme = {
       ...buildHtmlTheme(config, companyLogo, fontWeights, embeddedFonts),
+      customStyles: resolvedSlideCss,
       primaryColor: config.get<string>('slide.primaryColor') || config.get<string>('theme.primaryColor') || '#A50034',
       accentColor: config.get<string>('slide.accentColor') || config.get<string>('theme.accentColor') || '#6b6b6b',
     };

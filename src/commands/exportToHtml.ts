@@ -4,6 +4,8 @@ import * as https from 'https';
 import { convertJsonToHtml } from '../../shared/converter';
 import { convertWebviewUrisToRelativePaths, embedImagesAsBase64 } from '../utils/imageUtils';
 import { resolveCompanyLogo } from '../utils/themeUtils';
+import { resolveCustomCss } from '../utils/cssUtils';
+import type { DocumentSettings } from '../../shared/types';
 
 export async function exportToHtml(context: vscode.ExtensionContext) {
   // Get the active tab's input
@@ -54,13 +56,25 @@ export async function exportToHtml(context: vscode.ExtensionContext) {
       config.get<string>('theme.companyLogo') || '',
       context.extensionPath,
     );
+
+    // Resolve custom HTML CSS: file path (meta.settings) takes priority over settings string
+    const docSettings = meta?.settings as Partial<DocumentSettings> | undefined;
+    const workspacePath = vscode.workspace.getWorkspaceFolder(documentUri)?.uri.fsPath
+      ?? path.dirname(documentUri.fsPath);
+    const fallbackCustomCss = config.get<string>('theme.customStyles') || '';
+    const resolvedHtmlCss = await resolveCustomCss(
+      docSettings?.htmlCssPath,
+      workspacePath,
+      fallbackCustomCss,
+    );
+
     const theme = {
       companyLogo,
       companyName: config.get<string>('theme.companyName') || '',
       primaryColor: config.get<string>('theme.primaryColor') || '#A50034',
       accentColor: config.get<string>('theme.accentColor') || '#6b6b6b',
       fontFamily: config.get<string>('theme.fontFamily') || '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-      customStyles: config.get<string>('theme.customStyles') || '',
+      customStyles: resolvedHtmlCss,
     };
 
     const exportSettings = {
