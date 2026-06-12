@@ -224,6 +224,28 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
           case 'updateDocSettings':
             await this.updateDocSettings(document, webviewPanel, message.settings);
             break;
+          case 'selectCssFile': {
+            const selectedPath = await this.selectCssFile(document);
+            if (selectedPath !== undefined) {
+              const target = message.target as 'slide' | 'html';
+              const key = target === 'slide' ? 'slideCssPath' : 'htmlCssPath';
+              const currentSettings = this.readDocSettings(document);
+              const newSettings = { ...currentSettings, [key]: selectedPath };
+              await this.updateDocSettings(document, webviewPanel, newSettings);
+            }
+            break;
+          }
+          case 'clearCssFile': {
+            const target = message.target as 'slide' | 'html';
+            const key = target === 'slide' ? 'slideCssPath' : 'htmlCssPath';
+            const currentSettings = this.readDocSettings(document);
+            if (currentSettings) {
+              const { [key]: _removed, ...rest } = currentSettings;
+              const newSettings = Object.keys(rest).length > 0 ? rest : null;
+              await this.updateDocSettings(document, webviewPanel, newSettings as Partial<DocumentSettings> | null);
+            }
+            break;
+          }
         }
       });
     });
@@ -1475,5 +1497,36 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
   <script type="module" nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;
+  }
+
+  private async selectCssFile(document: vscode.TextDocument): Promise<string | undefined> {
+    const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
+    const defaultUri = workspaceFolder?.uri ?? vscode.Uri.file(path.dirname(document.uri.fsPath));
+
+    const result = await vscode.window.showOpenDialog({
+      canSelectMany: false,
+      canSelectFolders: false,
+      defaultUri,
+      filters: { 'CSS Files': ['css'] },
+      title: 'Custom CSS 파일 선택',
+    });
+
+    if (!result || result.length === 0) {
+      return undefined;
+    }
+
+    const selectedUri = result[0];
+    const basePath = workspaceFolder?.uri.fsPath ?? path.dirname(document.uri.fsPath);
+    return './' + path.relative(basePath, selectedUri.fsPath).replace(/\\/g, '/');
+  }
+
+  private readDocSettings(document: vscode.TextDocument): Partial<DocumentSettings> | null {
+    try {
+      const text = document.getText();
+      const parsed = text.trim() ? JSON.parse(text) : {};
+      return parsed?.meta?.settings ?? null;
+    } catch {
+      return null;
+    }
   }
 }
