@@ -24,6 +24,7 @@ import {
   processMigrate,
   queryDocument,
 } from '../../shared/mcp/toolHandlers';
+import { AI_AUTHORING_GUIDE } from '../../shared/mcp/aiAuthoringGuide';
 
 const server = new McpServer({
   name: 'sdoc',
@@ -124,7 +125,7 @@ server.tool(
 // ── Tool: sdoc.getSchema ──────────────────────────────────────────
 server.tool(
   'sdoc_getSchema',
-  'Get the .sdoc/.tiptap.json JSON schema definition. Use this to understand the document structure and valid node types.',
+  'Get the .sdoc/.tiptap.json JSON schema definition and AI authoring quick reference. Use this to understand the document structure, valid node types, marks, and cross-reference conventions.',
   {},
   async () => {
     // Try to find the schema file relative to the server script
@@ -137,13 +138,15 @@ server.tool(
     for (const candidate of candidates) {
       try {
         const schema = fs.readFileSync(candidate, 'utf-8');
-        return { content: [{ type: 'text' as const, text: schema }] };
+        const combined = `# JSON Schema\n\n${schema}\n\n${AI_AUTHORING_GUIDE}`;
+        return { content: [{ type: 'text' as const, text: combined }] };
       } catch {
         // try next
       }
     }
 
-    return { content: [{ type: 'text' as const, text: 'Schema file not found. The schema is embedded in the sdoc-format instructions.' }] };
+    // Even if schema file not found, return the authoring guide
+    return { content: [{ type: 'text' as const, text: AI_AUTHORING_GUIDE }] };
   }
 );
 
