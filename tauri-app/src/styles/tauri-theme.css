@@ -1104,6 +1104,7 @@ body {
   outline: none; font-family: var(--font-family);
 }
 .settings-text-input:focus { border-color: var(--focus-border); }
+.settings-path-input { flex: 1; min-width: 0; width: auto; }
 
 .settings-radio-group { display: flex; flex-direction: column; gap: 4px; }
 .settings-radio-label { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--editor-fg); cursor: pointer; }

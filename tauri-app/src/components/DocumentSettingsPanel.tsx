@@ -32,6 +32,69 @@ const CAPTION_STYLE_OPTIONS: { value: CaptionStyleName; label: string; descripti
   { value: 'korean', label: 'Korean (한국형)', description: '그림 1, 표 1, 식 (1)' },
 ];
 
+interface CssPathFieldOption {
+  label: string;
+  pathKey: 'slideCssPath' | 'htmlCssPath';
+  placeholder: string;
+}
+
+const CSS_PATH_FIELD_OPTIONS: CssPathFieldOption[] = [
+  { label: 'Slide CSS', pathKey: 'slideCssPath', placeholder: './theme/slide.css' },
+  { label: 'HTML CSS', pathKey: 'htmlCssPath', placeholder: './theme/html.css' },
+];
+
+interface DeferredTextInputProps {
+  value: string;
+  placeholder: string;
+  onCommit: (value: string) => void;
+}
+
+const DeferredTextInput: React.FC<DeferredTextInputProps> = ({ value, placeholder, onCommit }) => {
+  const [draft, setDraft] = React.useState(value);
+  const skipCommitOnBlurRef = React.useRef(false);
+
+  React.useEffect(() => {
+    setDraft(value);
+  }, [value]);
+
+  const handleCommit = useCallback(() => {
+    if (skipCommitOnBlurRef.current) {
+      skipCommitOnBlurRef.current = false;
+      return;
+    }
+
+    if (draft !== value) {
+      onCommit(draft);
+    }
+  }, [draft, onCommit, value]);
+
+  const handleKeyDown = useCallback((event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') {
+      event.currentTarget.blur();
+      return;
+    }
+
+    if (event.key === 'Escape') {
+      skipCommitOnBlurRef.current = true;
+      setDraft(value);
+      event.currentTarget.blur();
+    }
+  }, [value]);
+
+  return (
+    <input
+      type="text"
+      className="settings-text-input settings-path-input"
+      value={draft}
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={handleCommit}
+      onKeyDown={handleKeyDown}
+      placeholder={placeholder}
+      spellCheck={false}
+    />
+  );
+};
+
 export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({ onUpdateSettings }) => {
   const { state } = useEditorContext();
   const docSettings = state.docSettings;
@@ -53,6 +116,19 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({ on
   const handleResetAll = useCallback(() => {
     onUpdateSettings(null);
   }, [onUpdateSettings]);
+
+  const handleCssPathCommit = useCallback((key: CssPathFieldOption['pathKey'], value: string) => {
+    const trimmedValue = value.trim();
+    const nextSettings: Partial<DocumentSettings> = { ...(docSettings ?? {}) };
+
+    if (trimmedValue.length > 0) {
+      nextSettings[key] = trimmedValue;
+    } else {
+      delete nextSettings[key];
+    }
+
+    onUpdateSettings(Object.keys(nextSettings).length > 0 ? nextSettings : null);
+  }, [docSettings, onUpdateSettings]);
 
   return (
     <div className="settings-panel">
@@ -165,6 +241,19 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({ on
             onChange={(e) => updateField('crossRefIncludeCaption', e.target.checked)}
           />
         </div>
+      </CollapsibleSection>
+
+      <CollapsibleSection title="스타일 (Export CSS)">
+        {CSS_PATH_FIELD_OPTIONS.map(({ label, pathKey, placeholder }) => (
+          <div className="settings-row" key={pathKey}>
+            <label className="settings-label">{label}</label>
+            <DeferredTextInput
+              value={docSettings?.[pathKey] ?? ''}
+              placeholder={placeholder}
+              onCommit={(value) => handleCssPathCommit(pathKey, value)}
+            />
+          </div>
+        ))}
       </CollapsibleSection>
 
       <div className="settings-footer">

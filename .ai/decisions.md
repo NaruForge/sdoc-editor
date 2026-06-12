@@ -2,6 +2,7 @@
 
 | Date | Task | Agent/Author | Decision | Rationale |
 |------|------|-------------|----------|-----------|
+| 2026-06-12 | SDOC-042 | @copilot | Tauri `DocumentSettingsPanel`의 Export CSS UI는 파일 다이얼로그 대신 deferred text input으로 동기화 | Tauri 앱은 VS Code `showOpenDialog`를 사용할 수 없고, 기존 Tauri 입력 UX는 blur/Enter 확정 패턴을 사용하므로 직접 경로 입력이 가장 일관적 |
 | 2026-06-12 | SDOC-041 | @copilot | `DocumentSettingsPanel`에 선택적 `onPostMessage` prop을 추가하고 CSS file picker는 `state.docSettings` 기준으로 렌더링 | 기존 callback-props 패턴을 유지하면서 문서별 CSS 경로만 정확히 표시/수정하려면 merged settings가 아닌 document override 상태를 직접 써야 함 |
 | 2026-04-28 | SDOC-040 | @copilot | `tauri-app/Cargo.toml` workspace에 `resolver = "2"` 추가 | edition 2021을 사용하는 멤버 crate와 workspace resolver 불일치 경고 제거. resolver="2"가 Rust 2021 edition 권장값 |
 | 2026-04-27 | SDOC-040 | @copilot | Tauri 빌드 툴체인을 `Rust 1.90.0`으로 고정하고 `CARGO_BUILD_JOBS=1`를 기본값으로 문서/스크립트에 반영 | Rust 1.92 환경에서 `STATUS_STACK_BUFFER_OVERRUN (0xc0000409)`가 간헐적으로 발생. 1.90.0 + 단일 job에서 빌드 성공 재현 확인 |
