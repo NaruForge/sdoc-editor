@@ -1,6 +1,6 @@
 # Structured Doc Editor
 
-> **v0.4.6** — TOC Fold/Unfold + LOF/LOT 그림·표 목록 탭 + TOC 스크롤 위치 개선
+> **v0.4.8** — Custom CSS 파일 지원 + AI Setup 최적화 (chatSkills 자동 등록)
 
 `.sdoc` / `.tiptap.json` 파일을 위한 WYSIWYG 구조화 문서 에디터입니다.
 
@@ -18,6 +18,7 @@
 | **TOC Fold/Unfold** | 목차 항목 chevron 버튼으로 하위 계층 접기/펼치기 |
 | **LOF / LOT** | 그림 목록 / 표 목록 사이드패널 — 클릭으로 해당 위치 이동 |
 | 내보내기 | Markdown, AsciiDoc, 테마 적용 HTML, PDF, **슬라이드** (Activity Bar 파일 탭) |
+| **Custom CSS** | 문서별 Slide/HTML Export용 CSS 파일 지정 (에디터 설정 패널에서 선택) |
 | 가져오기 | Markdown, HTML → `.sdoc` 변환 (Activity Bar 파일 탭) |
 | 텍스트 꾸미기 | 굵게, 기울임, 밑줄, 취소선, 코드, **텍스트 색상**, **하이라이트(음영)** |
 | 수학 수식 | KaTeX 인라인 / 블록 수식 |
@@ -35,7 +36,7 @@
 | 슬라이드 내보내기 | H1 기준 자동 분리, reveal.js 기반 프레젠테이션 HTML 생성 |
 | 내장 폰트 | Legacy Font 2.0 (Light / Regular / SemiBold / Bold) 번들 |
 | 자동 업데이트 | 공유 폴더 기반 사내 자동 업데이트 |
-| AI Agent 지원 | MCP 서버 내장 — Copilot/Claude 등 AI Agent가 `.sdoc` 직접 생성·편집 가능 |
+| AI Agent 지원 | MCP 서버 내장 + `/sdoc-editing` 스킬 자동 등록 — 설치만으로 AI Agent 활용 가능 |
 
 ---
 

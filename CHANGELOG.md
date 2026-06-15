@@ -5,6 +5,20 @@ All notable changes to the "Structured Doc Editor" extension will be documented 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.8] - 2026-06-16
+
+### Added
+- **Custom CSS 파일 지원**: 에디터 내부 설정 패널(⚙️)에서 Slide/HTML Export용 CSS 파일을 직접 선택 가능
+  - 문서별 `meta.settings.slideCssPath` / `meta.settings.htmlCssPath`에 워크스페이스 상대 경로 저장
+  - 기존 `theme.customStyles` (settings.json 문자열) 대비 사용성 대폭 개선
+  - 파일이 지정되면 파일 내용 우선, 없으면 settings.json 폴백
+- **chatSkills 자동 등록**: Extension 설치만으로 `/sdoc-editing` 슬래시 커맨드 사용 가능 (setupAgent 실행 불필요)
+
+### Changed
+- **AI Instructions 경량화**: `.sdoc` 파일 작업 시 자동 로딩되는 instructions를 234줄에서 33줄로 축소 (토큰 소비 ~86% 감소)
+- **MCP `sdoc_getSchema` 강화**: JSON Schema와 함께 AI Authoring Quick Reference (노드/마크 타입 예시) 반환
+- **"Setup AI Agent" → "Setup AI Support"**: MCP 등록 + 슬림 instructions 복사로 단순화 (스킬 파일 복사 제거)
+
 ## [0.4.7] - 2026-06-12
 
 ### Fixed
