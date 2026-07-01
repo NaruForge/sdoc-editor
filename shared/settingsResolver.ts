@@ -87,6 +87,12 @@ export const SETTINGS_DEFAULTS: Required<DocumentSettings> = {
   crossRefIncludeCaption: false,
   slideCssPath: '',
   htmlCssPath: '',
+  pdfScale: 70,
+  selfContained: 'images-only',
+  slideBreakLevel: 'h1-only',
+  slideTransition: 'none',
+  showTitleSlide: true,
+  outputDir: '',
 };
 
 /**

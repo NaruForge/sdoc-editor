@@ -5,10 +5,23 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Emitter};
 
+const EXCLUDED_DIRS: &[&str] = &[".git", "node_modules", "target", "dist", "build", ".svelte-kit"];
+const MAX_EXPLORER_DEPTH: usize = 6;
+
 /// State for the currently open document.
 pub struct DocState {
     pub file_path: std::sync::Mutex<Option<PathBuf>>,
+    pub current_folder: std::sync::Mutex<Option<PathBuf>>,
     pub settings: std::sync::Mutex<AppSettings>,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExplorerEntry {
+    pub name: String,
+    pub path: String,
+    pub kind: String,
+    pub depth: usize,
 }
 
 // ─── File Operations ────────────────────────────────────────────────
@@ -25,6 +38,9 @@ pub fn open_document(path: String, state: tauri::State<DocState>) -> Result<serd
 
     // Update state
     *state.file_path.lock().unwrap() = Some(path.clone());
+    if let Some(parent) = path.parent() {
+        *state.current_folder.lock().unwrap() = Some(parent.to_path_buf());
+    }
 
     // Add to recent files
     {
@@ -41,6 +57,7 @@ pub fn open_document(path: String, state: tauri::State<DocState>) -> Result<serd
     Ok(serde_json::json!({
         "meta": meta,
         "doc": doc,
+        "filePath": path.to_string_lossy(),
     }))
 }
 
@@ -49,7 +66,7 @@ pub fn save_document(
     content: serde_json::Value,
     meta_updates: Option<serde_json::Value>,
     state: tauri::State<DocState>,
-) -> Result<(), String> {
+) -> Result<serde_json::Value, String> {
     let file_path = state.file_path.lock().unwrap().clone();
     let path = file_path.ok_or("No file open")?;
 
@@ -68,6 +85,9 @@ pub fn save_document(
         }
         if let Some(version) = updates.get("version").and_then(|v| v.as_str()) {
             meta.version = version.to_string();
+        }
+        if updates.get("settings").is_some() {
+            meta.settings = updates.get("settings").cloned().filter(|value| !value.is_null());
         }
     }
 
@@ -92,12 +112,18 @@ pub fn save_document(
     let json_str = serde_json::to_string_pretty(&envelope).map_err(|e| e.to_string())?;
     fs::write(&path, json_str).map_err(|e| e.to_string())?;
 
-    Ok(())
+    Ok(serde_json::json!({
+        "modified": meta.modified,
+        "filePath": path.to_string_lossy(),
+    }))
 }
 
 #[tauri::command]
 pub fn new_document(path: String, state: tauri::State<DocState>) -> Result<serde_json::Value, String> {
     let path = PathBuf::from(&path);
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
     let now = Utc::now().format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string();
     let meta = SdocMeta {
         title: String::new(),
@@ -105,6 +131,7 @@ pub fn new_document(path: String, state: tauri::State<DocState>) -> Result<serde
         version: "0.1".to_string(),
         created: now.clone(),
         modified: now,
+        settings: None,
     };
     let doc = serde_json::json!({
         "type": "doc",
@@ -117,17 +144,87 @@ pub fn new_document(path: String, state: tauri::State<DocState>) -> Result<serde
     let json_str = serde_json::to_string_pretty(&envelope).map_err(|e| e.to_string())?;
     fs::write(&path, json_str).map_err(|e| e.to_string())?;
 
-    *state.file_path.lock().unwrap() = Some(path);
+    *state.file_path.lock().unwrap() = Some(path.clone());
+    if let Some(parent) = path.parent() {
+        *state.current_folder.lock().unwrap() = Some(parent.to_path_buf());
+    }
+
+    {
+        let mut settings = state.settings.lock().unwrap();
+        let path_str = path.to_string_lossy().to_string();
+        settings.recent_files.retain(|f| f != &path_str);
+        settings.recent_files.insert(0, path_str);
+        if settings.recent_files.len() > 20 {
+            settings.recent_files.truncate(20);
+        }
+        save_settings(&settings).ok();
+    }
 
     Ok(serde_json::json!({
         "meta": meta,
         "doc": doc,
+        "filePath": path.to_string_lossy(),
     }))
 }
 
 #[tauri::command]
 pub fn get_current_file_path(state: tauri::State<DocState>) -> Option<String> {
     state.file_path.lock().unwrap().as_ref().map(|p| p.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+pub fn set_current_folder(path: String, state: tauri::State<DocState>) -> Result<(), String> {
+    let folder = PathBuf::from(path);
+    if !folder.is_dir() {
+        return Err("선택한 경로가 폴더가 아닙니다.".to_string());
+    }
+    *state.current_folder.lock().unwrap() = Some(folder);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn get_current_folder(state: tauri::State<DocState>) -> Option<String> {
+    state
+        .current_folder
+        .lock()
+        .unwrap()
+        .as_ref()
+        .map(|p| p.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+pub fn list_folder_documents(
+    folder: Option<String>,
+    state: tauri::State<DocState>,
+) -> Result<Vec<ExplorerEntry>, String> {
+    let root = match folder {
+        Some(path) => PathBuf::from(path),
+        None => state
+            .current_folder
+            .lock()
+            .unwrap()
+            .clone()
+            .ok_or("현재 폴더가 선택되지 않았습니다.")?,
+    };
+
+    if !root.is_dir() {
+        return Err("선택한 경로가 폴더가 아닙니다.".to_string());
+    }
+
+    let mut entries = Vec::new();
+    collect_explorer_entries(&root, 0, &mut entries)?;
+    Ok(entries)
+}
+
+#[tauri::command]
+pub fn create_document_in_folder(
+    folder: String,
+    file_name: String,
+    state: tauri::State<DocState>,
+) -> Result<serde_json::Value, String> {
+    let safe_name = sanitize_document_file_name(&file_name)?;
+    let path = deduplicate_path(&PathBuf::from(folder), &safe_name);
+    new_document(path.to_string_lossy().to_string(), state)
 }
 
 // ─── Image Operations ───────────────────────────────────────────────
@@ -397,7 +494,86 @@ pub fn resolve_asset_path(
     Ok(abs.to_string_lossy().to_string())
 }
 
+#[tauri::command]
+pub fn resolve_document_relative_path(
+    path: String,
+    state: tauri::State<DocState>,
+) -> Result<String, String> {
+    let input = PathBuf::from(&path);
+    if input.is_absolute() {
+        return Ok(input.to_string_lossy().to_string());
+    }
+
+    let file_path = state.file_path.lock().unwrap().clone();
+    let doc_path = file_path.ok_or("No file open")?;
+    let doc_dir = doc_path.parent().ok_or("Invalid path")?;
+    Ok(doc_dir.join(input).to_string_lossy().to_string())
+}
+
 // ─── Utilities ──────────────────────────────────────────────────────
+
+fn collect_explorer_entries(
+    folder: &Path,
+    depth: usize,
+    entries: &mut Vec<ExplorerEntry>,
+) -> Result<(), String> {
+    if depth > MAX_EXPLORER_DEPTH {
+        return Ok(());
+    }
+
+    let mut children = fs::read_dir(folder)
+        .map_err(|e| e.to_string())?
+        .filter_map(Result::ok)
+        .collect::<Vec<_>>();
+    children.sort_by_key(|entry| entry.path());
+
+    for child in children {
+        let path = child.path();
+        let name = child.file_name().to_string_lossy().to_string();
+        if path.is_dir() {
+            if EXCLUDED_DIRS.contains(&name.as_str()) {
+                continue;
+            }
+            entries.push(ExplorerEntry {
+                name,
+                path: path.to_string_lossy().to_string(),
+                kind: "folder".to_string(),
+                depth,
+            });
+            collect_explorer_entries(&path, depth + 1, entries)?;
+        } else if is_supported_document(&path) {
+            entries.push(ExplorerEntry {
+                name,
+                path: path.to_string_lossy().to_string(),
+                kind: "file".to_string(),
+                depth,
+            });
+        }
+    }
+
+    Ok(())
+}
+
+fn is_supported_document(path: &Path) -> bool {
+    let file_name = path.file_name().and_then(|name| name.to_str()).unwrap_or_default();
+    path.extension().and_then(|ext| ext.to_str()) == Some("sdoc")
+        || file_name.ends_with(".tiptap.json")
+}
+
+fn sanitize_document_file_name(file_name: &str) -> Result<String, String> {
+    let trimmed = file_name.trim();
+    if trimmed.is_empty() {
+        return Err("파일 이름을 입력하세요.".to_string());
+    }
+    if trimmed.contains('/') || trimmed.contains('\\') || trimmed.contains("..") {
+        return Err("파일 이름에 경로 구분자를 사용할 수 없습니다.".to_string());
+    }
+    if trimmed.ends_with(".sdoc") || trimmed.ends_with(".tiptap.json") {
+        Ok(trimmed.to_string())
+    } else {
+        Ok(format!("{}.sdoc", trimmed))
+    }
+}
 
 fn base64_decode(data: &str) -> Result<Vec<u8>, String> {
     // Strip data URI prefix if present

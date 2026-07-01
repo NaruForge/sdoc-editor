@@ -1,5 +1,5 @@
 import React from 'react';
-import { ListOrdered as NumberIcon, BookOpen, Settings, FolderOpen, Image, Table2 } from 'lucide-react';
+import { ListOrdered as NumberIcon, BookOpen, Settings, FolderOpen, Image, Table2, Files } from 'lucide-react';
 import type { ActivityTab } from './SidePanel';
 
 interface ActivityBarProps {
@@ -7,26 +7,33 @@ interface ActivityBarProps {
   onTabClick: (tab: ActivityTab) => void;
 }
 
-const TABS: { id: ActivityTab; icon: React.ReactNode; title: string }[] = [
-  { id: 'view', icon: <NumberIcon size={18} />, title: '뷰 컨트롤 (번호/장식)' },
-  { id: 'toc', icon: <BookOpen size={18} />, title: '목차 (TOC)' },
-  { id: 'lof', icon: <Image size={18} />, title: '그림 목록 (LOF)' },
-  { id: 'lot', icon: <Table2 size={18} />, title: '표 목록 (LOT)' },
-  { id: 'settings', icon: <Settings size={18} />, title: '문서 설정' },
-  { id: 'file', icon: <FolderOpen size={18} />, title: '파일 작업 (내보내기/가져오기)' },
+const TABS: { id: ActivityTab; icon: React.ReactNode; title: string; label: string }[] = [
+  { id: 'explorer', icon: <Files size={18} />, title: '폴더 탐색기', label: '탐색' },
+  { id: 'view', icon: <NumberIcon size={18} />, title: '뷰 컨트롤 (번호/장식)', label: '뷰' },
+  { id: 'toc', icon: <BookOpen size={18} />, title: '목차 (TOC)', label: '목차' },
+  { id: 'lof', icon: <Image size={18} />, title: '그림 목록 (LOF)', label: '그림' },
+  { id: 'lot', icon: <Table2 size={18} />, title: '표 목록 (LOT)', label: '표' },
+  { id: 'settings', icon: <Settings size={18} />, title: '문서 설정', label: '설정' },
+  { id: 'file', icon: <FolderOpen size={18} />, title: '파일 작업 (내보내기/가져오기)', label: '파일' },
 ];
 
 export const ActivityBar: React.FC<ActivityBarProps> = ({ activeTab, onTabClick }) => (
-  <div className="activity-bar">
-    {TABS.map(({ id, icon, title }) => (
-      <button
-        key={id}
-        className={`activity-bar-icon${activeTab === id ? ' is-active' : ''}`}
-        title={title}
-        onClick={() => onTabClick(id)}
-      >
-        {icon}
-      </button>
-    ))}
-  </div>
+  <nav className="activity-bar" aria-label="문서 패널">
+    {TABS.map(({ id, icon, title, label }) => {
+      const isActive = activeTab === id;
+      return (
+        <button
+          key={id}
+          className={`activity-bar-icon${isActive ? ' is-active' : ''}`}
+          title={title}
+          aria-label={title}
+          aria-pressed={isActive}
+          onClick={() => onTabClick(id)}
+        >
+          {icon}
+          <span className="activity-bar-label">{label}</span>
+        </button>
+      );
+    })}
+  </nav>
 );

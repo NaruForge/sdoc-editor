@@ -21,6 +21,8 @@ pub struct SdocMeta {
     pub created: String,
     #[serde(default)]
     pub modified: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub settings: Option<serde_json::Value>,
 }
 
 /// Unwrap an .sdoc file: handles both envelope and legacy bare doc formats.

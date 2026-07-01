@@ -416,6 +416,7 @@ export const tiptapExtensions = [
 
                 let imgCnt = 0;
                 let tblCnt = 0;
+                let eqCnt = 0;
                 view.state.doc.descendants((node, pos) => {
                   if (targetPos !== null) return false;
                   // Check persisted id first
@@ -441,6 +442,13 @@ export const tiptapExtensions = [
                   if (node.type.name === 'table') {
                     tblCnt++;
                     if (`table-${tblCnt}` === targetId) {
+                      targetPos = pos;
+                      return false;
+                    }
+                  }
+                  if (node.type.name === 'mathBlock') {
+                    eqCnt++;
+                    if (`eq-${eqCnt}` === targetId) {
                       targetPos = pos;
                       return false;
                     }

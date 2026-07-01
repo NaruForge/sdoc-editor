@@ -1,6 +1,12 @@
 import React, { useCallback } from 'react';
 import { useEditorContext } from '../context/EditorContext';
-import type { DocumentSettings, CaptionStyleName } from '@shared/types';
+import type {
+  CaptionStyleName,
+  DocumentSettings,
+  SelfContainedMode,
+  SlideBreakLevel,
+  SlideTransition,
+} from '@shared/types';
 
 export type PostMessageHandler = (msg: Record<string, unknown>) => void;
 
@@ -48,6 +54,78 @@ const CSS_FILE_TARGET_OPTIONS: CssFileTargetOption[] = [
 
 const UNSET_CSS_PATH_LABEL = '(설정 안됨)';
 
+const SELF_CONTAINED_OPTIONS: { value: SelfContainedMode; label: string }[] = [
+  { value: 'none', label: '외부 파일 참조' },
+  { value: 'images-only', label: '이미지만 포함' },
+  { value: 'full', label: '완전 포함' },
+];
+
+const SLIDE_BREAK_OPTIONS: { value: SlideBreakLevel; label: string }[] = [
+  { value: 'h1-only', label: 'H1마다 새 슬라이드' },
+  { value: 'h1-h2-vertical', label: 'H1 수평 / H2 수직' },
+];
+
+const SLIDE_TRANSITION_OPTIONS: { value: SlideTransition; label: string }[] = [
+  { value: 'none', label: '없음' },
+  { value: 'fade', label: 'Fade' },
+  { value: 'slide', label: 'Slide' },
+  { value: 'convex', label: 'Convex' },
+  { value: 'concave', label: 'Concave' },
+  { value: 'zoom', label: 'Zoom' },
+];
+
+interface DeferredTextInputProps {
+  value: string;
+  placeholder: string;
+  onCommit: (value: string) => void;
+}
+
+const DeferredTextInput: React.FC<DeferredTextInputProps> = ({ value, placeholder, onCommit }) => {
+  const [draft, setDraft] = React.useState(value);
+  const skipCommitOnBlurRef = React.useRef(false);
+
+  React.useEffect(() => {
+    setDraft(value);
+  }, [value]);
+
+  const handleCommit = useCallback(() => {
+    if (skipCommitOnBlurRef.current) {
+      skipCommitOnBlurRef.current = false;
+      return;
+    }
+
+    if (draft !== value) {
+      onCommit(draft);
+    }
+  }, [draft, onCommit, value]);
+
+  const handleKeyDown = useCallback((event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') {
+      event.currentTarget.blur();
+      return;
+    }
+
+    if (event.key === 'Escape') {
+      skipCommitOnBlurRef.current = true;
+      setDraft(value);
+      event.currentTarget.blur();
+    }
+  }, [value]);
+
+  return (
+    <input
+      type="text"
+      className="settings-text-input settings-path-input"
+      value={draft}
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={handleCommit}
+      onKeyDown={handleKeyDown}
+      placeholder={placeholder}
+      spellCheck={false}
+    />
+  );
+};
+
 export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({ onUpdateSettings, onPostMessage }) => {
   const { state } = useEditorContext();
   const docSettings = state.docSettings;
@@ -77,6 +155,17 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({ on
   const handleClearCssFile = useCallback((target: CssFileTargetOption['target']) => {
     onPostMessage?.({ type: 'clearCssFile', target });
   }, [onPostMessage]);
+
+  const handleTextFieldCommit = useCallback((key: 'outputDir', value: string) => {
+    const trimmedValue = value.trim();
+    const nextSettings: Partial<DocumentSettings> = { ...(docSettings ?? {}) };
+    if (trimmedValue.length > 0) {
+      nextSettings[key] = trimmedValue;
+    } else {
+      delete nextSettings[key];
+    }
+    onUpdateSettings(Object.keys(nextSettings).length > 0 ? nextSettings : null);
+  }, [docSettings, onUpdateSettings]);
 
   return (
     <div className="settings-panel">
@@ -225,6 +314,77 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({ on
             </div>
           );
         })}
+      </CollapsibleSection>
+
+      <CollapsibleSection title="내보내기 (Export)">
+        <div className="settings-row">
+          <label className="settings-label">PDF 배율</label>
+          <input
+            type="number"
+            className="settings-number-input"
+            min={10}
+            max={200}
+            step={5}
+            value={docSettings?.pdfScale ?? mergedSettings.pdfScale}
+            onChange={(e) => updateField('pdfScale', Math.min(200, Math.max(10, Number(e.target.value) || 70)))}
+          />
+        </div>
+        <div className="settings-row">
+          <label className="settings-label">HTML 포함 수준</label>
+          <select
+            className="settings-select"
+            value={docSettings?.selfContained ?? mergedSettings.selfContained}
+            onChange={(e) => updateField('selfContained', e.target.value as SelfContainedMode)}
+          >
+            {SELF_CONTAINED_OPTIONS.map(opt => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+        </div>
+        <div className="settings-row">
+          <label className="settings-label">출력 폴더</label>
+          <DeferredTextInput
+            value={docSettings?.outputDir ?? mergedSettings.outputDir}
+            placeholder="./export"
+            onCommit={(value) => handleTextFieldCommit('outputDir', value)}
+          />
+        </div>
+        <div className="settings-hint">
+          비워두면 문서와 같은 폴더에 저장합니다. 상대 경로는 워크스페이스 기준입니다.
+        </div>
+        <div className="settings-row">
+          <label className="settings-label">슬라이드 분리</label>
+          <select
+            className="settings-select"
+            value={docSettings?.slideBreakLevel ?? mergedSettings.slideBreakLevel}
+            onChange={(e) => updateField('slideBreakLevel', e.target.value as SlideBreakLevel)}
+          >
+            {SLIDE_BREAK_OPTIONS.map(opt => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+        </div>
+        <div className="settings-row">
+          <label className="settings-label">타이틀 슬라이드</label>
+          <input
+            type="checkbox"
+            className="settings-toggle"
+            checked={docSettings?.showTitleSlide ?? mergedSettings.showTitleSlide}
+            onChange={(e) => updateField('showTitleSlide', e.target.checked)}
+          />
+        </div>
+        <div className="settings-row">
+          <label className="settings-label">전환 효과</label>
+          <select
+            className="settings-select"
+            value={docSettings?.slideTransition ?? mergedSettings.slideTransition}
+            onChange={(e) => updateField('slideTransition', e.target.value as SlideTransition)}
+          >
+            {SLIDE_TRANSITION_OPTIONS.map(opt => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+        </div>
       </CollapsibleSection>
 
       <div className="settings-footer">

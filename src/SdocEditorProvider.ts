@@ -3,18 +3,17 @@ import * as path from 'path';
 import { getNonce, getWebviewUri } from './utils/webviewHelper';
 import { convertJsonToHtml, convertJsonToAdoc, convertJsonToMarkdown, convertJsonToSlides, convertMarkdownToJson } from '../shared/converter';
 import { detectBrowser, printToPdf } from './utils/browserDetect';
-import { resolveFontWeight, generateFontFaceCSS, loadBundledFontsAsBase64 } from './utils/fontUtils';
+import { generateFontFaceCSS, loadBundledFontsAsBase64 } from './utils/fontUtils';
 import { convertImagePathsToWebviewUris, convertWebviewUrisToRelativePaths, embedImagesAsBase64 } from './utils/imageUtils';
 import { resolveCompanyLogo, readFontWeights, buildHtmlTheme } from './utils/themeUtils';
+import { resolveCustomCss } from './utils/cssUtils';
 import {
   unwrapSdoc as sharedUnwrapSdoc,
-  migrateAttributes as sharedMigrateAttributes,
   assignAutoIds as sharedAssignAutoIds,
   syncCrossReferences as sharedSyncCrossReferences,
-  extractTitle as sharedExtractTitle,
 } from '../shared/mcp/sdocUtils';
 import { resolveSettings, getCaptionPreset } from '../shared/settingsResolver';
-import type { DocumentSettings, CaptionStyleName } from '../shared/types';
+import type { DocumentSettings, CaptionStyleName, TiptapNode } from '../shared/types';
 
 export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
   private static readonly SDOC_VERSION = '1.0';
@@ -114,6 +113,12 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
           headingH3Color: resolved.headingH3Color,
           defaultImageAlignment: config.get<string>('image.defaultAlignment', 'center'),
           exportImagePath: config.get<string>('export.imagePath', 'relative'),
+          pdfScale: config.get<number>('export.pdfScale', 70),
+          selfContained: config.get<'none' | 'images-only' | 'full'>('export.selfContained', 'images-only'),
+          slideBreakLevel: config.get<'h1-only' | 'h1-h2-vertical'>('slide.breakLevel', 'h1-only'),
+          slideTransition: config.get<'none' | 'fade' | 'slide' | 'convex' | 'concave' | 'zoom'>('slide.transition', 'none'),
+          showTitleSlide: config.get<boolean>('slide.showTitleSlide', true),
+          outputDir: config.get<string>('export.outputDir', ''),
           fontWeightBody: config.get<string>('font.body', 'Regular'),
           fontWeightBold: config.get<string>('font.bold', 'Bold'),
           fontWeightH1: config.get<string>('font.h1', 'Bold'),
@@ -126,18 +131,6 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         type: 'docSettingsChanged',
         docSettings: docSettings || null,
       });
-    };
-
-    // Send metadata to webview
-    const sendMeta = () => {
-      try {
-        const text = document.getText();
-        const parsed = text.trim() ? JSON.parse(text) : {};
-        const { meta } = SdocEditorProvider.unwrapSdoc(parsed);
-        webviewPanel.webview.postMessage({ type: 'metaUpdate', meta });
-      } catch {
-        // Ignore parse errors
-      }
     };
 
     // Send initial document content with image paths converted
@@ -872,7 +865,11 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
 
       // Convert image paths to webview URIs
       const documentDir = vscode.Uri.joinPath(document.uri, '..');
-      const convertedDoc = convertImagePathsToWebviewUris(doc, documentDir, webviewPanel.webview);
+      const convertedDoc = convertImagePathsToWebviewUris(
+        doc as unknown as Record<string, unknown>,
+        documentDir,
+        webviewPanel.webview
+      );
 
       webviewPanel.webview.postMessage({ type: 'importContent', content: convertedDoc });
       vscode.window.showInformationMessage('Markdown imported successfully');
@@ -884,7 +881,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
   }
 
   private async importHtml(
-    document: vscode.TextDocument,
+    _document: vscode.TextDocument,
     webviewPanel: vscode.WebviewPanel
   ): Promise<void> {
     try {
@@ -1017,6 +1014,12 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         headingH3Color: resolved.headingH3Color,
         defaultImageAlignment: config.get<string>('image.defaultAlignment', 'center'),
         exportImagePath: config.get<string>('export.imagePath', 'relative'),
+        pdfScale: config.get<number>('export.pdfScale', 70),
+        selfContained: config.get<'none' | 'images-only' | 'full'>('export.selfContained', 'images-only'),
+        slideBreakLevel: config.get<'h1-only' | 'h1-h2-vertical'>('slide.breakLevel', 'h1-only'),
+        slideTransition: config.get<'none' | 'fade' | 'slide' | 'convex' | 'concave' | 'zoom'>('slide.transition', 'none'),
+        showTitleSlide: config.get<boolean>('slide.showTitleSlide', true),
+        outputDir: config.get<string>('export.outputDir', ''),
         fontWeightBody: config.get<string>('font.body', 'Regular'),
         fontWeightBold: config.get<string>('font.bold', 'Bold'),
         fontWeightH1: config.get<string>('font.h1', 'Bold'),
@@ -1033,7 +1036,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
   private async openLinkedDocument(
     currentDocument: vscode.TextDocument,
     relPath: string,
-    anchor?: string
+    _anchor?: string
   ): Promise<void> {
     try {
       const currentDir = path.dirname(currentDocument.uri.fsPath);
@@ -1061,8 +1064,6 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     webview: vscode.Webview
   ): Promise<void> {
     const currentDir = path.dirname(document.uri.fsPath);
-    const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
-    const searchRoot = workspaceFolder?.uri.fsPath || currentDir;
 
     // Find all .sdoc files in workspace
     const files = await vscode.workspace.findFiles('**/*.sdoc', '**/node_modules/**', 100);
@@ -1198,7 +1199,8 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     if (result) {
       const action = await vscode.window.showInformationMessage(
         result.successMsg,
-        result.actionLabel
+        result.actionLabel,
+        'Reveal in Explorer'
       );
       if (action === result.actionLabel) {
         if (result.openKind === 'external') {
@@ -1209,6 +1211,8 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
           const openedDoc = await vscode.workspace.openTextDocument(result.openUri);
           await vscode.window.showTextDocument(openedDoc, { preview: false });
         }
+      } else if (action === 'Reveal in Explorer') {
+        await vscode.commands.executeCommand('revealFileInOS', result.openUri);
       }
     }
   }
@@ -1227,21 +1231,28 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     try {
       progress.report({ message: '문서 읽는 중...', increment: 5 });
       const text = document.getText();
-      let parsed = text.trim() ? JSON.parse(text) : { sdoc: SdocEditorProvider.SDOC_VERSION, meta: {}, doc: { type: 'doc', content: [] } };
+      const parsed = text.trim() ? JSON.parse(text) : { sdoc: SdocEditorProvider.SDOC_VERSION, meta: {}, doc: { type: 'doc', content: [] } };
 
       // Unwrap envelope
       const { doc, meta } = SdocEditorProvider.unwrapSdoc(parsed);
 
       // Convert webview URIs back to relative paths
-      let convertedDoc = convertWebviewUrisToRelativePaths(doc);
+      let convertedDoc = convertWebviewUrisToRelativePaths(
+        doc as Record<string, unknown>
+      ) as unknown as TiptapNode;
 
       // Read export settings — merge doc-level settings over VS Code defaults
       const config = vscode.workspace.getConfiguration('structuredDocEditor');
-      const selfContained = config.get<'none' | 'images-only' | 'full'>('export.selfContained', 'images-only');
       const vscodeDefaults: Partial<DocumentSettings> = {
         captionStyle: config.get<CaptionStyleName>('caption.style', 'modern'),
         captionNumbering: config.get<'sequential' | 'hierarchical'>('caption.numbering', 'sequential'),
         equationNumbering: config.get<'sequential' | 'hierarchical'>('equation.numbering', 'sequential'),
+        selfContained: config.get<'none' | 'images-only' | 'full'>('export.selfContained', 'images-only'),
+        pdfScale: config.get<number>('export.pdfScale', 70),
+        outputDir: config.get<string>('export.outputDir', ''),
+        slideBreakLevel: config.get<'h1-only' | 'h1-h2-vertical'>('slide.breakLevel', 'h1-only'),
+        slideTransition: config.get<'none' | 'fade' | 'slide' | 'convex' | 'concave' | 'zoom'>('slide.transition', 'none'),
+        showTitleSlide: config.get<boolean>('slide.showTitleSlide', true),
       };
       const resolved = resolveSettings(meta.settings as Partial<DocumentSettings> | undefined, vscodeDefaults);
       const preset = getCaptionPreset(resolved.captionStyle);
@@ -1259,17 +1270,23 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
 
       // For HTML, PDF, and slides, apply selfContained settings
       const needsSelfContained = format === 'html' || format === 'pdf' || format === 'slides';
-      if (needsSelfContained && selfContained !== 'none') {
+      if (needsSelfContained && resolved.selfContained !== 'none') {
         progress.report({ message: '이미지 처리 중...', increment: 20 });
         const documentDir = path.dirname(document.uri.fsPath);
-        convertedDoc = await embedImagesAsBase64(convertedDoc, documentDir);
-        exportSettings.selfContained = selfContained;
+        convertedDoc = await embedImagesAsBase64(
+          convertedDoc as unknown as Record<string, unknown>,
+          documentDir
+        ) as unknown as TiptapNode;
+        exportSettings.selfContained = resolved.selfContained;
       }
       // PDF always embeds images regardless of setting
-      if (format === 'pdf' && selfContained === 'none') {
+      if (format === 'pdf' && resolved.selfContained === 'none') {
         progress.report({ message: '이미지 처리 중...', increment: 20 });
         const documentDir = path.dirname(document.uri.fsPath);
-        convertedDoc = await embedImagesAsBase64(convertedDoc, documentDir);
+        convertedDoc = await embedImagesAsBase64(
+          convertedDoc as unknown as Record<string, unknown>,
+          documentDir
+        ) as unknown as TiptapNode;
         exportSettings.selfContained = 'images-only';
       }
 
@@ -1288,39 +1305,68 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
           const usedWeights = new Set(Object.values(fontWeights));
           const embeddedFonts = await loadBundledFontsAsBase64(this.context.extensionUri, usedWeights);
           const theme = buildHtmlTheme(config, companyLogo, fontWeights, embeddedFonts);
+          const customStyles = await resolveCustomCss(
+            resolved.htmlCssPath,
+            this.getWorkspaceBasePath(document),
+            config.get<string>('theme.customStyles') || '',
+          );
 
-          content = convertJsonToHtml(convertedDoc, theme, exportSettings, meta);
+          content = convertJsonToHtml(convertedDoc, { ...theme, customStyles }, exportSettings, meta);
 
           if (format === 'pdf') {
             // PDF: generate via headless browser
             const browserPath = detectBrowser();
             if (!browserPath) {
-              vscode.window.showErrorMessage(
-                'Chrome, Edge, or Chromium is required for PDF export. Please install one of these browsers.'
+              const fallbackUri = await this.writeExportFile(
+                document,
+                '.html',
+                content,
+                resolved.outputDir,
+                progress,
               );
+              if (!fallbackUri) return null;
+              const action = await vscode.window.showWarningMessage(
+                `PDF 내보내기에 필요한 Chrome/Edge/Chromium을 찾지 못해 HTML로 대신 내보냈습니다: ${fallbackUri.fsPath}`,
+                'Open HTML',
+                'Reveal in Explorer',
+                'Install Guide'
+              );
+              if (action === 'Open HTML') {
+                await vscode.commands.executeCommand('vscode.open', fallbackUri);
+              } else if (action === 'Reveal in Explorer') {
+                await vscode.commands.executeCommand('revealFileInOS', fallbackUri);
+              } else if (action === 'Install Guide') {
+                await vscode.env.openExternal(vscode.Uri.parse('https://www.google.com/chrome/'));
+              }
               return null;
             }
 
-            // Inject zoom CSS for PDF scale
-            const pdfScale = config.get<number>('export.pdfScale', 70) / 100;
-            content = content.replace('</head>', `<style>body{zoom:${pdfScale};}</style>\n</head>`);
+          // Inject zoom CSS for PDF scale
+          const pdfScale = resolved.pdfScale / 100;
+          content = content.replace('</head>', `<style>body{zoom:${pdfScale};}</style>\n</head>`);
 
-            const fs = await import('fs');
-            const tempHtmlPath = document.uri.fsPath.replace(/(\.tiptap\.json|\.sdoc)$/, '.tmp.html');
-            const pdfPath = document.uri.fsPath.replace(/(\.tiptap\.json|\.sdoc)$/, '.pdf');
+          const tempHtmlPath = document.uri.fsPath.replace(/(\.tiptap\.json|\.sdoc)$/, '.tmp.html');
+          const pdfUri = this.buildExportUri(document, '.pdf', resolved.outputDir);
+          const shouldOverwritePdf = await this.confirmOverwrite(pdfUri);
+          if (!shouldOverwritePdf) return null;
+          await vscode.workspace.fs.createDirectory(vscode.Uri.file(path.dirname(pdfUri.fsPath)));
 
           progress.report({ message: 'PDF 인쇄 중...', increment: 40 });
-            fs.writeFileSync(tempHtmlPath, content, 'utf-8');
+          const tempHtmlUri = vscode.Uri.file(tempHtmlPath);
+          await vscode.workspace.fs.writeFile(tempHtmlUri, new TextEncoder().encode(content));
+          try {
+            await printToPdf(browserPath, tempHtmlPath, pdfUri.fsPath);
+          } finally {
             try {
-              await printToPdf(browserPath, tempHtmlPath, pdfPath);
-            } finally {
-              try { fs.unlinkSync(tempHtmlPath); } catch { /* ignore */ }
+              await vscode.workspace.fs.delete(tempHtmlUri);
+            } catch {
+              // intentionally ignored: best-effort cleanup for transient export HTML
             }
+          }
 
-            const pdfUri = vscode.Uri.file(pdfPath);
-            return {
-              successMsg: `PDF exported: ${pdfUri.fsPath}`,
-              actionLabel: 'Open PDF',
+          return {
+            successMsg: `PDF exported: ${pdfUri.fsPath}`,
+            actionLabel: 'Open PDF',
               openUri: pdfUri,
               openKind: 'external',
             };
@@ -1342,23 +1388,32 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
             ...buildHtmlTheme(config, slideLogo, slideFontWeights, slideEmbeddedFonts),
             primaryColor: config.get<string>('slide.primaryColor') || config.get<string>('theme.primaryColor') || '#A50034',
             accentColor: config.get<string>('slide.accentColor') || config.get<string>('theme.accentColor') || '#6b6b6b',
+            customStyles: await resolveCustomCss(
+              resolved.slideCssPath,
+              this.getWorkspaceBasePath(document),
+              config.get<string>('theme.customStyles') || '',
+            ),
           };
 
           const slideSettings = {
             ...exportSettings,
-            slideBreak: config.get<'h1-only' | 'h1-h2-vertical'>('slide.breakLevel', 'h1-only'),
-            showTitleSlide: config.get<boolean>('slide.showTitleSlide', true),
-            transition: config.get<'none' | 'fade' | 'slide' | 'convex' | 'concave' | 'zoom'>('slide.transition', 'none'),
+            slideBreak: resolved.slideBreakLevel,
+            slideBreakLevel: resolved.slideBreakLevel,
+            showTitleSlide: resolved.showTitleSlide,
+            transition: resolved.slideTransition,
+            slideTransition: resolved.slideTransition,
           };
 
           content = convertJsonToSlides(convertedDoc, slideTheme, slideSettings, meta);
 
-          progress.report({ message: '파일 쓰는 중...', increment: 30 });
-          const slideUri = document.uri.with({
-            path: document.uri.path.replace(/(\..+)$/, '.slides.html'),
-          });
-          const encoder2 = new TextEncoder();
-          await vscode.workspace.fs.writeFile(slideUri, encoder2.encode(content));
+          const slideUri = await this.writeExportFile(
+            document,
+            '.slides.html',
+            content,
+            resolved.outputDir,
+            progress,
+          );
+          if (!slideUri) return null;
 
           return {
             successMsg: `Slides exported: ${slideUri.fsPath}`,
@@ -1380,12 +1435,14 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       }
 
       progress.report({ message: '파일 쓰는 중...', increment: 20 });
-      const outputUri = document.uri.with({
-        path: document.uri.path.replace(/(\.tiptap\.json|\.sdoc)$/, ext),
-      });
-
-      const encoder = new TextEncoder();
-      await vscode.workspace.fs.writeFile(outputUri, encoder.encode(content));
+      const outputUri = await this.writeExportFile(
+        document,
+        ext,
+        content,
+        resolved.outputDir,
+        progress,
+      );
+      if (!outputUri) return null;
 
       return {
         successMsg: `${label} exported: ${outputUri.fsPath}`,
@@ -1401,20 +1458,68 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     }
   }
 
+  private getWorkspaceBasePath(document: vscode.TextDocument): string {
+    return vscode.workspace.getWorkspaceFolder(document.uri)?.uri.fsPath ?? path.dirname(document.uri.fsPath);
+  }
+
+  private buildExportUri(
+    document: vscode.TextDocument,
+    extension: string,
+    outputDir: string,
+  ): vscode.Uri {
+    const baseName = path.basename(document.uri.fsPath).replace(/(\.tiptap\.json|\.sdoc)$/, '');
+    const outputFileName = `${baseName}${extension}`;
+    const trimmedOutputDir = outputDir.trim();
+    if (!trimmedOutputDir) {
+      return document.uri.with({ path: document.uri.path.replace(/(\.tiptap\.json|\.sdoc)$/, extension) });
+    }
+
+    const basePath = this.getWorkspaceBasePath(document);
+    const resolvedOutputDir = path.isAbsolute(trimmedOutputDir)
+      ? trimmedOutputDir
+      : path.resolve(basePath, trimmedOutputDir);
+    return vscode.Uri.file(path.join(resolvedOutputDir, outputFileName));
+  }
+
+  private async confirmOverwrite(uri: vscode.Uri): Promise<boolean> {
+    try {
+      await vscode.workspace.fs.stat(uri);
+    } catch {
+      return true;
+    }
+
+    const answer = await vscode.window.showWarningMessage(
+      `이미 파일이 있습니다. 덮어쓰시겠습니까?\n${uri.fsPath}`,
+      { modal: true },
+      '덮어쓰기'
+    );
+    return answer === '덮어쓰기';
+  }
+
+  private async writeExportFile(
+    document: vscode.TextDocument,
+    extension: string,
+    content: string,
+    outputDir: string,
+    progress: vscode.Progress<{ message?: string; increment?: number }>,
+  ): Promise<vscode.Uri | null> {
+    const outputUri = this.buildExportUri(document, extension, outputDir);
+    const shouldOverwrite = await this.confirmOverwrite(outputUri);
+    if (!shouldOverwrite) {
+      return null;
+    }
+    progress.report({ message: '파일 쓰는 중...', increment: 20 });
+    await vscode.workspace.fs.createDirectory(vscode.Uri.file(path.dirname(outputUri.fsPath)));
+    await vscode.workspace.fs.writeFile(outputUri, new TextEncoder().encode(content));
+    return outputUri;
+  }
+
   /**
    * Unwrap an .sdoc file: supports both the new envelope format and legacy (bare doc).
    * Also migrates legacy attribute names (data-caption → caption, etc.).
    */
   private static unwrapSdoc(parsed: any): { meta: any; doc: any } {
     return sharedUnwrapSdoc(parsed);
-  }
-
-  private static migrateAttributes(node: any): any {
-    return sharedMigrateAttributes(node);
-  }
-
-  private static extractTitle(doc: any): string {
-    return sharedExtractTitle(doc);
   }
 
   /**

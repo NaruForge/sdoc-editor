@@ -7,6 +7,8 @@
 - (없음)
 
 ## Done (최근)
+- [SDOC-045](tasks/SDOC-045.md): UX 개선 구현 — 진입/Export/Tauri 폴더 사이드바 (2026-07-01)
+- [SDOC-044](tasks/SDOC-044.md): 인간 사용자 관점 UX 시뮬레이션 및 개선 계획 (2026-07-01)
 - [SDOC-042](tasks/SDOC-042.md): Tauri 앱 문서 설정 패널 Export CSS 경로 입력 동기화 (2026-06-12)
 - [SDOC-041](tasks/SDOC-041.md): 문서 설정 패널 Export CSS 파일 선택 UI 추가 (2026-06-12)
 - SDOC-043: AI Setup 최적화 — Instructions 축소 + chatSkills + MCP 강화 (2026-06-16)

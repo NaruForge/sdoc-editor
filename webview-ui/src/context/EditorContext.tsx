@@ -1,6 +1,12 @@
 import React, { createContext, useContext, useReducer, ReactNode } from 'react';
 import { JSONContent } from '@tiptap/react';
-import type { DocumentSettings, CaptionStyleName } from '@shared/types';
+import type {
+  CaptionStyleName,
+  DocumentSettings,
+  SelfContainedMode,
+  SlideBreakLevel,
+  SlideTransition,
+} from '@shared/types';
 
 export interface EditorSettings {
   captionStyle: CaptionStyleName;
@@ -20,6 +26,12 @@ export interface EditorSettings {
   headingH3Color: string;
   defaultImageAlignment: 'left' | 'center' | 'right';
   exportImagePath: 'relative' | 'absolute';
+  pdfScale: number;
+  selfContained: SelfContainedMode;
+  slideBreakLevel: SlideBreakLevel;
+  slideTransition: SlideTransition;
+  showTitleSlide: boolean;
+  outputDir: string;
   fontWeightBody: number;
   fontWeightBold: number;
   fontWeightH1: number;
@@ -56,6 +68,12 @@ export const defaultSettings: EditorSettings = {
   headingH3Color: '#A50034',
   defaultImageAlignment: 'center',
   exportImagePath: 'relative',
+  pdfScale: 70,
+  selfContained: 'images-only',
+  slideBreakLevel: 'h1-only',
+  slideTransition: 'none',
+  showTitleSlide: true,
+  outputDir: '',
   fontWeightBody: 400,
   fontWeightBold: 700,
   fontWeightH1: 700,

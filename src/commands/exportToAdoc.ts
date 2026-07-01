@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { convertJsonToAdoc } from '../../shared/converter';
 import { convertWebviewUrisToRelativePaths } from '../utils/imageUtils';
 
-export async function exportToAdoc(context: vscode.ExtensionContext) {
+export async function exportToAdoc(_context: vscode.ExtensionContext) {
   // Get the active tab's input
   const activeTab = vscode.window.tabGroups.activeTabGroup.activeTab;
 

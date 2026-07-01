@@ -34,9 +34,13 @@ export async function exportToPdf(context: vscode.ExtensionContext) {
   // Detect browser
   const browserPath = detectBrowser();
   if (!browserPath) {
-    vscode.window.showErrorMessage(
-      'Chrome, Edge, or Chromium is required for PDF export. Please install one of these browsers.'
+    const action = await vscode.window.showErrorMessage(
+      'Chrome, Edge, or Chromium is required for PDF export. Please install one of these browsers.',
+      'Install Guide'
     );
+    if (action === 'Install Guide') {
+      await vscode.env.openExternal(vscode.Uri.parse('https://www.google.com/chrome/'));
+    }
     return;
   }
 
@@ -122,4 +126,3 @@ export async function exportToPdf(context: vscode.ExtensionContext) {
     );
   }
 }
-

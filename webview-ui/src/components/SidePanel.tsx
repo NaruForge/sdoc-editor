@@ -4,8 +4,9 @@ import { TableOfContents } from './TableOfContents';
 import { ListOfFigures } from './ListOfFigures';
 import { ListOfTables } from './ListOfTables';
 import { DocumentSettingsPanel, type PostMessageHandler } from './DocumentSettingsPanel';
+import { PanelEmptyState } from './PanelEmptyState';
 import type { DocumentSettings } from '@shared/types';
-import { FileJson, Download, Upload, Loader2 } from 'lucide-react';
+import { FileJson, Download, Upload, Loader2, FolderOpen } from 'lucide-react';
 
 export type ActivityTab = 'view' | 'toc' | 'lof' | 'lot' | 'settings' | 'file';
 
@@ -97,6 +98,7 @@ const ViewControlPanel: React.FC<ViewControlPanelProps> = ({
 }) => (
   <div className="side-panel-section">
     <div className="side-panel-section-title">뷰 컨트롤</div>
+    <div className="side-panel-section-desc">편집 화면에만 적용되는 표시 옵션입니다. 내보내기 결과에는 영향을 주지 않습니다.</div>
     <label className="side-panel-toggle-row">
       <span className="side-panel-toggle-label">헤딩 번호 매김</span>
       <button
@@ -142,7 +144,20 @@ const IMPORT_FORMATS: { format: 'markdown' | 'html'; label: string }[] = [
   { format: 'html', label: 'HTML' },
 ];
 
-const FilePanel: React.FC<FilePanelProps> = ({ onViewJson, onExport, onImport, isExporting = false }) => (
+const FilePanel: React.FC<FilePanelProps> = ({ onViewJson, onExport, onImport, isExporting = false }) => {
+  if (!onExport && !onImport && !onViewJson) {
+    return (
+      <div className="side-panel-section">
+        <PanelEmptyState
+          icon={<FolderOpen size={22} />}
+          title="파일 작업을 사용할 수 없습니다"
+          message="이 문서에서는 내보내기·가져오기 명령을 사용할 수 없습니다."
+          hint="문서를 다시 열거나 확장 프로그램을 재시작해 보세요."
+        />
+      </div>
+    );
+  }
+  return (
   <div className="side-panel-section">
     {onExport && (
       <>
@@ -153,6 +168,7 @@ const FilePanel: React.FC<FilePanelProps> = ({ onViewJson, onExport, onImport, i
             <Loader2 size={12} style={{ marginLeft: 'auto', animation: 'spin 1s linear infinite', flexShrink: 0 }} />
           )}
         </div>
+        <div className="side-panel-section-desc">선택한 형식으로 현재 문서를 변환해 저장합니다.</div>
         {EXPORT_FORMATS.map(({ format, label }) => (
           <button
             key={format}
@@ -173,6 +189,7 @@ const FilePanel: React.FC<FilePanelProps> = ({ onViewJson, onExport, onImport, i
           <Upload size={13} style={{ marginRight: 4, flexShrink: 0 }} />
           가져오기
         </div>
+        <div className="side-panel-section-desc">외부 파일을 현재 편집기 형식으로 불러옵니다.</div>
         {IMPORT_FORMATS.map(({ format, label }) => (
           <button
             key={format}
@@ -197,4 +214,5 @@ const FilePanel: React.FC<FilePanelProps> = ({ onViewJson, onExport, onImport, i
       </>
     )}
   </div>
-);
+  );
+};

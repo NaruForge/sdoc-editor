@@ -9,6 +9,7 @@ import { exportToMarkdown } from './commands/exportToMarkdown';
 import { exportToPdf } from './commands/exportToPdf';
 import { exportToSlides } from './commands/exportToSlides';
 import { checkForUpdate, checkForUpdateManual } from './updateChecker';
+import { createEmptySdoc } from '../shared/mcp/sdocUtils';
 
 /**
  * Show What's New (CHANGELOG) when extension is updated to a new version
@@ -36,8 +37,6 @@ async function showWhatsNewIfNeeded(context: vscode.ExtensionContext): Promise<v
 }
 
 export function activate(context: vscode.ExtensionContext) {
-  console.log('Structured Doc Editor extension is now active');
-
   // Show What's New on version update
   showWhatsNewIfNeeded(context);
 
@@ -49,6 +48,13 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(SdocBookProvider.register(context));
 
   // Register export to HTML command
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      'structuredDocEditor.newSdoc',
+      () => createNewSdoc()
+    )
+  );
+
   context.subscriptions.push(
     vscode.commands.registerCommand(
       'structuredDocEditor.exportToHtml',
@@ -102,6 +108,34 @@ export function activate(context: vscode.ExtensionContext) {
       'structuredDocEditor.setupAgent',
       () => setupAgent(context)
     )
+  );
+}
+
+async function createNewSdoc(): Promise<void> {
+  const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+  const defaultUri = workspaceFolder
+    ? vscode.Uri.joinPath(workspaceFolder.uri, 'Untitled.sdoc')
+    : vscode.Uri.file('Untitled.sdoc');
+
+  const targetUri = await vscode.window.showSaveDialog({
+    defaultUri,
+    filters: { 'Structured Doc': ['sdoc'] },
+    saveLabel: 'Create .sdoc Document',
+    title: '새 .sdoc 문서 만들기',
+  });
+
+  if (!targetUri) return;
+
+  const envelope = createEmptySdoc({ title: '' });
+  await vscode.workspace.fs.writeFile(
+    targetUri,
+    new TextEncoder().encode(JSON.stringify(envelope, null, 2) + '\n')
+  );
+  await vscode.commands.executeCommand(
+    'vscode.openWith',
+    targetUri,
+    'structuredDocEditor.sdoc',
+    { preview: false }
   );
 }
 

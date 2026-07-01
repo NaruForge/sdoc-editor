@@ -28,6 +28,8 @@ import { CROSSREF_RESYNC_META } from '../extensions/CrossReference';
 import type { RefTarget } from '../extensions/CrossReference';
 import { preprocessImportedHtml } from '../utils/preprocessImportedHtml';
 import type { DocumentSettings } from '@shared/types';
+import type { ExplorerEntry } from '../App';
+import type { EditorSettings } from '../context/EditorContext';
 
 /**
  * Convert relative image paths (./images/*, ./drawio/*) in a doc tree to asset URLs.
@@ -48,16 +50,39 @@ async function convertImagePaths(doc: any): Promise<any> {
 
 interface EditorProps {
   adapter: TauriAdapter;
-  initialDoc?: any;
-  initialMeta?: any;
+  initialDoc?: unknown;
+  initialMeta?: { title?: string; author?: string; version?: string; created?: string; modified?: string; settings?: Partial<DocumentSettings> } | null;
+  currentPath?: string | null;
+  workspaceFolder?: string | null;
+  workspaceEntries?: ExplorerEntry[];
+  onSelectFolder?: () => void;
+  onCreateInFolder?: () => void;
+  onOpenWorkspaceFile?: (path: string) => void;
+  onRefreshWorkspace?: () => void;
   onJsonView?: () => void;
 }
 
-export const Editor: React.FC<EditorProps> = ({ adapter, initialDoc, initialMeta, onJsonView }) => {
+type SaveStatus = 'saved' | 'saving' | 'dirty' | 'error';
+
+export const Editor: React.FC<EditorProps> = ({
+  adapter,
+  initialDoc,
+  initialMeta,
+  currentPath,
+  workspaceFolder,
+  workspaceEntries = [],
+  onSelectFolder,
+  onCreateInFolder,
+  onOpenWorkspaceFile,
+  onRefreshWorkspace,
+  onJsonView,
+}) => {
   const { state, dispatch } = useEditorContext();
   const [showNumbering, setShowNumbering] = useState(true);
-  const [showSidePanel, setShowSidePanel] = useState(false);
-  const [sidePanelTab, setSidePanelTab] = useState<ActivityTab>('toc');
+  const [showSidePanel, setShowSidePanel] = useState(true);
+  const [sidePanelTab, setSidePanelTab] = useState<ActivityTab>('explorer');
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved');
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [zoom, setZoom] = useState<number>(() => {
     const saved = localStorage.getItem('sdoc-editor-zoom');
     return saved ? parseInt(saved, 10) : 100;
@@ -73,17 +98,38 @@ export const Editor: React.FC<EditorProps> = ({ adapter, initialDoc, initialMeta
   const [mathDialog, setMathDialog] = useState<{ latex: string; isBlock: boolean; pos: number | null } | null>(null);
   const [diagramDialog, setDiagramDialog] = useState<{ code: string; language: string; pos: number | null } | null>(null);
   const [meta, setMeta] = useState<{ title: string; author: string; version: string; created: string; modified: string }>(
-    initialMeta || { title: '', author: '', version: '', created: '', modified: '' }
+    {
+      title: initialMeta?.title ?? '',
+      author: initialMeta?.author ?? '',
+      version: initialMeta?.version ?? '',
+      created: initialMeta?.created ?? '',
+      modified: initialMeta?.modified ?? '',
+    }
   );
   const [editorContextMenu, setEditorContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [showCrossRefDialog, setShowCrossRefDialog] = useState(false);
   const pendingEditRef = useRef(false);
-  const setContentRef = useRef<((content: any) => void) | null>(null);
   const initDoneRef = useRef(false);
-  const postMessageRef = useRef<(msg: Record<string, unknown>) => void>(() => {});
+  const postMessageRef = useRef<(msg: Record<string, unknown> & { type: string }) => Promise<void>>(() => Promise.resolve());
+
+  const trackSave = useCallback((savePromise: Promise<void>) => {
+    setSaveStatus('saving');
+    savePromise
+      .then(() => {
+        setSaveStatus('saved');
+        setLastSavedAt(new Date().toLocaleTimeString());
+      })
+      .catch((error: unknown) => {
+        setSaveStatus('error');
+        console.error('Failed to save document', error);
+      });
+  }, []);
 
   const { editor, setContent, flushUpdate } = useTiptapEditor({
-    onUpdate: (content) => { postMessageRef.current({ type: 'edit', content }); },
+    onUpdate: (content) => {
+      setSaveStatus('dirty');
+      trackSave(postMessageRef.current({ type: 'edit', content }));
+    },
     pendingEditRef,
   });
 
@@ -206,8 +252,16 @@ export const Editor: React.FC<EditorProps> = ({ adapter, initialDoc, initialMeta
     const exportSettings = {
       imageCaptionPrefix: settings.imageCaptionPrefix,
       tableCaptionPrefix: settings.tableCaptionPrefix,
+      equationCaptionPrefix: settings.equationCaptionPrefix,
+      captionSeparator: settings.captionSeparator,
       captionNumbering: settings.captionNumbering as 'sequential' | 'hierarchical',
+      equationNumbering: settings.equationNumbering as 'sequential' | 'hierarchical',
+      tableNumberStyle: settings.tableNumberStyle as 'arabic' | 'roman',
+      equationParens: settings.equationParens,
       exportImagePath: settings.exportImagePath as 'relative' | 'absolute',
+      pdfScale: state.docSettings?.pdfScale,
+      selfContained: state.docSettings?.selfContained,
+      outputDir: state.docSettings?.outputDir,
     };
     const currentMeta = { ...meta };
 
@@ -217,13 +271,28 @@ export const Editor: React.FC<EditorProps> = ({ adapter, initialDoc, initialMeta
     switch (format) {
       case 'html':
         {
-          const appSettings = await invoke('get_settings') as any;
+          const appSettings = await invoke<{
+            themeCompanyName?: string;
+            themePrimaryColor?: string;
+            themeAccentColor?: string;
+            themeFontFamily?: string;
+            themeCustomStyles?: string;
+          }>('get_settings');
+          let htmlCss = '';
+          if (state.docSettings?.htmlCssPath) {
+            try {
+              const cssPath = await invoke<string>('resolve_document_relative_path', { path: state.docSettings.htmlCssPath });
+              htmlCss = await invoke<string>('read_import_file', { path: cssPath });
+            } catch (error: unknown) {
+              console.warn('Failed to load document HTML CSS', error);
+            }
+          }
           content = convertJsonToHtml(doc, {
             companyName: appSettings.themeCompanyName,
             primaryColor: appSettings.themePrimaryColor,
             accentColor: appSettings.themeAccentColor,
             fontFamily: appSettings.themeFontFamily,
-            customStyles: appSettings.themeCustomStyles,
+            customStyles: `${appSettings.themeCustomStyles ?? ''}${htmlCss}`,
           }, exportSettings, currentMeta);
         }
         ext = 'html';
@@ -260,7 +329,7 @@ export const Editor: React.FC<EditorProps> = ({ adapter, initialDoc, initialMeta
   const handleMetaChange = (field: string, value: string) => {
     setMeta(prev => ({ ...prev, [field]: value }));
     if (editor) {
-      postMessage({ type: 'updateMeta', meta: { [field]: value }, content: editor.getJSON() });
+      trackSave(postMessage({ type: 'updateMeta', meta: { [field]: value }, content: editor.getJSON() }));
     }
   };
   const handleToggleNumbering = () => { setShowNumbering(!showNumbering); };
@@ -283,10 +352,25 @@ export const Editor: React.FC<EditorProps> = ({ adapter, initialDoc, initialMeta
     localStorage.setItem('sdoc-editor-zoom', String(clamped));
   }, []);
 
-  const handleUpdateDocSettings = useCallback((_settings: Partial<DocumentSettings> | null) => {
-    // Tauri: doc settings would be saved via invoke — for now, update local state
-    dispatch({ type: 'SET_DOC_SETTINGS', payload: _settings });
-  }, [dispatch]);
+  const handleUpdateDocSettings = useCallback((settings: Partial<DocumentSettings> | null) => {
+    dispatch({ type: 'SET_DOC_SETTINGS', payload: settings });
+    if (settings) {
+      dispatch({ type: 'SET_SETTINGS', payload: settings as Partial<EditorSettings> });
+    } else {
+      import('@tauri-apps/api/core').then(({ invoke }) => {
+        invoke<Partial<EditorSettings>>('get_editor_settings')
+          .then((editorSettings) => dispatch({ type: 'SET_SETTINGS', payload: editorSettings }))
+          .catch((error: unknown) => console.warn('Failed to reload editor settings', error));
+      });
+    }
+    if (editor) {
+      trackSave(postMessage({
+        type: 'updateMeta',
+        meta: { settings },
+        content: editor.getJSON(),
+      }));
+    }
+  }, [dispatch, editor, postMessage, trackSave]);
   const handleContextMenu = (event: React.MouseEvent) => {
     event.preventDefault();
     if (editor && editor.isActive('table')) {
@@ -457,7 +541,6 @@ export const Editor: React.FC<EditorProps> = ({ adapter, initialDoc, initialMeta
     if (editor && setContent && initialDoc && !initDoneRef.current) {
       convertImagePaths(initialDoc).then(converted => {
         setContent(converted);
-        setContentRef.current = setContent;
         initDoneRef.current = true;
         dispatch({ type: 'SET_READY', payload: true });
       });
@@ -568,6 +651,13 @@ export const Editor: React.FC<EditorProps> = ({ adapter, initialDoc, initialMeta
             onViewJson={handleViewJson}
             onExport={handleExport}
             onImport={handleImport}
+            workspaceFolder={workspaceFolder}
+            workspaceEntries={workspaceEntries}
+            currentPath={currentPath}
+            onSelectFolder={onSelectFolder}
+            onCreateInFolder={onCreateInFolder}
+            onOpenWorkspaceFile={onOpenWorkspaceFile}
+            onRefreshWorkspace={onRefreshWorkspace}
           />
         )}
         <div className="editor-content-area" onContextMenu={handleContextMenu}>
@@ -583,6 +673,12 @@ export const Editor: React.FC<EditorProps> = ({ adapter, initialDoc, initialMeta
             </div>
           </div>
           <ZoomBar zoom={zoom} onZoomChange={handleZoomChange} />
+          <div className={`save-status save-status-${saveStatus}`}>
+            {saveStatus === 'saving' && '저장 중…'}
+            {saveStatus === 'dirty' && '변경됨'}
+            {saveStatus === 'saved' && (lastSavedAt ? `저장됨 ${lastSavedAt}` : '저장됨')}
+            {saveStatus === 'error' && '저장 실패'}
+          </div>
         </div>
       </div>
       {editorContextMenu && editor && <EditorContextMenu

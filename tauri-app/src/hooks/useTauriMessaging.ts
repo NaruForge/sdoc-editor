@@ -8,7 +8,7 @@ import { type TauriAdapter } from '../adapters/tauriMessaging';
 export function useTauriMessaging(
   adapter: TauriAdapter,
   onMessage: (message: any) => void
-): { postMessage: (msg: any) => void } {
+): { postMessage: (msg: Record<string, unknown> & { type: string }) => Promise<void> } {
   const handlerRef = useRef(onMessage);
   handlerRef.current = onMessage;
 

@@ -2,6 +2,10 @@
 
 | Date | Task | Agent/Author | Decision | Rationale |
 |------|------|-------------|----------|-----------|
+| 2026-07-01 | SDOC-045 | @copilot | Tauri standalone parity는 좌측 Explorer 탭 + Rust 제한 명령(`list_folder_documents`, `create_document_in_folder`)으로 구현하고 PDF/Slides는 미지원 disabled로 표시 | VS Code처럼 폴더 기반 문서 탐색/생성을 제공하되 node_modules/target 등 제외와 파일명 검증으로 안전한 최소 backend 표면을 유지하기 위함 |
+| 2026-07-01 | SDOC-045 | @copilot | VS Code webview Export는 `meta.settings.outputDir` > `structuredDocEditor.export.outputDir` > 문서 폴더 순서로 출력 위치를 결정하고 기존 파일은 사용자 확인 후 덮어쓴다 | 문서별 Export 설정과 전역 기본값을 충돌 없이 반영하면서 예상치 못한 파일 덮어쓰기를 방지하기 위함 |
+| 2026-07-01 | SDOC-045 | @copilot | Export UX 공통 기반은 `DocumentSettings` optional 필드와 shared 타입 별칭만 먼저 추가하고 VS Code/Tauri 구체 구현은 후속 에이전트가 분리 수행 | 병렬 구현 충돌을 줄이면서 SDOC-019 설정 우선순위와 shared 단일 소스 원칙을 유지하기 위함 |
+| 2026-07-01 | SDOC-044 | @copilot | UX 개선은 새 문서 진입/저장 신뢰/export 설정 통일/Tauri parity 순서로 단계화 | 사용자 시뮬레이션 14회에서 첫 사용 진입, 결과 예측 가능성, VS Code-Tauri 기능 차이가 반복 마찰로 확인됨 |
 | 2026-06-12 | SDOC-042 | @copilot | Tauri `DocumentSettingsPanel`의 Export CSS UI는 파일 다이얼로그 대신 deferred text input으로 동기화 | Tauri 앱은 VS Code `showOpenDialog`를 사용할 수 없고, 기존 Tauri 입력 UX는 blur/Enter 확정 패턴을 사용하므로 직접 경로 입력이 가장 일관적 |
 | 2026-06-12 | SDOC-041 | @copilot | `DocumentSettingsPanel`에 선택적 `onPostMessage` prop을 추가하고 CSS file picker는 `state.docSettings` 기준으로 렌더링 | 기존 callback-props 패턴을 유지하면서 문서별 CSS 경로만 정확히 표시/수정하려면 merged settings가 아닌 document override 상태를 직접 써야 함 |
 | 2026-04-28 | SDOC-040 | @copilot | `tauri-app/Cargo.toml` workspace에 `resolver = "2"` 추가 | edition 2021을 사용하는 멤버 crate와 workspace resolver 불일치 경고 제거. resolver="2"가 Rust 2021 edition 권장값 |
@@ -71,3 +75,4 @@
 | 2025-01-15 | SDOC-001 | @contributor-01 | Skills + MCP 보완 관계로 유지 | Instructions는 이해, MCP는 실행 담당 |
 | 2025-01-15 | SDOC-001 | @copilot | shared/mcp/에 공유 로직 배치 | MCP 서버 + Tauri 양쪽에서 재사용 |
 | 2025-01-15 | SDOC-001 | @copilot | VS Code Extension 내장 MCP 서버 채택 | 코드 재사용, 설정 접근, 배포 단순화 |
+| 2026-07-01 | SDOC-045 | @copilot (Opus 4.8) | webview-ui 발견성 UX: ActivityBar compact label, 공용 PanelEmptyState, 삽입 메뉴 검색, CrossReference equation 그룹/필터 + eq-N anchor 이동 | SDOC-044 UX 시뮬레이션의 발견성 마찰 해소. Tauri parity는 ux-tauri-sidebar-parity가 후속 동기화 |

@@ -10,7 +10,7 @@ import { open } from '@tauri-apps/plugin-dialog';
 import { convertFileSrc } from '@tauri-apps/api/core';
 
 export interface TauriMessageHandler {
-  (message: any): void;
+  (message: Record<string, unknown> & { type: string }): void;
 }
 
 /**
@@ -53,7 +53,7 @@ export function createTauriAdapter() {
   setupListeners();
 
   return {
-    postMessage: async (msg: any) => {
+    postMessage: async (msg: Record<string, unknown> & { type: string }) => {
       // Route messages to appropriate Tauri commands
       switch (msg.type) {
         case 'ready':

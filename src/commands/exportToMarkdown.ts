@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { convertJsonToMarkdown } from '../../shared/converter';
 import { convertWebviewUrisToRelativePaths } from '../utils/imageUtils';
 
-export async function exportToMarkdown(context: vscode.ExtensionContext) {
+export async function exportToMarkdown(_context: vscode.ExtensionContext) {
   // Get the active tab's input
   const activeTab = vscode.window.tabGroups.activeTabGroup.activeTab;
 

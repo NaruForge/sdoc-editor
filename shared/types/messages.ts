@@ -3,7 +3,14 @@
  * Single source of truth — both sides should reference these types.
  */
 
-import type { TiptapNode, SdocMeta, DocumentSettings } from '../types';
+import type {
+  DocumentSettings,
+  SdocMeta,
+  SelfContainedMode,
+  SlideBreakLevel,
+  SlideTransition,
+  TiptapNode,
+} from '../types';
 
 // ─── Editor Settings (Extension → Webview) ─────────────────────
 
@@ -22,7 +29,18 @@ export interface EditorSettings {
   headingH1Color: string;
   headingH2Color: string;
   headingH3Color: string;
+  captionStyle?: DocumentSettings['captionStyle'];
+  tableNumberStyle?: 'arabic' | 'roman';
+  equationParens?: boolean;
   imageDefaultAlignment: 'left' | 'center' | 'right';
+  defaultImageAlignment?: 'left' | 'center' | 'right';
+  exportImagePath?: 'relative' | 'absolute';
+  pdfScale?: number;
+  selfContained?: SelfContainedMode;
+  slideBreakLevel?: SlideBreakLevel;
+  slideTransition?: SlideTransition;
+  showTitleSlide?: boolean;
+  outputDir?: string;
   fontFamily: string;
   fontWeightBody: number;
   fontWeightBold: number;

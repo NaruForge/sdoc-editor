@@ -2,7 +2,7 @@
   "name": "structured-doc-editor",
   "displayName": "Structured Doc Editor",
   "description": "WYSIWYG editor for .tiptap.json/.sdoc files with Markdown/AsciiDoc/HTML export",
-  "version": "0.4.8",
+  "version": "0.4.9",
   "publisher": "lgm-control-contributor-01",
   "engines": {
     "vscode": "^1.85.0"
@@ -38,6 +38,11 @@
       }
     ],
     "commands": [
+      {
+        "command": "structuredDocEditor.newSdoc",
+        "title": "New .sdoc Document",
+        "category": "Structured Doc"
+      },
       {
         "command": "structuredDocEditor.exportToHtml",
         "title": "Export to HTML",
@@ -202,6 +207,11 @@
           "minimum": 10,
           "maximum": 200,
           "description": "PDF export scale percentage (10–200). Default 70% produces a well-proportioned output."
+        },
+        "structuredDocEditor.export.outputDir": {
+          "type": "string",
+          "default": "",
+          "description": "Optional export output directory. Relative paths are resolved from the workspace folder, then the document folder."
         },
         "structuredDocEditor.theme.companyLogo": {
           "type": "string",

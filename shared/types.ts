@@ -21,6 +21,9 @@ export interface TiptapMark {
 // ─── Document Metadata ──────────────────────────────────────────
 
 export type CaptionStyleName = 'ieee' | 'iso' | 'modern' | 'korean';
+export type SelfContainedMode = 'none' | 'images-only' | 'full';
+export type SlideBreakLevel = 'h1-only' | 'h1-h2-vertical';
+export type SlideTransition = 'none' | 'fade' | 'slide' | 'convex' | 'concave' | 'zoom';
 
 /** Per-document settings that override VS Code workspace defaults. */
 export interface DocumentSettings {
@@ -35,6 +38,12 @@ export interface DocumentSettings {
   crossRefIncludeCaption?: boolean;
   slideCssPath?: string;
   htmlCssPath?: string;
+  pdfScale?: number;
+  selfContained?: SelfContainedMode;
+  slideBreakLevel?: SlideBreakLevel;
+  slideTransition?: SlideTransition;
+  showTitleSlide?: boolean;
+  outputDir?: string;
 }
 
 export interface SdocMeta {
@@ -57,11 +66,13 @@ export interface ExportSettings {
   equationNumbering?: 'sequential' | 'hierarchical';
   tableNumberStyle?: 'arabic' | 'roman';
   equationParens?: boolean;
+  pdfScale?: number;
+  selfContained?: SelfContainedMode;
+  outputDir?: string;
 }
 
 export interface HtmlExportSettings extends ExportSettings {
   exportImagePath?: 'relative' | 'absolute';
-  selfContained?: 'none' | 'images-only' | 'full';
   embeddedAssets?: EmbeddedAssets;
   documentDir?: string;
 }
@@ -107,7 +118,10 @@ export interface SlideSettings {
   captionNumbering?: 'sequential' | 'hierarchical';
   tableNumberStyle?: 'arabic' | 'roman';
   equationParens?: boolean;
-  slideBreak?: 'h1-only' | 'h1-h2-vertical';
+  slideBreak?: SlideBreakLevel;
+  slideBreakLevel?: SlideBreakLevel;
   showTitleSlide?: boolean;
-  transition?: 'none' | 'fade' | 'slide' | 'convex' | 'concave' | 'zoom';
+  transition?: SlideTransition;
+  slideTransition?: SlideTransition;
+  outputDir?: string;
 }

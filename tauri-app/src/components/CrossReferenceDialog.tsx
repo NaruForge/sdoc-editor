@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import type { RefTarget } from '../extensions/CrossReference';
 
 interface CrossReferenceDialogProps {
@@ -7,17 +7,39 @@ interface CrossReferenceDialogProps {
   onClose: () => void;
 }
 
+type FilterType = 'all' | RefTarget['type'];
+
+const TYPE_META: Record<RefTarget['type'], { category: string; icon: string }> = {
+  heading: { category: 'Headings', icon: '§' },
+  figure: { category: 'Figures', icon: '🖼' },
+  table: { category: 'Tables', icon: '▦' },
+  equation: { category: 'Equations', icon: '∑' },
+};
+
+const FILTERS: { id: FilterType; label: string }[] = [
+  { id: 'all', label: '전체' },
+  { id: 'heading', label: '제목' },
+  { id: 'figure', label: '그림' },
+  { id: 'table', label: '표' },
+  { id: 'equation', label: '수식' },
+];
+
 export const CrossReferenceDialog: React.FC<CrossReferenceDialogProps> = ({ targets, onSelect, onClose }) => {
   const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState<FilterType>('all');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const filtered = query
-    ? targets.filter(t => {
-        const q = query.toLowerCase();
-        return t.label.toLowerCase().includes(q) || t.id.toLowerCase().includes(q);
-      })
-    : targets;
+  const availableTypes = useMemo(() => new Set(targets.map(t => t.type)), [targets]);
+
+  const filtered = useMemo(() => {
+    const q = query.toLowerCase();
+    return targets.filter(t => {
+      if (filter !== 'all' && t.type !== filter) return false;
+      if (!q) return true;
+      return t.label.toLowerCase().includes(q) || t.id.toLowerCase().includes(q);
+    });
+  }, [targets, query, filter]);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -25,11 +47,11 @@ export const CrossReferenceDialog: React.FC<CrossReferenceDialogProps> = ({ targ
 
   useEffect(() => {
     setSelectedIndex(0);
-  }, [query]);
+  }, [query, filter]);
 
   const groups: Record<string, RefTarget[]> = {};
   for (const t of filtered) {
-    const cat = t.type === 'heading' ? 'Headings' : t.type === 'figure' ? 'Figures' : 'Tables';
+    const cat = TYPE_META[t.type].category;
     (groups[cat] ??= []).push(t);
   }
 
@@ -55,18 +77,30 @@ export const CrossReferenceDialog: React.FC<CrossReferenceDialogProps> = ({ targ
   return (
     <div className="crossref-dialog-overlay" onMouseDown={onClose}>
       <div className="crossref-dialog" onMouseDown={(e) => e.stopPropagation()} onKeyDown={handleKeyDown}>
-        <div className="crossref-dialog-header">Insert Cross Reference</div>
+        <div className="crossref-dialog-header">교차 참조 삽입</div>
         <input
           ref={inputRef}
           type="text"
           className="crossref-dialog-search"
-          placeholder="Search headings, figures, tables..."
+          placeholder="제목, 그림, 표, 수식 검색..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
+        <div className="crossref-dialog-filters">
+          {FILTERS.filter(f => f.id === 'all' || availableTypes.has(f.id)).map(f => (
+            <button
+              key={f.id}
+              type="button"
+              className={`crossref-filter-chip${filter === f.id ? ' is-active' : ''}`}
+              onMouseDown={(e) => { e.preventDefault(); setFilter(f.id); }}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
         <div className="crossref-dialog-list">
           {filtered.length === 0 && (
-            <div className="crossref-dialog-empty">No targets found</div>
+            <div className="crossref-dialog-empty">참조할 대상이 없습니다</div>
           )}
           {Object.entries(groups).map(([cat, items]) => (
             <div key={cat}>
@@ -80,9 +114,7 @@ export const CrossReferenceDialog: React.FC<CrossReferenceDialogProps> = ({ targ
                     onMouseDown={(e) => { e.preventDefault(); onSelect(item); }}
                     onMouseEnter={() => setSelectedIndex(idx)}
                   >
-                    <span className="crossref-icon">
-                      {item.type === 'heading' ? '§' : item.type === 'figure' ? '🖼' : '▦'}
-                    </span>
+                    <span className="crossref-icon">{TYPE_META[item.type].icon}</span>
                     <span className="crossref-label">{item.label}</span>
                   </div>
                 );

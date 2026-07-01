@@ -19,6 +19,8 @@ pub fn run() {
             ext == "sdoc" || ext == "json"
         }));
 
+    let initial_folder = initial_file.as_ref().and_then(|path| path.parent().map(std::path::Path::to_path_buf));
+
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
@@ -26,6 +28,7 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .manage(DocState {
             file_path: Mutex::new(initial_file),
+            current_folder: Mutex::new(initial_folder),
             settings: Mutex::new(settings),
         })
         .invoke_handler(tauri::generate_handler![
@@ -33,6 +36,10 @@ pub fn run() {
             commands::save_document,
             commands::new_document,
             commands::get_current_file_path,
+            commands::set_current_folder,
+            commands::get_current_folder,
+            commands::list_folder_documents,
+            commands::create_document_in_folder,
             commands::save_image,
             commands::copy_image_to_doc,
             commands::create_drawio_file,
@@ -46,6 +53,7 @@ pub fn run() {
             commands::write_export_file,
             commands::read_import_file,
             commands::resolve_asset_path,
+            commands::resolve_document_relative_path,
         ])
         .setup(|_app| {
             Ok(())

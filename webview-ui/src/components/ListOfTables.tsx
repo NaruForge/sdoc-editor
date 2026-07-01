@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Editor as TiptapEditor } from '@tiptap/react';
+import { Table2 } from 'lucide-react';
+import { PanelEmptyState } from './PanelEmptyState';
 
 interface LotEntry {
   pos: number;
@@ -74,7 +76,12 @@ export const ListOfTables: React.FC<ListOfTablesProps> = ({ editor }) => {
     return (
       <div className="toc-panel">
         <div className="toc-title">표 목록</div>
-        <div className="toc-empty">표가 없습니다</div>
+        <PanelEmptyState
+          icon={<Table2 size={22} />}
+          title="아직 표가 없습니다"
+          message="표를 삽입하면 번호와 함께 표 목록에 표시됩니다."
+          hint="툴바의 삽입 → 표에서 크기를 선택해 추가하세요."
+        />
       </div>
     );
   }

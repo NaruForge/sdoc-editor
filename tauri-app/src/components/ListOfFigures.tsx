@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Editor as TiptapEditor } from '@tiptap/react';
+import { Image as ImageIcon } from 'lucide-react';
+import { PanelEmptyState } from './PanelEmptyState';
 
 interface LofEntry {
   pos: number;
@@ -73,7 +75,12 @@ export const ListOfFigures: React.FC<ListOfFiguresProps> = ({ editor }) => {
     return (
       <div className="toc-panel">
         <div className="toc-title">그림 목록</div>
-        <div className="toc-empty">그림이 없습니다</div>
+        <PanelEmptyState
+          icon={<ImageIcon size={22} />}
+          title="아직 그림이 없습니다"
+          message="이미지를 삽입하면 번호와 함께 그림 목록에 표시됩니다."
+          hint="툴바의 삽입 → 이미지를 선택하거나 이미지를 본문에 드래그하세요."
+        />
       </div>
     );
   }

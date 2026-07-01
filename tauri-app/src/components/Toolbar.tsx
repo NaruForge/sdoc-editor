@@ -57,6 +57,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onInsertCrossRef,
 }) => {
   const [showInsertMenu, setShowInsertMenu] = useState(false);
+  const [insertQuery, setInsertQuery] = useState('');
   const [showTableSub, setShowTableSub] = useState(false);
   const [showCalloutSub, setShowCalloutSub] = useState(false);
   const [showCustomSize, setShowCustomSize] = useState(false);
@@ -127,7 +128,30 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     setShowTableSub(false);
     setShowCalloutSub(false);
     setShowCustomSize(false);
+    setInsertQuery('');
   }
+
+  const insertActions: { label: string; keywords: string; icon: React.ReactNode; run: () => void }[] = [
+    { label: '표', keywords: 'table 표 그리드', icon: <Table2 size={15} />, run: () => insertTable(3, 3) },
+    ...(onInsertImage ? [{ label: '이미지', keywords: 'image picture 이미지 그림 사진', icon: <ImageIcon size={15} />, run: onInsertImage }] : []),
+    ...(onInsertDrawio ? [{ label: 'Draw.io 다이어그램', keywords: 'drawio diagram 다이어그램 도형', icon: <PenTool size={15} />, run: onInsertDrawio }] : []),
+    ...(onInsertMath ? [{ label: '수식', keywords: 'math equation 수식 latex katex', icon: <Sigma size={15} />, run: onInsertMath }] : []),
+    { label: '코드 블록', keywords: 'code 코드 block 프로그램', icon: <Code size={15} />, run: () => editor.chain().focus().toggleCodeBlock().run() },
+    ...(onInsertDiagram ? [{ label: '다이어그램 (Mermaid)', keywords: 'mermaid diagram 다이어그램 차트', icon: <GitGraph size={15} />, run: onInsertDiagram }] : []),
+    { label: '수평선', keywords: 'hr horizontal rule 수평선 구분선', icon: <span style={{ fontSize: '15px', lineHeight: '15px', width: '15px', textAlign: 'center' }}>—</span>, run: () => editor.chain().focus().setHorizontalRule().run() },
+    ...(Object.entries(CALLOUT_ICONS) as [CalloutVariant, string][]).map(([variant, icon]) => ({
+      label: `콜아웃 · ${CALLOUT_LABELS[variant]}`,
+      keywords: `callout 콜아웃 ${variant} ${CALLOUT_LABELS[variant]}`,
+      icon: <span>{icon}</span>,
+      run: () => editor.chain().focus().insertContent({ type: 'callout', attrs: { variant }, content: [{ type: 'paragraph' }] }).run(),
+    })),
+    ...(onInsertCrossRef ? [{ label: '교차 참조', keywords: 'crossref reference 교차 참조 링크 anchor', icon: <Hash size={15} />, run: onInsertCrossRef }] : []),
+  ];
+
+  const insertQ = insertQuery.trim().toLowerCase();
+  const filteredInsertActions = insertQ
+    ? insertActions.filter(a => a.label.toLowerCase().includes(insertQ) || a.keywords.toLowerCase().includes(insertQ))
+    : [];
 
   // Active alignment icon
   const activeAlign = editor.isActive({ textAlign: 'center' }) ? <AlignCenter size={16} />
@@ -298,6 +322,32 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         </Btn>
         {showInsertMenu && (
           <div className="insert-menu">
+            <input
+              type="text"
+              className="insert-menu-search"
+              placeholder="삽입할 항목 검색..."
+              value={insertQuery}
+              autoFocus
+              onChange={(e) => setInsertQuery(e.target.value)}
+              onMouseDown={(e) => e.stopPropagation()}
+            />
+            {insertQ ? (
+              <>
+                {filteredInsertActions.length === 0 && (
+                  <div className="insert-menu-empty">일치하는 항목이 없습니다</div>
+                )}
+                {filteredInsertActions.map((action) => (
+                  <button
+                    key={action.label}
+                    className="insert-menu-item"
+                    onMouseDown={(e) => { e.preventDefault(); closeInsertMenu(); action.run(); }}
+                  >
+                    {action.icon}<span>{action.label}</span>
+                  </button>
+                ))}
+              </>
+            ) : (
+            <>
             {/* Table */}
             <div className="insert-menu-item has-sub"
               onMouseEnter={() => setShowTableSub(true)}
@@ -382,6 +432,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
               <button className="insert-menu-item" onMouseDown={(e) => { e.preventDefault(); closeInsertMenu(); onInsertCrossRef(); }}>
                 <Hash size={15} /><span>교차 참조</span>
               </button>
+            )}
+            </>
             )}
           </div>
         )}
