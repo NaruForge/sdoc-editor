@@ -291,10 +291,11 @@ export function queryDocumentStructure(doc: any): QueryResult {
   for (const node of doc.content) {
     if (node.type === 'heading') {
       const level: number = node.attrs?.level || 1;
-      h[level - 1]++;
+      const numbered = node.attrs?.numbered !== false;
+      if (numbered) h[level - 1]++;
       for (let j = level; j < 6; j++) h[j] = 0;
       if (level === 1) { imgCnt = 0; tblCnt = 0; }
-      const nums = h.slice(0, level).join('.');
+      const nums = numbered ? h.slice(0, level).join('.') : '';
       const text = getNodeText(node);
       const id = node.attrs?.id || '';
       if (id) allIds.add(id);

@@ -294,13 +294,14 @@ export function collectTargets(editor: any): RefTarget[] {
   for (const node of json.content) {
     if (node.type === 'heading') {
       const level = node.attrs?.level || 1;
-      h[level - 1]++;
+      const numbered = node.attrs?.numbered !== false;
+      if (numbered) h[level - 1]++;
       for (let j = level; j < 6; j++) h[j] = 0;
-      if (level === 1) { imgCnt = 0; tblCnt = 0; h1++; eqInSection = 0; }
-      const nums = h.slice(0, level).join('.') + '.';
+      if (level === 1) { imgCnt = 0; tblCnt = 0; eqInSection = 0; if (numbered) h1++; }
       const text = getTextContent(node);
       const id = node.attrs?.id || slugify(text);
-      targets.push({ id, type: 'heading', label: `${nums} ${text}`, level });
+      const label = numbered ? `${h.slice(0, level).join('.')}. ${text}` : text;
+      targets.push({ id, type: 'heading', label, level });
     }
     if (node.type === 'image') {
       imgCnt++;
@@ -364,13 +365,13 @@ function buildIdMap(doc: import('@tiptap/pm/model').Node): Map<string, string> {
   doc.forEach((node) => {
     if (node.type.name === 'heading') {
       const level: number = node.attrs.level || 1;
-      h[level - 1]++;
+      const numbered = node.attrs.numbered !== false;
+      if (numbered) h[level - 1]++;
       for (let j = level; j < 6; j++) h[j] = 0;
-      if (level === 1) { imgCnt = 0; tblCnt = 0; h1++; eqInSection = 0; }
-      const nums = h.slice(0, level).join('.') + '.';
+      if (level === 1) { imgCnt = 0; tblCnt = 0; eqInSection = 0; if (numbered) h1++; }
       const text = node.textContent;
       const id = (node.attrs.id as string | null | undefined) || slugify(text);
-      idMap.set(id, `${nums} ${text}`);
+      idMap.set(id, numbered ? `${h.slice(0, level).join('.')}. ${text}` : text);
     }
     if (node.type.name === 'image') {
       imgCnt++;

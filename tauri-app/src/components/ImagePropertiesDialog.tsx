@@ -8,6 +8,9 @@ interface ImagePropertiesDialogProps {
   onReplace: () => void;
   onCancel: () => void;
   isDrawio?: boolean;
+  /** Document-relative path (e.g. "./drawio/diagram-1.drawio.svg"), when known. Overrides the
+   *  best-effort regex extraction from `src`, which can be wrong for percent-encoded asset URLs. */
+  path?: string;
 }
 
 export const ImagePropertiesDialog: React.FC<ImagePropertiesDialogProps> = ({
@@ -18,6 +21,7 @@ export const ImagePropertiesDialog: React.FC<ImagePropertiesDialogProps> = ({
   onReplace,
   onCancel,
   isDrawio = false,
+  path: relativePathOverride,
 }) => {
   const [altText, setAltText] = useState(alt);
   const [alignValue, setAlignValue] = useState(align);
@@ -40,6 +44,9 @@ export const ImagePropertiesDialog: React.FC<ImagePropertiesDialogProps> = ({
 
   // Extract filename from src
   const getFilename = (srcPath: string) => {
+    if (relativePathOverride) {
+      return relativePathOverride.split('/').pop() || 'Unknown';
+    }
     // Handle webview URIs for both images and drawio
     const match = srcPath.match(/(?:images|drawio)\/([^?#]+)/);
     if (match) {
@@ -52,6 +59,9 @@ export const ImagePropertiesDialog: React.FC<ImagePropertiesDialogProps> = ({
 
   // Extract relative path
   const getPath = (srcPath: string) => {
+    if (relativePathOverride) {
+      return relativePathOverride;
+    }
     const match = srcPath.match(/((?:images|drawio)\/[^?#]+)/);
     if (match) {
       return './' + match[1];

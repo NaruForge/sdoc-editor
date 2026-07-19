@@ -76,7 +76,12 @@ function convertNode(node: TiptapNode, ctx: ConvertContext): string {
       const level = node.attrs?.level || 1;
       const headingPrefix = '#'.repeat(level as number);
       const headingText = node.content ? convertInlineContent(node.content, ctx) : '';
-      if (level === 1) { ctx.h1Counter++; ctx.imageCounter = 0; ctx.tableCounter = 0; ctx.eqInSection = 0; }
+      if (level === 1) {
+        ctx.imageCounter = 0;
+        ctx.tableCounter = 0;
+        ctx.eqInSection = 0;
+        if (node.attrs?.numbered !== false) ctx.h1Counter++;
+      }
       const anchor = node.attrs?.id ? ` {#${node.attrs.id}}` : '';
       return `${headingPrefix} ${headingText}${anchor}\n`;
     }

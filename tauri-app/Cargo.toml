@@ -1,3 +1,8 @@
 [workspace]
 members = ["src-tauri"]
 resolver = "2"
+
+[profile.release]
+# Speeds up rebuilds during iterative desktop packaging without affecting the
+# first cold build's optimization level (opt-level/lto stay at Cargo defaults).
+incremental = true

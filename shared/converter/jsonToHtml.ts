@@ -88,11 +88,13 @@ function convertNode(node: TiptapNode, ctx: ConvertContext): string {
 
     case 'heading': {
       const level = node.attrs?.level || 1;
+      const numbered = node.attrs?.numbered !== false;
       const headingText = node.content ? convertInlineContent(node.content, ctx) : '';
-      if (level === 1) { ctx.h1Counter++; ctx.imageCounter = 0; ctx.tableCounter = 0; ctx.eqInSection = 0; }
+      if (level === 1) { ctx.imageCounter = 0; ctx.tableCounter = 0; ctx.eqInSection = 0; if (numbered) ctx.h1Counter++; }
       const hId = node.attrs?.id ? ` id="${escapeHtml(node.attrs.id as string)}"` : '';
       const hAlign = node.attrs?.textAlign ? ` style="text-align:${node.attrs.textAlign}"` : '';
-      return `<h${level}${hId}${hAlign}>${headingText}</h${level}>`;
+      const hNumbered = numbered ? '' : ' data-numbered="false"';
+      return `<h${level}${hId}${hAlign}${hNumbered}>${headingText}</h${level}>`;
     }
 
     case 'paragraph': {
@@ -608,6 +610,21 @@ function generateHtmlDocument(bodyContent: string, theme?: HtmlTheme, meta?: Sdo
 
     h4::before {
       content: counter(h1) "." counter(h2) "." counter(h3) "." counter(h4) ". ";
+    }
+
+    /* Headings explicitly excluded from numbering (e.g. Introduction, Glossary, References) */
+    h1[data-numbered="false"],
+    h2[data-numbered="false"],
+    h3[data-numbered="false"],
+    h4[data-numbered="false"] {
+      counter-increment: none;
+    }
+
+    h1[data-numbered="false"]::before,
+    h2[data-numbered="false"]::before,
+    h3[data-numbered="false"]::before,
+    h4[data-numbered="false"]::before {
+      content: none;
     }
 
     /* Paragraphs */

@@ -264,6 +264,17 @@ export const Toolbar: React.FC<ToolbarProps> = ({
       <Btn onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} isActive={editor.isActive('heading', { level: 3 })} title="제목 3 (H3)">
         <Heading3 size={16} />
       </Btn>
+      <Btn
+        onClick={() => {
+          const isUnnumbered = editor.getAttributes('heading').numbered === false;
+          editor.chain().focus().updateAttributes('heading', { numbered: isUnnumbered ? null : false }).run();
+        }}
+        isActive={editor.isActive('heading') && editor.getAttributes('heading').numbered === false}
+        disabled={!editor.isActive('heading')}
+        title="번호 제외 (Introduction, Glossary 등 번호가 필요 없는 제목)"
+      >
+        <Hash size={16} />
+      </Btn>
 
       <div className="toolbar-separator" />
 

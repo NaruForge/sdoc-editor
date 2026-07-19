@@ -110,6 +110,31 @@ npx tauri build
 - `tauri-app/target/release/bundle/msi/*.msi`
 - `tauri-app/target/release/bundle/nsis/*.exe`
 
+### 목적별 빌드 명령 선택 (빌드 시간 절약)
+
+`npx tauri build`는 실행할 때마다 **프론트엔드 빌드 → Tauri 코드 생성 → Rust release 컴파일 → MSI/NSIS 패키징**을 전부 수행합니다. 코드 생성 단계에서 `tauri`/플러그인 크레이트까지 재컴파일되는 경우가 많아, Rust 코드를 한 줄만 고치고 확인하는 반복 작업에는 비효율적입니다. 목적에 맞는 명령을 사용하세요.
+
+| 목적 | 명령 | 특징 |
+|---|---|---|
+| Rust 컴파일 에러/경고만 빠르게 확인 | `cargo check --manifest-path src-tauri/Cargo.toml` | exe 생성 없이 타입체크만, 가장 빠름 |
+| 코드 수정 후 반복 실행/테스트 | `npx tauri dev` | HMR + 디버그 빌드, incremental 캐시 재사용 |
+| 설치파일 없이 release exe만 확인 | `cargo build --release --manifest-path src-tauri/Cargo.toml` | 코드 생성/패키징 단계 생략, `target\release\sdoc-editor.exe` 바로 실행 |
+| 설치파일(msi/nsis) 중 하나만 필요 | `npx tauri build --bundles nsis` (또는 `msi`) | WiX 또는 NSIS 패키징 단계 스킵 |
+| 배포용 최종 산출물 전체 필요 | `npx tauri build` | 전체 파이프라인 (가장 오래 걸림) |
+
+`tauri-app/src-tauri/Cargo.toml`에는 데스크톱 전용 빌드에 불필요한 `staticlib`(모바일 전용) 크레이트 타입을 제거했고, 루트 `tauri-app/Cargo.toml`(workspace)에 `[profile.release] incremental = true`를 설정해 두었습니다. 최초 클린 빌드 시간에는 영향이 없지만, 이후 반복 빌드(특히 `cargo build`/`cargo check`/`tauri dev`) 속도가 크게 개선됩니다.
+
+**선택적 빌드 스크립트**: 위 명령들을 매번 직접 입력하지 않도록 `tauri-app/build.ps1`을 제공합니다.
+
+```powershell
+cd tauri-app
+.\build.ps1 -Mode Check    # cargo check
+.\build.ps1 -Mode Dev      # npx tauri dev
+.\build.ps1 -Mode Exe      # cargo build --release (exe만)
+.\build.ps1 -Mode Bundle   # npx tauri build (전체)
+.\build.ps1 -Mode Bundle -Bundles nsis  # 설치파일 중 nsis만
+```
+
 ## 에디터 기능 테스트
 
 1. **새 .sdoc 파일 생성**

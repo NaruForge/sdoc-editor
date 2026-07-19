@@ -114,6 +114,63 @@ body {
   overflow: hidden;
 }
 
+/* 최하단 가로 상태바: 탐색기 hover/현재 문서/작업 폴더의 전체 경로를 표시 */
+.app-status-bar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 12px;
+  font-size: 11px;
+  line-height: 18px;
+  height: 22px;
+  background: var(--button-bg, #007acc);
+  color: var(--button-fg, #fff);
+  overflow: hidden;
+  white-space: nowrap;
+}
+.app-status-bar-icon { flex-shrink: 0; opacity: 0.85; }
+.app-status-bar-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* 최상단 가로 메뉴바: File/Edit/View/Help 등 확장 가능한 드롭다운 메뉴 */
+.app-menu-bar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  background: var(--editor-bg);
+  border-bottom: 1px solid var(--panel-border);
+  padding: 0 4px;
+  height: 28px;
+  font-size: 13px;
+}
+.app-menu-bar-item { position: relative; }
+.app-menu-bar-label {
+  background: transparent;
+  border: none;
+  color: var(--foreground);
+  padding: 4px 10px;
+  height: 28px;
+  cursor: pointer;
+  font-size: 13px;
+  font-family: var(--font-family);
+}
+.app-menu-bar-label:hover,
+.app-menu-bar-label.is-open { background: var(--button-secondary-hover-bg); }
+.app-menu-dropdown {
+  position: absolute; top: 100%; left: 0; margin-top: 1px; background-color: var(--menu-bg);
+  border: 1px solid var(--menu-border); border-radius: 4px; padding: 4px; z-index: 200;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.45); min-width: 200px;
+}
+.app-menu-dropdown-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%;
+  padding: 6px 12px; background: transparent; color: var(--menu-fg); border: none; border-radius: 4px;
+  cursor: pointer; text-align: left; font-size: 13px; font-family: var(--font-family);
+}
+.app-menu-dropdown-item:hover:not(:disabled) { background-color: var(--menu-selection-bg); color: var(--menu-selection-fg); }
+.app-menu-dropdown-item:disabled { opacity: 0.45; cursor: not-allowed; }
+.app-menu-dropdown-shortcut { opacity: 0.6; font-size: 11px; }
+.app-menu-dropdown-separator { height: 1px; background-color: var(--panel-border); margin: 4px 6px; }
+
 .ProseMirror {
   background-color: var(--editor-bg);
   color: var(--editor-fg);
@@ -121,34 +178,66 @@ body {
   padding-bottom: 40vh; /* 문서 하단 여백: 뷰포트 높이의 40% */
   min-height: 100%;
   outline: none;
-  counter-reset: h1-counter h2-counter h3-counter table-counter image-counter;
+  /* Reset counters at document level (H1~H6 전 레벨 지원) */
+  counter-reset: h1-counter h2-counter h3-counter h4-counter h5-counter h6-counter table-counter image-counter;
   --image-caption-prefix: '';
   --table-caption-prefix: '';
   --caption-separator: ' ';
+  /* Heading colors. H4~H6은 전용 설정이 없어 H3 색상을 재사용한다. */
   --heading-h1-color: #A50034;
   --heading-h2-color: #A50034;
   --heading-h3-color: #A50034;
+  /* Heading size scale: H6 = 본문 크기(1em), 레벨이 하나 올라갈 때마다 2pt씩 증가 (H1~H6 단일 소스) */
+  --heading-size-h6: 1em;
+  --heading-size-h5: calc(1em + 2pt);
+  --heading-size-h4: calc(1em + 4pt);
+  --heading-size-h3: calc(1em + 6pt);
+  --heading-size-h2: calc(1em + 8pt);
+  --heading-size-h1: calc(1em + 10pt);
 }
 
 .ProseMirror:focus { outline: none; }
 
-/* Headings with automatic numbering */
+/* Headings with automatic numbering — 모든 헤딩(H1~H6)은 굵게(bold) 고정 적용 */
 .show-numbering .ProseMirror h1 {
-  font-size: 2em; font-weight: bold; margin: 0.67em 0; padding-bottom: 0.3em;
-  counter-set: h2-counter 0 h3-counter 0; counter-increment: h1-counter;
+  font-size: var(--heading-size-h1); font-weight: bold; margin: 0.67em 0; padding-bottom: 0.3em;
+  counter-set: h2-counter 0 h3-counter 0 h4-counter 0 h5-counter 0 h6-counter 0; counter-increment: h1-counter;
 }
 .show-numbering.show-heading-decoration .ProseMirror h1 { border-bottom: 2px solid var(--heading-h1-color, #A50034); }
 .show-numbering .ProseMirror h1::before { content: counter(h1-counter) ". "; color: var(--heading-h1-color, #A50034); margin-right: 0.3em; }
-.show-numbering .ProseMirror h2 { font-size: 1.5em; font-weight: bold; margin: 0.75em 0; counter-set: h3-counter 0; counter-increment: h2-counter; }
+.show-numbering .ProseMirror h2 { font-size: var(--heading-size-h2); font-weight: bold; margin: 0.75em 0; counter-set: h3-counter 0 h4-counter 0 h5-counter 0 h6-counter 0; counter-increment: h2-counter; }
 .show-numbering .ProseMirror h2::before { content: counter(h1-counter) "." counter(h2-counter) ". "; color: var(--heading-h2-color, #A50034); margin-right: 0.3em; }
-.show-numbering .ProseMirror h3 { font-size: 1.17em; font-weight: bold; margin: 0.83em 0; counter-increment: h3-counter; }
+.show-numbering .ProseMirror h3 { font-size: var(--heading-size-h3); font-weight: bold; margin: 0.83em 0; counter-set: h4-counter 0 h5-counter 0 h6-counter 0; counter-increment: h3-counter; }
 .show-numbering .ProseMirror h3::before { content: counter(h1-counter) "." counter(h2-counter) "." counter(h3-counter) ". "; color: var(--heading-h3-color, #A50034); margin-right: 0.3em; }
+.show-numbering .ProseMirror h4 { font-size: var(--heading-size-h4); font-weight: bold; margin: 0.83em 0; counter-set: h5-counter 0 h6-counter 0; counter-increment: h4-counter; }
+.show-numbering .ProseMirror h4::before { content: counter(h1-counter) "." counter(h2-counter) "." counter(h3-counter) "." counter(h4-counter) ". "; color: var(--heading-h3-color, #A50034); margin-right: 0.3em; }
+.show-numbering .ProseMirror h5 { font-size: var(--heading-size-h5); font-weight: bold; margin: 0.83em 0; counter-set: h6-counter 0; counter-increment: h5-counter; }
+.show-numbering .ProseMirror h5::before { content: counter(h1-counter) "." counter(h2-counter) "." counter(h3-counter) "." counter(h4-counter) "." counter(h5-counter) ". "; color: var(--heading-h3-color, #A50034); margin-right: 0.3em; }
+.show-numbering .ProseMirror h6 { font-size: var(--heading-size-h6); font-weight: bold; margin: 0.83em 0; counter-increment: h6-counter; }
+.show-numbering .ProseMirror h6::before { content: counter(h1-counter) "." counter(h2-counter) "." counter(h3-counter) "." counter(h4-counter) "." counter(h5-counter) "." counter(h6-counter) ". "; color: var(--heading-h3-color, #A50034); margin-right: 0.3em; }
+
+/* Headings explicitly excluded from numbering (e.g. Introduction, Glossary, References) */
+.show-numbering .ProseMirror h1[data-numbered='false'],
+.show-numbering .ProseMirror h2[data-numbered='false'],
+.show-numbering .ProseMirror h3[data-numbered='false'],
+.show-numbering .ProseMirror h4[data-numbered='false'],
+.show-numbering .ProseMirror h5[data-numbered='false'],
+.show-numbering .ProseMirror h6[data-numbered='false'] { counter-increment: none; }
+.show-numbering .ProseMirror h1[data-numbered='false']::before,
+.show-numbering .ProseMirror h2[data-numbered='false']::before,
+.show-numbering .ProseMirror h3[data-numbered='false']::before,
+.show-numbering .ProseMirror h4[data-numbered='false']::before,
+.show-numbering .ProseMirror h5[data-numbered='false']::before,
+.show-numbering .ProseMirror h6[data-numbered='false']::before { content: none; }
 
 /* Headings without numbering */
-.hide-numbering .ProseMirror h1 { font-size: 2em; font-weight: bold; margin: 0.67em 0; padding-bottom: 0.3em; }
+.hide-numbering .ProseMirror h1 { font-size: var(--heading-size-h1); font-weight: bold; margin: 0.67em 0; padding-bottom: 0.3em; }
 .hide-numbering.show-heading-decoration .ProseMirror h1 { border-bottom: 2px solid var(--heading-h1-color, #A50034); }
-.hide-numbering .ProseMirror h2 { font-size: 1.5em; font-weight: bold; margin: 0.75em 0; }
-.hide-numbering .ProseMirror h3 { font-size: 1.17em; font-weight: bold; margin: 0.83em 0; }
+.hide-numbering .ProseMirror h2 { font-size: var(--heading-size-h2); font-weight: bold; margin: 0.75em 0; }
+.hide-numbering .ProseMirror h3 { font-size: var(--heading-size-h3); font-weight: bold; margin: 0.83em 0; }
+.hide-numbering .ProseMirror h4 { font-size: var(--heading-size-h4); font-weight: bold; margin: 0.83em 0; }
+.hide-numbering .ProseMirror h5 { font-size: var(--heading-size-h5); font-weight: bold; margin: 0.83em 0; }
+.hide-numbering .ProseMirror h6 { font-size: var(--heading-size-h6); font-weight: bold; margin: 0.83em 0; }
 
 /* Lists */
 .ProseMirror ul, .ProseMirror ol { padding-left: 1.5em; margin: 0.5em 0; }
@@ -355,6 +444,8 @@ body {
 }
 .context-menu-item:hover { background-color: var(--menu-selection-bg); color: var(--menu-selection-fg); }
 .context-menu-item.danger { color: var(--error-fg); }
+.context-menu-item:disabled { color: var(--disabled-fg, #6b6b6b); cursor: not-allowed; opacity: 0.5; }
+.context-menu-item:disabled:hover { background-color: transparent; color: var(--disabled-fg, #6b6b6b); }
 .context-menu-separator { height: 1px; background-color: var(--menu-separator); margin: 4px 0; }
 
 /* Modal */
@@ -388,6 +479,12 @@ body {
 .btn-secondary { background-color: var(--button-secondary-bg); color: var(--button-secondary-fg); }
 .btn-secondary:hover { background-color: var(--button-secondary-hover-bg); }
 .btn-primary:disabled, .btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-danger {
+  padding: 6px 14px; border: none; border-radius: 4px; font-size: 13px; cursor: pointer;
+  font-family: var(--font-family); background-color: var(--error-fg, #f85149); color: #fff;
+}
+.btn-danger:hover { filter: brightness(1.1); }
+.btn-danger:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* Dialog title */
 .modal-content > h3, .modal-content > form > h3 { margin-top: 0; margin-bottom: 16px; font-size: 16px; font-weight: 600; }
@@ -542,8 +639,8 @@ body {
   color: var(--description-fg); font-size: 0.6em; vertical-align: middle;
   opacity: 0.3; transition: opacity 0.15s; margin-right: 0.2em;
 }
-.ProseMirror h1:hover .fold-toggle, .ProseMirror h2:hover .fold-toggle, .ProseMirror h3:hover .fold-toggle { opacity: 0.8; }
-.ProseMirror h1.collapsed .fold-toggle, .ProseMirror h2.collapsed .fold-toggle, .ProseMirror h3.collapsed .fold-toggle { opacity: 0.8; }
+.ProseMirror h1:hover .fold-toggle, .ProseMirror h2:hover .fold-toggle, .ProseMirror h3:hover .fold-toggle, .ProseMirror h4:hover .fold-toggle, .ProseMirror h5:hover .fold-toggle, .ProseMirror h6:hover .fold-toggle { opacity: 0.8; }
+.ProseMirror h1.collapsed .fold-toggle, .ProseMirror h2.collapsed .fold-toggle, .ProseMirror h3.collapsed .fold-toggle, .ProseMirror h4.collapsed .fold-toggle, .ProseMirror h5.collapsed .fold-toggle, .ProseMirror h6.collapsed .fold-toggle { opacity: 0.8; }
 .ProseMirror .section-collapsed { display: none; }
 
 /* ===== Welcome Screen ===== */
@@ -569,6 +666,9 @@ body {
   border-radius: 6px; background: var(--panel-bg); color: var(--description-fg); font-size: 12px;
 }
 .welcome-samples strong { color: var(--editor-fg); font-size: 13px; }
+.welcome-recent-folders { text-align: left; margin-bottom: 28px; }
+.welcome-recent-folders h3 { font-size: 13px; color: var(--description-fg); margin: 0 0 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+.welcome-recent-folders ul { list-style: none; padding: 0; margin: 0; max-height: 180px; overflow-y: auto; }
 .welcome-workspace { text-align: left; margin-bottom: 28px; }
 .welcome-workspace-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
 .welcome-workspace-header h3 { font-size: 13px; color: var(--description-fg); margin: 0; text-transform: uppercase; letter-spacing: 0.5px; }
@@ -591,6 +691,29 @@ body {
 .recent-file-btn:hover { background: var(--list-hover-bg); }
 .recent-file-path { font-size: 11px; color: var(--description-fg); margin-top: 2px; }
 .recent-file-error { font-size: 11px; color: var(--error-fg, #f85149); margin-top: 3px; }
+
+/* ===== Undo Toast ===== */
+.undo-toast {
+  position: fixed; left: 50%; bottom: 32px; transform: translateX(-50%); z-index: 3000;
+  display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+  background-color: var(--editor-bg); border: 1px solid var(--panel-border); border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4); font-size: 13px; overflow: hidden; min-width: 280px;
+}
+.undo-toast-message { flex: 1; color: var(--editor-fg); }
+.undo-toast-action {
+  display: flex; align-items: center; gap: 4px; padding: 5px 10px; border: none; border-radius: 4px;
+  background-color: var(--button-bg); color: var(--button-fg); cursor: pointer; font-size: 12px; white-space: nowrap;
+}
+.undo-toast-action:hover { background-color: var(--button-hover-bg); }
+.undo-toast-close {
+  display: flex; align-items: center; justify-content: center; padding: 4px; border: none;
+  background: transparent; color: var(--description-fg); cursor: pointer; border-radius: 4px;
+}
+.undo-toast-close:hover { background-color: var(--toolbar-hover-bg); }
+.undo-toast-progress {
+  position: absolute; left: 0; bottom: 0; height: 2px; background-color: var(--button-bg);
+  transition: width 0.1s linear;
+}
 
 /* ===== JSON Viewer ===== */
 .json-viewer { display: flex; flex-direction: column; height: 100vh; }
@@ -1256,11 +1379,19 @@ body {
   border: none; background: transparent; color: var(--editor-fg); font-size: 12px;
   text-align: left; cursor: pointer;
 }
-.explorer-entry-folder { color: var(--description-fg); cursor: default; }
+.explorer-entry-folder { color: var(--description-fg); cursor: pointer; }
+.explorer-entry-folder:hover { background: var(--list-hover-bg); }
 .explorer-entry-file:hover { background: var(--list-hover-bg); }
 .explorer-entry.is-active { background: rgba(0, 122, 204, 0.18); color: var(--editor-fg); }
 .explorer-indent { flex-shrink: 0; height: 1px; }
+.explorer-chevron { flex-shrink: 0; color: var(--description-fg); }
+.explorer-chevron-spacer { flex-shrink: 0; width: 13px; }
 .explorer-entry-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.explorer-entry-rename-input {
+  flex: 1; min-width: 0; font-size: 12px; font-family: inherit; color: var(--editor-fg);
+  background: var(--editor-bg, #1e1e1e); border: 1px solid var(--focus-border, #007acc);
+  border-radius: 2px; padding: 1px 4px;
+}
 
 .panel-empty {
   display: flex; flex-direction: column; align-items: center; text-align: center;

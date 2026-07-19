@@ -19,7 +19,18 @@ pub fn run() {
             ext == "sdoc" || ext == "json"
         }));
 
-    let initial_folder = initial_file.as_ref().and_then(|path| path.parent().map(std::path::Path::to_path_buf));
+    let initial_folder = initial_file
+        .as_ref()
+        .and_then(|path| path.parent().map(std::path::Path::to_path_buf))
+        .or_else(|| {
+            // No file passed on the command line — restore the last workspace folder the
+            // user had open, similar to VS Code reopening the previous workspace on launch.
+            settings
+                .recent_folders
+                .iter()
+                .map(std::path::PathBuf::from)
+                .find(|p| p.is_dir())
+        });
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -30,6 +41,9 @@ pub fn run() {
             file_path: Mutex::new(initial_file),
             current_folder: Mutex::new(initial_folder),
             settings: Mutex::new(settings),
+            workspace_watch_root: Mutex::new(None),
+            workspace_watch_generation: std::sync::atomic::AtomicU64::new(0),
+            recent_deletions: Mutex::new(Vec::new()),
         })
         .invoke_handler(tauri::generate_handler![
             commands::open_document,
@@ -40,16 +54,24 @@ pub fn run() {
             commands::get_current_folder,
             commands::list_folder_documents,
             commands::create_document_in_folder,
+            commands::rename_entry,
+            commands::delete_entry,
+            commands::undo_last_delete,
+            commands::has_recent_deletions,
+            commands::create_folder,
+            commands::reveal_in_file_explorer,
             commands::save_image,
             commands::copy_image_to_doc,
             commands::create_drawio_file,
             commands::open_drawio_external,
             commands::copy_drawio_to_doc,
             commands::start_file_watcher,
+            commands::start_workspace_watcher,
             commands::get_settings,
             commands::get_editor_settings,
             commands::update_settings,
             commands::get_recent_files,
+            commands::get_recent_folders,
             commands::write_export_file,
             commands::read_import_file,
             commands::resolve_asset_path,

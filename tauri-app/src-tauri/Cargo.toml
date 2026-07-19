@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-tauri = { version = "2", features = ["tray-icon"] }
+tauri = { version = "2", features = ["tray-icon", "protocol-asset"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 tauri-plugin-shell = "2"
@@ -16,10 +16,14 @@ dirs = "6"
 chrono = "0.4"
 slug = "0.1"
 open = "5"
+trash = "5"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
 [lib]
 name = "sdoc_editor_lib"
-crate-type = ["lib", "cdylib", "staticlib"]
+# staticlib is only required for mobile (iOS/Android) targets, which this
+# desktop-only app does not build. Dropping it avoids compiling/linking the
+# crate a third time and noticeably speeds up release builds.
+crate-type = ["lib", "cdylib"]

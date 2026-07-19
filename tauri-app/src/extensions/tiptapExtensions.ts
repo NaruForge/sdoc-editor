@@ -71,7 +71,7 @@ const SectionFold = Extension.create({
             const decorations: Decoration[] = [];
 
             state.doc.forEach((node, offset) => {
-              if (node.type.name === 'heading' && (node.attrs.level as number) <= 3) {
+              if (node.type.name === 'heading' && (node.attrs.level as number) <= 6) {
                 const isCollapsed = collapsed.has(offset);
 
                 const widget = Decoration.widget(
@@ -116,7 +116,7 @@ const SectionFold = Extension.create({
               event.stopPropagation();
 
               const heading = target.parentElement;
-              if (!heading || !/^H[1-3]$/i.test(heading.tagName)) return false;
+              if (!heading || !/^H[1-6]$/i.test(heading.tagName)) return false;
 
               const pos = view.posAtDOM(heading, 0);
               const resolved = view.state.doc.resolve(pos);
@@ -147,15 +147,15 @@ const HeadingKeyboardShortcuts = Extension.create({
         if (editor.isActive('table')) {
           return false;
         }
-        // If on a heading, increase level (up to h3)
-        for (let level = 1; level <= 2; level++) {
+        // If on a heading, increase level (up to h6)
+        for (let level = 1; level <= 5; level++) {
           if (editor.isActive('heading', { level })) {
-            editor.chain().focus().toggleHeading({ level: level as 1 | 2 | 3 }).toggleHeading({ level: (level + 1) as 1 | 2 | 3 }).run();
+            editor.chain().focus().toggleHeading({ level: level as 1 | 2 | 3 | 4 | 5 | 6 }).toggleHeading({ level: (level + 1) as 1 | 2 | 3 | 4 | 5 | 6 }).run();
             return true;
           }
         }
-        // h3 is the max level — do nothing
-        if (editor.isActive('heading', { level: 3 })) {
+        // h6 is the max level — do nothing
+        if (editor.isActive('heading', { level: 6 })) {
           return true;
         }
         // On a paragraph, convert to h1
@@ -179,9 +179,9 @@ const HeadingKeyboardShortcuts = Extension.create({
           editor.chain().focus().toggleHeading({ level: 1 }).run();
           return true;
         }
-        for (let level = 2; level <= 3; level++) {
+        for (let level = 2; level <= 6; level++) {
           if (editor.isActive('heading', { level })) {
-            editor.chain().focus().toggleHeading({ level: level as 1 | 2 | 3 }).toggleHeading({ level: (level - 1) as 1 | 2 | 3 }).run();
+            editor.chain().focus().toggleHeading({ level: level as 1 | 2 | 3 | 4 | 5 | 6 }).toggleHeading({ level: (level - 1) as 1 | 2 | 3 | 4 | 5 | 6 }).run();
             return true;
           }
         }
@@ -334,10 +334,35 @@ const BlockExit = Extension.create({
   },
 });
 
+/* ===== Heading with optional numbering exclusion (e.g. Introduction, Glossary) ===== */
+const HeadingNumbering = Extension.create({
+  name: 'headingNumbering',
+  addGlobalAttributes() {
+    return [
+      {
+        types: ['heading'],
+        attributes: {
+          numbered: {
+            default: null,
+            parseHTML: (element: HTMLElement) => (element.getAttribute('data-numbered') === 'false' ? false : null),
+            renderHTML: (attributes: { numbered?: boolean | null }) => {
+              if (attributes.numbered === false) {
+                return { 'data-numbered': 'false' };
+              }
+              return {};
+            },
+          },
+        },
+      },
+    ];
+  },
+});
+
 export const tiptapExtensions = [
   StarterKit.configure({
     codeBlock: false,
   }),
+  HeadingNumbering,
   Callout,
   CustomCodeBlock,
   Underline,

@@ -15,7 +15,7 @@ applyTo: "**/*.{sdoc,tiptap.json}"
 
 ## Critical Rules — DO NOT VIOLATE
 
-1. **NEVER prefix heading text with numbers** — The editor auto-generates numbering via CSS counters. Writing "1. Introduction" causes double numbering.
+1. **NEVER prefix heading text with numbers** — The editor auto-generates numbering via CSS counters. Writing "1. Introduction" causes double numbering. To omit a number entirely (e.g. Introduction, Glossary, References), set `"numbered": false` in the heading's `attrs` instead — do not fake it via text.
 2. **JSON backslash escaping** — Every LaTeX `\` must appear as exactly `\\` in JSON. Never 1 (`\`) or 3+ (`\\\`).
 3. **Attributes use camelCase** — Never `data-*` prefixes (`caption`, not `data-caption`).
 4. **Update `meta.modified`** — Set to current ISO 8601 timestamp on every edit.

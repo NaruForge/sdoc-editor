@@ -8,6 +8,7 @@ interface TocEntry {
   text: string;
   id: string;
   pos: number;  // document position of the heading node
+  numbered: boolean;
 }
 
 interface TableOfContentsProps {
@@ -15,11 +16,16 @@ interface TableOfContentsProps {
   showNumbering: boolean;
 }
 
-/** Compute hierarchical number prefix for each entry, e.g. "1.2.3. " */
+/** Compute hierarchical number prefix for each entry, e.g. "1.2.3. ". Headings marked numbered:false get no prefix. */
 function computeNumbering(entries: TocEntry[]): string[] {
   const counters = [0, 0, 0, 0, 0, 0]; // index 0 = h1, ..., 5 = h6
   return entries.map((entry) => {
     const idx = entry.level - 1;
+    if (!entry.numbered) {
+      // Skip own increment but still reset deeper counters (treat as a normal section boundary)
+      for (let i = idx + 1; i < counters.length; i++) counters[i] = 0;
+      return '';
+    }
     counters[idx]++;
     // Reset all deeper counters
     for (let i = idx + 1; i < counters.length; i++) counters[i] = 0;
@@ -81,8 +87,9 @@ export const TableOfContents: React.FC<TableOfContentsProps> = ({ editor, showNu
         const level = node.attrs.level as number;
         const id = (node.attrs.id as string) || '';
         const text = node.textContent;
+        const numbered = node.attrs.numbered !== false;
         if (text) {
-          result.push({ level, text, id, pos });
+          result.push({ level, text, id, pos, numbered });
         }
       }
     });

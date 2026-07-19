@@ -41,6 +41,19 @@ The editor **automatically generates heading numbers** (e.g., `1.`, `1.1`, `2.3.
 
 Always write only the bare title in heading content.
 
+### Excluding a Heading from Numbering (`numbered: false`)
+
+Some sections conventionally have **no number** — e.g. `Introduction`, `Glossary`, `References`, `Appendix` in IEEE/ISO-style documents. Use the heading's `numbered` attribute instead of skipping/hacking the counter:
+
+```json
+{ "type": "heading", "attrs": { "level": 1, "numbered": false }, "content": [{ "type": "text", "text": "Introduction" }] }
+```
+
+- Omit `numbered` (or set it to `null`) for normal, numbered headings — this is the default.
+- Set `numbered: false` only for headings that must never show a number.
+- The heading still nests normally for TOC/cross-reference purposes; only its own number prefix is suppressed, and its own level's counter is not incremented (so later numbered headings don't skip a number).
+- Do NOT rename the heading or prefix it with placeholder text to hide numbering — always use this attribute so it stays consistent across the editor view, TOC, cross-references, and all exports (HTML/Markdown/AsciiDoc).
+
 ## Procedures
 
 ### Creating a New Document

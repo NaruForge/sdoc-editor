@@ -39,6 +39,11 @@ pub struct AppSettings {
     pub theme_custom_styles: String,
     #[serde(default)]
     pub recent_files: Vec<String>,
+    /// Previously opened workspace folders (most recent first), used to restore the last
+    /// workspace on launch and to let the user quickly switch between recent folders —
+    /// analogous to VS Code's "Recent Workspaces" list.
+    #[serde(default)]
+    pub recent_folders: Vec<String>,
 }
 
 fn default_image_caption_prefix() -> String { "Image".to_string() }

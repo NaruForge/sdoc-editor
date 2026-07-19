@@ -74,7 +74,12 @@ function convertNode(node: TiptapNode, ctx: ConvertContext): string {
       const level = typeof node.attrs?.level === 'number' ? node.attrs.level : 1;
       const headingPrefix = '='.repeat(level + 1);
       const headingText = node.content ? convertInlineContent(node.content, ctx) : '';
-      if (level === 1) { ctx.h1Counter++; ctx.imageCounter = 0; ctx.tableCounter = 0; ctx.eqInSection = 0; }
+      if (level === 1) {
+        ctx.imageCounter = 0;
+        ctx.tableCounter = 0;
+        ctx.eqInSection = 0;
+        if (node.attrs?.numbered !== false) ctx.h1Counter++;
+      }
       const hAnchor = node.attrs?.id ? `[[${node.attrs.id}]]\n` : '';
       return `${hAnchor}${headingPrefix} ${headingText}\n`;
     }

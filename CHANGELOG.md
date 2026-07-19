@@ -5,6 +5,31 @@ All notable changes to the "Structured Doc Editor" extension will be documented 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.10] - 2026-07-20
+
+### Added
+- **헤딩 번호 제외 (`numbered: false`)**: Introduction, Glossary 등 번호가 필요 없는 헤딩을 툴바 토글(#, "번호 제외")로 지정 가능
+  - 스키마(`sdoc.schema.json`)에 `numbered` 속성 추가, 에디터/CrossRef/목차(TOC)/HTML·Markdown·AsciiDoc·Slides 내보내기·MCP 문서 구조 조회 전체에 반영
+  - 무번호 헤딩도 하위 레벨 카운터는 정상적으로 리셋되어 번호 밀림 없음
+- **Tauri 탐색기 대폭 강화**
+  - 우클릭 이름 변경, VS Code식 정렬, 새 문서/새 폴더, 빈 공간 컨텍스트 메뉴(시스템 탐색기 열기/경로 복사/새로고침)
+  - 폴더 접기/펼치기 + 하단 상태바 경로 표시
+  - 파일/폴더 삭제 → OS 휴지통 이동 + 커스텀 확인 다이얼로그 + 되돌리기(Undo) 토스트
+  - 워크스페이스 폴더 파일시스템 변경 자동 감지 및 탐색기 새로고침(외부 프로그램 변경 포함)
+  - 시작 화면 최근 작업 폴더 목록 + 마지막 워크스페이스 자동 복원
+  - 문서 외 파일(이미지, drawio.svg 등) 탐색기 표시 지원
+- **Tauri 상단 메뉴바** (File/Edit/View/Help) 신규 도입
+- **PRODUCT.md**: 다른 AI/개발자가 프로젝트를 동일하게 재현할 수 있도록 UX/UI, 아키텍처, 지원 포맷 전체를 정리한 재구현 가이드 문서 추가
+
+### Changed
+- **헤딩 렌더링 H1~H6 전 레벨 지원**: 기존 H1~H3만 정상 렌더링되던 문제 해결
+  - H1~H6 모두 굵게(bold) 고정, H6 = 본문 크기, H1~H5는 H6 기준 2pt씩 증가하는 크기 스케일 적용
+  - 헤딩 접기(Fold), Tab/Shift-Tab 레벨 순환 단축키도 H6까지 확장
+
+### Fixed
+- **Draw.io 다이어그램**: 빈 이미지 생성 및 더블클릭 미실행 버그 수정 (`assetProtocol` 설정 누락), 경로 파싱 근본 수정(Windows 백슬래시 인코딩 버그)
+- **Tauri 탐색기**: 워크스페이스 폴더 전환/문서 열기 버그, 확장자 손상 없는 이름 변경 버그 수정
+
 ## [0.4.8] - 2026-06-16
 
 ### Added

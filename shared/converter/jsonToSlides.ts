@@ -126,7 +126,7 @@ function buildSlideSection(group: SlideGroup, ctx: ConvertContext): string {
 
     let firstContent = '';
     if (group.h1Node) {
-      ctx.h1Counter++;
+      if (group.h1Node.attrs?.numbered !== false) ctx.h1Counter++;
       ctx.imageCounter = 0;
       ctx.tableCounter = 0;
       firstContent += convertSlideNode(group.h1Node, ctx);
@@ -154,7 +154,7 @@ function buildSlideSection(group: SlideGroup, ctx: ConvertContext): string {
 
   let content = '';
   if (group.h1Node) {
-    ctx.h1Counter++;
+    if (group.h1Node.attrs?.numbered !== false) ctx.h1Counter++;
     ctx.imageCounter = 0;
     ctx.tableCounter = 0;
     content += convertSlideNode(group.h1Node, ctx);

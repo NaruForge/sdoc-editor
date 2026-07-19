@@ -102,7 +102,8 @@
           "properties": {
             "level": { "type": "integer", "minimum": 1, "maximum": 6 },
             "id": { "type": ["string", "null"], "description": "Anchor id for cross-references." },
-            "textAlign": { "type": ["string", "null"], "enum": ["left", "center", "right", "justify", null] }
+            "textAlign": { "type": ["string", "null"], "enum": ["left", "center", "right", "justify", null] },
+            "numbered": { "type": ["boolean", "null"], "description": "false면 자동 번호 매김에서 제외 (예: Introduction, Glossary, References). 생략 또는 null이면 번호 매김 대상." }
           },
           "additionalProperties": false
         },

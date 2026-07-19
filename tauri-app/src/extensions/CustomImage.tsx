@@ -5,6 +5,27 @@ function getDefaultAlignment(): string {
   return (window as any).__editorSettings?.defaultImageAlignment || 'center';
 }
 
+/**
+ * Legacy fallback: reconstruct the "./images/..." or "./drawio/..." relative path from an
+ * asset.localhost URL when no `relativePath` node attribute is available (e.g. documents
+ * created before this attribute was introduced).
+ *
+ * Windows absolute paths use backslash separators, so `convertFileSrc` percent-encodes them
+ * as `%5C` instead of a literal `/`. Decoding first lets a single regex handle both Windows
+ * (`%5C`) and POSIX (`/`) encoded paths.
+ */
+export function extractRelativePathFromSrc(src: string): string | null {
+  let decoded = src;
+  try {
+    decoded = decodeURIComponent(src);
+  } catch {
+    // Malformed URI — fall back to the raw string
+  }
+  const match = decoded.match(/(images|drawio)[\\/]([^?#]+)/);
+  if (!match) return null;
+  return `./${match[1]}/${match[2]}`;
+}
+
 export const CustomImage = Image.extend({
   addAttributes() {
     return {
@@ -23,6 +44,17 @@ export const CustomImage = Image.extend({
         renderHTML: (attributes: Record<string, any>) => ({
           'data-align': attributes.align || getDefaultAlignment(),
         }),
+      },
+      // Document-relative path (e.g. "./drawio/diagram-1.drawio.svg") as returned by the
+      // backend when the image/diagram was created. Storing this avoids having to
+      // reverse-engineer the path from the (possibly percent-encoded) asset.localhost src URL.
+      relativePath: {
+        default: null,
+        parseHTML: (element: HTMLElement) => element.getAttribute('data-relative-path'),
+        renderHTML: (attributes: Record<string, any>) => {
+          if (!attributes.relativePath) return {};
+          return { 'data-relative-path': attributes.relativePath };
+        },
       },
     };
   },
@@ -133,9 +165,10 @@ export const CustomImage = Image.extend({
 
         // Set title attribute to show filename and path on hover
         if (src) {
-          const match = src.match(/images\/([^?#]+)/);
-          if (match) {
-            img.title = `Filename: ${match[1]}\nPath: ./images/${match[1]}`;
+          const relativePath = currentNode.attrs.relativePath || extractRelativePathFromSrc(src);
+          if (relativePath) {
+            const fileName = relativePath.split('/').pop();
+            img.title = `Filename: ${fileName}\nPath: ${relativePath}`;
           } else {
             img.title = src;
           }
@@ -229,24 +262,22 @@ export const CustomImage = Image.extend({
 
         // Only handle draw.io files on double-click
         if (src.includes('.drawio.svg') || src.includes('/drawio/')) {
-          // Extract relative path from src
-          let drawioPath = src;
+          // Prefer the relativePath node attribute (set on creation) over reverse-engineering
+          // it from the (possibly percent-encoded) src URL.
+          const drawioPath = currentNode.attrs.relativePath || extractRelativePathFromSrc(src) || src;
 
-          // If it's a webview URI, extract the relative path
-          const drawioMatch = src.match(/drawio\/([^?#]+)/);
-          if (drawioMatch) {
-            drawioPath = `./drawio/${drawioMatch[1]}`;
-          }
-
-          // Send message to VS Code to open the draw.io file
+          // Ask the host app (Tauri or VS Code webview) to open the draw.io file externally
+          const openDrawio = (window as any).__openDrawio;
           const vscode = (window as any).vscode;
-          if (vscode) {
+          if (openDrawio) {
+            openDrawio(drawioPath);
+          } else if (vscode) {
             vscode.postMessage({
               type: 'openDrawio',
               drawioPath: drawioPath,
             });
           } else {
-            console.error('VS Code API not available');
+            console.error('No host bridge available to open Draw.io file');
           }
         }
         // Regular images: do nothing on double-click (use right-click context menu instead)
@@ -279,14 +310,13 @@ export const CustomImage = Image.extend({
         const src = currentNode.attrs.src || '';
 
         if (src.includes('.drawio.svg') || src.includes('/drawio/')) {
-          let drawioPath = src;
-          const drawioMatch = src.match(/drawio\/([^?#]+)/);
-          if (drawioMatch) {
-            drawioPath = `./drawio/${drawioMatch[1]}`;
-          }
+          const drawioPath = currentNode.attrs.relativePath || extractRelativePathFromSrc(src) || src;
 
+          const openDrawio = (window as any).__openDrawio;
           const vscode = (window as any).vscode;
-          if (vscode) {
+          if (openDrawio) {
+            openDrawio(drawioPath);
+          } else if (vscode) {
             vscode.postMessage({
               type: 'openDrawio',
               drawioPath: drawioPath,

@@ -13,6 +13,7 @@ import { TablePropertiesModal } from './TablePropertiesModal';
 import { ImageNameDialog } from './ImageNameDialog';
 import { DrawioNameDialog } from './DrawioNameDialog';
 import { DrawioActionDialog } from './DrawioActionDialog';
+import { DrawioInstallGuideDialog } from './DrawioInstallGuideDialog';
 import { LinkDialog } from './LinkDialog';
 import { ImagePropertiesDialog } from './ImagePropertiesDialog';
 import { ImageContextMenu } from './ImageContextMenu';
@@ -22,14 +23,29 @@ import { EditorContextMenu } from './EditorContextMenu';
 import { CrossReferenceDialog } from './CrossReferenceDialog';
 import { ActivityBar } from './ActivityBar';
 import { SidePanel, type ActivityTab } from './SidePanel';
+import { MenuBar, type MenuDef } from './MenuBar';
 import { ZoomBar } from './ZoomBar';
+import { FolderOpen } from 'lucide-react';
 import { collectTargets } from '../extensions/CrossReference';
 import { CROSSREF_RESYNC_META } from '../extensions/CrossReference';
 import type { RefTarget } from '../extensions/CrossReference';
+import { extractRelativePathFromSrc } from '../extensions/CustomImage';
 import { preprocessImportedHtml } from '../utils/preprocessImportedHtml';
 import type { DocumentSettings } from '@shared/types';
 import type { ExplorerEntry } from '../App';
 import type { EditorSettings } from '../context/EditorContext';
+
+/**
+ * `setImage`'s TipTap-generated type only knows about `src`/`alt`/`title`. `relativePath` is a
+ * custom attribute added by `CustomImage` (see extensions/CustomImage.tsx) to avoid having to
+ * reverse-engineer the document-relative path from a (possibly percent-encoded) asset URL.
+ */
+interface ImageAttrsWithRelativePath {
+  src: string;
+  alt?: string;
+  title?: string;
+  relativePath?: string;
+}
 
 /**
  * Convert relative image paths (./images/*, ./drawio/*) in a doc tree to asset URLs.
@@ -56,10 +72,18 @@ interface EditorProps {
   workspaceFolder?: string | null;
   workspaceEntries?: ExplorerEntry[];
   onSelectFolder?: () => void;
-  onCreateInFolder?: () => void;
+  onCreateInFolder?: (folder?: string) => void;
+  onCreateFolder?: (parent: string) => void;
   onOpenWorkspaceFile?: (path: string) => void;
   onRefreshWorkspace?: () => void;
+  onRenameEntry?: (path: string, newName: string) => void;
+  onDeleteEntry?: (entry: ExplorerEntry) => void;
+  onUndoDelete?: () => void;
+  hasDeletionHistory?: boolean;
   onJsonView?: () => void;
+  onNewDocument?: () => void;
+  onOpenDocument?: () => void;
+  onExit?: () => void;
 }
 
 type SaveStatus = 'saved' | 'saving' | 'dirty' | 'error';
@@ -73,9 +97,17 @@ export const Editor: React.FC<EditorProps> = ({
   workspaceEntries = [],
   onSelectFolder,
   onCreateInFolder,
+  onCreateFolder,
   onOpenWorkspaceFile,
   onRefreshWorkspace,
+  onRenameEntry,
+  onDeleteEntry,
+  onUndoDelete,
+  hasDeletionHistory,
   onJsonView,
+  onNewDocument,
+  onOpenDocument,
+  onExit,
 }) => {
   const { state, dispatch } = useEditorContext();
   const [showNumbering, setShowNumbering] = useState(true);
@@ -83,17 +115,28 @@ export const Editor: React.FC<EditorProps> = ({
   const [sidePanelTab, setSidePanelTab] = useState<ActivityTab>('explorer');
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved');
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
+  const [hoveredExplorerPath, setHoveredExplorerPath] = useState<string | null>(null);
+  const [appVersion, setAppVersion] = useState('');
+  useEffect(() => {
+    import('@tauri-apps/api/app')
+      .then(({ getVersion }) => getVersion())
+      .then(setAppVersion)
+      .catch((error: unknown) => console.warn('Failed to read app version', error));
+  }, []);
   const [zoom, setZoom] = useState<number>(() => {
     const saved = localStorage.getItem('sdoc-editor-zoom');
     return saved ? parseInt(saved, 10) : 100;
   });
+  const zoomRef = useRef(zoom);
+  useEffect(() => { zoomRef.current = zoom; }, [zoom]);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [showTableProperties, setShowTableProperties] = useState(false);
   const [pendingImage, setPendingImage] = useState<{ blob: Blob; dataUrl: string } | null>(null);
   const [showDrawioActionDialog, setShowDrawioActionDialog] = useState(false);
   const [showDrawioDialog, setShowDrawioDialog] = useState(false);
+  const [showDrawioInstallGuide, setShowDrawioInstallGuide] = useState(false);
   const [showLinkDialog, setShowLinkDialog] = useState(false);
-  const [imageProperties, setImageProperties] = useState<{ pos: number; src: string; alt: string; align: string; isDrawio: boolean } | null>(null);
+  const [imageProperties, setImageProperties] = useState<{ pos: number; src: string; alt: string; align: string; isDrawio: boolean; path?: string } | null>(null);
   const [imageContextMenu, setImageContextMenu] = useState<{ x: number; y: number; pos: number; src: string; isDrawio: boolean } | null>(null);
   const [mathDialog, setMathDialog] = useState<{ latex: string; isBlock: boolean; pos: number | null } | null>(null);
   const [diagramDialog, setDiagramDialog] = useState<{ code: string; language: string; pos: number | null } | null>(null);
@@ -186,19 +229,22 @@ export const Editor: React.FC<EditorProps> = ({
         break;
       case 'imageSaved':
         if (editor && message.webviewUri) {
-          editor.chain().focus().setImage({ src: message.webviewUri, alt: message.imageName || '' }).run();
+          const attrs: ImageAttrsWithRelativePath = { src: message.webviewUri as string, alt: (message.imageName as string) || '', relativePath: message.imagePath as string };
+          editor.chain().focus().setImage(attrs).run();
           flushUpdate();
         }
         break;
       case 'drawioCreated':
         if (editor && message.webviewUri) {
-          editor.chain().focus().setImage({ src: message.webviewUri, alt: message.fileName || 'diagram', title: message.fileName || 'diagram' }).run();
+          const attrs: ImageAttrsWithRelativePath = { src: message.webviewUri as string, alt: (message.fileName as string) || 'diagram', title: (message.fileName as string) || 'diagram', relativePath: message.drawioPath as string };
+          editor.chain().focus().setImage(attrs).run();
           flushUpdate();
         }
         break;
       case 'imageInserted':
         if (editor && message.webviewUri) {
-          editor.chain().focus().setImage({ src: message.webviewUri, alt: message.fileName || 'image' }).run();
+          const attrs: ImageAttrsWithRelativePath = { src: message.webviewUri as string, alt: (message.fileName as string) || 'image', relativePath: message.imagePath as string };
+          editor.chain().focus().setImage(attrs).run();
           flushUpdate();
         }
         break;
@@ -224,7 +270,7 @@ export const Editor: React.FC<EditorProps> = ({
           editor.chain().focus().command(({ tr }) => {
             const node = tr.doc.nodeAt(message.pos);
             if (node && node.type.name === 'image') {
-              tr.setNodeMarkup(message.pos, undefined, { ...node.attrs, src: message.webviewUri });
+              tr.setNodeMarkup(message.pos, undefined, { ...node.attrs, src: message.webviewUri, relativePath: message.imagePath });
             }
             return true;
           }).run();
@@ -413,7 +459,13 @@ export const Editor: React.FC<EditorProps> = ({
   const handleInsertDrawio = () => { setShowDrawioActionDialog(true); };
   const handleDrawioCreateNew = () => { setShowDrawioActionDialog(false); setShowDrawioDialog(true); };
   const handleDrawioImportExisting = () => { setShowDrawioActionDialog(false); postMessage({ type: 'importDrawio' }); };
-  const handleDrawioNameConfirm = (fileName: string) => { postMessage({ type: 'createDrawio', fileName }); setShowDrawioDialog(false); };
+  const handleDrawioNameConfirm = (fileName: string) => {
+    postMessage({ type: 'createDrawio', fileName }).catch(() => setShowDrawioInstallGuide(true));
+    setShowDrawioDialog(false);
+  };
+  const handleOpenDrawio = useCallback((drawioPath: string) => {
+    postMessageRef.current({ type: 'openDrawio', drawioPath }).catch(() => setShowDrawioInstallGuide(true));
+  }, []);
   const handleInsertImage = () => { postMessage({ type: 'insertExistingImage' }); };
   const handleInsertLink = () => { setShowLinkDialog(true); };
   const handleInsertMath = () => { setMathDialog({ latex: '', isBlock: false, pos: null }); };
@@ -511,7 +563,8 @@ export const Editor: React.FC<EditorProps> = ({
     if (!imageContextMenu || !editor) return;
     const node = editor.state.doc.nodeAt(imageContextMenu.pos);
     if (node) {
-      setImageProperties({ pos: imageContextMenu.pos, src: imageContextMenu.src, alt: node.attrs.alt || '', align: node.attrs.align || 'center', isDrawio: imageContextMenu.isDrawio });
+      const path = node.attrs.relativePath || extractRelativePathFromSrc(imageContextMenu.src) || undefined;
+      setImageProperties({ pos: imageContextMenu.pos, src: imageContextMenu.src, alt: node.attrs.alt || '', align: node.attrs.align || 'center', isDrawio: imageContextMenu.isDrawio, path });
     }
     setImageContextMenu(null);
   };
@@ -521,9 +574,9 @@ export const Editor: React.FC<EditorProps> = ({
     setImageContextMenu(null);
   };
   const handleImageContextMenuCopyPath = () => {
-    if (!imageContextMenu) return;
-    const match = imageContextMenu.src.match(/((?:images|drawio)\/[^?#]+)/);
-    const path = match ? './' + match[1] : imageContextMenu.src;
+    if (!imageContextMenu || !editor) return;
+    const node = editor.state.doc.nodeAt(imageContextMenu.pos);
+    const path = node?.attrs.relativePath || extractRelativePathFromSrc(imageContextMenu.src) || imageContextMenu.src;
     navigator.clipboard.writeText(path).catch((err: unknown) => {
       console.warn('Failed to copy path to clipboard', err);
     });
@@ -564,6 +617,7 @@ export const Editor: React.FC<EditorProps> = ({
       (window as any).__showDiagramDialog = (code: string, language: string, pos: number) => {
         setDiagramDialog({ code, language, pos });
       };
+      (window as any).__openDrawio = handleOpenDrawio;
     }
     return () => {
       delete (window as any).__editorFlushUpdate;
@@ -571,8 +625,9 @@ export const Editor: React.FC<EditorProps> = ({
       delete (window as any).__showImageContextMenu;
       delete (window as any).__showMathDialog;
       delete (window as any).__showDiagramDialog;
+      delete (window as any).__openDrawio;
     };
-  }, [editor, flushUpdate]);
+  }, [editor, flushUpdate, handleOpenDrawio]);
 
   useEffect(() => {
     if (!editor) return;
@@ -615,12 +670,96 @@ export const Editor: React.FC<EditorProps> = ({
     return () => { document.removeEventListener('mousedown', handleMouseNav, { capture: true }); };
   }, [editor]);
 
+  // 메뉴바 File/View 항목에 대응하는 전역 키보드 단축키 (Ctrl+N/O, Ctrl+=/-/0).
+  // Ctrl+S/Z/Shift+Z는 각각 useTiptapEditor 훅과 Tiptap History 확장에서 이미 처리하므로 중복 등록하지 않는다.
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      switch (e.key) {
+        case 'n':
+          e.preventDefault();
+          onNewDocument?.();
+          break;
+        case 'o':
+          e.preventDefault();
+          onOpenDocument?.();
+          break;
+        case '=':
+        case '+':
+          e.preventDefault();
+          handleZoomChange(zoomRef.current + 10);
+          break;
+        case '-':
+          e.preventDefault();
+          handleZoomChange(zoomRef.current - 10);
+          break;
+        case '0':
+          e.preventDefault();
+          handleZoomChange(100);
+          break;
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onNewDocument, onOpenDocument, handleZoomChange]);
+
   if (!editor) {
     return <div style={{ padding: '20px', textAlign: 'center' }}>Loading editor...</div>;
   }
 
+  const menuBarMenus: MenuDef[] = [
+    {
+      label: '파일',
+      items: [
+        { label: '새 문서', shortcut: 'Ctrl+N', onClick: onNewDocument },
+        { label: '문서 열기...', shortcut: 'Ctrl+O', onClick: onOpenDocument },
+        { label: '폴더 열기...', onClick: onSelectFolder },
+        { separator: true },
+        { label: '저장', shortcut: 'Ctrl+S', onClick: () => flushUpdate() },
+        { separator: true },
+        { label: 'HTML로 내보내기', onClick: () => handleExport('html') },
+        { label: 'Markdown으로 내보내기', onClick: () => handleExport('markdown') },
+        { label: 'AsciiDoc으로 내보내기', onClick: () => handleExport('adoc') },
+        { separator: true },
+        { label: 'Markdown 가져오기', onClick: () => handleImport('markdown') },
+        { label: 'HTML 가져오기', onClick: () => handleImport('html') },
+        { separator: true },
+        { label: 'JSON 소스 보기', onClick: handleViewJson },
+        { separator: true },
+        { label: '종료', onClick: onExit, disabled: !onExit },
+      ],
+    },
+    {
+      label: '편집',
+      items: [
+        { label: '실행 취소', shortcut: 'Ctrl+Z', disabled: !editor.can().undo(), onClick: () => editor.chain().focus().undo().run() },
+        { label: '다시 실행', shortcut: 'Ctrl+Y', disabled: !editor.can().redo(), onClick: () => editor.chain().focus().redo().run() },
+      ],
+    },
+    {
+      label: '보기',
+      items: [
+        { label: showSidePanel ? '사이드바 숨기기' : '사이드바 표시', onClick: () => setShowSidePanel(!showSidePanel) },
+        { separator: true },
+        { label: '확대', shortcut: 'Ctrl++', onClick: () => handleZoomChange(zoom + 10) },
+        { label: '축소', shortcut: 'Ctrl+-', onClick: () => handleZoomChange(zoom - 10) },
+        { label: '확대/축소 초기화', shortcut: 'Ctrl+0', onClick: () => handleZoomChange(100) },
+        { separator: true },
+        { label: showNumbering ? '번호 매기기 숨기기' : '번호 매기기 표시', onClick: handleToggleNumbering },
+        { label: state.settings.headingDecoration ? '헤딩 장식 숨기기' : '헤딩 장식 표시', onClick: handleToggleDecoration },
+      ],
+    },
+    {
+      label: '도움말',
+      items: [
+        { label: '정보', onClick: () => alert(`Structured Doc Editor\n버전: ${appVersion || '알 수 없음'}`) },
+      ],
+    },
+  ];
+
   return (
     <div className="editor-shell">
+      <MenuBar menus={menuBarMenus} />
       <DocumentHeader
         author={meta.author} version={meta.version} created={meta.created} modified={meta.modified}
         onAuthorChange={(value) => handleMetaChange('author', value)}
@@ -656,8 +795,14 @@ export const Editor: React.FC<EditorProps> = ({
             currentPath={currentPath}
             onSelectFolder={onSelectFolder}
             onCreateInFolder={onCreateInFolder}
+            onCreateFolder={onCreateFolder}
             onOpenWorkspaceFile={onOpenWorkspaceFile}
             onRefreshWorkspace={onRefreshWorkspace}
+            onRenameEntry={onRenameEntry}
+            onDeleteEntry={onDeleteEntry}
+            onUndoDelete={onUndoDelete}
+            hasDeletionHistory={hasDeletionHistory}
+            onHoverPath={setHoveredExplorerPath}
           />
         )}
         <div className="editor-content-area" onContextMenu={handleContextMenu}>
@@ -681,6 +826,12 @@ export const Editor: React.FC<EditorProps> = ({
           </div>
         </div>
       </div>
+      <div className="app-status-bar" title={hoveredExplorerPath ?? currentPath ?? workspaceFolder ?? undefined}>
+        <FolderOpen size={12} className="app-status-bar-icon" />
+        <span className="app-status-bar-path">
+          {hoveredExplorerPath ?? currentPath ?? workspaceFolder ?? '열린 폴더 없음'}
+        </span>
+      </div>
       {editorContextMenu && editor && <EditorContextMenu
         position={editorContextMenu}
         editor={editor}
@@ -700,8 +851,9 @@ export const Editor: React.FC<EditorProps> = ({
       {pendingImage && <ImageNameDialog defaultName={`image-${Date.now()}`} onConfirm={handleImageNameConfirm} onCancel={() => setPendingImage(null)} />}
       {showDrawioActionDialog && <DrawioActionDialog onCreateNew={handleDrawioCreateNew} onImportExisting={handleDrawioImportExisting} onCancel={() => setShowDrawioActionDialog(false)} />}
       {showDrawioDialog && <DrawioNameDialog defaultName={`diagram-${Date.now()}`} onConfirm={handleDrawioNameConfirm} onCancel={() => setShowDrawioDialog(false)} />}
+      {showDrawioInstallGuide && <DrawioInstallGuideDialog onClose={() => setShowDrawioInstallGuide(false)} />}
       {showLinkDialog && editor && <LinkDialog onConfirm={handleLinkConfirm} onCancel={() => setShowLinkDialog(false)} defaultText={editor.state.doc.textBetween(editor.state.selection.from, editor.state.selection.to, ' ')} />}
-      {imageProperties && <ImagePropertiesDialog src={imageProperties.src} alt={imageProperties.alt} align={imageProperties.align} onConfirm={handleImagePropertiesConfirm} onReplace={handleImageReplace} onCancel={() => setImageProperties(null)} isDrawio={imageProperties.isDrawio} />}
+      {imageProperties && <ImagePropertiesDialog src={imageProperties.src} alt={imageProperties.alt} align={imageProperties.align} onConfirm={handleImagePropertiesConfirm} onReplace={handleImageReplace} onCancel={() => setImageProperties(null)} isDrawio={imageProperties.isDrawio} path={imageProperties.path} />}
       {imageContextMenu && <ImageContextMenu position={{ x: imageContextMenu.x, y: imageContextMenu.y }} onClose={() => setImageContextMenu(null)} onOpenProperties={handleImageContextMenuProperties} onReplaceImage={handleImageContextMenuReplace} onCopyPath={handleImageContextMenuCopyPath} onDelete={handleImageContextMenuDelete} isDrawio={imageContextMenu.isDrawio} />}
       {mathDialog && <MathDialog initialLatex={mathDialog.latex} isBlock={mathDialog.isBlock} onConfirm={handleMathConfirm} onCancel={() => setMathDialog(null)} />}
       {diagramDialog && <DiagramDialog initialCode={diagramDialog.code} initialLanguage={diagramDialog.language} pos={diagramDialog.pos} onConfirm={handleDiagramConfirm} onCancel={() => setDiagramDialog(null)} />}
