@@ -84,15 +84,14 @@ fn migrate_attributes(mut node: serde_json::Value) -> serde_json::Value {
 pub fn extract_title(doc: &serde_json::Value) -> Option<String> {
     let content = doc.get("content")?.as_array()?;
     for node in content {
-        if node.get("type").and_then(|t| t.as_str()) == Some("heading") {
-            if node
+        if node.get("type").and_then(|t| t.as_str()) == Some("heading")
+            && node
                 .get("attrs")
                 .and_then(|a| a.get("level"))
                 .and_then(|l| l.as_u64())
                 == Some(1)
-            {
-                return Some(get_text_content(node));
-            }
+        {
+            return Some(get_text_content(node));
         }
     }
     None
@@ -144,7 +143,10 @@ pub fn assign_auto_ids(doc: &mut serde_json::Value) {
                         .unwrap()
                         .entry("attrs")
                         .or_insert_with(|| serde_json::json!({}));
-                    attrs.as_object_mut().unwrap().insert("id".to_string(), serde_json::json!(id));
+                    attrs
+                        .as_object_mut()
+                        .unwrap()
+                        .insert("id".to_string(), serde_json::json!(id));
                 }
                 "image" => {
                     img_counter += 1;
@@ -155,7 +157,10 @@ pub fn assign_auto_ids(doc: &mut serde_json::Value) {
                         .unwrap()
                         .entry("attrs")
                         .or_insert_with(|| serde_json::json!({}));
-                    attrs.as_object_mut().unwrap().insert("id".to_string(), serde_json::json!(id));
+                    attrs
+                        .as_object_mut()
+                        .unwrap()
+                        .insert("id".to_string(), serde_json::json!(id));
                 }
                 "table" => {
                     table_counter += 1;
@@ -166,7 +171,10 @@ pub fn assign_auto_ids(doc: &mut serde_json::Value) {
                         .unwrap()
                         .entry("attrs")
                         .or_insert_with(|| serde_json::json!({}));
-                    attrs.as_object_mut().unwrap().insert("id".to_string(), serde_json::json!(id));
+                    attrs
+                        .as_object_mut()
+                        .unwrap()
+                        .insert("id".to_string(), serde_json::json!(id));
                 }
                 _ => {}
             }
@@ -178,7 +186,8 @@ fn slugify(text: &str) -> String {
     text.to_lowercase()
         .chars()
         .map(|c| {
-            if c.is_alphanumeric() || c == '-' || c == '_' || ('\u{AC00}'..='\u{D7A3}').contains(&c) {
+            if c.is_alphanumeric() || c == '-' || c == '_' || ('\u{AC00}'..='\u{D7A3}').contains(&c)
+            {
                 c
             } else if c == ' ' {
                 '-'
@@ -254,7 +263,11 @@ fn build_label_map(doc: &serde_json::Value) -> HashMap<String, String> {
                         }
                         _ => {}
                     }
-                    if let Some(id) = node.get("attrs").and_then(|a| a.get("id")).and_then(|i| i.as_str()) {
+                    if let Some(id) = node
+                        .get("attrs")
+                        .and_then(|a| a.get("id"))
+                        .and_then(|i| i.as_str())
+                    {
                         let text = get_text_content(node);
                         let label = match level {
                             1 => format!("{}. {}", h1, text),
@@ -267,8 +280,16 @@ fn build_label_map(doc: &serde_json::Value) -> HashMap<String, String> {
                 }
                 "image" => {
                     img_counter += 1;
-                    if let Some(id) = node.get("attrs").and_then(|a| a.get("id")).and_then(|i| i.as_str()) {
-                        let caption = node.get("attrs").and_then(|a| a.get("caption")).and_then(|c| c.as_str()).unwrap_or("");
+                    if let Some(id) = node
+                        .get("attrs")
+                        .and_then(|a| a.get("id"))
+                        .and_then(|i| i.as_str())
+                    {
+                        let caption = node
+                            .get("attrs")
+                            .and_then(|a| a.get("caption"))
+                            .and_then(|c| c.as_str())
+                            .unwrap_or("");
                         let label = if caption.is_empty() {
                             format!("Figure {}", img_counter)
                         } else {
@@ -279,8 +300,16 @@ fn build_label_map(doc: &serde_json::Value) -> HashMap<String, String> {
                 }
                 "table" => {
                     table_counter += 1;
-                    if let Some(id) = node.get("attrs").and_then(|a| a.get("id")).and_then(|i| i.as_str()) {
-                        let caption = node.get("attrs").and_then(|a| a.get("caption")).and_then(|c| c.as_str()).unwrap_or("");
+                    if let Some(id) = node
+                        .get("attrs")
+                        .and_then(|a| a.get("id"))
+                        .and_then(|i| i.as_str())
+                    {
+                        let caption = node
+                            .get("attrs")
+                            .and_then(|a| a.get("caption"))
+                            .and_then(|c| c.as_str())
+                            .unwrap_or("");
                         let label = if caption.is_empty() {
                             format!("Table {}", table_counter)
                         } else {
@@ -298,12 +327,17 @@ fn build_label_map(doc: &serde_json::Value) -> HashMap<String, String> {
 
 fn update_link_texts(node: &mut serde_json::Value, label_map: &HashMap<String, String>) {
     // Check marks for internal links and collect the new label if any
-    let new_label = node.get("marks")
+    let new_label = node
+        .get("marks")
         .and_then(|m| m.as_array())
         .and_then(|marks| {
             for mark in marks {
                 if mark.get("type").and_then(|t| t.as_str()) == Some("link") {
-                    if let Some(href) = mark.get("attrs").and_then(|a| a.get("href")).and_then(|h| h.as_str()) {
+                    if let Some(href) = mark
+                        .get("attrs")
+                        .and_then(|a| a.get("href"))
+                        .and_then(|h| h.as_str())
+                    {
                         if let Some(target_id) = href.strip_prefix('#') {
                             if let Some(label) = label_map.get(target_id) {
                                 return Some(label.clone());
@@ -338,12 +372,17 @@ pub fn clean_text_nodes(node: &mut serde_json::Value) {
         // Trim trailing whitespace on last text node
         if let Some(last) = content.last_mut() {
             if last.get("type").and_then(|t| t.as_str()) == Some("text") {
-                if let Some(text) = last.get_mut("text").and_then(|t| t.as_str().map(|s| s.to_string())) {
+                if let Some(text) = last
+                    .get_mut("text")
+                    .and_then(|t| t.as_str().map(|s| s.to_string()))
+                {
                     let trimmed = text.trim_end().to_string();
                     if trimmed.is_empty() {
                         content.pop();
                     } else {
-                        last.as_object_mut().unwrap().insert("text".to_string(), serde_json::json!(trimmed));
+                        last.as_object_mut()
+                            .unwrap()
+                            .insert("text".to_string(), serde_json::json!(trimmed));
                     }
                 }
             }

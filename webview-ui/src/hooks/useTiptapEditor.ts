@@ -10,6 +10,8 @@ interface UseTiptapEditorOptions {
 export const useTiptapEditor = ({ onUpdate, pendingEditRef }: UseTiptapEditorOptions) => {
   const skipUpdateRef = useRef(false);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const onUpdateRef = useRef(onUpdate);
+  useEffect(() => { onUpdateRef.current = onUpdate; }, [onUpdate]);
 
   const editor = useEditor({
     extensions: tiptapExtensions,
@@ -28,7 +30,7 @@ export const useTiptapEditor = ({ onUpdate, pendingEditRef }: UseTiptapEditorOpt
       debounceTimerRef.current = setTimeout(() => {
         const json = editor.getJSON();
         pendingEditRef.current++;
-        onUpdate(json);
+        onUpdateRef.current(json);
       }, 300);
     },
   });
@@ -66,8 +68,8 @@ export const useTiptapEditor = ({ onUpdate, pendingEditRef }: UseTiptapEditorOpt
     // Immediately send current state
     const json = editor.getJSON();
     pendingEditRef.current++;
-    onUpdate(json, saveRequested);
-  }, [editor, onUpdate]);
+    onUpdateRef.current(json, saveRequested);
+  }, [editor, pendingEditRef]);
 
   // Flush pending edits on Ctrl+S so save always captures the latest state
   useEffect(() => {

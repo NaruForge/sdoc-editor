@@ -3,6 +3,7 @@ import { Extension } from '@tiptap/core';
 import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import { EditorView } from '@tiptap/pm/view';
+import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
 import { Underline } from '@tiptap/extension-underline';
 import { TextStyle } from '@tiptap/extension-text-style';
 import { Color } from '@tiptap/extension-color';
@@ -416,7 +417,7 @@ export const tiptapExtensions = [
                 if (href.includes('.sdoc')) {
                   event.preventDefault();
                   const [filePath, fragment] = href.split('#');
-                  const vscode = (window as any).vscode;
+                  const vscode = window.vscode;
                   if (vscode) {
                     vscode.postMessage({ type: 'openDocument', path: filePath, anchor: fragment || '' });
                   }
@@ -432,10 +433,10 @@ export const tiptapExtensions = [
                 const slugify = (text: string) => text.toLowerCase()
                   .replace(/[^\w\s가-힣-]/g, '').replace(/\s+/g, '-')
                   .replace(/-+/g, '-').replace(/^-|-$/g, '') || 'untitled';
-                const getText = (n: any): string => {
+                const getText = (n: ProseMirrorNode): string => {
                   if (n.isText) return n.text || '';
                   let t = '';
-                  n.content?.forEach((c: any) => { t += getText(c); });
+                  n.content.forEach((c) => { t += getText(c); });
                   return t;
                 };
 

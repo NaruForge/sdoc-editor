@@ -46,15 +46,33 @@ pub struct AppSettings {
     pub recent_folders: Vec<String>,
 }
 
-fn default_image_caption_prefix() -> String { "Image".to_string() }
-fn default_table_caption_prefix() -> String { "Table".to_string() }
-fn default_caption_numbering() -> String { "sequential".to_string() }
-fn default_true() -> bool { true }
-fn default_lg_red() -> String { "#A50034".to_string() }
-fn default_center() -> String { "center".to_string() }
-fn default_relative() -> String { "relative".to_string() }
-fn default_company_name() -> String { "LG Magna e-Powertrain".to_string() }
-fn default_gray() -> String { "#6b6b6b".to_string() }
+fn default_image_caption_prefix() -> String {
+    "Image".to_string()
+}
+fn default_table_caption_prefix() -> String {
+    "Table".to_string()
+}
+fn default_caption_numbering() -> String {
+    "sequential".to_string()
+}
+fn default_true() -> bool {
+    true
+}
+fn default_lg_red() -> String {
+    "#A50034".to_string()
+}
+fn default_center() -> String {
+    "center".to_string()
+}
+fn default_relative() -> String {
+    "relative".to_string()
+}
+fn default_company_name() -> String {
+    "LG Magna e-Powertrain".to_string()
+}
+fn default_gray() -> String {
+    "#6b6b6b".to_string()
+}
 fn default_font_family() -> String {
     "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif".to_string()
 }

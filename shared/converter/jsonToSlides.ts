@@ -1,51 +1,7 @@
-interface TiptapNode {
-  type: string;
-  content?: TiptapNode[];
-  attrs?: Record<string, unknown>;
-  marks?: TiptapMark[];
-  text?: string;
-}
-
-interface TiptapMark {
-  type: string;
-  attrs?: Record<string, unknown>;
-}
-
 import hljs from 'highlight.js';
 import { escapeHtml, formatCaptionLabel } from './utils';
 import { toRoman } from '../settingsResolver';
-
-export interface SlideTheme {
-  companyLogo?: string;
-  companyName?: string;
-  primaryColor?: string;
-  accentColor?: string;
-  fontFamily?: string;
-  customStyles?: string;
-  embeddedFonts?: { weight: number; dataUri: string }[];
-  fontWeights?: { body: number; bold: number; h1: number; h2: number; h3: number };
-}
-
-export interface SlideSettings {
-  imageCaptionPrefix?: string;
-  tableCaptionPrefix?: string;
-  equationCaptionPrefix?: string;
-  captionSeparator?: string;
-  tableNumberStyle?: 'arabic' | 'roman';
-  equationParens?: boolean;
-  captionNumbering?: 'sequential' | 'hierarchical';
-  slideBreak?: 'h1-only' | 'h1-h2-vertical';
-  showTitleSlide?: boolean;
-  transition?: 'none' | 'fade' | 'slide' | 'convex' | 'concave' | 'zoom';
-}
-
-export interface SdocMeta {
-  title?: string;
-  author?: string;
-  version?: string;
-  created?: string;
-  modified?: string;
-}
+import type { SdocMeta, SlideSettings, SlideTheme, TiptapMark, TiptapNode } from '../types';
 
 interface ConvertContext {
   settings: SlideSettings;

@@ -2,7 +2,7 @@ import { Image } from '@tiptap/extension-image';
 
 // Read default alignment from global settings (set by Editor.tsx)
 function getDefaultAlignment(): string {
-  return (window as any).__editorSettings?.defaultImageAlignment || 'center';
+  return window.__editorSettings?.defaultImageAlignment || 'center';
 }
 
 /**
@@ -33,16 +33,16 @@ export const CustomImage = Image.extend({
       caption: {
         default: null,
         parseHTML: (element: HTMLElement) => element.getAttribute('data-caption'),
-        renderHTML: (attributes: Record<string, any>) => {
-          if (!attributes.caption) return {};
-          return { 'data-caption': attributes.caption };
+        renderHTML: (attributes: Record<string, unknown>) => {
+          const caption = typeof attributes.caption === 'string' ? attributes.caption : '';
+          return caption ? { 'data-caption': caption } : {};
         },
       },
       align: {
         default: 'center',
         parseHTML: (element: HTMLElement) => element.getAttribute('data-align') || getDefaultAlignment(),
-        renderHTML: (attributes: Record<string, any>) => ({
-          'data-align': attributes.align || getDefaultAlignment(),
+        renderHTML: (attributes: Record<string, unknown>) => ({
+          'data-align': typeof attributes.align === 'string' ? attributes.align : getDefaultAlignment(),
         }),
       },
       // Document-relative path (e.g. "./drawio/diagram-1.drawio.svg") as returned by the
@@ -51,9 +51,9 @@ export const CustomImage = Image.extend({
       relativePath: {
         default: null,
         parseHTML: (element: HTMLElement) => element.getAttribute('data-relative-path'),
-        renderHTML: (attributes: Record<string, any>) => {
-          if (!attributes.relativePath) return {};
-          return { 'data-relative-path': attributes.relativePath };
+        renderHTML: (attributes: Record<string, unknown>) => {
+          const relativePath = typeof attributes.relativePath === 'string' ? attributes.relativePath : '';
+          return relativePath ? { 'data-relative-path': relativePath } : {};
         },
       },
     };
@@ -192,8 +192,8 @@ export const CustomImage = Image.extend({
               align: alignValue,
             });
             editor.view.dispatch(tr);
-            if ((window as any).__editorFlushUpdate) {
-              (window as any).__editorFlushUpdate();
+            if (window.__editorFlushUpdate) {
+              window.__editorFlushUpdate();
             }
           }
         }
@@ -230,8 +230,8 @@ export const CustomImage = Image.extend({
             }).run();
 
             // Immediately flush update to avoid debounce delay
-            if ((window as any).__editorFlushUpdate) {
-              (window as any).__editorFlushUpdate();
+            if (window.__editorFlushUpdate) {
+              window.__editorFlushUpdate();
             }
           }
         }
@@ -267,8 +267,8 @@ export const CustomImage = Image.extend({
           const drawioPath = currentNode.attrs.relativePath || extractRelativePathFromSrc(src) || src;
 
           // Ask the host app (Tauri or VS Code webview) to open the draw.io file externally
-          const openDrawio = (window as any).__openDrawio;
-          const vscode = (window as any).vscode;
+          const openDrawio = window.__openDrawio;
+          const vscode = window.vscode;
           if (openDrawio) {
             openDrawio(drawioPath);
           } else if (vscode) {
@@ -294,7 +294,7 @@ export const CustomImage = Image.extend({
         if (typeof getPos === 'function') {
           const pos = getPos();
           if (typeof pos === 'number') {
-            const showContextMenu = (window as any).__showImageContextMenu;
+            const showContextMenu = window.__showImageContextMenu;
             if (showContextMenu) {
               showContextMenu(e.clientX, e.clientY, pos, src, alt);
             }
@@ -312,8 +312,8 @@ export const CustomImage = Image.extend({
         if (src.includes('.drawio.svg') || src.includes('/drawio/')) {
           const drawioPath = currentNode.attrs.relativePath || extractRelativePathFromSrc(src) || src;
 
-          const openDrawio = (window as any).__openDrawio;
-          const vscode = (window as any).vscode;
+          const openDrawio = window.__openDrawio;
+          const vscode = window.vscode;
           if (openDrawio) {
             openDrawio(drawioPath);
           } else if (vscode) {
@@ -337,7 +337,7 @@ export const CustomImage = Image.extend({
         if (typeof getPos === 'function') {
           const pos = getPos();
           if (typeof pos === 'number') {
-            const showContextMenu = (window as any).__showImageContextMenu;
+            const showContextMenu = window.__showImageContextMenu;
             if (showContextMenu) {
               showContextMenu(e.clientX, e.clientY, pos, src, alt);
             }

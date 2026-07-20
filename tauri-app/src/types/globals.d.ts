@@ -5,8 +5,17 @@
 
 import type { EditorSettings } from '../context/EditorContext';
 
+interface HostMessagingApi {
+  postMessage(message: Record<string, unknown> & { type: string }): void | Promise<void>;
+}
+
 declare global {
   interface Window {
+    /** Optional VS Code-compatible fallback used by host-neutral NodeViews. */
+    vscode?: HostMessagingApi;
+
+    /** Opens a Draw.io asset through the desktop host. */
+    __openDrawio?: (path: string) => void | Promise<void>;
     /** Editor settings exposed for vanilla DOM NodeViews (CustomImage, CustomTable). */
     __editorSettings?: EditorSettings;
 

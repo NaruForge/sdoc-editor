@@ -1,10 +1,11 @@
 import { useEffect, useRef } from 'react';
+import type { ExtensionToWebviewMessage, WebviewToExtensionMessage } from '@shared/types/messages';
 
 // VS Code API type definition
 interface VSCodeAPI {
-  postMessage(message: any): void;
-  getState(): any;
-  setState(state: any): void;
+  postMessage(message: WebviewToExtensionMessage): void;
+  getState(): unknown;
+  setState(state: unknown): void;
 }
 
 declare global {
@@ -19,13 +20,13 @@ const getVSCodeAPI = (): VSCodeAPI => {
   if (!vscodeApi) {
     vscodeApi = window.acquireVsCodeApi();
     // Expose globally so native NodeViews (non-React) can also post messages
-    (window as any).vscode = vscodeApi;
+    window.vscode = vscodeApi;
   }
   return vscodeApi;
 };
 
 export interface MessageHandler {
-  (message: any): void;
+  (message: ExtensionToWebviewMessage): void;
 }
 
 export const useVSCodeMessaging = (handler: MessageHandler) => {
@@ -38,7 +39,7 @@ export const useVSCodeMessaging = (handler: MessageHandler) => {
 
   // Set up message listener
   useEffect(() => {
-    const messageListener = (event: MessageEvent) => {
+    const messageListener = (event: MessageEvent<ExtensionToWebviewMessage>) => {
       const message = event.data;
       handlerRef.current(message);
     };
@@ -54,6 +55,6 @@ export const useVSCodeMessaging = (handler: MessageHandler) => {
   }, []);
 
   return {
-    postMessage: (message: any) => getVSCodeAPI().postMessage(message),
+    postMessage: (message: WebviewToExtensionMessage) => getVSCodeAPI().postMessage(message),
   };
 };

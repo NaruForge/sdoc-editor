@@ -2,8 +2,9 @@
   "name": "structured-doc-editor",
   "displayName": "Structured Doc Editor",
   "description": "WYSIWYG editor for .tiptap.json/.sdoc files with Markdown/AsciiDoc/HTML export",
-  "version": "0.4.10",
+  "version": "0.4.11",
   "publisher": "swbaek",
+  "icon": "media/sdoc-editor-icon.png",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -388,15 +389,24 @@
     }
   },
   "workspaces": [
-    "webview-ui"
+    "webview-ui",
+    "tauri-app"
   ],
   "scripts": {
     "build": "npm run build:ext && npm run build:webview",
+    "build:all": "npm run build && npm run build:desktop",
     "build:ext": "node esbuild.mjs",
     "build:webview": "npm run build --workspace=webview-ui",
-    "package": "npm run build && node scripts/postpackage.mjs",
-    "lint": "eslint src/ shared/",
-    "lint:fix": "eslint src/ shared/ --fix",
+    "build:desktop": "npm run build --workspace=sdoc-editor-tauri",
+    "package": "node scripts/package-vsix.mjs",
+    "typecheck": "npm run typecheck:core && npm run typecheck --workspaces --if-present",
+    "typecheck:core": "tsc --noEmit",
+    "lint": "eslint src shared webview-ui/src tauri-app/src",
+    "lint:fix": "npm run lint -- --fix",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "version:check": "node scripts/check-versions.mjs",
+    "check": "npm run version:check && npm run typecheck && npm run lint && npm test",
     "watch:ext": "node esbuild.mjs --watch",
     "watch:webview": "npm run build --workspace=webview-ui -- --watch",
     "watch": "npm-run-all --parallel watch:ext watch:webview",
@@ -409,13 +419,16 @@
     "@types/vscode": "^1.85.0",
     "@typescript-eslint/eslint-plugin": "^8.58.1",
     "@typescript-eslint/parser": "^8.58.1",
-    "esbuild": "^0.20.0",
+    "esbuild": "^0.28.1",
     "eslint": "^10.2.0",
     "eslint-config-prettier": "^10.1.8",
     "highlight.js": "^11.11.1",
     "npm-run-all2": "^7.0.2",
     "prettier": "^3.8.1",
     "typescript": "^5.3.3",
+    "@vscode/vsce": "3.9.2",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "vitest": "^4.1.10",
     "zod": "^3.25.76"
   }
 }

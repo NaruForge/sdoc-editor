@@ -1,37 +1,9 @@
 import React, { createContext, useContext, useReducer, ReactNode } from 'react';
 import { JSONContent } from '@tiptap/react';
-import type {
-  CaptionStyleName,
-  DocumentSettings,
-  SelfContainedMode,
-  SlideBreakLevel,
-  SlideTransition,
-} from '@shared/types';
+import type { DocumentSettings, ResolvedEditorSettings } from '@shared/types';
+import { EDITOR_SETTINGS_DEFAULTS } from '@shared/settingsResolver';
 
-export interface EditorSettings {
-  captionStyle: CaptionStyleName;
-  imageCaptionPrefix: string;
-  tableCaptionPrefix: string;
-  equationCaptionPrefix: string;
-  captionSeparator: string;
-  tableNumberStyle: 'arabic' | 'roman';
-  equationParens: boolean;
-  captionNumbering: 'sequential' | 'hierarchical';
-  equationNumbering: 'sequential' | 'hierarchical';
-  crossRefIncludeCaption: boolean;
-  headingNumbering: boolean;
-  headingDecoration: boolean;
-  headingH1Color: string;
-  headingH2Color: string;
-  headingH3Color: string;
-  defaultImageAlignment: 'left' | 'center' | 'right';
-  exportImagePath: 'relative' | 'absolute';
-  pdfScale: number;
-  selfContained: SelfContainedMode;
-  slideBreakLevel: SlideBreakLevel;
-  slideTransition: SlideTransition;
-  showTitleSlide: boolean;
-  outputDir: string;
+export interface EditorSettings extends ResolvedEditorSettings {
   fontWeightBody: number;
   fontWeightBold: number;
   fontWeightH1: number;
@@ -51,29 +23,7 @@ export function resolveFontWeight(name: string): number {
 }
 
 export const defaultSettings: EditorSettings = {
-  captionStyle: 'modern',
-  imageCaptionPrefix: 'Figure ',
-  tableCaptionPrefix: 'Table ',
-  equationCaptionPrefix: 'Equation ',
-  captionSeparator: ': ',
-  tableNumberStyle: 'arabic',
-  equationParens: false,
-  captionNumbering: 'sequential',
-  equationNumbering: 'sequential',
-  crossRefIncludeCaption: false,
-  headingNumbering: true,
-  headingDecoration: true,
-  headingH1Color: '#A50034',
-  headingH2Color: '#A50034',
-  headingH3Color: '#A50034',
-  defaultImageAlignment: 'center',
-  exportImagePath: 'relative',
-  pdfScale: 70,
-  selfContained: 'images-only',
-  slideBreakLevel: 'h1-only',
-  slideTransition: 'none',
-  showTitleSlide: true,
-  outputDir: '',
+  ...EDITOR_SETTINGS_DEFAULTS,
   fontWeightBody: 400,
   fontWeightBold: 700,
   fontWeightH1: 700,

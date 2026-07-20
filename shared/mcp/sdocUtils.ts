@@ -1,51 +1,59 @@
-/**
- * Shared .sdoc document processing utilities.
- * Extracted from SdocEditorProvider for reuse in MCP server and other contexts.
- */
+/** Host-neutral `.sdoc` document processing. */
 
-export interface SdocEnvelope {
-  sdoc: string;
-  meta: SdocMeta;
-  doc: any;
-}
+import { getCaptionPreset, toRoman, type CaptionStyleName } from '../settingsResolver';
+import type { DocumentSettings, SdocEnvelope, SdocMeta, TiptapMark, TiptapNode } from '../types';
 
-export interface SdocMeta {
-  title?: string;
-  author?: string;
-  version?: string;
-  created?: string;
-  modified?: string;
-  settings?: Record<string, unknown>;
-}
+export type { SdocEnvelope, SdocMeta } from '../types';
 
-const SDOC_VERSION = '1.0';
+const SDOC_VERSION: SdocEnvelope['sdoc'] = '1.0';
+const emptyDocument = (): TiptapNode => ({ type: 'doc', content: [] });
 
-export function unwrapSdoc(parsed: any): { meta: SdocMeta; doc: any } {
-  let doc: any;
-  let meta: SdocMeta = {};
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
 
-  if (parsed.sdoc && parsed.doc) {
-    doc = parsed.doc;
-    meta = parsed.meta || {};
-  } else if (parsed.type === 'doc') {
-    doc = parsed;
-  } else {
-    doc = { type: 'doc', content: [] };
+const isTiptapNode = (value: unknown): value is TiptapNode =>
+  isRecord(value) && typeof value.type === 'string';
+
+const stringValue = (value: unknown, fallback = ''): string =>
+  typeof value === 'string' ? value : fallback;
+
+const numberValue = (value: unknown, fallback: number): number =>
+  typeof value === 'number' ? value : fallback;
+
+function readMeta(value: unknown): SdocMeta {
+  if (!isRecord(value)) return {};
+  const meta: SdocMeta = {};
+  if (typeof value.title === 'string') meta.title = value.title;
+  if (typeof value.author === 'string') meta.author = value.author;
+  if (typeof value.version === 'string') meta.version = value.version;
+  if (typeof value.created === 'string') meta.created = value.created;
+  if (typeof value.modified === 'string') meta.modified = value.modified;
+  if (isRecord(value.settings)) {
+    meta.settings = value.settings as Partial<DocumentSettings>;
   }
-
-  doc = migrateAttributes(doc);
-  return { meta, doc };
+  return meta;
 }
 
-export function wrapSdoc(doc: any, meta: SdocMeta): SdocEnvelope {
+export function unwrapSdoc(parsed: unknown): { meta: SdocMeta; doc: TiptapNode } {
+  if (isRecord(parsed) && parsed.sdoc && isTiptapNode(parsed.doc)) {
+    return { meta: readMeta(parsed.meta), doc: migrateAttributes(parsed.doc) };
+  }
+  if (isTiptapNode(parsed) && parsed.type === 'doc') {
+    return { meta: {}, doc: migrateAttributes(parsed) };
+  }
+  return { meta: {}, doc: emptyDocument() };
+}
+
+export function wrapSdoc(doc: TiptapNode, meta: SdocMeta): SdocEnvelope {
+  const now = new Date().toISOString();
   const envelope: SdocEnvelope = {
     sdoc: SDOC_VERSION,
     meta: {
       title: meta.title || '',
       author: meta.author || '',
       version: meta.version || '0.1',
-      created: meta.created || new Date().toISOString(),
-      modified: new Date().toISOString(),
+      created: meta.created || now,
+      modified: now,
     },
     doc,
   };
@@ -58,11 +66,13 @@ export function wrapSdoc(doc: any, meta: SdocMeta): SdocEnvelope {
 export function createEmptySdoc(meta: Partial<SdocMeta>): SdocEnvelope {
   const now = new Date().toISOString();
   const title = meta.title || '';
-  const doc: any = {
+  const doc: TiptapNode = {
     type: 'doc',
     content: title
-      ? [{ type: 'heading', attrs: { level: 1 }, content: [{ type: 'text', text: title }] },
-         { type: 'paragraph' }]
+      ? [
+          { type: 'heading', attrs: { level: 1 }, content: [{ type: 'text', text: title }] },
+          { type: 'paragraph' },
+        ]
       : [{ type: 'paragraph' }],
   };
   return wrapSdoc(doc, {
@@ -71,196 +81,164 @@ export function createEmptySdoc(meta: Partial<SdocMeta>): SdocEnvelope {
     version: meta.version || '0.1',
     created: meta.created || now,
     modified: now,
+    settings: meta.settings,
   });
 }
 
-export function migrateAttributes(node: any): any {
-  if (!node || typeof node !== 'object') return node;
-  const cloned = Array.isArray(node) ? [...node] : { ...node };
-
-  if (cloned.attrs) {
-    const a = { ...cloned.attrs };
-    if ('data-caption' in a) { a.caption = a['data-caption']; delete a['data-caption']; }
-    if ('data-align' in a) { a.align = a['data-align']; delete a['data-align']; }
-    if ('data-width' in a) { a.width = a['data-width']; delete a['data-width']; }
-    cloned.attrs = a;
-  }
-
-  if (cloned.content && Array.isArray(cloned.content)) {
-    cloned.content = cloned.content.map((child: any) => migrateAttributes(child));
-  }
-  return cloned;
-}
-
-export function extractTitle(doc: any): string {
-  if (!doc?.content) return '';
-  for (const node of doc.content) {
-    if (node.type === 'heading' && node.content) {
-      return node.content
-        .filter((c: any) => c.type === 'text')
-        .map((c: any) => c.text || '')
-        .join('');
+export function migrateAttributes(node: TiptapNode): TiptapNode {
+  const attrs = node.attrs ? { ...node.attrs } : undefined;
+  if (attrs) {
+    if ('data-caption' in attrs) {
+      attrs.caption = attrs['data-caption'];
+      delete attrs['data-caption'];
+    }
+    if ('data-align' in attrs) {
+      attrs.align = attrs['data-align'];
+      delete attrs['data-align'];
+    }
+    if ('data-width' in attrs) {
+      attrs.width = attrs['data-width'];
+      delete attrs['data-width'];
     }
   }
-  return '';
+  return {
+    ...node,
+    ...(attrs ? { attrs } : {}),
+    ...(node.content ? { content: node.content.map(migrateAttributes) } : {}),
+  };
+}
+
+export function extractTitle(doc: TiptapNode): string {
+  const heading = doc.content?.find((node) => node.type === 'heading');
+  return heading ? getNodeText(heading) : '';
 }
 
 function slugify(text: string): string {
-  return text
-    .toLowerCase()
-    .replace(/[^\w\s가-힣-]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '')
-    || 'untitled';
+  return (
+    text
+      .toLowerCase()
+      .replace(/[^\w\s가-힣-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '') || 'untitled'
+  );
 }
 
-function getNodeText(node: any): string {
-  if (!node?.content) return '';
-  return node.content
-    .filter((c: any) => c.type === 'text')
-    .map((c: any) => c.text || '')
+function getNodeText(node: TiptapNode): string {
+  return (node.content ?? [])
+    .filter((child) => child.type === 'text')
+    .map((child) => child.text || '')
     .join('');
 }
 
-export function assignAutoIds(doc: any): any {
-  if (!doc?.content) return doc;
+const attrString = (node: TiptapNode, key: string): string => stringValue(node.attrs?.[key]);
+
+export function assignAutoIds(doc: TiptapNode): TiptapNode {
+  if (!doc.content) return doc;
 
   const usedIds = new Set<string>();
   let imageCounter = 0;
   let tableCounter = 0;
-  let eqCounter = 0;
+  let equationCounter = 0;
 
   const uniqueId = (base: string): string => {
     let id = base;
-    let i = 2;
-    while (usedIds.has(id)) { id = `${base}-${i}`; i++; }
+    let suffix = 2;
+    while (usedIds.has(id)) id = `${base}-${suffix++}`;
     usedIds.add(id);
     return id;
   };
 
-  const cloned = { ...doc, content: doc.content.map((node: any) => {
-    if (node.type === 'heading') {
-      const text = getNodeText(node);
-      const existing = node.attrs?.id;
-      const id = existing || uniqueId(slugify(text));
-      if (!existing) usedIds.add(id);
-      else usedIds.add(existing);
-      return { ...node, attrs: { ...node.attrs, id } };
-    }
-    if (node.type === 'image') {
-      imageCounter++;
-      const existing = node.attrs?.id;
-      const id = existing || uniqueId(`figure-${imageCounter}`);
-      if (!existing) usedIds.add(id);
-      else usedIds.add(existing);
-      return { ...node, attrs: { ...node.attrs, id } };
-    }
-    if (node.type === 'table') {
-      tableCounter++;
-      const existing = node.attrs?.id;
-      const id = existing || uniqueId(`table-${tableCounter}`);
-      if (!existing) usedIds.add(id);
-      else usedIds.add(existing);
-      return { ...node, attrs: { ...node.attrs, id } };
-    }
-    if (node.type === 'mathBlock') {
-      eqCounter++;
-      const existing = node.attrs?.id;
-      const id = existing || uniqueId(`eq-${eqCounter}`);
-      if (!existing) usedIds.add(id);
-      else usedIds.add(existing);
-      return { ...node, attrs: { ...node.attrs, id } };
-    }
-    return node;
-  })};
+  const content = doc.content.map((node): TiptapNode => {
+    let generatedBase: string | undefined;
+    if (node.type === 'heading') generatedBase = slugify(getNodeText(node));
+    if (node.type === 'image') generatedBase = `figure-${++imageCounter}`;
+    if (node.type === 'table') generatedBase = `table-${++tableCounter}`;
+    if (node.type === 'mathBlock') generatedBase = `eq-${++equationCounter}`;
+    if (!generatedBase) return node;
 
-  return cloned;
+    const existing = attrString(node, 'id');
+    const id = existing || uniqueId(generatedBase);
+    usedIds.add(id);
+    return { ...node, attrs: { ...node.attrs, id } };
+  });
+
+  return { ...doc, content };
 }
 
-import { getCaptionPreset, toRoman, type CaptionStyleName } from '../settingsResolver';
-
 export function syncCrossReferences(
-  doc: any,
+  doc: TiptapNode,
   equationNumbering: 'sequential' | 'hierarchical' = 'sequential',
   captionStyle: CaptionStyleName = 'modern',
   crossRefIncludeCaption = false,
-): any {
-  if (!doc?.content) return doc;
+): TiptapNode {
+  if (!doc.content) return doc;
 
   const preset = getCaptionPreset(captionStyle);
-  const idMap = new Map<string, string>();
-  let h1 = 0; let imgCnt = 0; let tblCnt = 0;
-  let eqGlobal = 0; let eqInSection = 0;
-  const h = [0, 0, 0, 0, 0, 0];
+  const labels = new Map<string, string>();
+  let h1 = 0;
+  let imageCount = 0;
+  let tableCount = 0;
+  let equationGlobal = 0;
+  let equationInSection = 0;
+  const headings = [0, 0, 0, 0, 0, 0];
 
   for (const node of doc.content) {
     if (node.type === 'heading') {
-      const level: number = node.attrs?.level || 1;
-      h[level - 1]++;
-      for (let j = level; j < 6; j++) h[j] = 0;
-      if (level === 1) { h1++; imgCnt = 0; tblCnt = 0; eqInSection = 0; }
-      const nums = h.slice(0, level).join('.') + '.';
-      const text = getNodeText(node);
-      if (node.attrs?.id) {
-        idMap.set(node.attrs.id, `${nums} ${text}`);
+      const level = numberValue(node.attrs?.level, 1);
+      headings[level - 1]++;
+      for (let index = level; index < headings.length; index++) headings[index] = 0;
+      if (level === 1) {
+        h1++;
+        imageCount = 0;
+        tableCount = 0;
+        equationInSection = 0;
       }
+      const id = attrString(node, 'id');
+      if (id) labels.set(id, `${headings.slice(0, level).join('.')}. ${getNodeText(node)}`);
     }
     if (node.type === 'image') {
-      imgCnt++;
-      const caption = node.attrs?.caption || '';
-      const num = `${preset.figurePrefix}${imgCnt}`;
-      const label = crossRefIncludeCaption && caption ? `${num}${preset.separator}${caption}` : num;
-      if (node.attrs?.id) {
-        idMap.set(node.attrs.id, label);
-      }
+      const number = `${preset.figurePrefix}${++imageCount}`;
+      const caption = attrString(node, 'caption');
+      const id = attrString(node, 'id');
+      if (id) labels.set(id, crossRefIncludeCaption && caption ? `${number}${preset.separator}${caption}` : number);
     }
     if (node.type === 'table') {
-      tblCnt++;
-      const caption = node.attrs?.caption || '';
-      const tblNum = preset.tableNumberStyle === 'roman' ? toRoman(tblCnt) : `${tblCnt}`;
-      const num = `${preset.tablePrefix}${tblNum}`;
-      const label = crossRefIncludeCaption && caption ? `${num}${preset.separator}${caption}` : num;
-      if (node.attrs?.id) {
-        idMap.set(node.attrs.id, label);
-      }
+      tableCount++;
+      const tableNumber = preset.tableNumberStyle === 'roman' ? toRoman(tableCount) : `${tableCount}`;
+      const number = `${preset.tablePrefix}${tableNumber}`;
+      const caption = attrString(node, 'caption');
+      const id = attrString(node, 'id');
+      if (id) labels.set(id, crossRefIncludeCaption && caption ? `${number}${preset.separator}${caption}` : number);
     }
     if (node.type === 'mathBlock') {
-      eqGlobal++;
-      eqInSection++;
-      const eqNum = equationNumbering === 'hierarchical' ? `${h1}.${eqInSection}` : `${eqGlobal}`;
-      const eqLabel = preset.equationParens
-        ? `${preset.equationPrefix}(${eqNum})`
-        : `${preset.equationPrefix}${eqNum}`;
-      if (node.attrs?.id) {
-        idMap.set(node.attrs.id, eqLabel);
-      }
+      equationGlobal++;
+      equationInSection++;
+      const value = equationNumbering === 'hierarchical' ? `${h1}.${equationInSection}` : `${equationGlobal}`;
+      const label = preset.equationParens
+        ? `${preset.equationPrefix}(${value})`
+        : `${preset.equationPrefix}${value}`;
+      const id = attrString(node, 'id');
+      if (id) labels.set(id, label);
     }
   }
 
-  const updateRefs = (node: any): any => {
-    if (!node || typeof node !== 'object') return node;
-    const cloned = Array.isArray(node) ? [...node] : { ...node };
-
-    if (cloned.type === 'text' && cloned.marks) {
-      const linkMark = cloned.marks.find((m: any) => m.type === 'link' && m.attrs?.href?.startsWith('#'));
-      if (linkMark) {
-        const targetId = linkMark.attrs.href.slice(1);
-        const newLabel = idMap.get(targetId);
-        if (newLabel && cloned.text !== newLabel) {
-          return { ...cloned, text: newLabel };
-        }
-      }
-    }
-
-    if (cloned.content && Array.isArray(cloned.content)) {
-      cloned.content = cloned.content.map(updateRefs);
-    }
-    return cloned;
+  const updateReferences = (node: TiptapNode): TiptapNode => {
+    const link = node.marks?.find(isInternalLink);
+    const href = stringValue(link?.attrs?.href);
+    const label = href ? labels.get(href.slice(1)) : undefined;
+    return {
+      ...node,
+      ...(label && node.type === 'text' ? { text: label } : {}),
+      ...(node.content ? { content: node.content.map(updateReferences) } : {}),
+    };
   };
 
-  return updateRefs(doc);
+  return updateReferences(doc);
 }
+
+const isInternalLink = (mark: TiptapMark): boolean =>
+  mark.type === 'link' && stringValue(mark.attrs?.href).startsWith('#');
 
 export interface QueryResult {
   headings: Array<{ id: string; level: number; text: string; numbering: string }>;
@@ -270,7 +248,7 @@ export interface QueryResult {
   crossReferences: Array<{ href: string; text: string; targetExists: boolean }>;
 }
 
-export function queryDocumentStructure(doc: any): QueryResult {
+export function queryDocumentStructure(doc: TiptapNode): QueryResult {
   const result: QueryResult = {
     headings: [],
     figures: [],
@@ -278,68 +256,50 @@ export function queryDocumentStructure(doc: any): QueryResult {
     equations: [],
     crossReferences: [],
   };
+  if (!doc.content) return result;
 
-  if (!doc?.content) return result;
-
-  const h = [0, 0, 0, 0, 0, 0];
-  let imgCnt = 0;
-  let tblCnt = 0;
-  let eqCnt = 0;
+  const headingNumbers = [0, 0, 0, 0, 0, 0];
   const allIds = new Set<string>();
+  let imageCount = 0;
+  let tableCount = 0;
+  let equationCount = 0;
 
-  // First pass: collect all IDs and build structure
   for (const node of doc.content) {
+    const id = attrString(node, 'id');
+    if (id) allIds.add(id);
     if (node.type === 'heading') {
-      const level: number = node.attrs?.level || 1;
+      const level = numberValue(node.attrs?.level, 1);
       const numbered = node.attrs?.numbered !== false;
-      if (numbered) h[level - 1]++;
-      for (let j = level; j < 6; j++) h[j] = 0;
-      if (level === 1) { imgCnt = 0; tblCnt = 0; }
-      const nums = numbered ? h.slice(0, level).join('.') : '';
-      const text = getNodeText(node);
-      const id = node.attrs?.id || '';
-      if (id) allIds.add(id);
-      result.headings.push({ id, level, text, numbering: nums });
+      if (numbered) headingNumbers[level - 1]++;
+      for (let index = level; index < headingNumbers.length; index++) headingNumbers[index] = 0;
+      if (level === 1) {
+        imageCount = 0;
+        tableCount = 0;
+      }
+      result.headings.push({
+        id,
+        level,
+        text: getNodeText(node),
+        numbering: numbered ? headingNumbers.slice(0, level).join('.') : '',
+      });
     }
-    if (node.type === 'image') {
-      imgCnt++;
-      const id = node.attrs?.id || '';
-      if (id) allIds.add(id);
-      result.figures.push({ id, caption: node.attrs?.caption || '', number: imgCnt });
-    }
-    if (node.type === 'table') {
-      tblCnt++;
-      const id = node.attrs?.id || '';
-      if (id) allIds.add(id);
-      result.tables.push({ id, caption: node.attrs?.caption || '', number: tblCnt });
-    }
-    if (node.type === 'mathBlock') {
-      eqCnt++;
-      const id = node.attrs?.id || '';
-      if (id) allIds.add(id);
-      result.equations.push({ id, number: eqCnt });
-    }
+    if (node.type === 'image') result.figures.push({ id, caption: attrString(node, 'caption'), number: ++imageCount });
+    if (node.type === 'table') result.tables.push({ id, caption: attrString(node, 'caption'), number: ++tableCount });
+    if (node.type === 'mathBlock') result.equations.push({ id, number: ++equationCount });
   }
 
-  // Second pass: collect cross-references
-  const collectRefs = (node: any) => {
-    if (!node || typeof node !== 'object') return;
-    if (node.type === 'text' && node.marks) {
-      const linkMark = node.marks.find((m: any) => m.type === 'link' && m.attrs?.href?.startsWith('#'));
-      if (linkMark) {
-        const targetId = linkMark.attrs.href.slice(1);
-        result.crossReferences.push({
-          href: linkMark.attrs.href,
-          text: node.text || '',
-          targetExists: allIds.has(targetId),
-        });
-      }
+  const collectReferences = (node: TiptapNode): void => {
+    const link = node.marks?.find(isInternalLink);
+    if (link) {
+      const href = stringValue(link.attrs?.href);
+      result.crossReferences.push({
+        href,
+        text: node.text || '',
+        targetExists: allIds.has(href.slice(1)),
+      });
     }
-    if (node.content && Array.isArray(node.content)) {
-      node.content.forEach(collectRefs);
-    }
+    node.content?.forEach(collectReferences);
   };
-  collectRefs(doc);
-
+  collectReferences(doc);
   return result;
 }

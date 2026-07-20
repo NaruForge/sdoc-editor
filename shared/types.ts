@@ -46,6 +46,33 @@ export interface DocumentSettings {
   outputDir?: string;
 }
 
+/** Fully resolved settings consumed by the host-neutral editor UI. */
+export interface ResolvedEditorSettings {
+  captionStyle: CaptionStyleName;
+  imageCaptionPrefix: string;
+  tableCaptionPrefix: string;
+  equationCaptionPrefix: string;
+  captionSeparator: string;
+  tableNumberStyle: 'arabic' | 'roman';
+  equationParens: boolean;
+  captionNumbering: 'sequential' | 'hierarchical';
+  equationNumbering: 'sequential' | 'hierarchical';
+  crossRefIncludeCaption: boolean;
+  headingNumbering: boolean;
+  headingDecoration: boolean;
+  headingH1Color: string;
+  headingH2Color: string;
+  headingH3Color: string;
+  defaultImageAlignment: 'left' | 'center' | 'right';
+  exportImagePath: 'relative' | 'absolute';
+  pdfScale: number;
+  selfContained: SelfContainedMode;
+  slideBreakLevel: SlideBreakLevel;
+  slideTransition: SlideTransition;
+  showTitleSlide: boolean;
+  outputDir: string;
+}
+
 export interface SdocMeta {
   title?: string;
   author?: string;
@@ -53,6 +80,12 @@ export interface SdocMeta {
   created?: string;
   modified?: string;
   settings?: Partial<DocumentSettings>;
+}
+
+export interface SdocEnvelope {
+  sdoc: '1.0';
+  meta: SdocMeta;
+  doc: TiptapNode;
 }
 
 // ─── Export Settings ────────────────────────────────────────────

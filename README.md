@@ -1,6 +1,6 @@
 # Structured Doc Editor
 
-> **v0.4.10** — Tauri 탐색기 대폭 강화(삭제/되돌리기/메뉴바/자동새로고침) + 헤딩 번호 제외(numbered) + H1~H6 렌더링 개선
+> **v0.4.11** — 공용 에디터 코어 정리, CI/검증 체계 도입, 문서·패키징·AI 개발 지침 현대화
 
 `.sdoc` / `.tiptap.json` 파일을 위한 WYSIWYG 구조화 문서 에디터입니다.
 

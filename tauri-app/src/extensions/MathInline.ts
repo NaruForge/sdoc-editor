@@ -159,7 +159,7 @@ export const MathInline = Node.create({
         if (pos == null) return;
         if (isEditing) currentLatex = stripDelimiters(input.value);
         cancelEdit();
-        (window as any).__showMathDialog?.(currentLatex, false, pos);
+        window.__showMathDialog?.(currentLatex, false, pos);
       };
 
       const toggleToBlock = () => {
@@ -188,7 +188,7 @@ export const MathInline = Node.create({
           tr.insert(tr.mapping.map(parentEnd), mathBlockType.create({ latex: currentLatex }));
         }
         editor.view.dispatch(tr);
-        (window as any).__editorFlushUpdate?.();
+        window.__editorFlushUpdate?.();
       };
 
       // Single click → inline edit

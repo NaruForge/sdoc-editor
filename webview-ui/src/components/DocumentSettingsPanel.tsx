@@ -7,8 +7,9 @@ import type {
   SlideBreakLevel,
   SlideTransition,
 } from '@shared/types';
+import type { WebviewToExtensionMessage } from '@shared/types/messages';
 
-export type PostMessageHandler = (msg: Record<string, unknown>) => void;
+export type PostMessageHandler = (msg: WebviewToExtensionMessage) => void;
 
 export interface DocumentSettingsPanelProps {
   onUpdateSettings: (settings: Partial<DocumentSettings> | null) => void;

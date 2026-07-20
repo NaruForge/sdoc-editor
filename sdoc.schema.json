@@ -44,10 +44,18 @@
         "headingH1Color": { "type": "string", "pattern": "^#[0-9a-fA-F]{3,8}$", "description": "H1 heading number color." },
         "headingH2Color": { "type": "string", "pattern": "^#[0-9a-fA-F]{3,8}$", "description": "H2 heading number color." },
         "headingH3Color": { "type": "string", "pattern": "^#[0-9a-fA-F]{3,8}$", "description": "H3 heading number color." },
-        "captionImagePrefix": { "type": "string", "description": "Prefix for image captions (e.g. 'Image', '그림')." },
-        "captionTablePrefix": { "type": "string", "description": "Prefix for table captions (e.g. 'Table', '표')." },
+        "captionStyle": { "type": "string", "enum": ["ieee", "iso", "modern", "korean"], "description": "Caption formatting preset." },
         "captionNumbering": { "type": "string", "enum": ["sequential", "hierarchical"], "description": "Caption numbering mode." },
-        "equationNumbering": { "type": "string", "enum": ["sequential", "hierarchical"], "description": "Equation numbering mode." }
+        "equationNumbering": { "type": "string", "enum": ["sequential", "hierarchical"], "description": "Equation numbering mode." },
+        "crossRefIncludeCaption": { "type": "boolean", "description": "Include caption text in generated cross-reference labels." },
+        "slideCssPath": { "type": "string" },
+        "htmlCssPath": { "type": "string" },
+        "pdfScale": { "type": "number", "minimum": 10, "maximum": 200 },
+        "selfContained": { "type": "string", "enum": ["none", "images-only", "full"] },
+        "slideBreakLevel": { "type": "string", "enum": ["h1-only", "h1-h2-vertical"] },
+        "slideTransition": { "type": "string", "enum": ["none", "fade", "slide", "convex", "concave", "zoom"] },
+        "showTitleSlide": { "type": "boolean" },
+        "outputDir": { "type": "string" }
       },
       "additionalProperties": false
     },

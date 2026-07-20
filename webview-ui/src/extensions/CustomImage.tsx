@@ -2,7 +2,7 @@ import { Image } from '@tiptap/extension-image';
 
 // Read default alignment from global settings (set by Editor.tsx)
 function getDefaultAlignment(): string {
-  return (window as any).__editorSettings?.defaultImageAlignment || 'center';
+  return window.__editorSettings?.defaultImageAlignment || 'center';
 }
 
 export const CustomImage = Image.extend({
@@ -12,16 +12,16 @@ export const CustomImage = Image.extend({
       caption: {
         default: null,
         parseHTML: (element: HTMLElement) => element.getAttribute('data-caption'),
-        renderHTML: (attributes: Record<string, any>) => {
-          if (!attributes.caption) return {};
-          return { 'data-caption': attributes.caption };
+        renderHTML: (attributes: Record<string, unknown>) => {
+          const caption = typeof attributes.caption === 'string' ? attributes.caption : '';
+          return caption ? { 'data-caption': caption } : {};
         },
       },
       align: {
         default: 'center',
         parseHTML: (element: HTMLElement) => element.getAttribute('data-align') || getDefaultAlignment(),
-        renderHTML: (attributes: Record<string, any>) => ({
-          'data-align': attributes.align || getDefaultAlignment(),
+        renderHTML: (attributes: Record<string, unknown>) => ({
+          'data-align': typeof attributes.align === 'string' ? attributes.align : getDefaultAlignment(),
         }),
       },
     };
@@ -159,8 +159,8 @@ export const CustomImage = Image.extend({
               align: alignValue,
             });
             editor.view.dispatch(tr);
-            if ((window as any).__editorFlushUpdate) {
-              (window as any).__editorFlushUpdate();
+            if (window.__editorFlushUpdate) {
+              window.__editorFlushUpdate();
             }
           }
         }
@@ -197,8 +197,8 @@ export const CustomImage = Image.extend({
             }).run();
 
             // Immediately flush update to avoid debounce delay
-            if ((window as any).__editorFlushUpdate) {
-              (window as any).__editorFlushUpdate();
+            if (window.__editorFlushUpdate) {
+              window.__editorFlushUpdate();
             }
           }
         }
@@ -239,7 +239,7 @@ export const CustomImage = Image.extend({
           }
 
           // Send message to VS Code to open the draw.io file
-          const vscode = (window as any).vscode;
+          const vscode = window.vscode;
           if (vscode) {
             vscode.postMessage({
               type: 'openDrawio',
@@ -263,7 +263,7 @@ export const CustomImage = Image.extend({
         if (typeof getPos === 'function') {
           const pos = getPos();
           if (typeof pos === 'number') {
-            const showContextMenu = (window as any).__showImageContextMenu;
+            const showContextMenu = window.__showImageContextMenu;
             if (showContextMenu) {
               showContextMenu(e.clientX, e.clientY, pos, src, alt);
             }
@@ -285,7 +285,7 @@ export const CustomImage = Image.extend({
             drawioPath = `./drawio/${drawioMatch[1]}`;
           }
 
-          const vscode = (window as any).vscode;
+          const vscode = window.vscode;
           if (vscode) {
             vscode.postMessage({
               type: 'openDrawio',
@@ -307,7 +307,7 @@ export const CustomImage = Image.extend({
         if (typeof getPos === 'function') {
           const pos = getPos();
           if (typeof pos === 'number') {
-            const showContextMenu = (window as any).__showImageContextMenu;
+            const showContextMenu = window.__showImageContextMenu;
             if (showContextMenu) {
               showContextMenu(e.clientX, e.clientY, pos, src, alt);
             }

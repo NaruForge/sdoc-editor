@@ -15,5 +15,5 @@
     "resolveJsonModule": true
   },
   "include": ["src/**/*", "shared/**/*"],
-  "exclude": ["node_modules", "webview-ui"]
+  "exclude": ["node_modules", "webview-ui", "tauri-app", "shared/editor"]
 }

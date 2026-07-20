@@ -31,7 +31,7 @@ import { CROSSREF_RESYNC_META } from '../extensions/CrossReference';
 import type { RefTarget } from '../extensions/CrossReference';
 import { extractRelativePathFromSrc } from '../extensions/CustomImage';
 import { preprocessImportedHtml } from '../utils/preprocessImportedHtml';
-import type { DocumentSettings } from '@shared/types';
+import type { DocumentSettings, TiptapNode } from '@shared/types';
 import type { ExplorerEntry } from '../App';
 import type { EditorSettings } from '../context/EditorContext';
 
@@ -50,23 +50,23 @@ interface ImageAttrsWithRelativePath {
 /**
  * Convert relative image paths (./images/*, ./drawio/*) in a doc tree to asset URLs.
  */
-async function convertImagePaths(doc: any): Promise<any> {
-  if (!doc || typeof doc !== 'object') return doc;
-  const cloned = Array.isArray(doc) ? [...doc] : { ...doc };
-  if (cloned.type === 'image' && cloned.attrs?.src && cloned.attrs.src.startsWith('./')) {
+async function convertImagePaths(doc: TiptapNode): Promise<TiptapNode> {
+  const cloned: TiptapNode = { ...doc };
+  const src = typeof cloned.attrs?.src === 'string' ? cloned.attrs.src : undefined;
+  if (cloned.type === 'image' && src?.startsWith('./')) {
     try {
-      cloned.attrs = { ...cloned.attrs, src: await resolveAssetUrl(cloned.attrs.src) };
+      cloned.attrs = { ...cloned.attrs, src: await resolveAssetUrl(src) };
     } catch { /* keep original */ }
   }
   if (cloned.content && Array.isArray(cloned.content)) {
-    cloned.content = await Promise.all(cloned.content.map((c: any) => convertImagePaths(c)));
+    cloned.content = await Promise.all(cloned.content.map(convertImagePaths));
   }
   return cloned;
 }
 
 interface EditorProps {
   adapter: TauriAdapter;
-  initialDoc?: unknown;
+  initialDoc?: TiptapNode;
   initialMeta?: { title?: string; author?: string; version?: string; created?: string; modified?: string; settings?: Partial<DocumentSettings> } | null;
   currentPath?: string | null;
   workspaceFolder?: string | null;
@@ -154,6 +154,7 @@ export const Editor: React.FC<EditorProps> = ({
   const pendingEditRef = useRef(false);
   const initDoneRef = useRef(false);
   const postMessageRef = useRef<(msg: Record<string, unknown> & { type: string }) => Promise<void>>(() => Promise.resolve());
+  const settings = state.settings;
 
   const trackSave = useCallback((savePromise: Promise<void>) => {
     setSaveStatus('saving');
@@ -177,8 +178,7 @@ export const Editor: React.FC<EditorProps> = ({
   });
 
   useEffect(() => {
-    const { settings } = state;
-    (window as any).__editorSettings = settings;
+    window.__editorSettings = settings;
     const proseMirrorEl = document.querySelector('.ProseMirror') as HTMLElement;
     if (proseMirrorEl) {
       proseMirrorEl.style.setProperty('--image-caption-prefix', `'${settings.imageCaptionPrefix}'`);
@@ -191,7 +191,7 @@ export const Editor: React.FC<EditorProps> = ({
     }
     document.documentElement.style.setProperty('--font-weight-h1', '700');
     setShowNumbering(settings.headingNumbering);
-  }, [state.settings]);
+  }, [settings]);
 
   // Trigger CrossRef label re-sync when caption settings change
   const prevPrefixRef = useRef({ style: '', eqMode: '', capMode: '', includeCaption: false });
@@ -293,7 +293,7 @@ export const Editor: React.FC<EditorProps> = ({
     const { convertJsonToAdoc } = await import('@shared/converter/jsonToAdoc');
     const { invoke } = await import('@tauri-apps/api/core');
 
-    const doc = editor.getJSON() as any;
+    const doc = editor.getJSON() as TiptapNode;
     const settings = state.settings;
     const exportSettings = {
       imageCaptionPrefix: settings.imageCaptionPrefix,
@@ -425,7 +425,7 @@ export const Editor: React.FC<EditorProps> = ({
       setEditorContextMenu({ x: event.clientX, y: event.clientY });
     }
   };
-  const handlePaste = async (event: ClipboardEvent) => {
+  const handlePaste = useCallback(async (event: ClipboardEvent) => {
     const items = event.clipboardData?.items;
     if (!items) return;
     for (let i = 0; i < items.length; i++) {
@@ -444,7 +444,7 @@ export const Editor: React.FC<EditorProps> = ({
         break;
       }
     }
-  };
+  }, []);
   const handleImageNameConfirm = async (name: string) => {
     if (!pendingImage) return;
     const reader = new FileReader();
@@ -478,7 +478,7 @@ export const Editor: React.FC<EditorProps> = ({
         return true;
       }).run();
     } else {
-      (editor.chain().focus() as any).insertDiagram(language, code).run();
+      editor.chain().focus().insertDiagram(language, code).run();
     }
     setDiagramDialog(null);
     flushUpdate();
@@ -523,9 +523,9 @@ export const Editor: React.FC<EditorProps> = ({
         }).run();
       }
     } else if (isBlock) {
-      (editor.chain().focus() as any).insertMathBlock(latex).run();
+      editor.chain().focus().insertMathBlock(latex).run();
     } else {
-      (editor.chain().focus() as any).insertMathInline(latex).run();
+      editor.chain().focus().insertMathInline(latex).run();
     }
     setMathDialog(null);
     flushUpdate();
@@ -598,43 +598,43 @@ export const Editor: React.FC<EditorProps> = ({
         dispatch({ type: 'SET_READY', payload: true });
       });
     }
-  }, [editor, setContent, initialDoc]);
+  }, [editor, setContent, initialDoc, dispatch]);
 
   // Expose global functions for NodeViews
   useEffect(() => {
     if (editor) {
-      (window as any).__editorFlushUpdate = flushUpdate;
-      (window as any).__showImageProperties = (pos: number, src: string, alt: string) => {
+      window.__editorFlushUpdate = flushUpdate;
+      window.__showImageProperties = (pos: number, src: string, alt: string) => {
         const isDrawio = src.includes('.drawio.svg') || src.includes('/drawio/');
         setImageProperties({ pos, src, alt, align: 'center', isDrawio });
       };
-      (window as any).__showImageContextMenu = (x: number, y: number, pos: number, src: string, alt: string) => {
+      window.__showImageContextMenu = (x: number, y: number, pos: number, src: string, alt: string) => {
         handleImageContextMenuOpen(x, y, pos, src, alt);
       };
-      (window as any).__showMathDialog = (latex: string, isBlock: boolean, pos: number) => {
+      window.__showMathDialog = (latex: string, isBlock: boolean, pos: number) => {
         setMathDialog({ latex, isBlock, pos });
       };
-      (window as any).__showDiagramDialog = (code: string, language: string, pos: number) => {
+      window.__showDiagramDialog = (code: string, language: string, pos: number) => {
         setDiagramDialog({ code, language, pos });
       };
-      (window as any).__openDrawio = handleOpenDrawio;
+      window.__openDrawio = handleOpenDrawio;
     }
     return () => {
-      delete (window as any).__editorFlushUpdate;
-      delete (window as any).__showImageProperties;
-      delete (window as any).__showImageContextMenu;
-      delete (window as any).__showMathDialog;
-      delete (window as any).__showDiagramDialog;
-      delete (window as any).__openDrawio;
+      delete window.__editorFlushUpdate;
+      delete window.__showImageProperties;
+      delete window.__showImageContextMenu;
+      delete window.__showMathDialog;
+      delete window.__showDiagramDialog;
+      delete window.__openDrawio;
     };
   }, [editor, flushUpdate, handleOpenDrawio]);
 
   useEffect(() => {
     if (!editor) return;
     const editorElement = editor.view.dom;
-    editorElement.addEventListener('paste', handlePaste as any);
-    return () => { editorElement.removeEventListener('paste', handlePaste as any); };
-  }, [editor]);
+    editorElement.addEventListener('paste', handlePaste);
+    return () => { editorElement.removeEventListener('paste', handlePaste); };
+  }, [editor, handlePaste]);
 
   // Mouse back/forward button (Button3 = back, Button4 = forward) → cursor history navigation
   useEffect(() => {
