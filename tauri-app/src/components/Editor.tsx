@@ -1,6 +1,6 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { EditorContent } from '@tiptap/react';
-import { useTiptapEditor } from '../hooks/useTiptapEditor';
+import { useTiptapEditor } from '@shared/editor/hooks/useTiptapEditor';
 import { useEditorContext } from '../context/EditorContext';
 import { useTauriMessaging } from '../hooks/useTauriMessaging';
 import { type TauriAdapter, resolveAssetUrl } from '../adapters/tauriMessaging';
@@ -8,31 +8,31 @@ import { convertMarkdownToJson } from '@shared/converter/markdownToJson';
 import { extractTitle, normalizeDocument } from '@shared/document/sdocUtils';
 import { Toolbar } from './Toolbar';
 import { BubbleMenuBar } from './BubbleMenuBar';
-import { DocumentHeader } from './DocumentHeader';
-import { TableContextMenu } from './TableContextMenu';
-import { TablePropertiesModal } from './TablePropertiesModal';
-import { ImageNameDialog } from './ImageNameDialog';
-import { DrawioNameDialog } from './DrawioNameDialog';
-import { DrawioActionDialog } from './DrawioActionDialog';
+import { DocumentHeader } from '@shared/editor/components/DocumentHeader';
+import { TableContextMenu } from '@shared/editor/components/TableContextMenu';
+import { TablePropertiesModal } from '@shared/editor/components/TablePropertiesModal';
+import { ImageNameDialog } from '@shared/editor/components/ImageNameDialog';
+import { DrawioNameDialog } from '@shared/editor/components/DrawioNameDialog';
+import { DrawioActionDialog } from '@shared/editor/components/DrawioActionDialog';
 import { DrawioInstallGuideDialog } from './DrawioInstallGuideDialog';
-import { LinkDialog } from './LinkDialog';
+import { LinkDialog } from '@shared/editor/components/LinkDialog';
 import { ImagePropertiesDialog } from './ImagePropertiesDialog';
-import { ImageContextMenu } from './ImageContextMenu';
-import { MathDialog } from './MathDialog';
-import { DiagramDialog } from './DiagramDialog';
-import { EditorContextMenu } from './EditorContextMenu';
-import { CrossReferenceDialog } from './CrossReferenceDialog';
+import { ImageContextMenu } from '@shared/editor/components/ImageContextMenu';
+import { MathDialog } from '@shared/editor/components/MathDialog';
+import { DiagramDialog } from '@shared/editor/components/DiagramDialog';
+import { EditorContextMenu } from '@shared/editor/components/EditorContextMenu';
+import { CrossReferenceDialog } from '@shared/editor/components/CrossReferenceDialog';
 import { ActivityBar } from './ActivityBar';
 import { SidePanel, type ActivityTab } from './SidePanel';
 import { MenuBar, type MenuDef } from './MenuBar';
-import { ZoomBar } from './ZoomBar';
+import { ZoomBar } from '@shared/editor/components/ZoomBar';
 import { FolderOpen } from 'lucide-react';
-import { collectTargets } from '../extensions/CrossReference';
-import { CROSSREF_RESYNC_META } from '../extensions/CrossReference';
-import type { RefTarget } from '../extensions/CrossReference';
-import { extractRelativePathFromSrc } from '../extensions/CustomImage';
-import { preprocessImportedHtml } from '../utils/preprocessImportedHtml';
+import { collectTargets, CROSSREF_RESYNC_META } from '@shared/editor/extensions/CrossReference';
+import type { RefTarget } from '@shared/editor/extensions/CrossReference';
+import { extractRelativePathFromSrc } from '@shared/editor/extensions/CustomImage';
+import { preprocessImportedHtml } from '@shared/editor/utils/preprocessImportedHtml';
 import type { DocumentSettings, TiptapNode } from '@shared/types';
+import type { EditorToHostMessage } from '@shared/types/messages';
 import type { ExplorerEntry } from '../App';
 import type { EditorSettings } from '../context/EditorContext';
 
@@ -154,8 +154,27 @@ export const Editor: React.FC<EditorProps> = ({
   const [showCrossRefDialog, setShowCrossRefDialog] = useState(false);
   const pendingEditRef = useRef(false);
   const initDoneRef = useRef(false);
-  const postMessageRef = useRef<(msg: Record<string, unknown> & { type: string }) => Promise<void>>(() => Promise.resolve());
+  const postMessageRef = useRef<(msg: EditorToHostMessage) => Promise<void>>(() => Promise.resolve());
   const settings = state.settings;
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
+  const flushUpdateRef = useRef<() => void>(() => {});
+  const openWorkspaceFileRef = useRef(onOpenWorkspaceFile);
+  openWorkspaceFileRef.current = onOpenWorkspaceFile;
+  const extensionRuntime = useMemo(() => ({
+    getSettings: () => settingsRef.current,
+    flush: () => flushUpdateRef.current(),
+    openDocument: (path: string) => openWorkspaceFileRef.current?.(path),
+    openDrawio: (drawioPath: string) => {
+      postMessageRef.current({ type: 'openDrawio', drawioPath }).catch(() => setShowDrawioInstallGuide(true));
+    },
+    openImageContextMenu: (x: number, y: number, pos: number, src: string) => {
+      const isDrawio = src.includes('.drawio.svg') || src.includes('/drawio/');
+      setImageContextMenu({ x, y, pos, src, isDrawio });
+    },
+    openMathDialog: (latex: string, isBlock: boolean, pos: number) => setMathDialog({ latex, isBlock, pos }),
+    openDiagramDialog: (code: string, language: string, pos: number) => setDiagramDialog({ code, language, pos }),
+  }), []);
 
   const trackSave = useCallback((savePromise: Promise<void>) => {
     setSaveStatus('saving');
@@ -185,10 +204,11 @@ export const Editor: React.FC<EditorProps> = ({
       }));
     },
     pendingEditRef,
+    runtime: extensionRuntime,
   });
+  flushUpdateRef.current = flushUpdate;
 
   useEffect(() => {
-    window.__editorSettings = settings;
     const proseMirrorEl = document.querySelector('.ProseMirror') as HTMLElement;
     if (proseMirrorEl) {
       proseMirrorEl.style.setProperty('--image-caption-prefix', `'${settings.imageCaptionPrefix}'`);
@@ -260,19 +280,15 @@ export const Editor: React.FC<EditorProps> = ({
         break;
       case 'drawioFileUpdated':
         if (editor && message.relativePath) {
-          const fileName = (message.relativePath as string).split('/').pop()!;
-          const timestamp = message.timestamp || Date.now();
-          resolveAssetUrl(message.relativePath).then(assetUrl => {
-            const newUrl = `${assetUrl}?t=${timestamp}`;
-            editor.chain().command(({ tr }) => {
-              tr.doc.descendants((node, pos) => {
-                if (node.type.name === 'image' && node.attrs.src?.includes(fileName)) {
-                  tr.setNodeMarkup(pos, undefined, { ...node.attrs, src: newUrl });
-                }
-              });
-              return true;
-            }).run();
-          });
+          const fileName = message.relativePath.split('/').pop()!;
+          editor.chain().command(({ tr }) => {
+            tr.doc.descendants((node, pos) => {
+              if (node.type.name === 'image' && node.attrs.src?.includes(fileName)) {
+                tr.setNodeMarkup(pos, undefined, { ...node.attrs, src: message.newWebviewUri });
+              }
+            });
+            return true;
+          }).run();
         }
         break;
       case 'imageReplaced':
@@ -385,7 +401,7 @@ export const Editor: React.FC<EditorProps> = ({
   const handleMetaChange = (field: string, value: string) => {
     setMeta(prev => ({ ...prev, [field]: value }));
     if (editor) {
-      trackSave(postMessage({ type: 'updateMeta', meta: { [field]: value }, content: editor.getJSON() }));
+      trackSave(postMessage({ type: 'updateMeta', meta: { [field]: value } }));
     }
   };
   const handleToggleNumbering = () => { setShowNumbering(!showNumbering); };
@@ -421,9 +437,8 @@ export const Editor: React.FC<EditorProps> = ({
     }
     if (editor) {
       trackSave(postMessage({
-        type: 'updateMeta',
-        meta: { settings },
-        content: editor.getJSON(),
+        type: 'updateDocSettings',
+        settings,
       }));
     }
   }, [dispatch, editor, postMessage, trackSave]);
@@ -473,9 +488,6 @@ export const Editor: React.FC<EditorProps> = ({
     postMessage({ type: 'createDrawio', fileName }).catch(() => setShowDrawioInstallGuide(true));
     setShowDrawioDialog(false);
   };
-  const handleOpenDrawio = useCallback((drawioPath: string) => {
-    postMessageRef.current({ type: 'openDrawio', drawioPath }).catch(() => setShowDrawioInstallGuide(true));
-  }, []);
   const handleInsertImage = () => { postMessage({ type: 'insertExistingImage' }); };
   const handleInsertLink = () => { setShowLinkDialog(true); };
   const handleInsertMath = () => { setMathDialog({ latex: '', isBlock: false, pos: null }); };
@@ -565,10 +577,6 @@ export const Editor: React.FC<EditorProps> = ({
     setImageProperties(null);
     postMessage({ type: 'replaceImage', pos: imageProperties.pos });
   };
-  const handleImageContextMenuOpen = (x: number, y: number, pos: number, src: string, _alt: string) => {
-    const isDrawio = src.includes('.drawio.svg') || src.includes('/drawio/');
-    setImageContextMenu({ x, y, pos, src, isDrawio });
-  };
   const handleImageContextMenuProperties = () => {
     if (!imageContextMenu || !editor) return;
     const node = editor.state.doc.nodeAt(imageContextMenu.pos);
@@ -609,35 +617,6 @@ export const Editor: React.FC<EditorProps> = ({
       });
     }
   }, [editor, setContent, initialDoc, dispatch]);
-
-  // Expose global functions for NodeViews
-  useEffect(() => {
-    if (editor) {
-      window.__editorFlushUpdate = flushUpdate;
-      window.__showImageProperties = (pos: number, src: string, alt: string) => {
-        const isDrawio = src.includes('.drawio.svg') || src.includes('/drawio/');
-        setImageProperties({ pos, src, alt, align: 'center', isDrawio });
-      };
-      window.__showImageContextMenu = (x: number, y: number, pos: number, src: string, alt: string) => {
-        handleImageContextMenuOpen(x, y, pos, src, alt);
-      };
-      window.__showMathDialog = (latex: string, isBlock: boolean, pos: number) => {
-        setMathDialog({ latex, isBlock, pos });
-      };
-      window.__showDiagramDialog = (code: string, language: string, pos: number) => {
-        setDiagramDialog({ code, language, pos });
-      };
-      window.__openDrawio = handleOpenDrawio;
-    }
-    return () => {
-      delete window.__editorFlushUpdate;
-      delete window.__showImageProperties;
-      delete window.__showImageContextMenu;
-      delete window.__showMathDialog;
-      delete window.__showDiagramDialog;
-      delete window.__openDrawio;
-    };
-  }, [editor, flushUpdate, handleOpenDrawio]);
 
   useEffect(() => {
     if (!editor) return;
@@ -867,7 +846,7 @@ export const Editor: React.FC<EditorProps> = ({
       {imageContextMenu && <ImageContextMenu position={{ x: imageContextMenu.x, y: imageContextMenu.y }} onClose={() => setImageContextMenu(null)} onOpenProperties={handleImageContextMenuProperties} onReplaceImage={handleImageContextMenuReplace} onCopyPath={handleImageContextMenuCopyPath} onDelete={handleImageContextMenuDelete} isDrawio={imageContextMenu.isDrawio} />}
       {mathDialog && <MathDialog initialLatex={mathDialog.latex} isBlock={mathDialog.isBlock} onConfirm={handleMathConfirm} onCancel={() => setMathDialog(null)} />}
       {diagramDialog && <DiagramDialog initialCode={diagramDialog.code} initialLanguage={diagramDialog.language} pos={diagramDialog.pos} onConfirm={handleDiagramConfirm} onCancel={() => setDiagramDialog(null)} />}
-      {showCrossRefDialog && editor && <CrossReferenceDialog targets={collectTargets(editor)} onSelect={(target: RefTarget) => { setShowCrossRefDialog(false); editor.chain().focus().insertContent([{ type: 'text', marks: [{ type: 'link', attrs: { href: `#${target.id}` } }], text: target.label }, { type: 'text', text: ' ' }]).run(); }} onClose={() => setShowCrossRefDialog(false)} />}
+      {showCrossRefDialog && editor && <CrossReferenceDialog targets={collectTargets(editor, settings)} onSelect={(target: RefTarget) => { setShowCrossRefDialog(false); editor.chain().focus().insertContent([{ type: 'text', marks: [{ type: 'link', attrs: { href: `#${target.id}` } }], text: target.label }, { type: 'text', text: ' ' }]).run(); }} onClose={() => setShowCrossRefDialog(false)} />}
     </div>
   );
 };

@@ -26,6 +26,12 @@ import { Subscript } from '@tiptap/extension-subscript';
 import { Superscript } from '@tiptap/extension-superscript';
 import { Callout } from './Callout';
 import { CursorHistory } from './CursorHistory';
+import type { ResolvedEditorSettings } from '@shared/types';
+import {
+  NOOP_EDITOR_EXTENSION_RUNTIME,
+  type EditorExtensionOptions,
+  type EditorExtensionRuntime,
+} from '../extensionRuntime';
 
 /* ===== Section Fold (Collapse) ===== */
 const sectionFoldKey = new PluginKey<Set<number>>('sectionFold');
@@ -197,12 +203,15 @@ const eqNumberingKey = new PluginKey('equationNumbering');
 
 /**
  * Build a map of { pos → equationNumber } for all mathBlock nodes.
- * Numbering mode is read from window.__editorSettings.equationNumbering:
+ * Numbering mode is read from the injected editor settings:
  *   'sequential' → (1), (2), (3) across the entire document
  *   'hierarchical' → (1.1), (1.2), (2.1) resetting per H1
  */
-function buildEqNumberMap(doc: import('@tiptap/pm/model').Node): Map<number, string> {
-  const mode = (window.__editorSettings?.equationNumbering ?? 'sequential');
+function buildEqNumberMap(
+  doc: import('@tiptap/pm/model').Node,
+  settings: ResolvedEditorSettings,
+): Map<number, string> {
+  const mode = settings.equationNumbering;
   const map = new Map<number, string>();
   let h1 = 0;
   let eqGlobal = 0;
@@ -225,16 +234,20 @@ function buildEqNumberMap(doc: import('@tiptap/pm/model').Node): Map<number, str
   return map;
 }
 
-const EquationNumbering = Extension.create({
+const EquationNumbering = Extension.create<EditorExtensionOptions>({
   name: 'equationNumbering',
+  addOptions() {
+    return { runtime: NOOP_EDITOR_EXTENSION_RUNTIME };
+  },
   addProseMirrorPlugins() {
+    const runtime = this.options.runtime;
     return [
       new Plugin({
         key: eqNumberingKey,
         view() {
           return {
             update(view: EditorView) {
-              const map = buildEqNumberMap(view.state.doc);
+              const map = buildEqNumberMap(view.state.doc, runtime.getSettings());
               view.state.doc.forEach((node, offset) => {
                 if (node.type.name !== 'mathBlock') return;
                 // nodeDOM(offset) directly returns the NodeView's outer DOM element.
@@ -359,7 +372,8 @@ const HeadingNumbering = Extension.create({
   },
 });
 
-export const tiptapExtensions = [
+export function createTiptapExtensions(runtime: EditorExtensionRuntime) {
+  return [
   StarterKit.configure({
     codeBlock: false,
   }),
@@ -378,14 +392,14 @@ export const tiptapExtensions = [
       class: 'editor-link',
     },
   }),
-  CustomImage,
-  CustomTable,
+  CustomImage.configure({ runtime }),
+  CustomTable.configure({ runtime }),
   TableRow,
   TableHeader,
   TableCell,
-  MathInline,
-  MathBlock,
-  DiagramBlock,
+  MathInline.configure({ runtime }),
+  MathBlock.configure({ runtime }),
+  DiagramBlock.configure({ runtime }),
   TextStyle,
   Color,
   Highlight.configure({ multicolor: true }),
@@ -396,9 +410,9 @@ export const tiptapExtensions = [
   }),
   HeadingKeyboardShortcuts,
   BlockExit,
-  CrossReference,
+  CrossReference.configure({ runtime }),
   SectionFold,
-  EquationNumbering,
+  EquationNumbering.configure({ runtime }),
   CursorHistory,
   Extension.create({
     name: 'internalLinkClick',
@@ -417,10 +431,7 @@ export const tiptapExtensions = [
                 if (href.includes('.sdoc')) {
                   event.preventDefault();
                   const [filePath, fragment] = href.split('#');
-                  const vscode = window.vscode;
-                  if (vscode) {
-                    vscode.postMessage({ type: 'openDocument', path: filePath, anchor: fragment || '' });
-                  }
+                  runtime.openDocument(filePath, fragment || '');
                   return true;
                 }
 
@@ -497,4 +508,5 @@ export const tiptapExtensions = [
       ];
     },
   }),
-];
+  ];
+}

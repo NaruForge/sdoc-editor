@@ -1,5 +1,6 @@
 import { Node, mergeAttributes, InputRule } from '@tiptap/core';
 import katex from 'katex';
+import { NOOP_EDITOR_EXTENSION_RUNTIME, type EditorExtensionOptions } from '../extensionRuntime';
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
@@ -9,10 +10,14 @@ declare module '@tiptap/core' {
   }
 }
 
-export const MathBlock = Node.create({
+export const MathBlock = Node.create<EditorExtensionOptions>({
   name: 'mathBlock',
   group: 'block',
   atom: true,
+
+  addOptions() {
+    return { runtime: NOOP_EDITOR_EXTENSION_RUNTIME };
+  },
 
   addAttributes() {
     return {
@@ -38,6 +43,7 @@ export const MathBlock = Node.create({
   },
 
   addNodeView() {
+    const runtime = this.options.runtime;
     return ({ node, getPos, editor }) => {
       let currentLatex = node.attrs.latex;
       let isEditing = false;
@@ -175,7 +181,7 @@ export const MathBlock = Node.create({
         if (pos == null) return;
         if (isEditing) currentLatex = stripDelimiters(textarea.value);
         cancelEdit();
-        window.__showMathDialog?.(currentLatex, true, pos);
+        runtime.openMathDialog(currentLatex, true, pos);
       };
 
       const toggleToInline = () => {
@@ -196,7 +202,7 @@ export const MathBlock = Node.create({
           )
         );
         editor.view.dispatch(tr);
-        window.__editorFlushUpdate?.();
+        runtime.flush();
       };
 
       // Single click → inline edit

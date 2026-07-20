@@ -2,7 +2,7 @@ import { useRef, useState, MutableRefObject } from 'react';
 import { Editor as TiptapEditor, type JSONContent } from '@tiptap/react';
 import { useEditorContext, resolveFontWeight } from '../context/EditorContext';
 import { useVSCodeMessaging } from './useVSCodeMessaging';
-import { preprocessImportedHtml } from '../utils/preprocessImportedHtml';
+import { preprocessImportedHtml } from '@shared/editor/utils/preprocessImportedHtml';
 
 export interface MetaState {
   title: string;

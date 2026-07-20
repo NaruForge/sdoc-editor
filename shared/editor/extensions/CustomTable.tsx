@@ -1,6 +1,10 @@
 import { Table } from '@tiptap/extension-table';
+import { NOOP_EDITOR_EXTENSION_RUNTIME, type EditorExtensionOptions } from '../extensionRuntime';
 
-export const CustomTable = Table.extend({
+export const CustomTable = Table.extend<EditorExtensionOptions>({
+  addOptions() {
+    return { ...this.parent?.(), runtime: NOOP_EDITOR_EXTENSION_RUNTIME };
+  },
   addAttributes() {
     return {
       ...this.parent?.(),
@@ -32,6 +36,7 @@ export const CustomTable = Table.extend({
   },
 
   addNodeView() {
+    const runtime = this.options.runtime;
     return ({ node, getPos, editor }) => {
       let currentNode = node;
       let isEditingCaption = false;
@@ -148,9 +153,7 @@ export const CustomTable = Table.extend({
             }).run();
 
             // Immediately flush update to avoid debounce delay
-            if (window.__editorFlushUpdate) {
-              window.__editorFlushUpdate();
-            }
+            runtime.flush();
           }
         }
       }

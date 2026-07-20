@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import type { EditorToHostMessage } from '@shared/types/messages';
 import { type TauriAdapter, type TauriMessageHandler } from '../adapters/tauriMessaging';
 
 /**
@@ -8,12 +9,12 @@ import { type TauriAdapter, type TauriMessageHandler } from '../adapters/tauriMe
 export function useTauriMessaging(
   adapter: TauriAdapter,
   onMessage: TauriMessageHandler
-): { postMessage: (msg: Record<string, unknown> & { type: string }) => Promise<void> } {
+): { postMessage: (msg: EditorToHostMessage) => Promise<void> } {
   const handlerRef = useRef(onMessage);
   handlerRef.current = onMessage;
 
   useEffect(() => {
-    const unsubscribe = adapter.onMessage((msg) => {
+    const unsubscribe = adapter.subscribe((msg) => {
       handlerRef.current(msg);
     });
     return unsubscribe;

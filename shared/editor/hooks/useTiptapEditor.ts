@@ -1,20 +1,28 @@
 import { useEditor, JSONContent } from '@tiptap/react';
-import { useRef, useEffect, useCallback, MutableRefObject } from 'react';
-import { tiptapExtensions } from '../extensions/tiptapExtensions';
+import { useRef, useEffect, useCallback, useMemo, MutableRefObject } from 'react';
+import { createTiptapExtensions } from '../extensions/tiptapExtensions';
+import type { EditorExtensionRuntime } from '../extensionRuntime';
 
 interface UseTiptapEditorOptions {
   onUpdate: (content: JSONContent, saveRequested?: boolean) => void;
-  pendingEditRef: MutableRefObject<number>;
+  pendingEditRef: MutableRefObject<number | boolean>;
+  runtime: EditorExtensionRuntime;
 }
 
-export const useTiptapEditor = ({ onUpdate, pendingEditRef }: UseTiptapEditorOptions) => {
+export const useTiptapEditor = ({ onUpdate, pendingEditRef, runtime }: UseTiptapEditorOptions) => {
   const skipUpdateRef = useRef(false);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const onUpdateRef = useRef(onUpdate);
   useEffect(() => { onUpdateRef.current = onUpdate; }, [onUpdate]);
 
+  const extensions = useMemo(() => createTiptapExtensions(runtime), [runtime]);
+  const markPending = useCallback(() => {
+    if (typeof pendingEditRef.current === 'number') pendingEditRef.current++;
+    else pendingEditRef.current = true;
+  }, [pendingEditRef]);
+
   const editor = useEditor({
-    extensions: tiptapExtensions,
+    extensions,
     content: '',
     onUpdate: ({ editor }) => {
       if (skipUpdateRef.current) {
@@ -29,7 +37,7 @@ export const useTiptapEditor = ({ onUpdate, pendingEditRef }: UseTiptapEditorOpt
 
       debounceTimerRef.current = setTimeout(() => {
         const json = editor.getJSON();
-        pendingEditRef.current++;
+        markPending();
         onUpdateRef.current(json);
       }, 300);
     },
@@ -67,9 +75,9 @@ export const useTiptapEditor = ({ onUpdate, pendingEditRef }: UseTiptapEditorOpt
 
     // Immediately send current state
     const json = editor.getJSON();
-    pendingEditRef.current++;
+    markPending();
     onUpdateRef.current(json, saveRequested);
-  }, [editor, pendingEditRef]);
+  }, [editor, markPending]);
 
   // Flush pending edits on Ctrl+S so save always captures the latest state
   useEffect(() => {

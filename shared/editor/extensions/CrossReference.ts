@@ -3,6 +3,8 @@ import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Suggestion } from '@tiptap/suggestion';
 import type { SuggestionProps, SuggestionKeyDownProps } from '@tiptap/suggestion';
 import { toRoman } from '@shared/settingsResolver';
+import type { ResolvedEditorSettings } from '@shared/types';
+import { NOOP_EDITOR_EXTENSION_RUNTIME, type EditorExtensionOptions } from '../extensionRuntime';
 
 export interface RefTarget {
   id: string;
@@ -17,11 +19,16 @@ const crossRefSyncKey = new PluginKey('crossReferenceSync');
 /** Dispatch this meta on any transaction to force CrossRef label re-sync */
 export const CROSSREF_RESYNC_META = 'crossRefResync';
 
-export const CrossReference = Extension.create({
+export const CrossReference = Extension.create<EditorExtensionOptions>({
   name: 'crossReference',
+
+  addOptions() {
+    return { runtime: NOOP_EDITOR_EXTENSION_RUNTIME };
+  },
 
   addProseMirrorPlugins() {
     const editor = this.editor;
+    const runtime = this.options.runtime;
 
     return [
       // Cross-reference text sync plugin
@@ -32,7 +39,7 @@ export const CrossReference = Extension.create({
           const hasResync = transactions.some(tr => tr.getMeta(CROSSREF_RESYNC_META));
           if (!hasDocChange && !hasResync) return null;
 
-          const idMap = buildIdMap(newState.doc);
+          const idMap = buildIdMap(newState.doc, runtime.getSettings());
           if (idMap.size === 0) return null;
 
           // Collect all changes first to avoid position-shifting issues
@@ -79,7 +86,7 @@ export const CrossReference = Extension.create({
         allowedPrefixes: null,
 
         items: ({ query, editor }) => {
-          const targets = collectTargets(editor);
+          const targets = collectTargets(editor, runtime.getSettings());
           if (!query) return targets;
           const q = query.toLowerCase();
           return targets.filter(t => t.label.toLowerCase().includes(q) || t.id.toLowerCase().includes(q));
@@ -269,12 +276,11 @@ function slugify(text: string): string {
     || 'untitled';
 }
 
-export function collectTargets(editor: Editor): RefTarget[] {
+export function collectTargets(editor: Editor, settings: ResolvedEditorSettings): RefTarget[] {
   const json = editor.getJSON();
   const targets: RefTarget[] = [];
   if (!json?.content) return targets;
 
-  const settings = window.__editorSettings;
   const mode = (settings?.equationNumbering ?? 'sequential') as string;
   const capMode = (settings?.captionNumbering ?? 'sequential') as string;
   const imgPrefix = settings?.imageCaptionPrefix ?? '';
@@ -343,9 +349,11 @@ function getTextContent(node: JSONContent): string {
  * Uses existing id attribute OR falls back to the same slug logic as collectTargets,
  * because the webview never receives server-assigned IDs (suppressed by pendingApplyEdits).
  */
-function buildIdMap(doc: import('@tiptap/pm/model').Node): Map<string, string> {
+function buildIdMap(
+  doc: import('@tiptap/pm/model').Node,
+  settings: ResolvedEditorSettings,
+): Map<string, string> {
   const idMap = new Map<string, string>();
-  const settings = window.__editorSettings;
   const mode = (settings?.equationNumbering ?? 'sequential') as string;
   const capMode = (settings?.captionNumbering ?? 'sequential') as string;
   const imgPrefix = settings?.imageCaptionPrefix ?? '';

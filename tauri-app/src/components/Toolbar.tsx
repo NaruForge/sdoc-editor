@@ -34,7 +34,7 @@ import {
   MessageSquareWarning,
   MoreHorizontal,
 } from 'lucide-react';
-import { CALLOUT_ICONS, CALLOUT_LABELS, type CalloutVariant } from '../extensions/Callout';
+import { CALLOUT_ICONS, CALLOUT_LABELS, type CalloutVariant } from '@shared/editor/extensions/Callout';
 import { TEXT_COLORS, HIGHLIGHT_COLORS } from '../constants/colors';
 
 interface ToolbarProps {

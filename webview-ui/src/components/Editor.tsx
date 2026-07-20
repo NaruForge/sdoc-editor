@@ -1,32 +1,31 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { EditorContent, type JSONContent } from '@tiptap/react';
-import { useTiptapEditor } from '../hooks/useTiptapEditor';
+import { useTiptapEditor } from '@shared/editor/hooks/useTiptapEditor';
 import { useEditorContext } from '../context/EditorContext';
 import { useEditorMessages, type MetaState } from '../hooks/useEditorMessages';
-import { useDialogState } from '../hooks/useDialogState';
+import { useDialogState } from '@shared/editor/hooks/useDialogState';
 import { Toolbar } from './Toolbar';
 import { BubbleMenuBar } from './BubbleMenuBar';
-import { DocumentHeader } from './DocumentHeader';
-import { TableContextMenu } from './TableContextMenu';
-import { TablePropertiesModal } from './TablePropertiesModal';
-import { ImageNameDialog } from './ImageNameDialog';
-import { DrawioNameDialog } from './DrawioNameDialog';
-import { DrawioActionDialog } from './DrawioActionDialog';
-import { LinkDialog } from './LinkDialog';
+import { DocumentHeader } from '@shared/editor/components/DocumentHeader';
+import { TableContextMenu } from '@shared/editor/components/TableContextMenu';
+import { TablePropertiesModal } from '@shared/editor/components/TablePropertiesModal';
+import { ImageNameDialog } from '@shared/editor/components/ImageNameDialog';
+import { DrawioNameDialog } from '@shared/editor/components/DrawioNameDialog';
+import { DrawioActionDialog } from '@shared/editor/components/DrawioActionDialog';
+import { LinkDialog } from '@shared/editor/components/LinkDialog';
 import { ImagePropertiesDialog } from './ImagePropertiesDialog';
-import { ImageContextMenu } from './ImageContextMenu';
-import { MathDialog } from './MathDialog';
-import { EditorContextMenu } from './EditorContextMenu';
-import { CrossReferenceDialog } from './CrossReferenceDialog';
-import { DiagramDialog } from './DiagramDialog';
+import { ImageContextMenu } from '@shared/editor/components/ImageContextMenu';
+import { MathDialog } from '@shared/editor/components/MathDialog';
+import { EditorContextMenu } from '@shared/editor/components/EditorContextMenu';
+import { CrossReferenceDialog } from '@shared/editor/components/CrossReferenceDialog';
+import { DiagramDialog } from '@shared/editor/components/DiagramDialog';
 import { ActivityBar } from './ActivityBar';
 import { SidePanel, type ActivityTab } from './SidePanel';
-import { ZoomBar } from './ZoomBar';
-import { collectTargets } from '../extensions/CrossReference';
-import { CROSSREF_RESYNC_META } from '../extensions/CrossReference';
-import type { RefTarget } from '../extensions/CrossReference';
+import { ZoomBar } from '@shared/editor/components/ZoomBar';
+import { collectTargets, CROSSREF_RESYNC_META } from '@shared/editor/extensions/CrossReference';
+import type { RefTarget } from '@shared/editor/extensions/CrossReference';
 import type { DocumentSettings, TiptapNode } from '@shared/types';
-import type { WebviewToExtensionMessage } from '@shared/types/messages';
+import type { EditorToHostMessage } from '@shared/types/messages';
 
 export const Editor: React.FC = () => {
   const { state, dispatch } = useEditorContext();
@@ -46,9 +45,6 @@ export const Editor: React.FC = () => {
 
   // Apply settings to CSS custom properties and global state
   useEffect(() => {
-    // Expose settings globally for NodeViews (CustomImage, CustomTable)
-    window.__editorSettings = settings;
-
     // Apply CSS custom properties for caption prefixes
     const proseMirrorEl = document.querySelector('.ProseMirror') as HTMLElement;
     if (proseMirrorEl) {
@@ -73,14 +69,34 @@ export const Editor: React.FC = () => {
   }, [settings]);
 
   // postMessageRef bridges the circular dependency: useTiptapEditor → postMessage → useEditorMessages
-  const postMessageRef = useRef<(msg: WebviewToExtensionMessage) => void>(() => {});
+  const postMessageRef = useRef<(msg: EditorToHostMessage) => void>(() => {});
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
+  const flushUpdateRef = useRef<() => void>(() => {});
+  const extensionRuntime = useMemo(() => ({
+    getSettings: () => settingsRef.current,
+    flush: () => flushUpdateRef.current(),
+    openDocument: (path: string, anchor?: string) => postMessageRef.current({ type: 'openDocument', path, anchor }),
+    openDrawio: (drawioPath: string) => postMessageRef.current({ type: 'openDrawio', drawioPath }),
+    openImageContextMenu: (x: number, y: number, pos: number, src: string, _alt: string) =>
+      dialogDispatch({
+        type: 'SET_IMAGE_CONTEXT_MENU',
+        payload: { x, y, pos, src, isDrawio: src.includes('.drawio.svg') || src.includes('/drawio/') },
+      }),
+    openMathDialog: (latex: string, isBlock: boolean, pos: number) =>
+      dialogDispatch({ type: 'SET_MATH_DIALOG', payload: { latex, isBlock, pos } }),
+    openDiagramDialog: (code: string, language: string, pos: number) =>
+      dialogDispatch({ type: 'SET_DIAGRAM_DIALOG', payload: { code, language, pos } }),
+  }), [dialogDispatch]);
 
   const { editor, setContent, flushUpdate } = useTiptapEditor({
     onUpdate: (content, saveRequested) => {
       postMessageRef.current({ type: 'edit', content: content as TiptapNode, saveRequested });
     },
     pendingEditRef,
+    runtime: extensionRuntime,
   });
+  flushUpdateRef.current = flushUpdate;
 
   // Trigger CrossRef label re-sync when caption settings change
   const prevPrefixRef = useRef({ style: '', eqMode: '', capMode: '', includeCaption: false });
@@ -348,11 +364,6 @@ export const Editor: React.FC = () => {
     postMessage({ type: 'replaceImage', pos });
   };
 
-  const handleImageContextMenuOpen = useCallback((x: number, y: number, pos: number, src: string, _alt: string) => {
-    const isDrawio = src.includes('.drawio.svg') || src.includes('/drawio/');
-    dialogDispatch({ type: 'SET_IMAGE_CONTEXT_MENU', payload: { x, y, pos, src, isDrawio } });
-  }, [dialogDispatch]);
-
   const handleImageContextMenuProperties = () => {
     if (!dialogs.imageContextMenu || !editor) return;
 
@@ -408,33 +419,6 @@ export const Editor: React.FC = () => {
       }
     }
   }, [editor, setContent, state.doc, dispatch]);
-
-  // Expose flushUpdate to window for NodeView access
-  useEffect(() => {
-    if (editor) {
-      window.__editorFlushUpdate = flushUpdate;
-      window.__showImageProperties = (pos: number, src: string, alt: string) => {
-        const isDrawio = src.includes('.drawio.svg') || src.includes('/drawio/');
-        dialogDispatch({ type: 'SET_IMAGE_PROPERTIES', payload: { pos, src, alt, align: 'center', isDrawio } });
-      };
-      window.__showImageContextMenu = (x: number, y: number, pos: number, src: string, alt: string) => {
-        handleImageContextMenuOpen(x, y, pos, src, alt);
-      };
-      window.__showMathDialog = (latex: string, isBlock: boolean, pos: number) => {
-        dialogDispatch({ type: 'SET_MATH_DIALOG', payload: { latex, isBlock, pos } });
-      };
-      window.__showDiagramDialog = (code: string, language: string, pos: number) => {
-        dialogDispatch({ type: 'SET_DIAGRAM_DIALOG', payload: { code, language, pos } });
-      };
-    }
-    return () => {
-      delete window.__editorFlushUpdate;
-      delete window.__showImageProperties;
-      delete window.__showImageContextMenu;
-      delete window.__showMathDialog;
-      delete window.__showDiagramDialog;
-    };
-  }, [editor, flushUpdate, dialogDispatch, handleImageContextMenuOpen]);
 
   // Add paste event listener for clipboard images
   useEffect(() => {
@@ -623,7 +607,7 @@ export const Editor: React.FC = () => {
         <LinkDialog
           onConfirm={(url, text) => handleLinkConfirm(url, text)}
           onCancel={() => dialogDispatch({ type: 'CLOSE_LINK_DIALOG' })}
-          onBrowseSdoc={() => window.vscode?.postMessage({ type: 'browseSdocFiles' })}
+          onBrowseSdoc={() => { void postMessage({ type: 'browseSdocFiles' }); }}
           defaultText={editor.state.doc.textBetween(
             editor.state.selection.from,
             editor.state.selection.to,
@@ -672,7 +656,7 @@ export const Editor: React.FC = () => {
       )}
       {dialogs.showCrossRefDialog && editor && (
         <CrossReferenceDialog
-          targets={collectTargets(editor)}
+          targets={collectTargets(editor, settings)}
           onSelect={(target: RefTarget) => {
             dialogDispatch({ type: 'CLOSE_CROSSREF_DIALOG' });
             editor.chain().focus().insertContent([

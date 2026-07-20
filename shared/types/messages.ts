@@ -63,7 +63,7 @@ export interface UpdateMessage {
 
 export interface SettingsChangedMessage {
   type: 'settingsChanged';
-  settings: EditorSettings;
+  settings: Partial<EditorSettings>;
 }
 
 export interface DocSettingsChangedMessage {
@@ -121,6 +121,15 @@ export interface DrawioFileUpdatedMessage {
   newWebviewUri: string;
 }
 
+export interface ImportMarkdownTextMessage {
+  type: 'importMarkdownText';
+  text: string;
+}
+
+export interface ShowJsonViewerMessage {
+  type: 'showJsonViewer';
+}
+
 export interface RequestFlushMessage {
   type: 'requestFlush';
 }
@@ -157,7 +166,9 @@ export type ExtensionToWebviewMessage =
   | RequestFlushMessage
   | ExportStartedMessage
   | ExportDoneMessage
-  | SdocFileBrowseResultMessage;
+  | SdocFileBrowseResultMessage
+  | ImportMarkdownTextMessage
+  | ShowJsonViewerMessage;
 
 // ─── Webview → Extension Messages ───────────────────────────────
 
@@ -168,6 +179,7 @@ export interface ReadyMessage {
 export interface EditMessage {
   type: 'edit';
   content: TiptapNode;
+  meta?: Partial<SdocMeta>;
   saveRequested?: boolean;
 }
 
@@ -272,6 +284,10 @@ export type WebviewToExtensionMessage =
   | FlushCompleteMessage
   | SelectCssFileMessage
   | ClearCssFileMessage;
+
+/** Host-neutral names used by both the VS Code and Tauri adapters. */
+export type HostToEditorMessage = ExtensionToWebviewMessage;
+export type EditorToHostMessage = WebviewToExtensionMessage;
 
 // ─── SdocBook Messages (Webview → Extension) ───────────────────
 

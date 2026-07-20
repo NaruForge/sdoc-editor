@@ -1,5 +1,6 @@
 import { Node, mergeAttributes } from '@tiptap/core';
 import { getMermaid } from '../utils/mermaid';
+import { NOOP_EDITOR_EXTENSION_RUNTIME, type EditorExtensionOptions } from '../extensionRuntime';
 
 let diagramCounter = 0;
 
@@ -28,10 +29,14 @@ async function renderMermaid(code: string, container: HTMLElement): Promise<void
   }
 }
 
-export const DiagramBlock = Node.create({
+export const DiagramBlock = Node.create<EditorExtensionOptions>({
   name: 'diagram',
   group: 'block',
   atom: true,
+
+  addOptions() {
+    return { runtime: NOOP_EDITOR_EXTENSION_RUNTIME };
+  },
 
   addAttributes() {
     return {
@@ -70,6 +75,7 @@ export const DiagramBlock = Node.create({
   },
 
   addNodeView() {
+    const runtime = this.options.runtime;
     return ({ node, getPos }) => {
       const dom = document.createElement('div');
       dom.classList.add('diagram-block');
@@ -108,7 +114,7 @@ export const DiagramBlock = Node.create({
         if (typeof getPos === 'function') {
           const pos = getPos();
           if (pos != null) {
-            window.__showDiagramDialog?.(
+            runtime.openDiagramDialog(
               node.attrs.code,
               node.attrs.language,
               pos,

@@ -3,7 +3,7 @@ import { BubbleMenu } from '@tiptap/react/menus';
 import { Editor, useEditorState } from '@tiptap/react';
 import { Bold, Italic, Underline, Code, Unlink, Highlighter, Palette, Strikethrough, Subscript, Superscript, Quote } from 'lucide-react';
 import { TEXT_COLORS, HIGHLIGHT_COLORS } from '../constants/colors';
-import { CALLOUT_ICONS, CALLOUT_LABELS, type CalloutVariant } from '../extensions/Callout';
+import { CALLOUT_ICONS, CALLOUT_LABELS, type CalloutVariant } from '@shared/editor/extensions/Callout';
 
 interface BubbleMenuBarProps {
   editor: Editor;

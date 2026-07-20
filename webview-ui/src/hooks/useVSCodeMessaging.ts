@@ -1,9 +1,10 @@
 import { useEffect, useRef } from 'react';
-import type { ExtensionToWebviewMessage, WebviewToExtensionMessage } from '@shared/types/messages';
+import type { EditorHostBridge, HostMessageHandler } from '@shared/editor/hostBridge';
+import type { EditorToHostMessage } from '@shared/types/messages';
 
 // VS Code API type definition
 interface VSCodeAPI {
-  postMessage(message: WebviewToExtensionMessage): void;
+  postMessage(message: EditorToHostMessage): void;
   getState(): unknown;
   setState(state: unknown): void;
 }
@@ -19,17 +20,24 @@ let vscodeApi: VSCodeAPI | undefined;
 const getVSCodeAPI = (): VSCodeAPI => {
   if (!vscodeApi) {
     vscodeApi = window.acquireVsCodeApi();
-    // Expose globally so native NodeViews (non-React) can also post messages
-    window.vscode = vscodeApi;
   }
   return vscodeApi;
 };
 
-export interface MessageHandler {
-  (message: ExtensionToWebviewMessage): void;
-}
+const vscodeBridge: EditorHostBridge = {
+  kind: 'vscode',
+  async postMessage(message) {
+    getVSCodeAPI().postMessage(message);
+  },
+  subscribe(handler) {
+    const listener = (event: MessageEvent) => handler(event.data as Parameters<HostMessageHandler>[0]);
+    window.addEventListener('message', listener);
+    return () => window.removeEventListener('message', listener);
+  },
+  dispose() {},
+};
 
-export const useVSCodeMessaging = (handler: MessageHandler) => {
+export const useVSCodeMessaging = (handler: HostMessageHandler) => {
   const handlerRef = useRef(handler);
 
   // Keep handler ref up to date
@@ -39,22 +47,15 @@ export const useVSCodeMessaging = (handler: MessageHandler) => {
 
   // Set up message listener
   useEffect(() => {
-    const messageListener = (event: MessageEvent<ExtensionToWebviewMessage>) => {
-      const message = event.data;
-      handlerRef.current(message);
-    };
-
-    window.addEventListener('message', messageListener);
+    const unsubscribe = vscodeBridge.subscribe((message) => handlerRef.current(message));
 
     // Send ready signal
-    getVSCodeAPI().postMessage({ type: 'ready' });
+    void vscodeBridge.postMessage({ type: 'ready' });
 
-    return () => {
-      window.removeEventListener('message', messageListener);
-    };
+    return unsubscribe;
   }, []);
 
   return {
-    postMessage: (message: WebviewToExtensionMessage) => getVSCodeAPI().postMessage(message),
+    postMessage: (message: EditorToHostMessage) => vscodeBridge.postMessage(message),
   };
 };

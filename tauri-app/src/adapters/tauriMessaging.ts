@@ -9,6 +9,8 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { open } from '@tauri-apps/plugin-dialog';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import type { ResolvedEditorSettings } from '@shared/types';
+import type { EditorHostBridge, HostMessageHandler } from '@shared/editor/hostBridge';
+import type { EditorToHostMessage, HostToEditorMessage } from '@shared/types/messages';
 
 type SettingsChangedPayload = Partial<ResolvedEditorSettings>;
 interface DrawioFileUpdatedPayload {
@@ -30,20 +32,8 @@ interface DrawioFileResult {
   filePath: string;
 }
 
-export type TauriInboundMessage =
-  | { type: 'settingsChanged'; settings: SettingsChangedPayload }
-  | { type: 'importMarkdownText'; text: string }
-  | { type: 'importHtml'; html: string }
-  | { type: 'imageSaved'; imagePath: string; webviewUri: string; imageName: string }
-  | { type: 'drawioCreated'; drawioPath: string; webviewUri: string; fileName: string }
-  | { type: 'imageInserted'; imagePath: string; webviewUri: string; fileName: string }
-  | { type: 'drawioFileUpdated'; relativePath: string; filePath: string; timestamp: number }
-  | { type: 'imageReplaced'; pos: number; imagePath: string; webviewUri: string; fileName: string }
-  | { type: 'showJsonViewer' };
-
-export interface TauriMessageHandler {
-  (message: TauriInboundMessage): void;
-}
+export type TauriInboundMessage = HostToEditorMessage;
+export type TauriMessageHandler = HostMessageHandler;
 
 /**
  * Convert a relative image/drawio path to an asset URL displayable in the webview.
@@ -56,7 +46,7 @@ export async function resolveAssetUrl(relativePath: string): Promise<string> {
 /**
  * Replaces useVSCodeMessaging — provides postMessage and onMessage via Tauri IPC.
  */
-export function createTauriAdapter() {
+export function createTauriAdapter(): EditorHostBridge {
   const listeners: TauriMessageHandler[] = [];
   const unlistenFns: UnlistenFn[] = [];
 
@@ -70,12 +60,12 @@ export function createTauriAdapter() {
     unlistenFns.push(u1);
 
     const u2 = await listen<DrawioFileUpdatedPayload>('drawio-file-updated', (event) => {
+      const assetUrl = convertFileSrc(event.payload.filePath);
       for (const handler of listeners) {
         handler({
           type: 'drawioFileUpdated',
           relativePath: event.payload.relativePath,
-          filePath: event.payload.filePath,
-          timestamp: event.payload.timestamp,
+          newWebviewUri: `${assetUrl}?t=${event.payload.timestamp}`,
         });
       }
     });
@@ -85,7 +75,8 @@ export function createTauriAdapter() {
   setupListeners();
 
   return {
-    postMessage: async (msg: Record<string, unknown> & { type: string }) => {
+    kind: 'tauri',
+    postMessage: async (msg: EditorToHostMessage) => {
       // Route messages to appropriate Tauri commands
       switch (msg.type) {
         case 'ready':
@@ -101,9 +92,19 @@ export function createTauriAdapter() {
 
         case 'updateMeta':
           await invoke('save_document', {
-            content: msg.content || null,
+            content: null,
             metaUpdates: msg.meta,
           });
+          break;
+
+        case 'updateDocSettings':
+          await invoke('save_document', {
+            content: null,
+            metaUpdates: { settings: msg.settings },
+          });
+          for (const handler of listeners) {
+            handler({ type: 'docSettingsChanged', docSettings: msg.settings });
+          }
           break;
 
         case 'saveImage': {
@@ -147,9 +148,6 @@ export function createTauriAdapter() {
         }
 
         case 'replaceImage': {
-          if (typeof msg.pos !== 'number') {
-            throw new Error('replaceImage requires a numeric position');
-          }
           const selected = await open({
             multiple: false,
             filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'] }],
@@ -262,12 +260,32 @@ export function createTauriAdapter() {
           break;
         }
 
+        case 'flushComplete':
+          break;
+
+        case 'openDocument':
+          console.warn('Cross-document navigation is not available through the Tauri adapter yet:', msg.path);
+          break;
+
+        case 'browseSdocFiles':
+          console.warn('Cross-document browsing is not available through the Tauri adapter yet.');
+          break;
+
+        case 'export':
+          console.warn('Tauri exports are handled by the editor export service.');
+          break;
+
+        case 'selectCssFile':
+        case 'clearCssFile':
+          console.warn(`${msg.type} is not available in the desktop app yet.`);
+          break;
+
         default:
-          console.warn('Unknown message type:', msg.type);
+          assertNever(msg);
       }
     },
 
-    onMessage: (handler: TauriMessageHandler) => {
+    subscribe: (handler: TauriMessageHandler) => {
       listeners.push(handler);
       return () => {
         const idx = listeners.indexOf(handler);
@@ -275,7 +293,7 @@ export function createTauriAdapter() {
       };
     },
 
-    cleanup: () => {
+    dispose: () => {
       for (const unlisten of unlistenFns) {
         unlisten();
       }
@@ -285,4 +303,8 @@ export function createTauriAdapter() {
   };
 }
 
-export type TauriAdapter = ReturnType<typeof createTauriAdapter>;
+function assertNever(value: never): never {
+  throw new Error(`Unsupported editor message: ${JSON.stringify(value)}`);
+}
+
+export type TauriAdapter = EditorHostBridge;
