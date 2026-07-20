@@ -1,12 +1,7 @@
 import * as vscode from 'vscode';
 import { getWebviewUri } from './webviewHelper';
 
-export const BUNDLED_FONTS = [
-  { file: 'LegacyFontL.woff2', weight: 300 },
-  { file: 'LegacyFontR.woff2', weight: 400 },
-  { file: 'LegacyFontSB.woff2', weight: 600 },
-  { file: 'LegacyFontB.woff2', weight: 700 },
-] as const;
+export const BUNDLED_FONTS: ReadonlyArray<{ file: string; weight: number }> = [];
 
 export const FONT_WEIGHT_MAP: Record<string, number> = {
   Light: 300,
@@ -23,7 +18,7 @@ export function generateFontFaceCSS(webview: vscode.Webview, extensionUri: vscod
   return BUNDLED_FONTS.map(({ file, weight }) => {
     const fontUri = getWebviewUri(webview, extensionUri, ['media', 'fonts', file]);
     return `@font-face {
-  font-family: 'Legacy Font 2.0';
+  font-family: 'Structured Doc Embedded Font';
   font-weight: ${weight};
   font-style: normal;
   font-display: swap;

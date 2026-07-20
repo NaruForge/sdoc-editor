@@ -194,7 +194,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.3.6] - 2026-04-08
 
 ### Added
-- **Bundled Legacy Font 2.0**: Extension now includes 4 weight variants (Light 300, Regular 400, SemiBold 600, Bold 700)
+- **Bundled font support**: Added configurable font weight variants (Light 300, Regular 400, SemiBold 600, Bold 700)
 - **Font Weight Configuration**: New VS Code Settings to customize font weights
   - `structuredDocEditor.font.body`: Body text weight (default: Regular)
   - `structuredDocEditor.font.bold`: Bold text weight (default: Bold)
@@ -204,7 +204,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Font Embedding in Exports**: HTML/PDF exports now embed font files as base64 for self-contained documents
 
 ### Changed
-- Default font family now includes 'Legacy Font 2.0' as primary font
+- Default font family now supports configurable embedded fonts
 - CSS system uses custom properties (`--font-weight-*`) for dynamic weight application
 
 ## [0.3.5] - 2026-04-07

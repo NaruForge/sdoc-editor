@@ -407,7 +407,7 @@ const MERMAID_INIT = `mermaid.initialize({
 function generateSlideDocument(slideSections: string, theme?: SlideTheme, meta?: SdocMeta, ctx?: ConvertContext): string {
   const primaryColor = theme?.primaryColor || '#A50034';
   const accentColor = theme?.accentColor || '#6b6b6b';
-  const fontFamily = theme?.fontFamily || "'Legacy Font 2.0', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
+  const fontFamily = theme?.fontFamily || "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
   const companyLogo = theme?.companyLogo || '';
   const companyName = theme?.companyName || '';
   const customStyles = theme?.customStyles || '';
@@ -415,7 +415,7 @@ function generateSlideDocument(slideSections: string, theme?: SlideTheme, meta?:
 
   const fontFaceRules = (theme?.embeddedFonts || []).map(f => `
       @font-face {
-        font-family: 'Legacy Font 2.0';
+        font-family: 'Structured Doc Embedded Font';
         font-weight: ${f.weight};
         font-style: normal;
         font-display: swap;

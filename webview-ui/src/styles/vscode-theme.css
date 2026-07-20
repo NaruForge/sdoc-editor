@@ -40,7 +40,7 @@ body {
 .ProseMirror {
   background-color: var(--vscode-editor-background);
   color: var(--vscode-editor-foreground);
-  font-family: 'Legacy Font 2.0', var(--vscode-font-family), sans-serif;
+  font-family: var(--vscode-font-family), sans-serif;
   font-weight: var(--font-weight-body, 400);
   padding: 16px;
   padding-bottom: 40vh; /* 문서 하단 여백: 뷰포트 높이의 40% */
@@ -1393,7 +1393,7 @@ body {
   border-bottom: 2px solid transparent;
   outline: none;
   padding: 4px 0;
-  font-family: 'Legacy Font 2.0', var(--vscode-font-family), sans-serif;
+  font-family: var(--vscode-font-family), sans-serif;
   letter-spacing: -0.02em;
   line-height: 1.2;
   transition: border-color 0.2s;

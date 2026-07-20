@@ -34,7 +34,7 @@
 | 할 일 목록 | 체크박스 태스크 리스트 |
 | 문서 메타데이터 | Title, Author, Version 인라인 편집 (항상 고정 표시) |
 | 슬라이드 내보내기 | H1 기준 자동 분리, reveal.js 기반 프레젠테이션 HTML 생성 |
-| 내장 폰트 | Legacy Font 2.0 (Light / Regular / SemiBold / Bold) 번들 |
+| 폰트 설정 | 시스템 폰트 및 사용자 지정 폰트 패밀리 지원 |
 | 자동 업데이트 | 공유 폴더 기반 사내 자동 업데이트 |
 | AI Agent 지원 | MCP 서버 내장 + `/sdoc-editing` 스킬 자동 등록 — 설치만으로 AI Agent 활용 가능 |
 
@@ -73,7 +73,7 @@ VS Code 설정(`Ctrl+,`)에서 "Structured Doc Editor"를 검색하여 아래 �
 | `theme.companyLogo` | 회사 로고 파일명 (워크스페이스 루트 기준) | — |
 | `theme.primaryColor` | 메인 색상 | `#A50034` |
 | `theme.accentColor` | 보조 색상 | `#6b6b6b` |
-| `theme.fontFamily` | 글꼴 | `Legacy Font 2.0, ...` |
+| `theme.fontFamily` | 글꼴 | 시스템 기본 UI 폰트 |
 
 ### 폰트 가중치
 
@@ -124,8 +124,8 @@ VS Code 설정(`Ctrl+,`)에서 "Structured Doc Editor"를 검색하여 아래 �
 
 ```json
 {
-  "structuredDocEditor.theme.companyName": "LG Magna e-Powertrain",
-  "structuredDocEditor.theme.companyLogo": "legacy-brand-logo.png",
+  "structuredDocEditor.theme.companyName": "Structured Doc",
+  "structuredDocEditor.theme.companyLogo": "",
   "structuredDocEditor.theme.primaryColor": "#A50034",
   "structuredDocEditor.font.body": "Regular",
   "structuredDocEditor.font.h1": "Bold",

@@ -3,7 +3,7 @@
   "displayName": "Structured Doc Editor",
   "description": "WYSIWYG editor for .tiptap.json/.sdoc files with Markdown/AsciiDoc/HTML export",
   "version": "0.4.10",
-  "publisher": "lgm-control-contributor-01",
+  "publisher": "swbaek",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -149,19 +149,19 @@
           "type": "string",
           "default": "#A50034",
           "pattern": "^#[0-9a-fA-F]{3,8}$",
-          "markdownDescription": "H1 heading numbering 및 decoration 색상 (hex 형식). 예: `#A50034` (LG RED), `#333333`, `#569cd6`"
+          "markdownDescription": "H1 heading numbering 및 decoration 색상 (hex 형식). 예: `#A50034` (Crimson), `#333333`, `#569cd6`"
         },
         "structuredDocEditor.heading.h2Color": {
           "type": "string",
           "default": "#A50034",
           "pattern": "^#[0-9a-fA-F]{3,8}$",
-          "markdownDescription": "H2 heading numbering 색상 (hex 형식). 예: `#A50034` (LG RED), `#6b6b6b` (Gray)"
+          "markdownDescription": "H2 heading numbering 색상 (hex 형식). 예: `#A50034` (Crimson), `#6b6b6b` (Gray)"
         },
         "structuredDocEditor.heading.h3Color": {
           "type": "string",
           "default": "#A50034",
           "pattern": "^#[0-9a-fA-F]{3,8}$",
-          "markdownDescription": "H3 heading numbering 색상 (hex 형식). 예: `#A50034` (LG RED), `#6b6b6b` (Gray)"
+          "markdownDescription": "H3 heading numbering 색상 (hex 형식). 예: `#A50034` (Crimson), `#6b6b6b` (Gray)"
         },
         "structuredDocEditor.image.defaultAlignment": {
           "type": "string",
@@ -215,12 +215,12 @@
         },
         "structuredDocEditor.theme.companyLogo": {
           "type": "string",
-          "default": "legacy-brand-logo.png",
-          "description": "Company logo filename in extension media/ folder, URL, or base64 data URI for HTML export header"
+          "default": "",
+          "description": "Optional logo URL or base64 data URI for the HTML export header"
         },
         "structuredDocEditor.theme.companyName": {
           "type": "string",
-          "default": "LG Magna e-Powertrain",
+          "default": "Structured Doc",
           "description": "Company name to display in HTML export header"
         },
         "structuredDocEditor.theme.primaryColor": {
@@ -235,8 +235,8 @@
         },
         "structuredDocEditor.theme.fontFamily": {
           "type": "string",
-          "default": "'Legacy Font 2.0', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-          "description": "Font family for editor and HTML/PDF export. Bundled 'Legacy Font 2.0' is used by default."
+          "default": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+          "description": "Font family for the editor and HTML/PDF export"
         },
         "structuredDocEditor.font.body": {
           "type": "string",
@@ -330,7 +330,7 @@
         },
         "structuredDocEditor.update.sharedFolder": {
           "type": "string",
-          "default": "\\\\ctrl-ws-a\\CONTROL_NAS\\VsCode-Extension\\sdoc-editor",
+          "default": "",
           "description": "Shared folder path for auto-update (e.g. \\\\server\\share\\sdoc-editor)"
         },
         "structuredDocEditor.slide.breakLevel": {

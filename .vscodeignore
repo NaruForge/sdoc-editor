@@ -13,6 +13,9 @@ shared/**
 # Development files
 .gitignore
 .github/**
+eslint.config.mjs
+webview-ui/**
+ats-init.sh
 tsconfig.json
 esbuild.mjs
 webview-ui/tsconfig.json
@@ -29,9 +32,13 @@ Prompt.md
 plan.md
 TEST-GUIDE.md
 SETUP.md
+.ai/**
+PRODUCT.md
+docs/SDOC_*.md
 docs/agent/issues/**
 docs/agent/README.md
 !docs/agent/.github/**
+drawio-plugins/**
 
 # Sample files
 sample/**
@@ -45,7 +52,7 @@ build-*.sh
 # Dependencies (excluded because we bundle everything)
 node_modules/**
 
-# Include only the dist folder and media assets
+# Include only runtime bundles. Public builds omit company-branded assets.
 !dist/**
-!media/**
+media/**
 docs/superpowers/**

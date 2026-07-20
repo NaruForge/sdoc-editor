@@ -53,7 +53,7 @@ export function buildHtmlTheme(
     primaryColor: config.get<string>('theme.primaryColor') || '#A50034',
     accentColor: config.get<string>('theme.accentColor') || '#6b6b6b',
     fontFamily: config.get<string>('theme.fontFamily') ||
-      "'Legacy Font 2.0', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+      "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
     customStyles: config.get<string>('theme.customStyles') || '',
     fontWeights,
     embeddedFonts,

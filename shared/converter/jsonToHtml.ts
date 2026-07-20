@@ -448,14 +448,14 @@ function generateHtmlDocument(bodyContent: string, theme?: HtmlTheme, meta?: Sdo
   const companyName = theme?.companyName || '';
   const primaryColor = theme?.primaryColor || '#A50034';
   const accentColor = theme?.accentColor || '#6b6b6b';
-  const fontFamily = theme?.fontFamily || "'Legacy Font 2.0', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
+  const fontFamily = theme?.fontFamily || "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
   const customStyles = theme?.customStyles || '';
   const fw = theme?.fontWeights || { body: 400, bold: 700, h1: 700, h2: 600, h3: 600 };
 
   // Generate @font-face rules if embeddedFonts are provided
   const fontFaceRules = (theme?.embeddedFonts || []).map(f => `
     @font-face {
-      font-family: 'Legacy Font 2.0';
+      font-family: 'Structured Doc Embedded Font';
       font-weight: ${f.weight};
       font-style: normal;
       font-display: swap;
