@@ -1,21 +1,26 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
+import { randomBytes } from 'crypto';
 import { convertJsonToHtml } from '../shared/converter';
 import { detectBrowser, printToPdf } from './utils/browserDetect';
 import { loadBundledFontsAsBase64 } from './utils/fontUtils';
 import { embedImagesAsBase64 } from './utils/imageUtils';
 import { resolveCompanyLogo, readFontWeights, buildHtmlTheme, readExportSettings } from './utils/themeUtils';
-import { unwrapSdoc } from '../shared/document/sdocUtils';
-import type { TiptapMark, TiptapNode } from '../shared/types';
-
-interface SdocBook {
-  sdocBook: string;
-  title?: string;
-  author?: string;
-  version?: string;
-  documents: Array<{ path: string; label?: string }>;
-}
+import {
+  BookDocumentLoadError,
+  composeBook,
+  diagnosticsForDocument,
+  hasBookErrors,
+  isBookWebviewMessage,
+  normalizeBookDocumentPath,
+  parseBook,
+  type BookCompositionResult,
+  type BookDiagnostic,
+  type BookDocumentLoader,
+  type ResolvedBookDocument,
+  type SdocBook,
+} from '../shared/book';
 
 export class SdocBookProvider implements vscode.CustomTextEditorProvider {
   private static readonly VIEW_TYPE = 'structuredDocEditor.sdocBook';
@@ -36,49 +41,70 @@ export class SdocBookProvider implements vscode.CustomTextEditorProvider {
   ): Promise<void> {
     webviewPanel.webview.options = { enableScripts: true };
 
-    const updateWebview = () => {
-      try {
-        const text = document.getText();
-        const project: SdocBook = text.trim() ? JSON.parse(text) : {
-          sdocBook: '1.0',
-          title: '',
-          documents: [],
-        };
-        const projectDir = path.dirname(document.uri.fsPath);
-
-        // Check which files exist
-        const docs = project.documents.map(d => ({
-          ...d,
-          exists: fs.existsSync(path.resolve(projectDir, d.path)),
-          label: d.label || path.basename(d.path, '.sdoc'),
-        }));
-
-        webviewPanel.webview.html = this.getHtml(project, docs);
-      } catch {
-        webviewPanel.webview.html = this.getErrorHtml('Invalid JSON in .sdocbook file');
+    let updateSequence = 0;
+    let disposed = false;
+    const updateWebview = async (): Promise<void> => {
+      const sequence = ++updateSequence;
+      const result = await this.loadBook(document);
+      if (disposed || sequence !== updateSequence) return;
+      if (!result.book) {
+        webviewPanel.webview.html = this.getErrorHtml(result.diagnostics[0]?.message ?? 'Invalid .sdocbook file');
+        return;
       }
+      const docs = result.composition?.documents ?? result.book.documents.map((entry) => ({
+        path: entry.path,
+        label: entry.label || path.basename(entry.path, '.sdoc'),
+        status: 'invalid' as const,
+      }));
+      webviewPanel.webview.html = this.getHtml(
+        webviewPanel.webview,
+        result.book,
+        docs,
+        result.diagnostics,
+      );
     };
 
-    updateWebview();
+    void updateWebview();
 
-    const changeSubscription = vscode.workspace.onDidChangeTextDocument(e => {
-      if (e.document.uri.toString() === document.uri.toString()) {
-        updateWebview();
-      }
+    const projectDir = path.dirname(document.uri.fsPath);
+    const isProjectDocument = (candidate: vscode.TextDocument): boolean => {
+      if (candidate.uri.toString() === document.uri.toString()) return true;
+      if (candidate.uri.scheme !== 'file' || !candidate.uri.fsPath.toLowerCase().endsWith('.sdoc')) return false;
+      const relative = path.relative(projectDir, candidate.uri.fsPath);
+      return relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
+    };
+    const changeSubscription = vscode.workspace.onDidChangeTextDocument((event) => {
+      if (isProjectDocument(event.document)) void updateWebview();
+    });
+    const watcher = vscode.workspace.createFileSystemWatcher(
+      new vscode.RelativePattern(vscode.Uri.file(projectDir), '**/*.sdoc'),
+    );
+    const watcherSubscriptions = [
+      watcher.onDidCreate(() => void updateWebview()),
+      watcher.onDidChange(() => void updateWebview()),
+      watcher.onDidDelete(() => void updateWebview()),
+    ];
+
+    webviewPanel.onDidDispose(() => {
+      disposed = true;
+      changeSubscription.dispose();
+      watcherSubscriptions.forEach((subscription) => subscription.dispose());
+      watcher.dispose();
     });
 
-    webviewPanel.onDidDispose(() => changeSubscription.dispose());
-
-    webviewPanel.webview.onDidReceiveMessage(async (message) => {
+    webviewPanel.webview.onDidReceiveMessage(async (message: unknown) => {
+      if (!isBookWebviewMessage(message)) return;
       switch (message.type) {
         case 'openDocument': {
-          const projectDir = path.dirname(document.uri.fsPath);
-          const targetPath = path.resolve(projectDir, message.path);
+          const parsed = parseBook(document.getText());
+          const target = parsed.book?.documents[message.index];
+          if (!target) break;
+          const targetPath = path.resolve(projectDir, target.path);
           const targetUri = vscode.Uri.file(targetPath);
           try {
             await vscode.commands.executeCommand('vscode.open', targetUri);
           } catch {
-            vscode.window.showWarningMessage(`File not found: ${message.path}`);
+            vscode.window.showWarningMessage(`File not found: ${target.path}`);
           }
           break;
         }
@@ -90,14 +116,17 @@ export class SdocBookProvider implements vscode.CustomTextEditorProvider {
             defaultUri: vscode.Uri.file(path.dirname(document.uri.fsPath)),
           });
           if (files && files.length > 0) {
-            const projectDir = path.dirname(document.uri.fsPath);
-            const text = document.getText();
-            const project: SdocBook = text.trim() ? JSON.parse(text) : { sdocBook: '1.0', documents: [] };
+            const project = this.getEditableBook(document);
+            if (!project) break;
             for (const f of files) {
               const rel = path.relative(projectDir, f.fsPath).replace(/\\/g, '/');
-              const relPath = rel.startsWith('.') ? rel : `./${rel}`;
-              if (!project.documents.some(d => d.path === relPath)) {
-                project.documents.push({ path: relPath });
+              const bookPath = normalizeBookDocumentPath(rel);
+              if (!bookPath) {
+                vscode.window.showWarningMessage(`Book documents must stay inside the book folder: ${f.fsPath}`);
+                continue;
+              }
+              if (!project.documents.some(d => d.path === bookPath)) {
+                project.documents.push({ path: bookPath });
               }
             }
             await this.updateProjectFile(document, project);
@@ -105,15 +134,15 @@ export class SdocBookProvider implements vscode.CustomTextEditorProvider {
           break;
         }
         case 'removeDocument': {
-          const text = document.getText();
-          const project: SdocBook = JSON.parse(text);
+          const project = this.getEditableBook(document);
+          if (!project) break;
           project.documents.splice(message.index, 1);
           await this.updateProjectFile(document, project);
           break;
         }
         case 'moveDocument': {
-          const text = document.getText();
-          const project: SdocBook = JSON.parse(text);
+          const project = this.getEditableBook(document);
+          if (!project) break;
           const { from, to } = message;
           if (from >= 0 && from < project.documents.length && to >= 0 && to < project.documents.length) {
             const [item] = project.documents.splice(from, 1);
@@ -123,11 +152,9 @@ export class SdocBookProvider implements vscode.CustomTextEditorProvider {
           break;
         }
         case 'updateMeta': {
-          const text = document.getText();
-          const project: SdocBook = JSON.parse(text);
-          if (message.title !== undefined) project.title = message.title;
-          if (message.author !== undefined) project.author = message.author;
-          if (message.version !== undefined) project.version = message.version;
+          const project = this.getEditableBook(document);
+          if (!project) break;
+          project[message.key] = message.value;
           await this.updateProjectFile(document, project);
           break;
         }
@@ -135,8 +162,50 @@ export class SdocBookProvider implements vscode.CustomTextEditorProvider {
           await this.exportProject(document, message.format);
           break;
         }
+        case 'refreshBook':
+          await updateWebview();
+          break;
       }
     });
+  }
+
+  private createDocumentLoader(bookDocument: vscode.TextDocument): BookDocumentLoader {
+    const projectDir = path.dirname(bookDocument.uri.fsPath);
+    return {
+      load: async (bookPath: string): Promise<unknown> => {
+        const uri = vscode.Uri.file(path.resolve(projectDir, bookPath));
+        const openDocument = vscode.workspace.textDocuments.find(
+          (candidate) => candidate.uri.toString() === uri.toString(),
+        );
+        if (openDocument) return openDocument.getText();
+        try {
+          return new TextDecoder().decode(await vscode.workspace.fs.readFile(uri));
+        } catch (error) {
+          if (error instanceof vscode.FileSystemError && error.code === 'FileNotFound') {
+            throw new BookDocumentLoadError('not-found', bookPath);
+          }
+          throw new BookDocumentLoadError(
+            'read-failed',
+            error instanceof Error ? error.message : String(error),
+          );
+        }
+      },
+    };
+  }
+
+  private async loadBook(document: vscode.TextDocument): Promise<{
+    book?: SdocBook;
+    composition?: BookCompositionResult;
+    diagnostics: BookDiagnostic[];
+  }> {
+    const parsed = parseBook(document.getText());
+    if (!parsed.book) return { diagnostics: parsed.diagnostics };
+    const composition = await composeBook(
+      parsed.book,
+      this.createDocumentLoader(document),
+      parsed.diagnostics,
+    );
+    return { book: parsed.book, composition, diagnostics: composition.diagnostics };
   }
 
   private async updateProjectFile(document: vscode.TextDocument, project: SdocBook): Promise<void> {
@@ -149,48 +218,46 @@ export class SdocBookProvider implements vscode.CustomTextEditorProvider {
     await vscode.workspace.applyEdit(edit);
   }
 
+  private getEditableBook(document: vscode.TextDocument): SdocBook | undefined {
+    const parsed = parseBook(document.getText());
+    const unsafeRewrite = parsed.diagnostics.find((diagnostic) =>
+      diagnostic.code === 'BOOK_INVALID'
+      || diagnostic.code === 'BOOK_VERSION_UNSUPPORTED'
+      || diagnostic.code === 'BOOK_PROPERTY_UNSUPPORTED'
+      || diagnostic.code === 'DOCUMENT_PATH_INVALID'
+      || diagnostic.code === 'DOCUMENT_PATH_OUTSIDE_BOOK'
+    );
+    if (!parsed.book || unsafeRewrite) {
+      vscode.window.showErrorMessage(
+        `Fix the .sdocbook manifest before editing it in the visual editor.${unsafeRewrite ? ` ${unsafeRewrite.message}` : ''}`,
+      );
+      return undefined;
+    }
+    return parsed.book;
+  }
+
   async exportProject(
     document: vscode.TextDocument,
     format: 'html' | 'pdf'
   ): Promise<void> {
-    const text = document.getText();
-    const project: SdocBook = JSON.parse(text);
+    const result = await this.loadBook(document);
+    if (!result.book || !result.composition || hasBookErrors(result.diagnostics)) {
+      const errors = result.diagnostics
+        .filter((diagnostic) => diagnostic.severity === 'error')
+        .slice(0, 3)
+        .map((diagnostic) => diagnostic.message)
+        .join('\n');
+      vscode.window.showErrorMessage(`Book export blocked until errors are fixed.${errors ? `\n${errors}` : ''}`);
+      return;
+    }
     const projectDir = path.dirname(document.uri.fsPath);
     const config = vscode.workspace.getConfiguration('structuredDocEditor');
 
-    // Collect all document paths for cross-doc link resolution
-    const docPaths = new Set(project.documents.map(d => d.path));
-
-    // Merge all documents into one doc tree
-    const mergedContent: TiptapNode[] = [];
-    for (const entry of project.documents) {
-      const filePath = path.resolve(projectDir, entry.path);
-      const docDir = path.dirname(filePath);
-      try {
-        const raw = await fs.promises.readFile(filePath, 'utf-8');
-        const { doc } = unwrapSdoc(JSON.parse(raw) as unknown);
-        if (doc.content) {
-          // Rebase image paths relative to the project directory
-          const rebased = doc.content.map((node) =>
-            this.rebaseImagePaths(node, docDir, projectDir)
-          );
-          mergedContent.push(...rebased);
-        }
-      } catch (err) {
-        vscode.window.showWarningMessage(`Skipped ${entry.path}: ${(err as Error).message}`);
-      }
-    }
-
-    let mergedDoc: TiptapNode = { type: 'doc', content: mergedContent };
-
-    // Resolve cross-doc links: ./file.sdoc#id → #id (since all content is merged)
-    mergedDoc = this.resolveCrossDocLinks(mergedDoc, docPaths);
-
     // Embed images
     const selfContained = config.get<string>('export.selfContained', 'images-only');
-    let finalDoc = mergedDoc;
+    let finalDoc = result.composition.doc;
     if (selfContained !== 'none') {
-      finalDoc = await embedImagesAsBase64(mergedDoc, projectDir);
+      finalDoc = await embedImagesAsBase64(finalDoc, projectDir);
     }
 
     // Build theme
@@ -208,13 +275,7 @@ export class SdocBookProvider implements vscode.CustomTextEditorProvider {
       selfContained,
     };
 
-    const meta = {
-      title: project.title,
-      author: project.author,
-      version: project.version,
-    };
-
-    let htmlContent = convertJsonToHtml(finalDoc, theme, exportSettings, meta);
+    let htmlContent = convertJsonToHtml(finalDoc, theme, exportSettings, result.composition.meta);
 
     if (format === 'pdf') {
       const browserPath = detectBrowser();
@@ -257,130 +318,135 @@ export class SdocBookProvider implements vscode.CustomTextEditorProvider {
     }
   }
 
-  /** Rebase image src paths from document-relative to project-relative */
-  private rebaseImagePaths(node: TiptapNode, docDir: string, projectDir: string): TiptapNode {
-    const cloned: TiptapNode = { ...node };
-
-    if (cloned.type === 'image' && typeof cloned.attrs?.src === 'string') {
-      const src = cloned.attrs.src;
-      if (!src.startsWith('data:') && !src.startsWith('http')) {
-        const absPath = path.resolve(docDir, src);
-        const rebasedPath = path.relative(projectDir, absPath).replace(/\\/g, '/');
-        cloned.attrs = { ...cloned.attrs, src: rebasedPath };
-      }
-    }
-
-    if (cloned.content && Array.isArray(cloned.content)) {
-      cloned.content = cloned.content.map((child) =>
-        this.rebaseImagePaths(child, docDir, projectDir)
-      );
-    }
-    return cloned;
-  }
-
-  /** Resolve cross-doc links: ./file.sdoc#id → #id for merged output */
-  private resolveCrossDocLinks(node: TiptapNode, docPaths: Set<string>): TiptapNode {
-    const cloned: TiptapNode = { ...node };
-
-    if (cloned.marks && Array.isArray(cloned.marks)) {
-      cloned.marks = cloned.marks.map((mark: TiptapMark) => {
-        if (mark.type === 'link' && typeof mark.attrs?.href === 'string') {
-          const href = mark.attrs.href;
-          // Match ./file.sdoc#anchor or ./file.sdoc
-          const match = href.match(/^\.\/([^#]+\.sdoc)(#.+)?$/);
-          if (match) {
-            const filePart = `./${match[1]}`;
-            if (docPaths.has(filePart)) {
-              // This doc is in the project — resolve to just anchor
-              return {
-                ...mark,
-                attrs: { ...mark.attrs, href: match[2] || '' },
-              };
-            }
-          }
-        }
-        return mark;
-      });
-    }
-
-    if (cloned.content && Array.isArray(cloned.content)) {
-      cloned.content = cloned.content.map((child) =>
-        this.resolveCrossDocLinks(child, docPaths)
-      );
-    }
-    return cloned;
-  }
-
-  private getHtml(project: SdocBook, docs: Array<{ path: string; label: string; exists: boolean }>): string {
+  private getHtml(
+    webview: vscode.Webview,
+    project: SdocBook,
+    docs: ResolvedBookDocument[],
+    diagnostics: BookDiagnostic[],
+  ): string {
+    const nonce = randomBytes(16).toString('base64');
+    const errorCount = diagnostics.filter((item) => item.severity === 'error').length;
+    const warningCount = diagnostics.filter((item) => item.severity === 'warning').length;
+    const exportDisabled = errorCount > 0 ? ' disabled' : '';
     const docRows = docs.map((d, i) => `
-      <div class="doc-row${d.exists ? '' : ' missing'}">
+      <div class="doc-row ${d.status}">
         <span class="doc-num">${i + 1}</span>
-        <span class="doc-label" onclick="openDoc('${this.escHtml(d.path)}')" title="${this.escHtml(d.path)}">${this.escHtml(d.label)}</span>
+        <button class="doc-label" data-open-index="${i}" title="${this.escHtml(d.path)}">${this.escHtml(d.label)}</button>
         <span class="doc-path">${this.escHtml(d.path)}</span>
-        ${!d.exists ? '<span class="doc-missing">⚠ not found</span>' : ''}
+        ${d.status === 'missing' ? '<span class="doc-status error">not found</span>' : ''}
+        ${d.status === 'invalid' ? '<span class="doc-status error">invalid</span>' : ''}
+        ${diagnosticsForDocument(diagnostics, d.path)
+          .filter((item) => item.code !== 'DOCUMENT_MISSING' && item.code !== 'DOCUMENT_INVALID')
+          .map((item) => `<span class="doc-status ${item.severity}" title="${this.escHtml(item.message)}">${this.escHtml(item.code)}</span>`)
+          .join('')}
         <span class="doc-actions">
-          ${i > 0 ? `<button onclick="move(${i}, ${i - 1})" title="Move up">↑</button>` : ''}
-          ${i < docs.length - 1 ? `<button onclick="move(${i}, ${i + 1})" title="Move down">↓</button>` : ''}
-          <button onclick="remove(${i})" title="Remove">✕</button>
+          ${i > 0 ? `<button data-move-from="${i}" data-move-to="${i - 1}" title="Move up">↑</button>` : ''}
+          ${i < docs.length - 1 ? `<button data-move-from="${i}" data-move-to="${i + 1}" title="Move down">↓</button>` : ''}
+          <button data-remove-index="${i}" title="Remove">✕</button>
         </span>
       </div>
     `).join('');
 
+    const diagnosticRows = diagnostics.map((item) => `
+      <li class="diagnostic ${item.severity}">
+        <span class="diagnostic-code">${this.escHtml(item.code)}</span>
+        <span>${this.escHtml(item.message)}</span>
+      </li>
+    `).join('');
+
     return `<!DOCTYPE html>
 <html><head><meta charset="UTF-8">
-<style>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'nonce-${nonce}'; script-src 'nonce-${nonce}';">
+<style nonce="${nonce}">
   body { font-family: var(--vscode-font-family, sans-serif); color: var(--vscode-foreground); background: var(--vscode-editor-background); padding: 20px; max-width: 800px; margin: 0 auto; }
   h1 { font-size: 1.5em; margin-bottom: 8px; }
   .meta { display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
   .meta label { font-size: 12px; color: var(--vscode-descriptionForeground); display: block; margin-bottom: 2px; }
   .meta input { padding: 4px 8px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border, #444); border-radius: 3px; font-size: 13px; width: 200px; }
+  .meta input.version { width: 80px; }
   .toolbar { margin-bottom: 12px; display: flex; gap: 8px; }
   .toolbar button { padding: 6px 14px; background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; border-radius: 3px; cursor: pointer; font-size: 13px; }
   .toolbar button:hover { background: var(--vscode-button-hoverBackground); }
+  .toolbar button:disabled { cursor: not-allowed; opacity: 0.45; }
   .toolbar button.secondary { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); }
   .doc-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-bottom: 1px solid var(--vscode-panel-border, #333); }
   .doc-row:hover { background: var(--vscode-list-hoverBackground); }
-  .doc-row.missing { opacity: 0.6; }
+  .doc-row.missing, .doc-row.invalid { background: var(--vscode-inputValidation-errorBackground, rgba(255, 0, 0, 0.08)); }
   .doc-num { width: 24px; text-align: right; color: var(--vscode-descriptionForeground); font-size: 12px; }
-  .doc-label { cursor: pointer; color: var(--vscode-textLink-foreground); flex: 1; }
+  .doc-label { cursor: pointer; color: var(--vscode-textLink-foreground); flex: 1; border: 0; background: transparent; padding: 0; text-align: left; font: inherit; }
   .doc-label:hover { text-decoration: underline; }
   .doc-path { color: var(--vscode-descriptionForeground); font-size: 12px; }
-  .doc-missing { color: var(--vscode-errorForeground); font-size: 12px; }
+  .doc-status { border-radius: 10px; padding: 1px 6px; font-size: 10px; }
+  .doc-status.error { color: var(--vscode-errorForeground); background: var(--vscode-inputValidation-errorBackground); }
+  .doc-status.warning { color: var(--vscode-editorWarning-foreground); background: var(--vscode-inputValidation-warningBackground); }
   .doc-actions button { background: none; border: none; color: var(--vscode-foreground); cursor: pointer; padding: 2px 4px; font-size: 14px; opacity: 0.6; }
   .doc-actions button:hover { opacity: 1; }
+  .validation-summary { border: 1px solid var(--vscode-panel-border, #444); border-radius: 5px; padding: 10px 12px; margin-bottom: 14px; }
+  .validation-summary.ok { border-color: var(--vscode-testing-iconPassed, #73c991); }
+  .validation-title { display: flex; justify-content: space-between; align-items: center; font-weight: 600; }
+  .validation-counts { color: var(--vscode-descriptionForeground); font-size: 12px; }
+  .diagnostics { margin: 8px 0 0; padding-left: 20px; font-size: 12px; }
+  .diagnostic { margin: 4px 0; }
+  .diagnostic.error { color: var(--vscode-errorForeground); }
+  .diagnostic.warning { color: var(--vscode-editorWarning-foreground); }
+  .diagnostic-code { font-family: var(--vscode-editor-font-family, monospace); margin-right: 8px; }
   .empty { color: var(--vscode-descriptionForeground); font-style: italic; padding: 20px; text-align: center; }
 </style></head><body>
   <h1>📚 ${this.escHtml(project.title || 'Untitled Project')}</h1>
   <div class="meta">
-    <div><label>Title</label><input value="${this.escHtml(project.title || '')}" onchange="updateMeta('title', this.value)"></div>
-    <div><label>Author</label><input value="${this.escHtml(project.author || '')}" onchange="updateMeta('author', this.value)"></div>
-    <div><label>Version</label><input value="${this.escHtml(project.version || '')}" onchange="updateMeta('version', this.value)" style="width:80px;"></div>
+    <div><label>Title</label><input data-meta-key="title" value="${this.escHtml(project.title || '')}"></div>
+    <div><label>Author</label><input data-meta-key="author" value="${this.escHtml(project.author || '')}"></div>
+    <div><label>Version</label><input class="version" data-meta-key="version" value="${this.escHtml(project.version || '')}"></div>
+  </div>
+  <div class="validation-summary${diagnostics.length === 0 ? ' ok' : ''}">
+    <div class="validation-title">
+      <span>${diagnostics.length === 0 ? 'Book is valid' : 'Book validation'}</span>
+      <span class="validation-counts">${errorCount} errors · ${warningCount} warnings</span>
+    </div>
+    ${diagnosticRows ? `<ul class="diagnostics">${diagnosticRows}</ul>` : ''}
   </div>
   <div class="toolbar">
-    <button onclick="addDoc()">+ Add Document</button>
-    <button class="secondary" onclick="exportProject('html')">Export HTML</button>
-    <button class="secondary" onclick="exportProject('pdf')">Export PDF</button>
+    <button data-action="add">+ Add Document</button>
+    <button class="secondary" data-action="refresh">Validate Book</button>
+    <button class="secondary" data-export="html"${exportDisabled}>Export HTML</button>
+    <button class="secondary" data-export="pdf"${exportDisabled}>Export PDF</button>
   </div>
   <div class="doc-list">
     ${docs.length > 0 ? docRows : '<div class="empty">No documents added. Click "Add Document" to start.</div>'}
   </div>
-<script>
+<script nonce="${nonce}">
   const vscode = acquireVsCodeApi();
-  function openDoc(p) { vscode.postMessage({ type: 'openDocument', path: p }); }
-  function addDoc() { vscode.postMessage({ type: 'addDocument' }); }
-  function remove(i) { vscode.postMessage({ type: 'removeDocument', index: i }); }
-  function move(from, to) { vscode.postMessage({ type: 'moveDocument', from, to }); }
-  function updateMeta(key, val) { vscode.postMessage({ type: 'updateMeta', [key]: val }); }
-  function exportProject(fmt) { vscode.postMessage({ type: 'exportProject', format: fmt }); }
+  document.querySelector('[data-action="add"]').addEventListener('click', () => vscode.postMessage({ type: 'addDocument' }));
+  document.querySelector('[data-action="refresh"]').addEventListener('click', () => vscode.postMessage({ type: 'refreshBook' }));
+  document.querySelectorAll('[data-open-index]').forEach((element) => element.addEventListener('click', () => {
+    vscode.postMessage({ type: 'openDocument', index: Number(element.dataset.openIndex) });
+  }));
+  document.querySelectorAll('[data-remove-index]').forEach((element) => element.addEventListener('click', () => {
+    vscode.postMessage({ type: 'removeDocument', index: Number(element.dataset.removeIndex) });
+  }));
+  document.querySelectorAll('[data-move-from]').forEach((element) => element.addEventListener('click', () => {
+    vscode.postMessage({ type: 'moveDocument', from: Number(element.dataset.moveFrom), to: Number(element.dataset.moveTo) });
+  }));
+  document.querySelectorAll('[data-meta-key]').forEach((element) => element.addEventListener('change', () => {
+    vscode.postMessage({ type: 'updateMeta', key: element.dataset.metaKey, value: element.value });
+  }));
+  document.querySelectorAll('[data-export]').forEach((element) => element.addEventListener('click', () => {
+    vscode.postMessage({ type: 'exportProject', format: element.dataset.export });
+  }));
 </script>
 </body></html>`;
   }
 
   private getErrorHtml(msg: string): string {
-    return `<!DOCTYPE html><html><body><h2>Error</h2><p>${msg}</p></body></html>`;
+    return `<!DOCTYPE html><html><body><h2>Error</h2><p>${this.escHtml(msg)}</p></body></html>`;
   }
 
   private escHtml(s: string): string {
-    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    return s
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 }

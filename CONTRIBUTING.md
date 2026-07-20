@@ -44,6 +44,7 @@ cargo test --manifest-path tauri-app/Cargo.toml --workspace
 
 - `src/`: VS Code Extension host와 파일 I/O
 - `shared/`: VS Code API에 의존하지 않는 문서 타입, 변환기, 문서 코어
+- `shared/book/`: `.sdocbook` 파싱, 합본, 경로 처리, 진단
 - `shared/editor/`: VS Code와 Tauri가 함께 쓰는 에디터 컴포넌트와 Tiptap 확장
 - `webview-ui/src/`: VS Code 전용 메시징과 UI 조합
 - `tauri-app/src/`: Tauri 전용 메시징, 탐색기, 데스크톱 UI 조합
@@ -53,6 +54,8 @@ cargo test --manifest-path tauri-app/Cargo.toml --workspace
 두 UI에 같은 구현을 복사하지 말고 `shared/editor/`로 올립니다. 호스트 API는 어댑터 뒤에 두고, `shared/`에서는 `vscode`나 Tauri API를 import하지 않습니다. `.sdoc` 저장 형식을 바꿀 때는 `shared/types.ts`, `shared/document/sdocUtils.ts`, `sdoc.schema.json`, 변환기, 테스트를 함께 갱신합니다.
 
 공통 에디터는 `EditorHostBridge`와 `EditorExtensionRuntime`만 통해 호스트 기능을 호출합니다. 전역 `window` 속성으로 기능을 노출하거나 메시지 payload에 임의 필드를 추가하지 마세요. VS Code 구현은 `src/`의 서비스와 어댑터에, Tauri 구현은 `tauri-app/src/`와 `tauri-app/src-tauri/`의 기능별 모듈에 둡니다. 공통 레이아웃 CSS는 `shared/editor/styles/`에서 수정하고 호스트별 파일에는 테마 토큰과 shell 전용 스타일만 둡니다.
+
+Book 조합 규칙은 `shared/book/`에서만 변경합니다. 코어는 파일 시스템을 직접 읽지 않고 `BookDocumentLoader`를 주입받아야 하며, preview와 export가 서로 다른 병합 결과를 만들지 않도록 같은 `composeBook()` 결과를 사용합니다.
 
 ## 수동 검증
 

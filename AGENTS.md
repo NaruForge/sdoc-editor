@@ -16,6 +16,7 @@ The document model, converters, settings, and host-neutral utilities belong in `
 - `shared/document/`: document envelope, migrations, IDs, and cross-references
 - `shared/settingsResolver.ts`: defaults and settings resolution
 - `shared/converter/`: all import/export conversion
+- `shared/book/`: `.sdocbook` parsing, validation, and host-neutral composition
 - `shared/editor/`: UI and Tiptap code shared by both hosts
 - `docs/architecture.md`: current architecture
 - `docs/adr/`: durable architectural decisions; newer ADRs may supersede older ones
@@ -50,6 +51,7 @@ cargo test --manifest-path tauri-app/Cargo.toml --workspace
 6. Do not add new `any`, untyped `window` globals, synchronous extension-host I/O, or copied defaults.
 7. Update schemas, examples, tests, and converters when the persisted document format changes.
 8. Keep user documentation in `README.md`, contributor workflow in `CONTRIBUTING.md`, and implementation detail in `docs/`.
+9. Keep `.sdocbook` loading behind `BookDocumentLoader`; the composition core must not access host filesystems directly.
 
 ## Packaging
 
@@ -57,3 +59,12 @@ cargo test --manifest-path tauri-app/Cargo.toml --workspace
 - `npm run build:desktop` builds the Tauri frontend only.
 - Native installers are built through Tauri after the frontend and Rust checks pass.
 - Versions are synchronized by `npm run version:check`.
+
+## Agent orchestration
+
+- Use `$orchestrate-sdoc-work` when a task has at least two independent workstreams, spans both hosts and shared code, or explicitly requests delegation or parallel review.
+- Keep small edits, single-cause debugging, and tightly coupled changes in the main agent.
+- The main agent owns requirements, architecture decisions, integration, and final verification.
+- Prefer parallel read-heavy exploration, review, and test analysis. Partition write work by non-overlapping files and never let agents edit the same file concurrently.
+- Use the project custom agents in `.codex/agents/` for architecture, review, and verification when their role fits.
+- Invoke Grok or agy only when the user explicitly requests an external second opinion or cross-model validation. Treat their output as advisory until verified against repository sources and tests.
