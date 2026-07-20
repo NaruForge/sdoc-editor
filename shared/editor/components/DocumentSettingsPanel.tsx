@@ -1,5 +1,5 @@
 import React, { useCallback } from 'react';
-import { useEditorContext } from '../context/EditorContext';
+import { useEditorContext } from '@shared/editor/context/EditorContext';
 import type {
   CaptionStyleName,
   DocumentSettings,
@@ -7,10 +7,13 @@ import type {
   SlideBreakLevel,
   SlideTransition,
 } from '@shared/types';
-
-interface DocumentSettingsPanelProps {
+export interface DocumentSettingsPanelProps {
   onUpdateSettings: (settings: Partial<DocumentSettings> | null) => void;
+  onSelectCssFile?: (target: CssTarget) => void;
+  onClearCssFile?: (target: CssTarget) => void;
 }
+
+export type CssTarget = 'slide' | 'html';
 
 interface CollapsibleSectionProps {
   title: string;
@@ -38,16 +41,19 @@ const CAPTION_STYLE_OPTIONS: { value: CaptionStyleName; label: string; descripti
   { value: 'korean', label: 'Korean (한국형)', description: '그림 1, 표 1, 식 (1)' },
 ];
 
-interface CssPathFieldOption {
+interface CssFileTargetOption {
+  target: CssTarget;
   label: string;
   pathKey: 'slideCssPath' | 'htmlCssPath';
   placeholder: string;
 }
 
-const CSS_PATH_FIELD_OPTIONS: CssPathFieldOption[] = [
-  { label: 'Slide CSS', pathKey: 'slideCssPath', placeholder: './theme/slide.css' },
-  { label: 'HTML CSS', pathKey: 'htmlCssPath', placeholder: './theme/html.css' },
+const CSS_FILE_TARGET_OPTIONS: CssFileTargetOption[] = [
+  { target: 'slide', label: 'Slide CSS', pathKey: 'slideCssPath', placeholder: './theme/slide.css' },
+  { target: 'html', label: 'HTML CSS', pathKey: 'htmlCssPath', placeholder: './theme/html.css' },
 ];
+
+const UNSET_CSS_PATH_LABEL = '(설정 안됨)';
 
 const SELF_CONTAINED_OPTIONS: { value: SelfContainedMode; label: string }[] = [
   { value: 'none', label: '외부 파일 참조' },
@@ -121,7 +127,11 @@ const DeferredTextInput: React.FC<DeferredTextInputProps> = ({ value, placeholde
   );
 };
 
-export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({ onUpdateSettings }) => {
+export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
+  onUpdateSettings,
+  onSelectCssFile,
+  onClearCssFile,
+}) => {
   const { state } = useEditorContext();
   const docSettings = state.docSettings;
   const mergedSettings = state.settings;
@@ -143,16 +153,14 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({ on
     onUpdateSettings(null);
   }, [onUpdateSettings]);
 
-  const handleTextFieldCommit = useCallback((key: CssPathFieldOption['pathKey'] | 'outputDir', value: string) => {
+  const handleTextFieldCommit = useCallback((key: CssFileTargetOption['pathKey'] | 'outputDir', value: string) => {
     const trimmedValue = value.trim();
     const nextSettings: Partial<DocumentSettings> = { ...(docSettings ?? {}) };
-
     if (trimmedValue.length > 0) {
       nextSettings[key] = trimmedValue;
     } else {
       delete nextSettings[key];
     }
-
     onUpdateSettings(Object.keys(nextSettings).length > 0 ? nextSettings : null);
   }, [docSettings, onUpdateSettings]);
 
@@ -270,85 +278,112 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({ on
       </CollapsibleSection>
 
       <CollapsibleSection title="스타일 (Export CSS)">
-        {CSS_PATH_FIELD_OPTIONS.map(({ label, pathKey, placeholder }) => (
-          <div className="settings-row" key={pathKey}>
-            <label className="settings-label">{label}</label>
-            <DeferredTextInput
-              value={docSettings?.[pathKey] ?? ''}
-              placeholder={placeholder}
+        {CSS_FILE_TARGET_OPTIONS.map(({ target, label, pathKey, placeholder }) => {
+          const cssPath = docSettings?.[pathKey];
+          const hasPath = typeof cssPath === 'string' && cssPath.length > 0;
+
+          return (
+            <div className="settings-row" key={target}>
+              <label className="settings-label">{label}</label>
+              {onSelectCssFile ? <div className="settings-file-picker">
+                <span className="settings-file-path" title={hasPath ? cssPath : UNSET_CSS_PATH_LABEL}>
+                  {hasPath ? cssPath : UNSET_CSS_PATH_LABEL}
+                </span>
+                <button
+                  type="button"
+                  className="settings-file-btn"
+                  onClick={() => onSelectCssFile(target)}
+                  title={`${label} 선택`}
+                >
+                  📁
+                </button>
+                {hasPath && onClearCssFile && (
+                  <button
+                    type="button"
+                    className="settings-file-clear-btn"
+                    onClick={() => onClearCssFile(target)}
+                    title={`${label} 지우기`}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div> : <DeferredTextInput
+                value={cssPath ?? ''}
+                placeholder={placeholder}
                 onCommit={(value) => handleTextFieldCommit(pathKey, value)}
-            />
-          </div>
-        ))}
+              />}
+            </div>
+          );
+        })}
       </CollapsibleSection>
 
       <CollapsibleSection title="내보내기 (Export)">
         <div className="settings-row">
           <label className="settings-label">PDF 배율</label>
           <input
-              type="number"
-              className="settings-number-input"
-              min={10}
-              max={200}
-              step={5}
-              value={docSettings?.pdfScale ?? mergedSettings.pdfScale}
-              onChange={(e) => updateField('pdfScale', Math.min(200, Math.max(10, Number(e.target.value) || 70)))}
+            type="number"
+            className="settings-number-input"
+            min={10}
+            max={200}
+            step={5}
+            value={docSettings?.pdfScale ?? mergedSettings.pdfScale}
+            onChange={(e) => updateField('pdfScale', Math.min(200, Math.max(10, Number(e.target.value) || 70)))}
           />
         </div>
         <div className="settings-row">
           <label className="settings-label">HTML 포함 수준</label>
           <select
-              className="settings-select"
-              value={docSettings?.selfContained ?? mergedSettings.selfContained}
-              onChange={(e) => updateField('selfContained', e.target.value as SelfContainedMode)}
+            className="settings-select"
+            value={docSettings?.selfContained ?? mergedSettings.selfContained}
+            onChange={(e) => updateField('selfContained', e.target.value as SelfContainedMode)}
           >
-              {SELF_CONTAINED_OPTIONS.map(opt => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
+            {SELF_CONTAINED_OPTIONS.map(opt => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
           </select>
         </div>
         <div className="settings-row">
           <label className="settings-label">출력 폴더</label>
           <DeferredTextInput
-              value={docSettings?.outputDir ?? mergedSettings.outputDir}
-              placeholder="./export"
-              onCommit={(value) => handleTextFieldCommit('outputDir', value)}
+            value={docSettings?.outputDir ?? mergedSettings.outputDir}
+            placeholder="./export"
+            onCommit={(value) => handleTextFieldCommit('outputDir', value)}
           />
         </div>
         <div className="settings-hint">
-          비워두면 저장 대화상자에서 위치를 선택합니다. 상대 경로는 문서 폴더 기준입니다.
+          비워두면 문서와 같은 폴더에 저장합니다. 상대 경로는 워크스페이스 기준입니다.
         </div>
         <div className="settings-row">
           <label className="settings-label">슬라이드 분리</label>
           <select
-              className="settings-select"
-              value={docSettings?.slideBreakLevel ?? mergedSettings.slideBreakLevel}
-              onChange={(e) => updateField('slideBreakLevel', e.target.value as SlideBreakLevel)}
+            className="settings-select"
+            value={docSettings?.slideBreakLevel ?? mergedSettings.slideBreakLevel}
+            onChange={(e) => updateField('slideBreakLevel', e.target.value as SlideBreakLevel)}
           >
-              {SLIDE_BREAK_OPTIONS.map(opt => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
+            {SLIDE_BREAK_OPTIONS.map(opt => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
           </select>
         </div>
         <div className="settings-row">
           <label className="settings-label">타이틀 슬라이드</label>
           <input
-              type="checkbox"
-              className="settings-toggle"
-              checked={docSettings?.showTitleSlide ?? mergedSettings.showTitleSlide}
-              onChange={(e) => updateField('showTitleSlide', e.target.checked)}
+            type="checkbox"
+            className="settings-toggle"
+            checked={docSettings?.showTitleSlide ?? mergedSettings.showTitleSlide}
+            onChange={(e) => updateField('showTitleSlide', e.target.checked)}
           />
         </div>
         <div className="settings-row">
           <label className="settings-label">전환 효과</label>
           <select
-              className="settings-select"
-              value={docSettings?.slideTransition ?? mergedSettings.slideTransition}
-              onChange={(e) => updateField('slideTransition', e.target.value as SlideTransition)}
+            className="settings-select"
+            value={docSettings?.slideTransition ?? mergedSettings.slideTransition}
+            onChange={(e) => updateField('slideTransition', e.target.value as SlideTransition)}
           >
-              {SLIDE_TRANSITION_OPTIONS.map(opt => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
+            {SLIDE_TRANSITION_OPTIONS.map(opt => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
           </select>
         </div>
       </CollapsibleSection>
@@ -357,7 +392,7 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({ on
         <button
           className="settings-reset-btn"
           onClick={handleResetAll}
-          title="문서별 설정을 삭제하고 전역 설정으로 복원합니다"
+          title="문서별 설정을 삭제하고 VS Code 전역 설정으로 복원합니다"
         >
           🔄 기본값 불러오기
         </button>

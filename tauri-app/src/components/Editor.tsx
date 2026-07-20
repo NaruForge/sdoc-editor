@@ -1,13 +1,13 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { EditorContent } from '@tiptap/react';
 import { useTiptapEditor } from '@shared/editor/hooks/useTiptapEditor';
-import { useEditorContext } from '../context/EditorContext';
+import { useEditorContext } from '@shared/editor/context/EditorContext';
 import { useTauriMessaging } from '../hooks/useTauriMessaging';
 import { type TauriAdapter, resolveAssetUrl } from '../adapters/tauriMessaging';
 import { convertMarkdownToJson } from '@shared/converter/markdownToJson';
 import { extractTitle, normalizeDocument } from '@shared/document/sdocUtils';
-import { Toolbar } from './Toolbar';
-import { BubbleMenuBar } from './BubbleMenuBar';
+import { Toolbar } from '@shared/editor/components/Toolbar';
+import { BubbleMenuBar } from '@shared/editor/components/BubbleMenuBar';
 import { DocumentHeader } from '@shared/editor/components/DocumentHeader';
 import { TableContextMenu } from '@shared/editor/components/TableContextMenu';
 import { TablePropertiesModal } from '@shared/editor/components/TablePropertiesModal';
@@ -16,14 +16,14 @@ import { DrawioNameDialog } from '@shared/editor/components/DrawioNameDialog';
 import { DrawioActionDialog } from '@shared/editor/components/DrawioActionDialog';
 import { DrawioInstallGuideDialog } from './DrawioInstallGuideDialog';
 import { LinkDialog } from '@shared/editor/components/LinkDialog';
-import { ImagePropertiesDialog } from './ImagePropertiesDialog';
+import { ImagePropertiesDialog } from '@shared/editor/components/ImagePropertiesDialog';
 import { ImageContextMenu } from '@shared/editor/components/ImageContextMenu';
 import { MathDialog } from '@shared/editor/components/MathDialog';
 import { DiagramDialog } from '@shared/editor/components/DiagramDialog';
 import { EditorContextMenu } from '@shared/editor/components/EditorContextMenu';
 import { CrossReferenceDialog } from '@shared/editor/components/CrossReferenceDialog';
-import { ActivityBar } from './ActivityBar';
-import { SidePanel, type ActivityTab } from './SidePanel';
+import { ActivityBar, type ActivityTab } from '@shared/editor/components/ActivityBar';
+import { SidePanel } from './SidePanel';
 import { MenuBar, type MenuDef } from './MenuBar';
 import { ZoomBar } from '@shared/editor/components/ZoomBar';
 import { FolderOpen } from 'lucide-react';
@@ -34,7 +34,7 @@ import { preprocessImportedHtml } from '@shared/editor/utils/preprocessImportedH
 import type { DocumentSettings, TiptapNode } from '@shared/types';
 import type { EditorToHostMessage } from '@shared/types/messages';
 import type { ExplorerEntry } from '../App';
-import type { EditorSettings } from '../context/EditorContext';
+import type { EditorSettings } from '@shared/editor/context/EditorContext';
 
 /**
  * `setImage`'s TipTap-generated type only knows about `src`/`alt`/`title`. `relativePath` is a
@@ -766,6 +766,7 @@ export const Editor: React.FC<EditorProps> = ({
         <ActivityBar
           activeTab={showSidePanel ? sidePanelTab : null}
           onTabClick={handleActivityTabClick}
+          showExplorer
         />
         {showSidePanel && (
           <SidePanel

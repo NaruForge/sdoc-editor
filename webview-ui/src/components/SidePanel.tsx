@@ -1,14 +1,14 @@
 import React from 'react';
 import { Editor as TiptapEditor } from '@tiptap/react';
-import { TableOfContents } from './TableOfContents';
-import { ListOfFigures } from './ListOfFigures';
-import { ListOfTables } from './ListOfTables';
-import { DocumentSettingsPanel, type PostMessageHandler } from './DocumentSettingsPanel';
-import { PanelEmptyState } from './PanelEmptyState';
+import { TableOfContents } from '@shared/editor/components/TableOfContents';
+import { ListOfFigures } from '@shared/editor/components/ListOfFigures';
+import { ListOfTables } from '@shared/editor/components/ListOfTables';
+import { DocumentSettingsPanel } from '@shared/editor/components/DocumentSettingsPanel';
+import { PanelEmptyState } from '@shared/editor/components/PanelEmptyState';
 import type { DocumentSettings } from '@shared/types';
+import type { EditorToHostMessage } from '@shared/types/messages';
 import { FileJson, Download, Upload, Loader2, FolderOpen } from 'lucide-react';
-
-export type ActivityTab = 'view' | 'toc' | 'lof' | 'lot' | 'settings' | 'file';
+import type { ActivityTab } from '@shared/editor/components/ActivityBar';
 
 // Legacy alias kept for any other imports that still reference SidePanelTab
 export type SidePanelTab = ActivityTab;
@@ -21,7 +21,7 @@ interface SidePanelProps {
   showDecoration: boolean;
   onToggleDecoration: () => void;
   onUpdateDocSettings: (settings: Partial<DocumentSettings> | null) => void;
-  onPostMessage?: PostMessageHandler;
+  onPostMessage?: (message: EditorToHostMessage) => void;
   onViewJson?: () => void;
   onExport?: (format: 'html' | 'adoc' | 'markdown' | 'pdf' | 'slides') => void;
   onImport?: (format: 'markdown' | 'html') => void;
@@ -65,7 +65,8 @@ export const SidePanel: React.FC<SidePanelProps> = ({
         {activeTab === 'settings' && (
           <DocumentSettingsPanel
             onUpdateSettings={onUpdateDocSettings}
-            onPostMessage={onPostMessage}
+            onSelectCssFile={onPostMessage ? (target) => onPostMessage({ type: 'selectCssFile', target }) : undefined}
+            onClearCssFile={onPostMessage ? (target) => onPostMessage({ type: 'clearCssFile', target }) : undefined}
           />
         )}
         {activeTab === 'file' && (

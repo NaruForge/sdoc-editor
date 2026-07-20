@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { EditorHostBridge, HostMessageHandler } from '@shared/editor/hostBridge';
 import type { EditorToHostMessage } from '@shared/types/messages';
+import { isHostToEditorMessage } from '@shared/types/messageGuards';
 
 // VS Code API type definition
 interface VSCodeAPI {
@@ -30,7 +31,10 @@ const vscodeBridge: EditorHostBridge = {
     getVSCodeAPI().postMessage(message);
   },
   subscribe(handler) {
-    const listener = (event: MessageEvent) => handler(event.data as Parameters<HostMessageHandler>[0]);
+    const listener = (event: MessageEvent<unknown>) => {
+      if (isHostToEditorMessage(event.data)) handler(event.data);
+      else console.warn('Ignoring malformed Structured Doc host message', event.data);
+    };
     window.addEventListener('message', listener);
     return () => window.removeEventListener('message', listener);
   },

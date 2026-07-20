@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
+import '@shared/editor/styles/editor.css';
 import './styles/tauri-theme.css';
 import 'katex/dist/katex.min.css';
 

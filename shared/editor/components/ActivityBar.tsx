@@ -1,10 +1,11 @@
 import React from 'react';
 import { ListOrdered as NumberIcon, BookOpen, Settings, FolderOpen, Image, Table2, Files } from 'lucide-react';
-import type { ActivityTab } from './SidePanel';
+export type ActivityTab = 'explorer' | 'view' | 'toc' | 'lof' | 'lot' | 'settings' | 'file';
 
 interface ActivityBarProps {
   activeTab: ActivityTab | null;
   onTabClick: (tab: ActivityTab) => void;
+  showExplorer?: boolean;
 }
 
 const TABS: { id: ActivityTab; icon: React.ReactNode; title: string; label: string }[] = [
@@ -17,9 +18,9 @@ const TABS: { id: ActivityTab; icon: React.ReactNode; title: string; label: stri
   { id: 'file', icon: <FolderOpen size={18} />, title: '파일 작업 (내보내기/가져오기)', label: '파일' },
 ];
 
-export const ActivityBar: React.FC<ActivityBarProps> = ({ activeTab, onTabClick }) => (
+export const ActivityBar: React.FC<ActivityBarProps> = ({ activeTab, onTabClick, showExplorer = false }) => (
   <nav className="activity-bar" aria-label="문서 패널">
-    {TABS.map(({ id, icon, title, label }) => {
+    {TABS.filter(({ id }) => showExplorer || id !== 'explorer').map(({ id, icon, title, label }) => {
       const isActive = activeTab === id;
       return (
         <button

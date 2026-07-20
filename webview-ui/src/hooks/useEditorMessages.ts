@@ -1,6 +1,6 @@
 import { useRef, useState, MutableRefObject } from 'react';
 import { Editor as TiptapEditor, type JSONContent } from '@tiptap/react';
-import { useEditorContext, resolveFontWeight } from '../context/EditorContext';
+import { useEditorContext, resolveFontWeight } from '@shared/editor/context/EditorContext';
 import { useVSCodeMessaging } from './useVSCodeMessaging';
 import { preprocessImportedHtml } from '@shared/editor/utils/preprocessImportedHtml';
 

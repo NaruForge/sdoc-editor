@@ -2,12 +2,12 @@ import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { open, save } from '@tauri-apps/plugin-dialog';
-import { EditorProvider, useEditorContext } from './context/EditorContext';
+import { EditorProvider, useEditorContext } from '@shared/editor/context/EditorContext';
 import { Editor } from './components/Editor';
 import { createTauriAdapter } from './adapters/tauriMessaging';
 import type { DocumentSettings, SdocMeta, TiptapNode } from '@shared/types';
 import { migrateAttributes } from '@shared/document/sdocUtils';
-import type { EditorSettings } from './context/EditorContext';
+import type { EditorSettings } from '@shared/editor/context/EditorContext';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { UndoToast } from './components/UndoToast';
 

@@ -14,6 +14,7 @@ import {
 } from '../shared/document/sdocUtils';
 import { resolveSettings, getCaptionPreset } from '../shared/settingsResolver';
 import type { DocumentSettings, CaptionStyleName, SdocMeta, TiptapNode } from '../shared/types';
+import { isEditorToHostMessage } from '../shared/types/messageGuards';
 
 export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
   private static readonly SDOC_VERSION = '1.0';
@@ -158,7 +159,11 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
 
     // Handle messages from webview (sequential queue to preserve order)
     let messageQueue: Promise<void> = Promise.resolve();
-    webviewPanel.webview.onDidReceiveMessage((message) => {
+    webviewPanel.webview.onDidReceiveMessage((message: unknown) => {
+      if (!isEditorToHostMessage(message)) {
+        console.warn('Ignoring malformed Structured Doc editor message', message);
+        return;
+      }
       messageQueue = messageQueue.then(async () => {
         switch (message.type) {
           case 'ready':

@@ -1,16 +1,17 @@
 import React, { useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Editor as TiptapEditor } from '@tiptap/react';
-import { TableOfContents } from './TableOfContents';
-import { ListOfFigures } from './ListOfFigures';
-import { ListOfTables } from './ListOfTables';
-import { DocumentSettingsPanel } from './DocumentSettingsPanel';
-import { PanelEmptyState } from './PanelEmptyState';
+import { TableOfContents } from '@shared/editor/components/TableOfContents';
+import { ListOfFigures } from '@shared/editor/components/ListOfFigures';
+import { ListOfTables } from '@shared/editor/components/ListOfTables';
+import { DocumentSettingsPanel } from '@shared/editor/components/DocumentSettingsPanel';
+import { PanelEmptyState } from '@shared/editor/components/PanelEmptyState';
 import type { DocumentSettings } from '@shared/types';
 import { FileJson, Download, Upload, Loader2, FolderOpen, RefreshCw, FilePlus, FileText, FileImage, Folder, ChevronRight, ChevronDown } from 'lucide-react';
 import type { ExplorerEntry } from '../App';
 import { ExplorerContextMenu, type ExplorerContextMenuTarget } from './ExplorerContextMenu';
 import { open as openWithSystemApp } from '@tauri-apps/plugin-shell';
+import type { ActivityTab } from '@shared/editor/components/ActivityBar';
 
 const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'];
 
@@ -21,8 +22,6 @@ function isImageLikeEntry(name: string): boolean {
   const ext = lower.split('.').pop() || '';
   return IMAGE_EXTENSIONS.includes(ext) || ext === 'svg';
 }
-
-export type ActivityTab = 'explorer' | 'view' | 'toc' | 'lof' | 'lot' | 'settings' | 'file';
 
 // Legacy alias kept for any other imports that still reference SidePanelTab
 export type SidePanelTab = ActivityTab;

@@ -1,7 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
-import './styles/vscode-theme.css';
+import '@shared/editor/styles/editor.css';
 import 'katex/dist/katex.min.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
