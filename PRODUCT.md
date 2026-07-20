@@ -310,7 +310,9 @@ interface ConvertContext {
 
 - `{ sdocBook: "1.0", title, author, version, documents: [{path, label}] }` 구조(스키마: `sdocbook.schema.json`)
 - 프로젝트 내 문서 목록 UI(추가/삭제/순서변경), 클릭 시 개별 문서 열기
-- Export 시 프로젝트 내 모든 `.sdoc`을 하나의 트리로 병합, 이미지 경로를 프로젝트 폴더 기준으로 재계산(rebase), `./file.sdoc#id` 형태의 문서간 링크를 병합 문서 내 `#id`로 재해석 후 통합 HTML/PDF 생성
+- `shared/book/`이 manifest 검증, 경로 정규화, 문서 합본, 이미지 경로 재계산, 문서간 링크 해석, 진단의 단일 소스
+- Provider는 열린 VS Code 문서의 미저장 내용을 우선 사용하는 loader와 파일 감시를 제공
+- 오류·경고를 Book 화면에 표시하고 오류가 있으면 불완전한 HTML/PDF export를 차단
 
 ### 6.4 웹뷰 프론트엔드 아키텍처 (`webview-ui`)
 

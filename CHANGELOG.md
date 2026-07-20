@@ -5,6 +5,15 @@ All notable changes to the "Structured Doc Editor" extension will be documented 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Host-neutral `.sdocbook` parsing, composition, path normalization, and structured diagnostics in `shared/book/`
+- Book validation status for missing or invalid documents, duplicate IDs, and broken references
+
+### Changed
+- Book export now uses unsaved open VS Code documents, watches included files, and blocks incomplete output when validation has errors
+
 ## [0.4.13] - 2026-07-20
 
 ### Changed

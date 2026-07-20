@@ -9,6 +9,7 @@ VS Code extension ─┐
                    ├─ typed host bridge ─ shared/editor
 Tauri desktop ─────┘                       │
                                            ├─ shared/document
+                                           ├─ shared/book
                                            ├─ shared/settingsResolver
                                            └─ shared/converter
                                                     │
@@ -26,6 +27,10 @@ Tauri desktop ─────┘                       │
 
 Rust reads and writes the envelope but deliberately does not reproduce document semantics. The Tauri frontend runs the same TypeScript migration and normalization used by the VS Code host.
 
+### Book composition
+
+`shared/book/` is the host-neutral `.sdocbook` boundary. It parses untrusted manifests, normalizes project-relative paths, loads chapters through an injected `BookDocumentLoader`, composes one document tree, and returns structured diagnostics. Preview and export consumers must use this result instead of independently merging files. The VS Code provider supplies open-buffer and filesystem access; a future Tauri host can supply its own loader without copying composition rules.
+
 ### Editor UI
 
 `shared/editor/` owns reusable React components, editor context, hooks, Tiptap extensions, extension runtime callbacks, constants, and structural CSS. NodeViews receive `EditorExtensionRuntime` explicitly; they do not communicate through `window.__*` globals.
@@ -41,6 +46,7 @@ The host-neutral `EditorHostBridge` and the discriminated unions in `shared/type
 ### VS Code
 
 - `src/SdocEditorProvider.ts`: editor lifecycle, TextDocument synchronization, and message routing
+- `src/SdocBookProvider.ts`: Book webview orchestration, open-buffer loader, file watching, and export destination handling
 - `src/services/VsCodeAssetService.ts`: image and Draw.io operations
 - `src/services/VsCodeExportService.ts`: export orchestration
 - `webview-ui/src/`: VS Code bridge, message handling, and VS Code-specific shell composition

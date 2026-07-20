@@ -104,6 +104,12 @@ code --install-extension swbaek.structured-doc-editor
 
 저장 형식의 기준은 [JSON Schema](sdoc.schema.json)입니다. 포맷을 변경할 때는 스키마, 타입, 변환기, 예제와 테스트를 함께 갱신합니다.
 
+## 여러 문서를 한 권으로 관리하기
+
+`.sdocbook`은 여러 `.sdoc` 문서의 순서와 책 메타데이터를 관리하고 하나의 HTML/PDF로 내보내는 manifest입니다. VS Code에서 `.sdocbook`을 열면 문서를 추가·제거·정렬하고 각 장을 개별 편집할 수 있습니다.
+
+Book 화면은 포함 문서를 자동으로 검사합니다. 누락되거나 잘못된 문서, 중복 ID, 깨진 참조가 있으면 진단을 표시하고 불완전한 통합 export를 차단합니다. 열려 있는 `.sdoc`의 아직 저장하지 않은 변경도 검증과 export에 사용됩니다. 현재 Book 관리 화면과 통합 export는 VS Code 확장에서 지원합니다.
+
 ## 설정
 
 VS Code 설정에서 `Structured Doc Editor`를 검색하면 다음 항목을 조정할 수 있습니다.
