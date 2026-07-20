@@ -2,8 +2,25 @@
   "name": "structured-doc-editor",
   "displayName": "Structured Doc Editor",
   "description": "WYSIWYG editor for .tiptap.json/.sdoc files with Markdown/AsciiDoc/HTML export",
-  "version": "0.4.11",
+  "version": "0.4.12",
   "publisher": "swbaek",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/NaruForge/sdoc-editor.git"
+  },
+  "homepage": "https://github.com/NaruForge/sdoc-editor#readme",
+  "bugs": {
+    "url": "https://github.com/NaruForge/sdoc-editor/issues"
+  },
+  "keywords": [
+    "sdoc",
+    "tiptap",
+    "wysiwyg",
+    "structured-document",
+    "markdown",
+    "asciidoc"
+  ],
   "icon": "media/sdoc-editor-icon.png",
   "engines": {
     "vscode": "^1.85.0"

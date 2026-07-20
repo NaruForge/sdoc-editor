@@ -15,7 +15,6 @@ execFileSync(
   [
     vsceCli,
     'package',
-    '--allow-missing-repository',
     '--no-dependencies',
     '--out',
     join(outputDir, filename),
