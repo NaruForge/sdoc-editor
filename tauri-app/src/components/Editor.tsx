@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import { useEditorDomEvents } from '@shared/editor/hooks/useEditorDomEvents';
 import { EditorContent } from '@tiptap/react';
 import { useTiptapEditor } from '@shared/editor/hooks/useTiptapEditor';
 import { useEditorContext } from '@shared/editor/context/EditorContext';
@@ -35,6 +36,7 @@ import type { DocumentSettings, TiptapNode } from '@shared/types';
 import type { EditorToHostMessage } from '@shared/types/messages';
 import type { ExplorerEntry } from '../App';
 import type { EditorSettings } from '@shared/editor/context/EditorContext';
+import { exportDocument, type ExportFormat } from '../services/exportService';
 
 /**
  * `setImage`'s TipTap-generated type only knows about `src`/`alt`/`title`. `relativePath` is a
@@ -311,88 +313,9 @@ export const Editor: React.FC<EditorProps> = ({
   postMessageRef.current = postMessage;
 
   const handleViewJson = () => { postMessage({ type: 'viewJson' }); };
-  const handleExport = async (format: 'html' | 'adoc' | 'markdown' | 'pdf' | 'slides') => {
-    if (!editor) return;
-    const { save: saveDlg } = await import('@tauri-apps/plugin-dialog');
-    const { convertJsonToHtml } = await import('@shared/converter/jsonToHtml');
-    const { convertJsonToMarkdown } = await import('@shared/converter/jsonToMarkdown');
-    const { convertJsonToAdoc } = await import('@shared/converter/jsonToAdoc');
-    const { invoke } = await import('@tauri-apps/api/core');
-
-    const doc = editor.getJSON() as TiptapNode;
-    const settings = state.settings;
-    const exportSettings = {
-      imageCaptionPrefix: settings.imageCaptionPrefix,
-      tableCaptionPrefix: settings.tableCaptionPrefix,
-      equationCaptionPrefix: settings.equationCaptionPrefix,
-      captionSeparator: settings.captionSeparator,
-      captionNumbering: settings.captionNumbering as 'sequential' | 'hierarchical',
-      equationNumbering: settings.equationNumbering as 'sequential' | 'hierarchical',
-      tableNumberStyle: settings.tableNumberStyle as 'arabic' | 'roman',
-      equationParens: settings.equationParens,
-      exportImagePath: settings.exportImagePath as 'relative' | 'absolute',
-      pdfScale: state.docSettings?.pdfScale,
-      selfContained: state.docSettings?.selfContained,
-      outputDir: state.docSettings?.outputDir,
-    };
-    const currentMeta = { ...meta };
-
-    let content = '';
-    let ext = '';
-    let filterName = '';
-    switch (format) {
-      case 'html':
-        {
-          const appSettings = await invoke<{
-            themeCompanyName?: string;
-            themePrimaryColor?: string;
-            themeAccentColor?: string;
-            themeFontFamily?: string;
-            themeCustomStyles?: string;
-          }>('get_settings');
-          let htmlCss = '';
-          if (state.docSettings?.htmlCssPath) {
-            try {
-              const cssPath = await invoke<string>('resolve_document_relative_path', { path: state.docSettings.htmlCssPath });
-              htmlCss = await invoke<string>('read_import_file', { path: cssPath });
-            } catch (error: unknown) {
-              console.warn('Failed to load document HTML CSS', error);
-            }
-          }
-          content = convertJsonToHtml(doc, {
-            companyName: appSettings.themeCompanyName,
-            primaryColor: appSettings.themePrimaryColor,
-            accentColor: appSettings.themeAccentColor,
-            fontFamily: appSettings.themeFontFamily,
-            customStyles: `${appSettings.themeCustomStyles ?? ''}${htmlCss}`,
-          }, exportSettings, currentMeta);
-        }
-        ext = 'html';
-        filterName = 'HTML';
-        break;
-      case 'markdown':
-        content = convertJsonToMarkdown(doc, exportSettings, currentMeta);
-        ext = 'md';
-        filterName = 'Markdown';
-        break;
-      case 'adoc':
-        content = convertJsonToAdoc(doc, exportSettings, currentMeta);
-        ext = 'adoc';
-        filterName = 'AsciiDoc';
-        break;
-      case 'pdf':
-      case 'slides':
-        alert(`${format.toUpperCase()} 내보내기는 아직 Tauri 앱에서 지원되지 않습니다.`);
-        return;
-      default:
-        return;
-    }
-
-    const path = await saveDlg({
-      filters: [{ name: filterName, extensions: [ext] }],
-    });
-    if (path) {
-      await invoke('write_export_file', { path, content });
+  const handleExport = async (format: ExportFormat) => {
+    if (editor) {
+      await exportDocument(format, editor.getJSON() as TiptapNode, state.settings, state.docSettings, meta);
     }
   };
   const handleImport = (format: 'markdown' | 'html') => {
@@ -618,48 +541,8 @@ export const Editor: React.FC<EditorProps> = ({
     }
   }, [editor, setContent, initialDoc, dispatch]);
 
-  useEffect(() => {
-    if (!editor) return;
-    const editorElement = editor.view.dom;
-    editorElement.addEventListener('paste', handlePaste);
-    return () => { editorElement.removeEventListener('paste', handlePaste); };
-  }, [editor, handlePaste]);
+  useEditorDomEvents(editor, handlePaste);
 
-  // Mouse back/forward button (Button3 = back, Button4 = forward) → cursor history navigation
-  useEffect(() => {
-    if (!editor) return;
-    const scrollCursorIntoView = () => {
-      requestAnimationFrame(() => {
-        const sel = window.getSelection();
-        if (!sel || sel.rangeCount === 0) return;
-        const rect = sel.getRangeAt(0).getBoundingClientRect();
-        const scrollArea = document.querySelector('.editor-scroll-area') as HTMLElement | null;
-        if (!scrollArea) return;
-        const areaRect = scrollArea.getBoundingClientRect();
-        const margin = 80;
-        if (rect.bottom > areaRect.bottom - margin) {
-          scrollArea.scrollTop += rect.bottom - areaRect.bottom + margin;
-        } else if (rect.top < areaRect.top + margin) {
-          scrollArea.scrollTop -= areaRect.top - rect.top + margin;
-        }
-      });
-    };
-    const handleMouseNav = (e: MouseEvent) => {
-      if (e.button !== 3 && e.button !== 4) return;
-      e.preventDefault();
-      e.stopPropagation();
-      if (e.button === 3) {
-        editor.commands.navigateBack();
-      } else {
-        editor.commands.navigateForward();
-      }
-      scrollCursorIntoView();
-    };
-    document.addEventListener('mousedown', handleMouseNav, { capture: true });
-    return () => { document.removeEventListener('mousedown', handleMouseNav, { capture: true }); };
-  }, [editor]);
-
-  // 메뉴바 File/View 항목에 대응하는 전역 키보드 단축키 (Ctrl+N/O, Ctrl+=/-/0).
   // Ctrl+S/Z/Shift+Z는 각각 useTiptapEditor 훅과 Tiptap History 확장에서 이미 처리하므로 중복 등록하지 않는다.
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

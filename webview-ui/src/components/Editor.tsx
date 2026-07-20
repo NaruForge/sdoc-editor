@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import { useEditorDomEvents } from '@shared/editor/hooks/useEditorDomEvents';
 import { EditorContent, type JSONContent } from '@tiptap/react';
 import { useTiptapEditor } from '@shared/editor/hooks/useTiptapEditor';
 import { useEditorContext } from '@shared/editor/context/EditorContext';
@@ -420,62 +421,7 @@ export const Editor: React.FC = () => {
     }
   }, [editor, setContent, state.doc, dispatch]);
 
-  // Add paste event listener for clipboard images
-  useEffect(() => {
-    if (!editor) return;
-
-    const editorElement = editor.view.dom;
-    editorElement.addEventListener('paste', handlePaste as unknown as EventListener);
-
-    return () => {
-      editorElement.removeEventListener('paste', handlePaste as unknown as EventListener);
-    };
-  }, [editor, handlePaste]);
-
-  // Mouse back/forward button (Button3 = back, Button4 = forward) → cursor history navigation
-  useEffect(() => {
-    if (!editor) return;
-
-    const scrollCursorIntoView = () => {
-      // Fallback: manually scroll .editor-scroll-area so the cursor is visible.
-      // ProseMirror's built-in scrollIntoView may not find the custom scroll container
-      // when a CSS zoom wrapper is present.
-      requestAnimationFrame(() => {
-        const sel = window.getSelection();
-        if (!sel || sel.rangeCount === 0) return;
-        const range = sel.getRangeAt(0);
-        const rect = range.getBoundingClientRect();
-        const scrollArea = document.querySelector('.editor-scroll-area') as HTMLElement | null;
-        if (!scrollArea) return;
-        const areaRect = scrollArea.getBoundingClientRect();
-        const margin = 80;
-        if (rect.bottom > areaRect.bottom - margin) {
-          scrollArea.scrollTop += rect.bottom - areaRect.bottom + margin;
-        } else if (rect.top < areaRect.top + margin) {
-          scrollArea.scrollTop -= areaRect.top - rect.top + margin;
-        }
-      });
-    };
-
-    const handleMouseNav = (e: MouseEvent) => {
-      if (e.button !== 3 && e.button !== 4) return;
-      e.preventDefault();
-      e.stopPropagation();
-
-      if (e.button === 3) {
-        editor.commands.navigateBack();
-      } else {
-        editor.commands.navigateForward();
-      }
-      scrollCursorIntoView();
-    };
-
-    // capture: true — catch before VS Code's own navigation handler
-    document.addEventListener('mousedown', handleMouseNav, { capture: true });
-    return () => {
-      document.removeEventListener('mousedown', handleMouseNav, { capture: true });
-    };
-  }, [editor]);
+  useEditorDomEvents(editor, handlePaste);
 
   if (!editor) {
     return (

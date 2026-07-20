@@ -1,12 +1,9 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { getNonce, getWebviewUri } from './utils/webviewHelper';
-import { convertJsonToHtml, convertJsonToAdoc, convertJsonToMarkdown, convertJsonToSlides, convertMarkdownToJson } from '../shared/converter';
-import { detectBrowser, printToPdf } from './utils/browserDetect';
-import { generateFontFaceCSS, loadBundledFontsAsBase64 } from './utils/fontUtils';
-import { convertImagePathsToWebviewUris, convertWebviewUrisToRelativePaths, embedImagesAsBase64 } from './utils/imageUtils';
-import { resolveCompanyLogo, readFontWeights, buildHtmlTheme } from './utils/themeUtils';
-import { resolveCustomCss } from './utils/cssUtils';
+import { convertMarkdownToJson } from '../shared/converter';
+import { generateFontFaceCSS } from './utils/fontUtils';
+import { convertImagePathsToWebviewUris, convertWebviewUrisToRelativePaths } from './utils/imageUtils';
 import {
   unwrapSdoc as sharedUnwrapSdoc,
   wrapSdoc as sharedWrapSdoc,
@@ -15,9 +12,13 @@ import {
 import { resolveSettings, getCaptionPreset } from '../shared/settingsResolver';
 import type { DocumentSettings, CaptionStyleName, SdocMeta, TiptapNode } from '../shared/types';
 import { isEditorToHostMessage } from '../shared/types/messageGuards';
+import { VsCodeAssetService } from './services/VsCodeAssetService';
+import { VsCodeExportService } from './services/VsCodeExportService';
 
 export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
   private static readonly SDOC_VERSION = '1.0';
+  private readonly assetService = new VsCodeAssetService();
+  private readonly exportService: VsCodeExportService;
 
   public static register(context: vscode.ExtensionContext): vscode.Disposable {
     const provider = new SdocEditorProvider(context);
@@ -38,10 +39,9 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
   private pendingApplyEdits = new Map<string, number>();
   /** Per-document flush resolver: resolves when an edit arrives after a requestFlush */
   private pendingFlushResolvers = new Map<string, () => void>();
-  /** Per-document export-in-progress guard (prevents duplicate concurrent exports) */
-  private exportInProgress = new Set<string>();
-
-  constructor(private readonly context: vscode.ExtensionContext) {}
+  constructor(private readonly context: vscode.ExtensionContext) {
+    this.exportService = new VsCodeExportService(context);
+  }
 
   public async resolveCustomTextEditor(
     document: vscode.TextDocument,
@@ -140,7 +140,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         const text = document.getText();
         const parsed = text.trim() ? JSON.parse(text) : { sdoc: SdocEditorProvider.SDOC_VERSION, meta: {}, doc: { type: 'doc', content: [] } };
         // Unwrap sdoc envelope → extract doc node
-        const { doc, meta } = SdocEditorProvider.unwrapSdoc(parsed);
+        const { doc, meta } = sharedUnwrapSdoc(parsed);
         // Convert image paths to webview URIs
         const convertedJson = convertImagePathsToWebviewUris(doc, documentDir, webviewPanel.webview);
         webviewPanel.webview.postMessage({
@@ -184,25 +184,25 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
             await this.openJsonView(document);
             break;
           case 'saveImage':
-            await this.saveImage(document, webviewPanel.webview, message);
+            await this.assetService.saveImage(document, webviewPanel.webview, message);
             break;
           case 'createDrawio':
-            await this.createDrawioFile(document, webviewPanel.webview, message);
+            await this.assetService.createDrawioFile(document, webviewPanel.webview, message);
             break;
           case 'importDrawio':
-            await this.importDrawioFile(document, webviewPanel.webview);
+            await this.assetService.importDrawioFile(document, webviewPanel.webview);
             break;
           case 'openDrawio':
-            await this.openDrawioFile(document, message);
+            await this.assetService.openDrawioFile(document, message);
             break;
           case 'insertExistingImage':
-            await this.insertExistingImage(document, webviewPanel.webview);
+            await this.assetService.insertExistingImage(document, webviewPanel.webview);
             break;
           case 'replaceImage':
-            await this.replaceImage(document, webviewPanel.webview, message.pos);
+            await this.assetService.replaceImage(document, webviewPanel.webview, message.pos);
             break;
           case 'export':
-            await this.exportDocument(document, message.format, webviewPanel.webview);
+            await this.exportService.exportDocument(document, message.format, webviewPanel.webview);
             break;
           case 'openDocument':
             await this.openLinkedDocument(document, message.path, message.anchor);
@@ -280,7 +280,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         try {
           const text = e.document.getText();
           const parsed = text.trim() ? JSON.parse(text) : { sdoc: SdocEditorProvider.SDOC_VERSION, meta: {}, doc: { type: 'doc', content: [] } };
-          const { doc } = SdocEditorProvider.unwrapSdoc(parsed);
+          const { doc } = sharedUnwrapSdoc(parsed);
           const convertedJson = convertImagePathsToWebviewUris(doc, documentDir, webviewPanel.webview);
           webviewPanel.webview.postMessage({
             type: 'update',
@@ -329,7 +329,6 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       const key = document.uri.toString();
       this.pendingApplyEdits.delete(key);
       this.pendingFlushResolvers.delete(key);
-      this.exportInProgress.delete(key);
     });
   }
 
@@ -429,421 +428,6 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     } catch (error) {
       vscode.window.showErrorMessage(
         `Failed to open JSON view: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
-  }
-
-  private async saveImage(
-    document: vscode.TextDocument,
-    webview: vscode.Webview,
-    message: { imageName: string; imageData: string; extension: string }
-  ): Promise<void> {
-    try {
-      const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
-      if (!workspaceFolder) {
-        vscode.window.showErrorMessage('No workspace folder found');
-        return;
-      }
-
-      // Create images directory next to the .sdoc file
-      const documentDir = vscode.Uri.joinPath(document.uri, '..');
-      const imagesDir = vscode.Uri.joinPath(documentDir, 'images');
-
-      // Ensure images directory exists
-      try {
-        await vscode.workspace.fs.stat(imagesDir);
-      } catch {
-        await vscode.workspace.fs.createDirectory(imagesDir);
-      }
-
-      // Save image file
-      const fileName = `${message.imageName}.${message.extension}`;
-      const imageUri = vscode.Uri.joinPath(imagesDir, fileName);
-      const imageBuffer = Buffer.from(message.imageData, 'base64');
-      await vscode.workspace.fs.writeFile(imageUri, imageBuffer);
-
-      // Convert to webview URI for display
-      const webviewUri = webview.asWebviewUri(imageUri);
-      const relativePath = `./images/${fileName}`;
-
-      webview.postMessage({
-        type: 'imageSaved',
-        imagePath: relativePath, // relative path for JSON storage
-        webviewUri: webviewUri.toString(), // webview URI for display
-        imageName: message.imageName,
-      });
-
-      vscode.window.showInformationMessage(`Image saved: ${fileName}`);
-    } catch (error) {
-      vscode.window.showErrorMessage(
-        `Failed to save image: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
-  }
-
-  private async createDrawioFile(
-    document: vscode.TextDocument,
-    webview: vscode.Webview,
-    message: { fileName: string }
-  ): Promise<void> {
-    try {
-      const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
-      if (!workspaceFolder) {
-        vscode.window.showErrorMessage('No workspace folder found');
-        return;
-      }
-
-      // Create drawio directory next to the .sdoc file
-      const documentDir = vscode.Uri.joinPath(document.uri, '..');
-      const drawioDir = vscode.Uri.joinPath(documentDir, 'drawio');
-
-      // Ensure drawio directory exists
-      try {
-        await vscode.workspace.fs.stat(drawioDir);
-      } catch {
-        await vscode.workspace.fs.createDirectory(drawioDir);
-      }
-
-      // Create empty draw.io SVG file
-      const fileName = `${message.fileName}.drawio.svg`;
-      const drawioUri = vscode.Uri.joinPath(drawioDir, fileName);
-
-      // Check if file already exists
-      try {
-        await vscode.workspace.fs.stat(drawioUri);
-        vscode.window.showErrorMessage(`File already exists: ${fileName}`);
-        return;
-      } catch {
-        // File doesn't exist, proceed to create it
-      }
-
-      // 빈 파일로 생성 — draw.io extension이 열 때 빈 캔버스로 초기화함
-      await vscode.workspace.fs.writeFile(drawioUri, new Uint8Array(0));
-
-      // Convert to webview URI for display
-      const webviewUri = webview.asWebviewUri(drawioUri);
-      const relativePath = `./drawio/${fileName}`;
-
-      webview.postMessage({
-        type: 'drawioCreated',
-        drawioPath: relativePath, // relative path for JSON storage
-        webviewUri: webviewUri.toString(), // webview URI for display
-        fileName: message.fileName,
-      });
-
-      vscode.window.showInformationMessage(`Draw.io file created: ${fileName}`);
-    } catch (error) {
-      vscode.window.showErrorMessage(
-        `Failed to create draw.io file: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
-  }
-
-  private async openDrawioFile(
-    document: vscode.TextDocument,
-    message: { drawioPath: string }
-  ): Promise<void> {
-    try {
-      // Convert relative path to absolute URI
-      const documentDir = vscode.Uri.joinPath(document.uri, '..');
-      const drawioPath = message.drawioPath.replace('./', '');
-      const drawioUri = vscode.Uri.joinPath(documentDir, drawioPath);
-
-      // Check if file exists
-      try {
-        await vscode.workspace.fs.stat(drawioUri);
-      } catch {
-        vscode.window.showErrorMessage(`Draw.io file not found: ${message.drawioPath}`);
-        return;
-      }
-
-      // vscode.open을 사용하면 파일 연결(.drawio.svg → draw.io extension)을
-      // 그대로 따르므로, 탐색기에서 직접 여는 것과 동일하게 동작함
-      await vscode.commands.executeCommand(
-        'vscode.open',
-        drawioUri,
-        vscode.ViewColumn.Beside
-      );
-    } catch (error) {
-      vscode.window.showErrorMessage(
-        `Failed to open draw.io file: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
-  }
-
-  private async importDrawioFile(
-    document: vscode.TextDocument,
-    webview: vscode.Webview
-  ): Promise<void> {
-    try {
-      // Show file picker for .drawio file selection
-      const fileUris = await vscode.window.showOpenDialog({
-        canSelectMany: false,
-        openLabel: 'Import Draw.io Diagram',
-        filters: {
-          'Draw.io Files': ['drawio.svg', 'svg']
-        }
-      });
-
-      if (!fileUris || fileUris.length === 0) {
-        return; // User cancelled
-      }
-
-      const sourceUri = fileUris[0];
-      const fileName = sourceUri.path.split('/').pop() || 'diagram.drawio.svg';
-
-      // Verify it's a .drawio.svg file
-      if (!fileName.includes('.drawio.svg')) {
-        vscode.window.showWarningMessage(
-          'Please select a .drawio.svg file. Regular SVG files are not supported.'
-        );
-        return;
-      }
-
-      // Create drawio directory next to the .sdoc file
-      const documentDir = vscode.Uri.joinPath(document.uri, '..');
-      const drawioDir = vscode.Uri.joinPath(documentDir, 'drawio');
-
-      // Ensure drawio directory exists
-      try {
-        await vscode.workspace.fs.stat(drawioDir);
-      } catch {
-        await vscode.workspace.fs.createDirectory(drawioDir);
-      }
-
-      // Check if the selected file is already in the drawio directory
-      const sourceParentPath = sourceUri.path.substring(0, sourceUri.path.lastIndexOf('/'));
-      const drawioDirPath = drawioDir.path;
-      const isAlreadyInDrawioDir = sourceParentPath === drawioDirPath;
-
-      let finalFileName = fileName;
-      let targetUri = sourceUri; // Default to source if already in drawio dir
-
-      if (isAlreadyInDrawioDir) {
-        // File is already in drawio directory, just reference it
-        finalFileName = fileName;
-        targetUri = sourceUri;
-        vscode.window.showInformationMessage(`Referencing existing diagram: ${finalFileName}`);
-      } else {
-        // File is external, copy it to drawio directory
-        // Generate unique filename if file already exists
-        let counter = 1;
-        targetUri = vscode.Uri.joinPath(drawioDir, finalFileName);
-
-        while (true) {
-          try {
-            await vscode.workspace.fs.stat(targetUri);
-            // File exists, try with counter
-            const baseName = fileName.replace('.drawio.svg', '');
-            finalFileName = `${baseName}-${counter}.drawio.svg`;
-            targetUri = vscode.Uri.joinPath(drawioDir, finalFileName);
-            counter++;
-          } catch {
-            // File doesn't exist, use this name
-            break;
-          }
-        }
-
-        // Copy file to drawio directory
-        await vscode.workspace.fs.copy(sourceUri, targetUri, { overwrite: false });
-        vscode.window.showInformationMessage(`Diagram copied and imported: ${finalFileName}`);
-      }
-
-      // Convert to webview URI for display
-      const webviewUri = webview.asWebviewUri(targetUri);
-      const relativePath = `./drawio/${finalFileName}`;
-
-      webview.postMessage({
-        type: 'drawioCreated',
-        drawioPath: relativePath,
-        webviewUri: webviewUri.toString(),
-        fileName: finalFileName.replace('.drawio.svg', ''),
-      });
-    } catch (error) {
-      vscode.window.showErrorMessage(
-        `Failed to import draw.io file: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
-  }
-
-  private async insertExistingImage(
-    document: vscode.TextDocument,
-    webview: vscode.Webview
-  ): Promise<void> {
-    try {
-      // Show file picker for image selection
-      const fileUris = await vscode.window.showOpenDialog({
-        canSelectMany: false,
-        openLabel: 'Insert Image',
-        filters: {
-          'Images': ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp']
-        }
-      });
-
-      if (!fileUris || fileUris.length === 0) {
-        return; // User cancelled
-      }
-
-      const sourceUri = fileUris[0];
-      const fileName = sourceUri.path.split('/').pop() || 'image.png';
-
-      // Check if it's a draw.io file - those should use "Insert Draw.io" instead
-      if (fileName.includes('.drawio.')) {
-        vscode.window.showWarningMessage(
-          'Draw.io files should be inserted using the "Insert Draw.io" button, not "Insert Image".'
-        );
-        return;
-      }
-
-      // Create images directory next to the .sdoc file
-      const documentDir = vscode.Uri.joinPath(document.uri, '..');
-      const imagesDir = vscode.Uri.joinPath(documentDir, 'images');
-
-      // Ensure images directory exists
-      try {
-        await vscode.workspace.fs.stat(imagesDir);
-      } catch {
-        await vscode.workspace.fs.createDirectory(imagesDir);
-      }
-
-      // Check if the selected file is already in the images directory
-      const sourceParentPath = sourceUri.path.substring(0, sourceUri.path.lastIndexOf('/'));
-      const imagesDirPath = imagesDir.path;
-      const isAlreadyInImagesDir = sourceParentPath === imagesDirPath;
-
-      let finalFileName = fileName;
-      let targetUri = sourceUri; // Default to source if already in images dir
-
-      if (isAlreadyInImagesDir) {
-        // File is already in images directory, just reference it
-        finalFileName = fileName;
-        targetUri = sourceUri;
-        vscode.window.showInformationMessage(`Referencing existing image: ${finalFileName}`);
-      } else {
-        // File is external, copy it to images directory
-        // Generate unique filename if file already exists
-        let counter = 1;
-        targetUri = vscode.Uri.joinPath(imagesDir, finalFileName);
-
-        while (true) {
-          try {
-            await vscode.workspace.fs.stat(targetUri);
-            // File exists, try with counter
-            const nameParts = fileName.split('.');
-            const ext = nameParts.pop();
-            const baseName = nameParts.join('.');
-            finalFileName = `${baseName}-${counter}.${ext}`;
-            targetUri = vscode.Uri.joinPath(imagesDir, finalFileName);
-            counter++;
-          } catch {
-            // File doesn't exist, use this name
-            break;
-          }
-        }
-
-        // Copy file to images directory
-        await vscode.workspace.fs.copy(sourceUri, targetUri, { overwrite: false });
-        vscode.window.showInformationMessage(`Image copied and inserted: ${finalFileName}`);
-      }
-
-      // Convert to webview URI for display
-      const webviewUri = webview.asWebviewUri(targetUri);
-      const relativePath = `./images/${finalFileName}`;
-
-      webview.postMessage({
-        type: 'imageInserted',
-        imagePath: relativePath,
-        webviewUri: webviewUri.toString(),
-        fileName: finalFileName,
-      });
-    } catch (error) {
-      vscode.window.showErrorMessage(
-        `Failed to insert image: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
-  }
-
-  private async replaceImage(
-    document: vscode.TextDocument,
-    webview: vscode.Webview,
-    pos: number
-  ): Promise<void> {
-    try {
-      // Show file picker for image selection
-      const fileUris = await vscode.window.showOpenDialog({
-        canSelectMany: false,
-        openLabel: 'Replace Image',
-        filters: {
-          'Images': ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp']
-        }
-      });
-
-      if (!fileUris || fileUris.length === 0) {
-        return; // User cancelled
-      }
-
-      const sourceUri = fileUris[0];
-      const fileName = sourceUri.path.split('/').pop() || 'image.png';
-
-      // Check if it's a draw.io file - those cannot be used to replace regular images
-      if (fileName.includes('.drawio.')) {
-        vscode.window.showWarningMessage(
-          'Draw.io files should be inserted using the "Insert Draw.io" button, not used to replace images.'
-        );
-        return;
-      }
-
-      // Create images directory next to the .sdoc file
-      const documentDir = vscode.Uri.joinPath(document.uri, '..');
-      const imagesDir = vscode.Uri.joinPath(documentDir, 'images');
-
-      // Ensure images directory exists
-      try {
-        await vscode.workspace.fs.stat(imagesDir);
-      } catch {
-        await vscode.workspace.fs.createDirectory(imagesDir);
-      }
-
-      // Generate unique filename if file already exists
-      let finalFileName = fileName;
-      let counter = 1;
-      let targetUri = vscode.Uri.joinPath(imagesDir, finalFileName);
-
-      while (true) {
-        try {
-          await vscode.workspace.fs.stat(targetUri);
-          // File exists, try with counter
-          const nameParts = fileName.split('.');
-          const ext = nameParts.pop();
-          const baseName = nameParts.join('.');
-          finalFileName = `${baseName}-${counter}.${ext}`;
-          targetUri = vscode.Uri.joinPath(imagesDir, finalFileName);
-          counter++;
-        } catch {
-          // File doesn't exist, use this name
-          break;
-        }
-      }
-
-      // Copy file to images directory
-      await vscode.workspace.fs.copy(sourceUri, targetUri, { overwrite: false });
-
-      // Convert to webview URI for display
-      const webviewUri = webview.asWebviewUri(targetUri);
-      const relativePath = `./images/${finalFileName}`;
-
-      webview.postMessage({
-        type: 'imageReplaced',
-        pos: pos,
-        imagePath: relativePath,
-        webviewUri: webviewUri.toString(),
-        fileName: finalFileName,
-      });
-
-      vscode.window.showInformationMessage(`Image replaced: ${finalFileName}`);
-    } catch (error) {
-      vscode.window.showErrorMessage(
-        `Failed to replace image: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
     }
   }
@@ -1070,7 +654,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         const data = await vscode.workspace.fs.readFile(vscode.Uri.file(selected.fsPath));
         const text = new TextDecoder().decode(data);
         const parsed = JSON.parse(text);
-        const { doc } = SdocEditorProvider.unwrapSdoc(parsed);
+        const { doc } = sharedUnwrapSdoc(parsed);
         const targets = this.collectExternalTargets(doc);
 
         webview.postMessage({
@@ -1128,371 +712,6 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     }
 
     return targets;
-  }
-
-  private async exportDocument(
-    document: vscode.TextDocument,
-    format: 'html' | 'adoc' | 'markdown' | 'pdf' | 'slides',
-    webview: vscode.Webview
-  ): Promise<void> {
-    const docKey = document.uri.toString();
-
-    // Guard: prevent duplicate concurrent exports for the same document
-    if (this.exportInProgress.has(docKey)) {
-      vscode.window.showWarningMessage('이미 내보내기가 진행 중입니다. 잠시 기다려 주세요.');
-      return;
-    }
-
-    const formatLabels: Record<string, string> = {
-      html: 'HTML', pdf: 'PDF', markdown: 'Markdown', adoc: 'AsciiDoc', slides: 'Slides',
-    };
-    const label = formatLabels[format] ?? format.toUpperCase();
-
-    this.exportInProgress.add(docKey);
-    webview.postMessage({ type: 'exportStarted', format });
-
-    // ExportResult: info needed to show completion message AFTER withProgress closes
-    type ExportResult = {
-      successMsg: string;
-      actionLabel: string;
-      openUri: vscode.Uri;
-      openKind: 'external' | 'html' | 'text';
-    } | null;
-
-    let result: ExportResult = null;
-    try {
-      result = await vscode.window.withProgress(
-        {
-          location: vscode.ProgressLocation.Notification,
-          title: `내보내기 중 (${label})`,
-          cancellable: false,
-        },
-        async (progress) => {
-          return await this._doExport(document, format, label, progress);
-        }
-      );
-    } finally {
-      this.exportInProgress.delete(docKey);
-      webview.postMessage({ type: 'exportDone' });
-    }
-
-    // Show success notification AFTER progress notification has closed
-    if (result) {
-      const action = await vscode.window.showInformationMessage(
-        result.successMsg,
-        result.actionLabel,
-        'Reveal in Explorer'
-      );
-      if (action === result.actionLabel) {
-        if (result.openKind === 'external') {
-          await vscode.env.openExternal(result.openUri);
-        } else if (result.openKind === 'html') {
-          await vscode.commands.executeCommand('vscode.open', result.openUri);
-        } else {
-          const openedDoc = await vscode.workspace.openTextDocument(result.openUri);
-          await vscode.window.showTextDocument(openedDoc, { preview: false });
-        }
-      } else if (action === 'Reveal in Explorer') {
-        await vscode.commands.executeCommand('revealFileInOS', result.openUri);
-      }
-    }
-  }
-
-  private async _doExport(
-    document: vscode.TextDocument,
-    format: 'html' | 'adoc' | 'markdown' | 'pdf' | 'slides',
-    label: string,
-    progress: vscode.Progress<{ message?: string; increment?: number }>
-  ): Promise<{
-    successMsg: string;
-    actionLabel: string;
-    openUri: vscode.Uri;
-    openKind: 'external' | 'html' | 'text';
-  } | null> {
-    try {
-      progress.report({ message: '문서 읽는 중...', increment: 5 });
-      const text = document.getText();
-      const parsed = text.trim() ? JSON.parse(text) : { sdoc: SdocEditorProvider.SDOC_VERSION, meta: {}, doc: { type: 'doc', content: [] } };
-
-      // Unwrap envelope
-      const { doc, meta } = SdocEditorProvider.unwrapSdoc(parsed);
-
-      // Convert webview URIs back to relative paths
-      let convertedDoc = convertWebviewUrisToRelativePaths(doc);
-
-      // Read export settings — merge doc-level settings over VS Code defaults
-      const config = vscode.workspace.getConfiguration('structuredDocEditor');
-      const vscodeDefaults: Partial<DocumentSettings> = {
-        captionStyle: config.get<CaptionStyleName>('caption.style', 'modern'),
-        captionNumbering: config.get<'sequential' | 'hierarchical'>('caption.numbering', 'sequential'),
-        equationNumbering: config.get<'sequential' | 'hierarchical'>('equation.numbering', 'sequential'),
-        selfContained: config.get<'none' | 'images-only' | 'full'>('export.selfContained', 'images-only'),
-        pdfScale: config.get<number>('export.pdfScale', 70),
-        outputDir: config.get<string>('export.outputDir', ''),
-        slideBreakLevel: config.get<'h1-only' | 'h1-h2-vertical'>('slide.breakLevel', 'h1-only'),
-        slideTransition: config.get<'none' | 'fade' | 'slide' | 'convex' | 'concave' | 'zoom'>('slide.transition', 'none'),
-        showTitleSlide: config.get<boolean>('slide.showTitleSlide', true),
-      };
-      const resolved = resolveSettings(meta.settings as Partial<DocumentSettings> | undefined, vscodeDefaults);
-      const preset = getCaptionPreset(resolved.captionStyle);
-      const exportSettings: Record<string, unknown> = {
-        imageCaptionPrefix: preset.figurePrefix,
-        tableCaptionPrefix: preset.tablePrefix,
-        equationCaptionPrefix: preset.equationPrefix,
-        captionSeparator: preset.separator,
-        tableNumberStyle: preset.tableNumberStyle,
-        equationParens: preset.equationParens,
-        captionNumbering: resolved.captionNumbering,
-        equationNumbering: resolved.equationNumbering,
-        exportImagePath: config.get<'relative' | 'absolute'>('export.imagePath', 'relative'),
-      };
-
-      // For HTML, PDF, and slides, apply selfContained settings
-      const needsSelfContained = format === 'html' || format === 'pdf' || format === 'slides';
-      if (needsSelfContained && resolved.selfContained !== 'none') {
-        progress.report({ message: '이미지 처리 중...', increment: 20 });
-        const documentDir = path.dirname(document.uri.fsPath);
-        convertedDoc = await embedImagesAsBase64(convertedDoc, documentDir);
-        exportSettings.selfContained = resolved.selfContained;
-      }
-      // PDF always embeds images regardless of setting
-      if (format === 'pdf' && resolved.selfContained === 'none') {
-        progress.report({ message: '이미지 처리 중...', increment: 20 });
-        const documentDir = path.dirname(document.uri.fsPath);
-        convertedDoc = await embedImagesAsBase64(convertedDoc, documentDir);
-        exportSettings.selfContained = 'images-only';
-      }
-
-      let content: string;
-      let ext: string;
-
-      switch (format) {
-        case 'html':
-        case 'pdf': {
-          progress.report({ message: 'HTML 변환 중...', increment: 30 });
-          const companyLogo = await resolveCompanyLogo(
-            config.get<string>('theme.companyLogo') || '',
-            this.context.extensionPath,
-          );
-          const fontWeights = readFontWeights(config);
-          const usedWeights = new Set(Object.values(fontWeights));
-          const embeddedFonts = await loadBundledFontsAsBase64(this.context.extensionUri, usedWeights);
-          const theme = buildHtmlTheme(config, companyLogo, fontWeights, embeddedFonts);
-          const customStyles = await resolveCustomCss(
-            resolved.htmlCssPath,
-            this.getWorkspaceBasePath(document),
-            config.get<string>('theme.customStyles') || '',
-          );
-
-          content = convertJsonToHtml(convertedDoc, { ...theme, customStyles }, exportSettings, meta);
-
-          if (format === 'pdf') {
-            // PDF: generate via headless browser
-            const browserPath = detectBrowser();
-            if (!browserPath) {
-              const fallbackUri = await this.writeExportFile(
-                document,
-                '.html',
-                content,
-                resolved.outputDir,
-                progress,
-              );
-              if (!fallbackUri) return null;
-              const action = await vscode.window.showWarningMessage(
-                `PDF 내보내기에 필요한 Chrome/Edge/Chromium을 찾지 못해 HTML로 대신 내보냈습니다: ${fallbackUri.fsPath}`,
-                'Open HTML',
-                'Reveal in Explorer',
-                'Install Guide'
-              );
-              if (action === 'Open HTML') {
-                await vscode.commands.executeCommand('vscode.open', fallbackUri);
-              } else if (action === 'Reveal in Explorer') {
-                await vscode.commands.executeCommand('revealFileInOS', fallbackUri);
-              } else if (action === 'Install Guide') {
-                await vscode.env.openExternal(vscode.Uri.parse('https://www.google.com/chrome/'));
-              }
-              return null;
-            }
-
-          // Inject zoom CSS for PDF scale
-          const pdfScale = resolved.pdfScale / 100;
-          content = content.replace('</head>', `<style>body{zoom:${pdfScale};}</style>\n</head>`);
-
-          const tempHtmlPath = document.uri.fsPath.replace(/(\.tiptap\.json|\.sdoc)$/, '.tmp.html');
-          const pdfUri = this.buildExportUri(document, '.pdf', resolved.outputDir);
-          const shouldOverwritePdf = await this.confirmOverwrite(pdfUri);
-          if (!shouldOverwritePdf) return null;
-          await vscode.workspace.fs.createDirectory(vscode.Uri.file(path.dirname(pdfUri.fsPath)));
-
-          progress.report({ message: 'PDF 인쇄 중...', increment: 40 });
-          const tempHtmlUri = vscode.Uri.file(tempHtmlPath);
-          await vscode.workspace.fs.writeFile(tempHtmlUri, new TextEncoder().encode(content));
-          try {
-            await printToPdf(browserPath, tempHtmlPath, pdfUri.fsPath);
-          } finally {
-            try {
-              await vscode.workspace.fs.delete(tempHtmlUri);
-            } catch {
-              // intentionally ignored: best-effort cleanup for transient export HTML
-            }
-          }
-
-          return {
-            successMsg: `PDF exported: ${pdfUri.fsPath}`,
-            actionLabel: 'Open PDF',
-              openUri: pdfUri,
-              openKind: 'external',
-            };
-          }
-
-          ext = '.html';
-          break;
-        }
-        case 'slides': {
-          progress.report({ message: '슬라이드 변환 중...', increment: 30 });
-          const slideLogo = await resolveCompanyLogo(
-            config.get<string>('theme.companyLogo') || '',
-            this.context.extensionPath,
-          );
-          const slideFontWeights = readFontWeights(config);
-          const usedSlideWeights = new Set(Object.values(slideFontWeights));
-          const slideEmbeddedFonts = await loadBundledFontsAsBase64(this.context.extensionUri, usedSlideWeights);
-          const slideTheme = {
-            ...buildHtmlTheme(config, slideLogo, slideFontWeights, slideEmbeddedFonts),
-            primaryColor: config.get<string>('slide.primaryColor') || config.get<string>('theme.primaryColor') || '#A50034',
-            accentColor: config.get<string>('slide.accentColor') || config.get<string>('theme.accentColor') || '#6b6b6b',
-            customStyles: await resolveCustomCss(
-              resolved.slideCssPath,
-              this.getWorkspaceBasePath(document),
-              config.get<string>('theme.customStyles') || '',
-            ),
-          };
-
-          const slideSettings = {
-            ...exportSettings,
-            slideBreak: resolved.slideBreakLevel,
-            slideBreakLevel: resolved.slideBreakLevel,
-            showTitleSlide: resolved.showTitleSlide,
-            transition: resolved.slideTransition,
-            slideTransition: resolved.slideTransition,
-          };
-
-          content = convertJsonToSlides(convertedDoc, slideTheme, slideSettings, meta);
-
-          const slideUri = await this.writeExportFile(
-            document,
-            '.slides.html',
-            content,
-            resolved.outputDir,
-            progress,
-          );
-          if (!slideUri) return null;
-
-          return {
-            successMsg: `Slides exported: ${slideUri.fsPath}`,
-            actionLabel: 'Open in Browser',
-            openUri: slideUri,
-            openKind: 'external',
-          };
-        }
-        case 'adoc':
-          progress.report({ message: 'AsciiDoc 변환 중...', increment: 50 });
-          content = convertJsonToAdoc(convertedDoc, exportSettings, meta);
-          ext = '.adoc';
-          break;
-        case 'markdown':
-          progress.report({ message: 'Markdown 변환 중...', increment: 50 });
-          content = convertJsonToMarkdown(convertedDoc, exportSettings, meta);
-          ext = '.md';
-          break;
-      }
-
-      progress.report({ message: '파일 쓰는 중...', increment: 20 });
-      const outputUri = await this.writeExportFile(
-        document,
-        ext,
-        content,
-        resolved.outputDir,
-        progress,
-      );
-      if (!outputUri) return null;
-
-      return {
-        successMsg: `${label} exported: ${outputUri.fsPath}`,
-        actionLabel: 'Open File',
-        openUri: outputUri,
-        openKind: format === 'html' ? 'html' : 'text',
-      };
-    } catch (error) {
-      vscode.window.showErrorMessage(
-        `Failed to export: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-      return null;
-    }
-  }
-
-  private getWorkspaceBasePath(document: vscode.TextDocument): string {
-    return vscode.workspace.getWorkspaceFolder(document.uri)?.uri.fsPath ?? path.dirname(document.uri.fsPath);
-  }
-
-  private buildExportUri(
-    document: vscode.TextDocument,
-    extension: string,
-    outputDir: string,
-  ): vscode.Uri {
-    const baseName = path.basename(document.uri.fsPath).replace(/(\.tiptap\.json|\.sdoc)$/, '');
-    const outputFileName = `${baseName}${extension}`;
-    const trimmedOutputDir = outputDir.trim();
-    if (!trimmedOutputDir) {
-      return document.uri.with({ path: document.uri.path.replace(/(\.tiptap\.json|\.sdoc)$/, extension) });
-    }
-
-    const basePath = this.getWorkspaceBasePath(document);
-    const resolvedOutputDir = path.isAbsolute(trimmedOutputDir)
-      ? trimmedOutputDir
-      : path.resolve(basePath, trimmedOutputDir);
-    return vscode.Uri.file(path.join(resolvedOutputDir, outputFileName));
-  }
-
-  private async confirmOverwrite(uri: vscode.Uri): Promise<boolean> {
-    try {
-      await vscode.workspace.fs.stat(uri);
-    } catch {
-      return true;
-    }
-
-    const answer = await vscode.window.showWarningMessage(
-      `이미 파일이 있습니다. 덮어쓰시겠습니까?\n${uri.fsPath}`,
-      { modal: true },
-      '덮어쓰기'
-    );
-    return answer === '덮어쓰기';
-  }
-
-  private async writeExportFile(
-    document: vscode.TextDocument,
-    extension: string,
-    content: string,
-    outputDir: string,
-    progress: vscode.Progress<{ message?: string; increment?: number }>,
-  ): Promise<vscode.Uri | null> {
-    const outputUri = this.buildExportUri(document, extension, outputDir);
-    const shouldOverwrite = await this.confirmOverwrite(outputUri);
-    if (!shouldOverwrite) {
-      return null;
-    }
-    progress.report({ message: '파일 쓰는 중...', increment: 20 });
-    await vscode.workspace.fs.createDirectory(vscode.Uri.file(path.dirname(outputUri.fsPath)));
-    await vscode.workspace.fs.writeFile(outputUri, new TextEncoder().encode(content));
-    return outputUri;
-  }
-
-  /**
-   * Unwrap an .sdoc file: supports both the new envelope format and legacy (bare doc).
-   * Also migrates legacy attribute names (data-caption → caption, etc.).
-   */
-  private static unwrapSdoc(parsed: unknown): { meta: SdocMeta; doc: TiptapNode } {
-    return sharedUnwrapSdoc(parsed);
   }
 
   private getHtmlForWebview(webview: vscode.Webview): string {
