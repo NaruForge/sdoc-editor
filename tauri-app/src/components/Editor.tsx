@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { useEditorDomEvents } from '@shared/editor/hooks/useEditorDomEvents';
 import { EditorContent } from '@tiptap/react';
 import { useTiptapEditor } from '@shared/editor/hooks/useTiptapEditor';
@@ -166,7 +167,11 @@ export const Editor: React.FC<EditorProps> = ({
   const extensionRuntime = useMemo(() => ({
     getSettings: () => settingsRef.current,
     flush: () => flushUpdateRef.current(),
-    openDocument: (path: string) => openWorkspaceFileRef.current?.(path),
+    openDocument: (path: string) => {
+      void invoke<string>('resolve_document_relative_path', { path })
+        .then((resolvedPath) => openWorkspaceFileRef.current?.(resolvedPath))
+        .catch((error: unknown) => console.warn('Failed to resolve linked document', error));
+    },
     openDrawio: (drawioPath: string) => {
       postMessageRef.current({ type: 'openDrawio', drawioPath }).catch(() => setShowDrawioInstallGuide(true));
     },
@@ -352,11 +357,9 @@ export const Editor: React.FC<EditorProps> = ({
     if (settings) {
       dispatch({ type: 'SET_SETTINGS', payload: settings as Partial<EditorSettings> });
     } else {
-      import('@tauri-apps/api/core').then(({ invoke }) => {
-        invoke<Partial<EditorSettings>>('get_editor_settings')
-          .then((editorSettings) => dispatch({ type: 'SET_SETTINGS', payload: editorSettings }))
-          .catch((error: unknown) => console.warn('Failed to reload editor settings', error));
-      });
+      invoke<Partial<EditorSettings>>('get_editor_settings')
+        .then((editorSettings) => dispatch({ type: 'SET_SETTINGS', payload: editorSettings }))
+        .catch((error: unknown) => console.warn('Failed to reload editor settings', error));
     }
     if (editor) {
       trackSave(postMessage({

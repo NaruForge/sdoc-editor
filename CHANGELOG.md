@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Ensured the retired `Check for Extension Update` and `Setup AI Support` commands are absent from the published extension
 - Moved the image alignment toolbar outside the image hit area so Draw.io diagrams remain easy to open with a double-click
 - Disposed Tauri event listeners safely across app teardown and React remounts
+- Resolved relative `.sdoc` links against the current desktop document before opening them
 
 ## [0.4.12] - 2026-07-20
 
