@@ -5,3 +5,4 @@ target
 *.vsix
 .vscode-test
 *.log
+tauri-app/release-artifacts
