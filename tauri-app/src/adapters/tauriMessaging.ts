@@ -49,6 +49,15 @@ export async function resolveAssetUrl(relativePath: string): Promise<string> {
 export function createTauriAdapter(): EditorHostBridge {
   const listeners: TauriMessageHandler[] = [];
   const unlistenFns: UnlistenFn[] = [];
+  let disposed = false;
+
+  const retainListener = (unlisten: UnlistenFn) => {
+    if (disposed) {
+      unlisten();
+      return;
+    }
+    unlistenFns.push(unlisten);
+  };
 
   // Listen for backend events
   const setupListeners = async () => {
@@ -57,7 +66,7 @@ export function createTauriAdapter(): EditorHostBridge {
         handler({ type: 'settingsChanged', settings: event.payload });
       }
     });
-    unlistenFns.push(u1);
+    retainListener(u1);
 
     const u2 = await listen<DrawioFileUpdatedPayload>('drawio-file-updated', (event) => {
       const assetUrl = convertFileSrc(event.payload.filePath);
@@ -69,7 +78,7 @@ export function createTauriAdapter(): EditorHostBridge {
         });
       }
     });
-    unlistenFns.push(u2);
+    retainListener(u2);
   };
 
   setupListeners();
@@ -294,6 +303,7 @@ export function createTauriAdapter(): EditorHostBridge {
     },
 
     dispose: () => {
+      disposed = true;
       for (const unlisten of unlistenFns) {
         unlisten();
       }

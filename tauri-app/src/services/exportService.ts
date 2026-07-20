@@ -1,8 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
 import { save } from '@tauri-apps/plugin-dialog';
-import { convertJsonToAdoc } from '@shared/converter/jsonToAdoc';
-import { convertJsonToHtml } from '@shared/converter/jsonToHtml';
-import { convertJsonToMarkdown } from '@shared/converter/jsonToMarkdown';
 import type { DocumentSettings, ResolvedEditorSettings, SdocMeta, TiptapNode } from '@shared/types';
 
 export type ExportFormat = 'html' | 'adoc' | 'markdown' | 'pdf' | 'slides';
@@ -43,6 +40,7 @@ export async function exportDocument(
 
   switch (format) {
     case 'html': {
+      const { convertJsonToHtml } = await import('@shared/converter/jsonToHtml');
       const appSettings = await invoke<AppThemeSettings>('get_settings');
       let htmlCss = '';
       if (docSettings?.htmlCssPath) {
@@ -64,16 +62,20 @@ export async function exportDocument(
       filterName = 'HTML';
       break;
     }
-    case 'markdown':
+    case 'markdown': {
+      const { convertJsonToMarkdown } = await import('@shared/converter/jsonToMarkdown');
       content = convertJsonToMarkdown(doc, exportSettings, meta);
       extension = 'md';
       filterName = 'Markdown';
       break;
-    case 'adoc':
+    }
+    case 'adoc': {
+      const { convertJsonToAdoc } = await import('@shared/converter/jsonToAdoc');
       content = convertJsonToAdoc(doc, exportSettings, meta);
       extension = 'adoc';
       filterName = 'AsciiDoc';
       break;
+    }
     case 'pdf':
     case 'slides':
       window.alert(`${format.toUpperCase()} export is not available in the desktop app yet.`);

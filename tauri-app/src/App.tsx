@@ -107,6 +107,8 @@ const AppContent: React.FC = () => {
 
   const adapter = useMemo(() => createTauriAdapter(), []);
 
+  useEffect(() => () => adapter.dispose(), [adapter]);
+
   const loadWorkspace = useCallback(async (folder?: string | null) => {
     const target = folder ?? workspaceFolder;
     if (!target) {

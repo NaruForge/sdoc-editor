@@ -371,9 +371,4 @@ export class VsCodeExportService {
     await vscode.workspace.fs.writeFile(outputUri, new TextEncoder().encode(content));
     return outputUri;
   }
-
-  /**
-   * Unwrap an .sdoc file: supports both the new envelope format and legacy (bare doc).
-   * Also migrates legacy attribute names (data-caption → caption, etc.).
-   */
 }
