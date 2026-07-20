@@ -4,6 +4,9 @@ output
 target
 *.vsix
 .vscode-test
-.codex/
+.codex/*
+!.codex/agents/
+!.codex/agents/*.toml
+!.codex/config.toml
 *.log
 tauri-app/release-artifacts

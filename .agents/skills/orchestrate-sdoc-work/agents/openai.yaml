@@ -1,0 +1,4 @@
+interface:
+  display_name: "Orchestrate SDOC Work"
+  short_description: "Coordinate safe parallel work in Structured Doc Editor"
+  default_prompt: "Use $orchestrate-sdoc-work to coordinate this Structured Doc Editor task with the appropriate native or external agents."
