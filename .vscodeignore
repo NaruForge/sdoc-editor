@@ -20,6 +20,7 @@ AGENTS.md
 eslint.config.mjs
 webview-ui/**
 tsconfig.json
+vitest.config.ts
 esbuild.mjs
 package-lock.json
 webview-ui/tsconfig.json
