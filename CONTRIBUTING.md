@@ -30,7 +30,7 @@ npm run build:all
 | `npm run build` | Extension host와 VS Code 웹뷰 빌드 |
 | `npm run build:desktop` | Tauri 프런트엔드 빌드 |
 | `npm run build:all` | 두 배포면의 프런트엔드 전체 빌드 |
-| `npm run package` | `output/`에 VSIX와 `version.json` 생성 |
+| `npm run package` | `output/`에 VSIX 생성 |
 
 Rust 백엔드를 변경했다면 다음 검증도 수행합니다.
 
@@ -45,14 +45,14 @@ Pop-Location
 ## 코드 구조와 경계
 
 - `src/`: VS Code Extension host와 파일 I/O
-- `shared/`: VS Code API에 의존하지 않는 문서 타입, 변환기, MCP 로직
+- `shared/`: VS Code API에 의존하지 않는 문서 타입, 변환기, 문서 코어
 - `shared/editor/`: VS Code와 Tauri가 함께 쓰는 에디터 컴포넌트와 Tiptap 확장
 - `webview-ui/src/`: VS Code 전용 메시징과 UI 조합
 - `tauri-app/src/`: Tauri 전용 메시징, 탐색기, 데스크톱 UI 조합
 - `tauri-app/src-tauri/`: Rust IPC와 운영체제 통합
 - `tests/`: 호스트 독립 코어의 단위 테스트
 
-두 UI에 같은 구현을 복사하지 말고 `shared/editor/`로 올립니다. 호스트 API는 어댑터 뒤에 두고, `shared/`에서는 `vscode`나 Tauri API를 import하지 않습니다. `.sdoc` 저장 형식을 바꿀 때는 `shared/types.ts`, `shared/mcp/sdocUtils.ts`, `sdoc.schema.json`, 변환기, 테스트를 함께 갱신합니다.
+두 UI에 같은 구현을 복사하지 말고 `shared/editor/`로 올립니다. 호스트 API는 어댑터 뒤에 두고, `shared/`에서는 `vscode`나 Tauri API를 import하지 않습니다. `.sdoc` 저장 형식을 바꿀 때는 `shared/types.ts`, `shared/document/sdocUtils.ts`, `sdoc.schema.json`, 변환기, 테스트를 함께 갱신합니다.
 
 ## 수동 검증
 

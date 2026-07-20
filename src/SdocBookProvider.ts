@@ -6,7 +6,7 @@ import { detectBrowser, printToPdf } from './utils/browserDetect';
 import { loadBundledFontsAsBase64 } from './utils/fontUtils';
 import { embedImagesAsBase64 } from './utils/imageUtils';
 import { resolveCompanyLogo, readFontWeights, buildHtmlTheme, readExportSettings } from './utils/themeUtils';
-import { unwrapSdoc } from '../shared/mcp/sdocUtils';
+import { unwrapSdoc } from '../shared/document/sdocUtils';
 import type { TiptapMark, TiptapNode } from '../shared/types';
 
 interface SdocBook {

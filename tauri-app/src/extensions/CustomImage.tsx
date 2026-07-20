@@ -100,6 +100,7 @@ export const CustomImage = Image.extend({
 
       const img = document.createElement('img');
       img.setAttribute('draggable', 'false');
+      imageContainer.appendChild(alignToolbar);
       imageContainer.appendChild(img);
 
       // -- Caption input (visible only when editing) --
@@ -114,8 +115,7 @@ export const CustomImage = Image.extend({
       captionInput.placeholder = 'Enter image caption...';
       captionInputWrapper.appendChild(captionInput);
 
-      // Order: toolbar, image, then captions
-      wrapper.appendChild(alignToolbar);
+      // Keep the toolbar anchored to the image, outside its double-click target.
       wrapper.appendChild(imageContainer);
       wrapper.appendChild(captionDisplay);
       wrapper.appendChild(captionInputWrapper);

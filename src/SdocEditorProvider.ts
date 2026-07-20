@@ -12,7 +12,7 @@ import {
   wrapSdoc as sharedWrapSdoc,
   assignAutoIds as sharedAssignAutoIds,
   syncCrossReferences as sharedSyncCrossReferences,
-} from '../shared/mcp/sdocUtils';
+} from '../shared/document/sdocUtils';
 import { resolveSettings, getCaptionPreset } from '../shared/settingsResolver';
 import type { DocumentSettings, CaptionStyleName, SdocMeta, TiptapNode } from '../shared/types';
 

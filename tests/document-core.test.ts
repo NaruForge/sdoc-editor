@@ -6,7 +6,7 @@ import {
   syncCrossReferences,
   unwrapSdoc,
   wrapSdoc,
-} from '../shared/mcp/sdocUtils';
+} from '../shared/document/sdocUtils';
 import type { TiptapNode } from '../shared/types';
 
 const text = (value: string, href?: string): TiptapNode => ({

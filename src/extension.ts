@@ -8,8 +8,7 @@ import { exportToAdoc } from './commands/exportToAdoc';
 import { exportToMarkdown } from './commands/exportToMarkdown';
 import { exportToPdf } from './commands/exportToPdf';
 import { exportToSlides } from './commands/exportToSlides';
-import { checkForUpdate, checkForUpdateManual } from './updateChecker';
-import { createEmptySdoc } from '../shared/mcp/sdocUtils';
+import { createEmptySdoc } from '../shared/document/sdocUtils';
 
 /**
  * Show What's New (CHANGELOG) when extension is updated to a new version
@@ -39,9 +38,6 @@ async function showWhatsNewIfNeeded(context: vscode.ExtensionContext): Promise<v
 export function activate(context: vscode.ExtensionContext) {
   // Show What's New on version update
   showWhatsNewIfNeeded(context);
-
-  // Check for updates from shared folder
-  checkForUpdate(context);
 
   // Register the custom editor providers
   context.subscriptions.push(SdocEditorProvider.register(context));
@@ -94,21 +90,6 @@ export function activate(context: vscode.ExtensionContext) {
     )
   );
 
-  // Register Setup AI Agent (all-in-one) command
-  context.subscriptions.push(
-    vscode.commands.registerCommand(
-      'structuredDocEditor.checkForUpdate',
-      () => checkForUpdateManual(context)
-    )
-  );
-
-  // Register Setup AI Agent (all-in-one) command
-  context.subscriptions.push(
-    vscode.commands.registerCommand(
-      'structuredDocEditor.setupAgent',
-      () => setupAgent(context)
-    )
-  );
 }
 
 async function createNewSdoc(): Promise<void> {
@@ -136,95 +117,6 @@ async function createNewSdoc(): Promise<void> {
     targetUri,
     'structuredDocEditor.sdoc',
     { preview: false }
-  );
-}
-
-function migrateVscodeMcpJson(workspaceFsPath: string): void {
-  const vscodeMcpPath = path.join(workspaceFsPath, '.vscode', 'mcp.json');
-  if (!fs.existsSync(vscodeMcpPath)) return;
-
-  try {
-    const content = fs.readFileSync(vscodeMcpPath, 'utf-8');
-    const config = JSON.parse(content) as { servers?: Record<string, unknown> };
-    if (!config.servers?.['sdoc']) return;
-
-    delete config.servers['sdoc'];
-
-    const { servers, ...rest } = config;
-    if (Object.keys(servers).length === 0 && Object.keys(rest).length === 0) {
-      fs.rmSync(vscodeMcpPath);
-    } else {
-      fs.writeFileSync(vscodeMcpPath, JSON.stringify({ ...rest, servers }, null, 2) + '\n', 'utf-8');
-    }
-  } catch {
-    // intentionally ignored: malformed or unreadable .vscode/mcp.json
-  }
-}
-
-function setupMcpInWorkspace(context: vscode.ExtensionContext, workspaceFsPath: string): void {
-  const mcpServerPath = path.join(context.extensionPath, 'dist', 'mcp-server.js');
-  const githubDir = path.join(workspaceFsPath, '.github');
-  const mcpJsonPath = path.join(githubDir, 'mcp.json');
-
-  migrateVscodeMcpJson(workspaceFsPath);
-
-  let config: { servers: Record<string, unknown> } = { servers: {} };
-  try {
-    const existing = fs.readFileSync(mcpJsonPath, 'utf-8');
-    const parsed = JSON.parse(existing);
-    config = { servers: {}, ...parsed };
-  } catch {
-    // File doesn't exist — use default
-  }
-
-  config.servers['sdoc'] = {
-    type: 'stdio',
-    command: 'node',
-    args: [mcpServerPath],
-  };
-
-  fs.mkdirSync(githubDir, { recursive: true });
-  fs.writeFileSync(mcpJsonPath, JSON.stringify(config, null, 2) + '\n', 'utf-8');
-}
-
-async function setupAgent(context: vscode.ExtensionContext): Promise<void> {
-  const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-  if (!workspaceFolder) {
-    vscode.window.showErrorMessage('워크스페이스 폴더가 열려 있지 않습니다.');
-    return;
-  }
-
-  const workspaceFsPath = workspaceFolder.uri.fsPath;
-
-  // 1. Copy slim instructions file (needed for applyTo auto-loading)
-  const srcInstructionsDir = path.join(context.extensionPath, 'docs', 'agent', '.github', 'instructions');
-  const destInstructionsDir = path.join(workspaceFsPath, '.github', 'instructions');
-  const instructionsFile = 'sdoc-format.instructions.md';
-  const srcPath = path.join(srcInstructionsDir, instructionsFile);
-  const destPath = path.join(destInstructionsDir, instructionsFile);
-
-  if (fs.existsSync(srcPath)) {
-    if (fs.existsSync(destPath)) {
-      const answer = await vscode.window.showWarningMessage(
-        `${instructionsFile} 파일이 이미 존재합니다. 덮어쓰시겠습니까?`,
-        '덮어쓰기', '건너뛰기'
-      );
-      if (answer === '덮어쓰기') {
-        fs.mkdirSync(destInstructionsDir, { recursive: true });
-        fs.copyFileSync(srcPath, destPath);
-      }
-    } else {
-      fs.mkdirSync(destInstructionsDir, { recursive: true });
-      fs.copyFileSync(srcPath, destPath);
-    }
-  }
-
-  // 2. Register MCP server
-  setupMcpInWorkspace(context, workspaceFsPath);
-
-  vscode.window.showInformationMessage(
-    'AI Support 설정 완료! Instructions 복사 + MCP 서버 등록 완료.',
-    '확인'
   );
 }
 

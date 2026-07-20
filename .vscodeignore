@@ -38,9 +38,6 @@ PRODUCT.md
 docs/architecture.md
 docs/adr/**
 docs/SDOC_*.md
-docs/agent/issues/**
-docs/agent/README.md
-!docs/agent/.github/**
 drawio-plugins/**
 
 # Sample files

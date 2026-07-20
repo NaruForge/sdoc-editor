@@ -85,21 +85,6 @@
         "command": "structuredDocEditor.exportToSlides",
         "title": "Export to Slides",
         "category": "Structured Doc"
-      },
-      {
-        "command": "structuredDocEditor.checkForUpdate",
-        "title": "Check for Extension Update",
-        "category": "Structured Doc"
-      },
-      {
-        "command": "structuredDocEditor.setupAgent",
-        "title": "Setup AI Support (MCP + Instructions)",
-        "category": "Structured Doc"
-      }
-    ],
-    "chatSkills": [
-      {
-        "path": "./docs/agent/.github/skills/sdoc-editing/SKILL.md"
       }
     ],
     "configuration": {
@@ -346,11 +331,6 @@
           "default": "",
           "description": "Custom CSS styles for HTML export (advanced users)"
         },
-        "structuredDocEditor.update.sharedFolder": {
-          "type": "string",
-          "default": "",
-          "description": "Shared folder path for auto-update (e.g. \\\\server\\share\\sdoc-editor)"
-        },
         "structuredDocEditor.slide.breakLevel": {
           "type": "string",
           "enum": [
@@ -431,7 +411,6 @@
     "vscode:prepublish": "npm run build && npm run clean:dist"
   },
   "devDependencies": {
-    "@modelcontextprotocol/sdk": "^1.29.0",
     "@types/node": "^20.11.0",
     "@types/vscode": "^1.85.0",
     "@typescript-eslint/eslint-plugin": "^8.58.1",
@@ -445,7 +424,6 @@
     "typescript": "^5.3.3",
     "@vscode/vsce": "3.9.2",
     "eslint-plugin-react-hooks": "^7.0.1",
-    "vitest": "^4.1.10",
-    "zod": "^3.25.76"
+    "vitest": "^4.1.10"
   }
 }

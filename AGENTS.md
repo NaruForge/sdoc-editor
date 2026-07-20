@@ -13,6 +13,7 @@ The document model, converters, settings, and host-neutral utilities belong in `
 
 - `sdoc.schema.json`: persisted `.sdoc` document contract
 - `shared/types.ts`: TypeScript document and settings types
+- `shared/document/`: document envelope, migrations, IDs, and cross-references
 - `shared/settingsResolver.ts`: defaults and settings resolution
 - `shared/converter/`: all import/export conversion
 - `shared/editor/`: UI and Tiptap code shared by both hosts
@@ -47,12 +48,12 @@ cargo test --manifest-path tauri-app/Cargo.toml --workspace
 4. Keep host differences behind adapters or host-level components.
 5. Parse external JSON as `unknown` and validate or narrow it at the boundary.
 6. Do not add new `any`, untyped `window` globals, synchronous extension-host I/O, or copied defaults.
-7. Update schemas, examples, tests, MCP authoring guidance, and converters when the persisted document format changes.
+7. Update schemas, examples, tests, and converters when the persisted document format changes.
 8. Keep user documentation in `README.md`, contributor workflow in `CONTRIBUTING.md`, and implementation detail in `docs/`.
 
 ## Packaging
 
-- `npm run package` creates the VSIX and `version.json` in `output/`.
+- `npm run package` creates the VSIX in `output/`.
 - `npm run build:desktop` builds the Tauri frontend only.
 - Native installers are built through Tauri after the frontend and Rust checks pass.
 - Versions are synchronized by `npm run version:check`.

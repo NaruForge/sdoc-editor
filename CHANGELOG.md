@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Clarified installation, supported formats, AI integration, desktop usage, document format, and contributor workflows
 - Verified that VSIX packaging embeds the root README as the Marketplace description
 
+### Removed
+- Removed the redundant shared-folder extension updater and its activation-time check, command, setting, and `version.json` artifact
+- Removed the `Setup AI Support` command and all workspace mutation for copied instructions or MCP configuration
+- Removed the bundled Chat Skill, MCP server, AI authoring assets, and their runtime dependencies
+
 ## [0.4.11] - 2026-07-20
 
 ### Added

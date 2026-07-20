@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -20,11 +20,6 @@ execFileSync(
     join(outputDir, filename),
   ],
   { cwd: root, stdio: 'inherit' },
-);
-
-writeFileSync(
-  join(outputDir, 'version.json'),
-  `${JSON.stringify({ version: pkg.version, filename }, null, 2)}\n`,
 );
 
 console.log(`VSIX ready: output/${filename}`);

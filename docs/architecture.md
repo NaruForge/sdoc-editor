@@ -14,7 +14,7 @@ Tauri host ───┘
 
 ### Document core
 
-`shared/types.ts`, `shared/mcp/sdocUtils.ts`, and `sdoc.schema.json` define the persisted envelope, Tiptap node tree, migrations, generated IDs, and cross-reference behavior. JSON entering from files or MCP is validated at this boundary.
+`shared/types.ts`, `shared/document/sdocUtils.ts`, and `sdoc.schema.json` define the persisted envelope, Tiptap node tree, migrations, generated IDs, and cross-reference behavior. External JSON is validated or narrowed at this boundary.
 
 ### Conversion
 
@@ -27,10 +27,6 @@ Tauri host ───┘
 ### Hosts
 
 The VS Code extension owns TextDocument integration, webview security, VS Code commands, and VSIX packaging. Tauri owns native file operations, settings persistence, workspace watching, and desktop packaging.
-
-### AI integration
-
-The MCP server is a separate extension bundle entry point. The bundled `sdoc-editing` skill and format instructions describe the document contract for extension users; they are product assets, not this repository's task-management system.
 
 ## Dependency direction
 
