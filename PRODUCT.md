@@ -53,22 +53,16 @@ vscode-structed-doc/
 ├── shared/                   # vscode API 의존 없는 순수 TS — Extension/Tauri가 공유
 │   ├── converter/            # ★ 단일 소스 변환기 (jsonToHtml/Adoc/Markdown/Slides, markdownToJson)
 │   ├── document/             # document envelope, migration, ID, cross-reference 처리
-│   ├── editor/               # VS Code/Tauri 공용 React 컴포넌트와 Tiptap 확장
+│   ├── editor/               # 공용 React UI, Tiptap 확장, 브리지 계약, 런타임, 구조 CSS
 │   ├── types/messages.ts     # Extension ↔ Webview 메시지 프로토콜 타입 (discriminated union)
 │   ├── types.ts              # TiptapNode/Mark, SdocMeta, DocumentSettings, ExportSettings 등 공유 타입
 │   └── settingsResolver.ts   # 설정 병합(default → workspace → per-document) + 캡션 프리셋
 │
-├── webview-ui/                # VS Code 웹뷰 안에서 도는 React 에디터 (Vite)
-│   └── src/
-│       ├── extensions/       # Tiptap 커스텀 확장 (Callout, CustomImage, CustomTable, MathBlock 등)
-│       ├── components/       # Toolbar, ActivityBar, SidePanel, 각종 Dialog/ContextMenu
-│       ├── hooks/            # useVSCodeMessaging, useEditorMessages, useTiptapEditor, useDialogState
-│       ├── context/          # EditorContext (useReducer 기반 상태)
-│       └── styles/           # vscode-theme.css (Tailwind + VS Code CSS 변수)
+├── webview-ui/                # VS Code 전용 브리지, 메시지 처리, 웹뷰 셸 조합
 │
-├── tauri-app/                 # 독립 데스크톱 앱 (webview-ui 미러 + Tauri 셸)
-│   ├── src/                  # webview-ui와 거의 동일한 구조 + 파일 탐색기/메뉴바/시작화면
-│   └── src-tauri/             # Rust 백엔드 (commands.rs, document.rs, settings.rs)
+├── tauri-app/                 # 독립 데스크톱 앱(Tauri 셸, 탐색기, 네이티브 어댑터)
+│   ├── src/                  # 데스크톱 전용 셸과 서비스
+│   └── src-tauri/             # Rust 백엔드(모듈화된 commands/, document.rs, settings.rs)
 │
 ├── sdoc.schema.json            # .sdoc JSON Schema (draft-07)
 ├── sdocbook.schema.json         # .sdocbook JSON Schema
@@ -158,7 +152,7 @@ vscode-structed-doc/
 
 ### 4.1 WYSIWYG 편집 엔진
 
-- **Tiptap 3 / ProseMirror** 기반. 확장 목록은 `webview-ui/src/extensions/tiptapExtensions.ts`에서 조립:
+- **Tiptap 3 / ProseMirror** 기반. 두 호스트의 확장 목록은 `shared/editor/extensions/tiptapExtensions.ts`에서 한 번만 조립:
   - 표준: `StarterKit`(codeBlock 비활성화), `Underline`, `TaskList`/`TaskItem`, `Link`, `TableRow`/`TableHeader`/`TableCell`, `TextStyle`, `Color`, `Highlight`, `Subscript`, `Superscript`, `TextAlign`
   - 커스텀 노드: `Callout`, `CustomImage`, `CustomTable`, `MathInline`, `MathBlock`, `DiagramBlock`, `CustomCodeBlock`(CodeBlockLowlight 래핑)
   - 커스텀 플러그인(스키마 없음): `CrossReference`, `SectionFold`, `EquationNumbering`, `HeadingKeyboardShortcuts`, `BlockExit`, `CursorHistory`, `internalLinkClick`
@@ -176,11 +170,7 @@ vscode-structed-doc/
 | `Callout` | 바닐라 DOM | variant별 아이콘/색상 헤더 + 콘텐츠 영역 |
 | `CodeBlockView` | **React** NodeView | `NodeViewWrapper`/`NodeViewContent` + 언어 선택 드롭다운 + `lowlight` 구문강조 |
 
-**바닐라 DOM ↔ React 통신 브릿지**: `window.__` 전역 함수를 통해 트리거
-- `window.__editorSettings` — 현재 설정 스냅샷 (NodeView에서 참조)
-- `window.__editorFlushUpdate()` — 디바운스 무시하고 즉시 저장 강제
-- `window.__showImageProperties()`, `window.__showImageContextMenu()`, `window.__showMathDialog()`, `window.__showDiagramDialog()` — React 다이얼로그를 여는 콜백
-- 타입은 `webview-ui/src/types/globals.d.ts`에 반드시 선언(any 캐스팅 금지)
+**바닐라 DOM ↔ React 통신 브릿지**: Tiptap 확장 생성 시 타입이 지정된 `EditorExtensionRuntime`을 명시적으로 주입합니다. 설정 조회, 즉시 저장, 다이얼로그 열기, 문서/Draw.io 열기는 런타임 콜백을 통하며 전역 `window.__*` 상태를 사용하지 않습니다.
 
 ### 4.3 교차 참조(Cross-Reference) 시스템
 
@@ -326,17 +316,17 @@ interface ConvertContext {
 
 - `App.tsx` → `EditorProvider`(Context, `useReducer`) → `Editor.tsx`(메인 컴포지션)
 - 상태: `EditorContext`가 `doc`, `isReady`, 전역 `settings`, 문서별 `docSettings` 보유
-- `useTiptapEditor.ts`: Tiptap 에디터 인스턴스 생성(확장 목록 주입), 300ms 디바운스 업데이트, `flushUpdate()`로 강제 플러시
-- `useVSCodeMessaging.ts`: `window.acquireVsCodeApi()` 취득 → `window.vscode`에 저장, `message` 이벤트 리스닝, 최초 `ready` 전송
+- `shared/editor/hooks/useTiptapEditor.ts`: 공통 Tiptap 에디터 생성, 확장 런타임 주입, 300ms 디바운스 업데이트, `flushUpdate()` 제공
+- `useVSCodeMessaging.ts`: `window.acquireVsCodeApi()`를 호스트 브리지 내부에 캡슐화하고, 수신 JSON을 런타임 가드로 검증한 뒤 최초 `ready` 전송
 - `useEditorMessages.ts`: 확장→웹뷰 메시지 타입별 처리(라우터 패턴 지향)
-- 스타일: Tailwind + `vscode-theme.css`(VS Code CSS 변수 `--vscode-editor-background` 등과 자체 CSS 변수 `--image-caption-prefix`, `--heading-h1Color` 등을 결합)
+- 스타일: `shared/editor/styles/editor.css`의 공통 구조 스타일과 호스트 테마 변수를 결합
 
 ### 6.5 Tauri 데스크톱 앱 아키텍처
 
-- `tauri-app/src`는 `webview-ui/src`의 **미러 구조**(확장/컴포넌트/훅 대부분 동일 파일명) — **동기화 규칙**: webview-ui의 extensions/컴포넌트 변경은 반드시 tauri-app에도 반영
+- `shared/editor/`가 공통 UI·확장·훅의 단일 소스이며, `tauri-app/src`와 `webview-ui/src`에는 호스트 셸과 어댑터만 둡니다. 복사 동기화 규칙은 폐기되었습니다.
 - 메시징 계층만 대체: `hooks/useTauriMessaging.ts` + `adapters/tauriMessaging.ts`가 Tauri `invoke()`로 Rust 커맨드를 호출
 - CSS 변수도 `--vscode-*` 대신 독립적인 `tauri-theme.css`로 별도 정의
-- **Rust 백엔드**(`src-tauri/src/commands.rs`, 플러그인: dialog/fs/shell/process):
+- **Rust 백엔드**(`src-tauri/src/commands.rs` + `src-tauri/src/commands/`, 플러그인: dialog/fs/shell/process):
   - 문서 I/O: `open_document`, `save_document`, `new_document`, `get_current_file_path`
   - 워크스페이스 탐색기: `get_recent_folders`, `list_folder_documents`, `create_document_in_folder`, `rename_entry`, `delete_entry`(휴지통 이동, `trash` crate), `undo_last_delete`, `create_folder`
   - OS 통합: `reveal_in_file_explorer`
@@ -391,7 +381,7 @@ interface ConvertContext {
 3. **설정 해석기**: 기본값 → workspace 설정 → 문서별 설정 병합 로직 + 캡션 프리셋(ieee/iso/modern/korean) 정의
 4. **변환기(Converter) 단일화**: `shared/converter/`에 HTML/Markdown/AsciiDoc/Slides 변환기를 ConvertContext 패턴으로 구현, vscode API 의존 금지
 5. **VS Code Extension 셸**: `CustomTextEditorProvider` + 메시지 프로토콜(discriminated union) + envelope 마이그레이션
-6. **Tauri 데스크톱 앱**: webview-ui를 미러링하고 메시징만 Tauri invoke 계층으로 교체, Rust 백엔드에 파일탐색기/트래시/워처 구현
+6. **Tauri 데스크톱 앱**: 공통 `shared/editor`를 소비하고 Tauri 브리지와 데스크톱 셸만 구현, Rust 백엔드에 파일탐색기/트래시/워처 구현
 7. **UX 폴리시**: Activity Bar/TOC/LOF/LOT, Zoom 슬라이더, 커서 히스토리, 섹션 접기 등 편의 기능은 후순위로 점진 추가
 
 ---

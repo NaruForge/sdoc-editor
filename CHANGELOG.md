@@ -7,9 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.4.13] - 2026-07-20
 
+### Changed
+- Unified document migration, normalization, stable IDs, numbering, and cross-reference rendering in the TypeScript document core used by both hosts
+- Moved shared Tiptap behavior, editor UI, and structural CSS into `shared/editor/`
+- Replaced implicit `window` callbacks with typed host bridges, extension runtimes, and validated message boundaries
+- Split the VS Code provider and Tauri backend monoliths into focused asset, export, file, settings, watcher, and workspace modules
+- Aligned both frontend workspaces on one Tiptap 3.28.0 and highlight.js 11.11.1 dependency graph
+
+### Added
+- Shared document contract fixtures and regression tests for migration, IDs, cross-references, settings, converters, and host messages
+- Architecture decision record for typed editor host bridges
+
 ### Fixed
 - Ensured the retired `Check for Extension Update` and `Setup AI Support` commands are absent from the published extension
 - Moved the image alignment toolbar outside the image hit area so Draw.io diagrams remain easy to open with a double-click
+- Disposed Tauri event listeners safely across app teardown and React remounts
 
 ## [0.4.12] - 2026-07-20
 

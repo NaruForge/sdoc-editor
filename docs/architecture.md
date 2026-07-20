@@ -2,39 +2,67 @@
 
 ## Overview
 
-Structured Doc Editor has one editor product presented through two hosts. Both hosts consume the same persisted document contract and as much common editor code as possible.
+Structured Doc Editor is one editor product presented through two hosts. A document must have the same persisted meaning, editor behavior, and conversion result in VS Code and the Windows desktop app.
 
 ```text
-VS Code host ─┐
-              ├─ shared/editor ─ shared/document + converters ─ .sdoc
-Tauri host ───┘
+VS Code extension ─┐
+                   ├─ typed host bridge ─ shared/editor
+Tauri desktop ─────┘                       │
+                                           ├─ shared/document
+                                           ├─ shared/settingsResolver
+                                           └─ shared/converter
+                                                    │
+                                                  .sdoc
 ```
 
-## Layers
+## Source-of-truth layers
 
-### Document core
+### Document contract
 
-`shared/types.ts`, `shared/document/sdocUtils.ts`, and `sdoc.schema.json` define the persisted envelope, Tiptap node tree, migrations, generated IDs, and cross-reference behavior. External JSON is validated or narrowed at this boundary.
+- `sdoc.schema.json` defines the persisted envelope.
+- `shared/types.ts` defines TypeScript document and settings types.
+- `shared/document/sdocUtils.ts` owns migration, cleanup, ID assignment, title extraction, cross-reference synchronization, and normalization.
+- `tests/fixtures/document-contract.json` protects legacy and current behavior across TypeScript and Rust tests.
 
-### Conversion
-
-`shared/converter/` contains pure TypeScript converters. Converters receive a document tree and options; they do not access VS Code, Tauri, the filesystem, or mutable module-level state.
+Rust reads and writes the envelope but deliberately does not reproduce document semantics. The Tauri frontend runs the same TypeScript migration and normalization used by the VS Code host.
 
 ### Editor UI
 
-`shared/editor/` contains host-neutral React components, hooks, and Tiptap extensions. `webview-ui/` and `tauri-app/` keep only host adapters, host shells, styles, and genuinely different behavior.
+`shared/editor/` owns reusable React components, editor context, hooks, Tiptap extensions, extension runtime callbacks, constants, and structural CSS. NodeViews receive `EditorExtensionRuntime` explicitly; they do not communicate through `window.__*` globals.
 
-### Hosts
+The host-neutral `EditorHostBridge` and the discriminated unions in `shared/types/messages.ts` define host communication. JSON entering the VS Code webview boundary is narrowed with runtime message guards before use.
 
-The VS Code extension owns TextDocument integration, webview security, VS Code commands, and VSIX packaging. Tauri owns native file operations, settings persistence, workspace watching, and desktop packaging.
+### Conversion and settings
 
-## Dependency direction
+`shared/converter/` contains host-neutral import/export conversion. `shared/settingsResolver.ts` owns defaults, caption presets, and document-over-workspace setting resolution. Neither layer may access VS Code, Tauri, or the filesystem.
 
-Host code may depend on shared code. Shared code must never depend on a host. Rust and TypeScript implementations share contract fixtures rather than duplicating undocumented behavior.
+## Host responsibilities
 
-## Verification boundaries
+### VS Code
 
-- Unit tests protect migrations, IDs, references, and converters.
-- Type checking and ESLint protect TypeScript and React code.
-- Cargo fmt, clippy, and tests protect the native host.
-- CI builds both frontends and packages a VSIX smoke artifact.
+- `src/SdocEditorProvider.ts`: editor lifecycle, TextDocument synchronization, and message routing
+- `src/services/VsCodeAssetService.ts`: image and Draw.io operations
+- `src/services/VsCodeExportService.ts`: export orchestration
+- `webview-ui/src/`: VS Code bridge, message handling, and VS Code-specific shell composition
+
+### Tauri
+
+- `tauri-app/src/`: desktop shell, workspace explorer, Tauri bridge, and desktop export service
+- `tauri-app/src-tauri/src/commands.rs`: document command state and module exports
+- `tauri-app/src-tauri/src/commands/`: asset, workspace, watcher, settings, and file-I/O command modules
+- `tauri-app/src-tauri/src/document.rs`: envelope transport and contract-fixture tests
+
+## Dependency rules
+
+1. Hosts may depend on `shared/`; `shared/` must not import `vscode` or `@tauri-apps/*`.
+2. Persisted semantics live once in the TypeScript document core.
+3. Host differences cross typed adapters or component props, never ambient globals.
+4. Common UI and structural CSS live in `shared/editor/`; host styles only override theme or shell behavior.
+5. External JSON is accepted as `unknown` and narrowed at its boundary.
+
+## Verification
+
+- `npm run check`: version sync, TypeScript, ESLint, and Vitest contracts
+- `npm run build:all`: VS Code extension, webview, and Tauri frontend builds
+- Cargo fmt, Clippy with warnings denied, and Cargo tests: native host verification
+- `npm run package`: version-checked VSIX in `output/`

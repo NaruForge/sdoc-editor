@@ -13,4 +13,4 @@ Move host-neutral React components, hooks, utilities, and Tiptap extensions into
 
 ## Consequences
 
-Common fixes are made once. Host-specific behavior must be expressed through typed adapters or wrappers. Temporary re-export modules may preserve stable import paths during migration.
+Common fixes are made once. Host-specific behavior must be expressed through typed adapters or component props. The temporary host re-export modules used during migration have been removed; host code imports shared implementations directly.

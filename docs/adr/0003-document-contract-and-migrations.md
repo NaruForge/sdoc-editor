@@ -5,12 +5,12 @@
 
 ## Context
 
-Envelope handling, legacy attribute migration, automatic IDs, and cross-reference synchronization exist in TypeScript and Rust. Unchecked changes can make the two hosts interpret the same file differently.
+Envelope handling, legacy attribute migration, automatic IDs, and cross-reference synchronization previously existed in both TypeScript and Rust. The implementations had already diverged in duplicate-ID handling and numbering behavior.
 
 ## Decision
 
-Treat `sdoc.schema.json` and shared TypeScript types as the documented contract. Protect behavior with common JSON fixtures and unit tests. Rust may implement the behavior natively but must pass equivalent contract fixtures.
+Treat `sdoc.schema.json` and shared TypeScript types as the documented contract. Protect behavior with common JSON fixtures and unit tests. The TypeScript document core is the only implementation of semantic migration and normalization. Rust preserves the JSON document value while transporting the envelope and verifies that behavior against the same fixture.
 
 ## Consequences
 
-Format changes require schema, migration, fixture, and converter updates. Backward compatibility becomes deliberate and testable.
+Format changes require schema, migration, fixture, and converter updates. Backward compatibility becomes deliberate and testable, and the two hosts cannot silently acquire different document semantics.

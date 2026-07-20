@@ -35,11 +35,9 @@ npm run build:all
 Rust 백엔드를 변경했다면 다음 검증도 수행합니다.
 
 ```powershell
-Push-Location tauri-app
-cargo fmt --check
-cargo clippy --all-targets --all-features -- -D warnings
-cargo test --all-targets --all-features
-Pop-Location
+cargo fmt --manifest-path tauri-app/Cargo.toml --all -- --check
+cargo clippy --manifest-path tauri-app/Cargo.toml --workspace --all-targets -- -D warnings
+cargo test --manifest-path tauri-app/Cargo.toml --workspace
 ```
 
 ## 코드 구조와 경계
@@ -53,6 +51,8 @@ Pop-Location
 - `tests/`: 호스트 독립 코어의 단위 테스트
 
 두 UI에 같은 구현을 복사하지 말고 `shared/editor/`로 올립니다. 호스트 API는 어댑터 뒤에 두고, `shared/`에서는 `vscode`나 Tauri API를 import하지 않습니다. `.sdoc` 저장 형식을 바꿀 때는 `shared/types.ts`, `shared/document/sdocUtils.ts`, `sdoc.schema.json`, 변환기, 테스트를 함께 갱신합니다.
+
+공통 에디터는 `EditorHostBridge`와 `EditorExtensionRuntime`만 통해 호스트 기능을 호출합니다. 전역 `window` 속성으로 기능을 노출하거나 메시지 payload에 임의 필드를 추가하지 마세요. VS Code 구현은 `src/`의 서비스와 어댑터에, Tauri 구현은 `tauri-app/src/`와 `tauri-app/src-tauri/`의 기능별 모듈에 둡니다. 공통 레이아웃 CSS는 `shared/editor/styles/`에서 수정하고 호스트별 파일에는 테마 토큰과 shell 전용 스타일만 둡니다.
 
 ## 수동 검증
 
