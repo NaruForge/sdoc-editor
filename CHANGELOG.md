@@ -5,6 +5,12 @@ All notable changes to the "Structured Doc Editor" extension will be documented 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.13] - 2026-07-20
+
+### Fixed
+- Ensured the retired `Check for Extension Update` and `Setup AI Support` commands are absent from the published extension
+- Moved the image alignment toolbar outside the image hit area so Draw.io diagrams remain easy to open with a double-click
+
 ## [0.4.12] - 2026-07-20
 
 ### Changed

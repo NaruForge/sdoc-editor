@@ -1,6 +1,7 @@
 # Build files
 .vscode/**
 .vscode-test/**
+.codex/**
 src/**
 webview-ui/src/**
 webview-ui/node_modules/**
