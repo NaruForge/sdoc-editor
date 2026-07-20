@@ -95,7 +95,7 @@ export function createTauriAdapter() {
         case 'edit':
           await invoke('save_document', {
             content: msg.content,
-            metaUpdates: null,
+            metaUpdates: msg.meta ?? null,
           });
           break;
 

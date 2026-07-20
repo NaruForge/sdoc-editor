@@ -1,0 +1,147 @@
+{
+  "legacyMigration": {
+    "input": {
+      "type": "doc",
+      "content": [
+        {
+          "type": "blockquote",
+          "content": [
+            {
+              "type": "image",
+              "attrs": {
+                "data-caption": "Legacy image",
+                "data-align": "right",
+                "data-width": "75%"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "expectedAttrs": {
+      "caption": "Legacy image",
+      "align": "right",
+      "width": "75%"
+    }
+  },
+  "idAssignment": {
+    "doc": {
+      "type": "doc",
+      "content": [
+        {
+          "type": "heading",
+          "attrs": { "level": 1 },
+          "content": [{ "type": "text", "text": "Reserved" }]
+        },
+        {
+          "type": "image",
+          "attrs": { "id": "reserved", "caption": "Preserved" }
+        },
+        {
+          "type": "image",
+          "attrs": { "id": "duplicate", "caption": "First duplicate" }
+        },
+        {
+          "type": "image",
+          "attrs": { "id": "duplicate", "caption": "Second duplicate" }
+        },
+        {
+          "type": "mathBlock",
+          "attrs": { "latex": "x=1" }
+        }
+      ]
+    },
+    "expectedIds": ["reserved-2", "reserved", "duplicate", "duplicate-2", "eq-1"]
+  },
+  "normalization": {
+    "options": {
+      "equationNumbering": "hierarchical",
+      "captionStyle": "korean",
+      "crossRefIncludeCaption": true
+    },
+    "doc": {
+      "type": "doc",
+      "content": [
+        {
+          "type": "heading",
+          "attrs": { "level": 1, "id": "intro" },
+          "content": [{ "type": "text", "text": "Introduction" }]
+        },
+        {
+          "type": "heading",
+          "attrs": { "level": 2, "numbered": false },
+          "content": [{ "type": "text", "text": "Scope & Goals" }]
+        },
+        {
+          "type": "image",
+          "attrs": { "id": "system-image", "caption": "System" }
+        },
+        {
+          "type": "table",
+          "attrs": { "caption": "Ports" }
+        },
+        {
+          "type": "mathBlock",
+          "attrs": { "latex": "x=1" }
+        },
+        {
+          "type": "paragraph",
+          "content": [
+            { "type": "text", "text": "old", "marks": [{ "type": "link", "attrs": { "href": "#intro" } }] },
+            { "type": "text", "text": "old", "marks": [{ "type": "link", "attrs": { "href": "#scope-goals" } }] },
+            { "type": "text", "text": "old", "marks": [{ "type": "link", "attrs": { "href": "#system-image" } }] },
+            { "type": "text", "text": "old", "marks": [{ "type": "link", "attrs": { "href": "#table-1" } }] },
+            { "type": "text", "text": "old", "marks": [{ "type": "link", "attrs": { "href": "#eq-1" } }] }
+          ]
+        },
+        {
+          "type": "heading",
+          "attrs": { "level": 1 },
+          "content": [{ "type": "text", "text": "Second / Phase" }]
+        },
+        {
+          "type": "image",
+          "attrs": { "caption": "Next" }
+        },
+        {
+          "type": "mathBlock",
+          "attrs": { "latex": "y=2" }
+        },
+        {
+          "type": "paragraph",
+          "content": [
+            { "type": "text", "text": "old", "marks": [{ "type": "link", "attrs": { "href": "#second-phase" } }] },
+            { "type": "text", "text": "old", "marks": [{ "type": "link", "attrs": { "href": "#figure-2" } }] },
+            { "type": "text", "text": "old", "marks": [{ "type": "link", "attrs": { "href": "#eq-2" } }] }
+          ]
+        }
+      ]
+    },
+    "expectedIds": ["intro", "scope-goals", "system-image", "table-1", "eq-1", "second-phase", "figure-2", "eq-2"],
+    "expectedReferenceTexts": [
+      "1. Introduction",
+      "Scope & Goals",
+      "그림 1 System",
+      "표 1 Ports",
+      "식 (1.1)",
+      "2. Second / Phase",
+      "그림 1 Next",
+      "식 (2.1)"
+    ]
+  },
+  "envelope": {
+    "input": {
+      "sdoc": "1.0",
+      "meta": {
+        "title": "Contract",
+        "author": "Tester",
+        "version": "2.0",
+        "settings": {
+          "captionStyle": "korean",
+          "equationNumbering": "hierarchical"
+        }
+      },
+      "doc": { "type": "doc", "content": [] }
+    }
+  }
+}

@@ -85,6 +85,32 @@ export function createEmptySdoc(meta: Partial<SdocMeta>): SdocEnvelope {
   });
 }
 
+/**
+ * Normalize text content before persistence without mutating the editor-owned tree.
+ * Only the final text node of a block is trimmed so intentional spaces between
+ * differently marked inline nodes are preserved.
+ */
+export function cleanTextNodes(node: TiptapNode): TiptapNode {
+  if (!node.content) return node;
+
+  const content = node.content.map(cleanTextNodes);
+  for (let index = content.length - 1; index >= 0; index--) {
+    const child = content[index];
+    if (child?.type === 'text' && typeof child.text === 'string') {
+      const text = child.text.replace(/\s+$/, '');
+      if (text) {
+        content[index] = { ...child, text };
+      } else {
+        content.splice(index, 1);
+      }
+      break;
+    }
+    if (child?.type && child.type !== 'text') break;
+  }
+
+  return { ...node, content };
+}
+
 export function migrateAttributes(node: TiptapNode): TiptapNode {
   const attrs = node.attrs ? { ...node.attrs } : undefined;
   if (attrs) {
@@ -136,17 +162,40 @@ const attrString = (node: TiptapNode, key: string): string => stringValue(node.a
 export function assignAutoIds(doc: TiptapNode): TiptapNode {
   if (!doc.content) return doc;
 
-  const usedIds = new Set<string>();
+  const reservedExistingIds = new Set(
+    doc.content
+      .map((node) => attrString(node, 'id'))
+      .filter((id) => id.length > 0),
+  );
+  const assignedIds = new Set<string>();
+  const seenExistingIds = new Set<string>();
   let imageCounter = 0;
   let tableCounter = 0;
   let equationCounter = 0;
 
-  const uniqueId = (base: string): string => {
+  const uniqueGeneratedId = (base: string): string => {
     let id = base;
     let suffix = 2;
-    while (usedIds.has(id)) id = `${base}-${suffix++}`;
-    usedIds.add(id);
+    while (reservedExistingIds.has(id) || assignedIds.has(id)) id = `${base}-${suffix++}`;
+    assignedIds.add(id);
     return id;
+  };
+
+  const preserveExistingId = (existing: string): string => {
+    if (!seenExistingIds.has(existing) && !assignedIds.has(existing)) {
+      seenExistingIds.add(existing);
+      assignedIds.add(existing);
+      return existing;
+    }
+
+    seenExistingIds.add(existing);
+    let suffix = 2;
+    let candidate = `${existing}-${suffix}`;
+    while (reservedExistingIds.has(candidate) || assignedIds.has(candidate)) {
+      candidate = `${existing}-${++suffix}`;
+    }
+    assignedIds.add(candidate);
+    return candidate;
   };
 
   const content = doc.content.map((node): TiptapNode => {
@@ -158,8 +207,7 @@ export function assignAutoIds(doc: TiptapNode): TiptapNode {
     if (!generatedBase) return node;
 
     const existing = attrString(node, 'id');
-    const id = existing || uniqueId(generatedBase);
-    usedIds.add(id);
+    const id = existing ? preserveExistingId(existing) : uniqueGeneratedId(generatedBase);
     return { ...node, attrs: { ...node.attrs, id } };
   });
 
@@ -186,16 +234,20 @@ export function syncCrossReferences(
   for (const node of doc.content) {
     if (node.type === 'heading') {
       const level = numberValue(node.attrs?.level, 1);
-      headings[level - 1]++;
+      const numbered = node.attrs?.numbered !== false;
+      if (numbered) headings[level - 1]++;
       for (let index = level; index < headings.length; index++) headings[index] = 0;
       if (level === 1) {
-        h1++;
+        if (numbered) h1++;
         imageCount = 0;
         tableCount = 0;
         equationInSection = 0;
       }
       const id = attrString(node, 'id');
-      if (id) labels.set(id, `${headings.slice(0, level).join('.')}. ${getNodeText(node)}`);
+      if (id) {
+        const text = getNodeText(node);
+        labels.set(id, numbered ? `${headings.slice(0, level).join('.')}. ${text}` : text);
+      }
     }
     if (node.type === 'image') {
       const number = `${preset.figurePrefix}${++imageCount}`;
@@ -235,6 +287,27 @@ export function syncCrossReferences(
   };
 
   return updateReferences(doc);
+}
+
+export interface DocumentNormalizationOptions {
+  equationNumbering?: 'sequential' | 'hierarchical';
+  captionStyle?: CaptionStyleName;
+  crossRefIncludeCaption?: boolean;
+}
+
+/** The single semantic persistence pipeline used by every host. */
+export function normalizeDocument(
+  doc: TiptapNode,
+  options: DocumentNormalizationOptions = {},
+): TiptapNode {
+  const cleaned = cleanTextNodes(doc);
+  const withIds = assignAutoIds(cleaned);
+  return syncCrossReferences(
+    withIds,
+    options.equationNumbering,
+    options.captionStyle,
+    options.crossRefIncludeCaption,
+  );
 }
 
 const isInternalLink = (mark: TiptapMark): boolean =>

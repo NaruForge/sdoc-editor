@@ -6,6 +6,7 @@ import { EditorProvider, useEditorContext } from './context/EditorContext';
 import { Editor } from './components/Editor';
 import { createTauriAdapter } from './adapters/tauriMessaging';
 import type { DocumentSettings, SdocMeta, TiptapNode } from '@shared/types';
+import { migrateAttributes } from '@shared/document/sdocUtils';
 import type { EditorSettings } from './context/EditorContext';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { UndoToast } from './components/UndoToast';
@@ -126,7 +127,7 @@ const AppContent: React.FC = () => {
   const loadDocument = useCallback(async (path: string, options: { fromRecent?: boolean } = {}) => {
     try {
       const result = await invoke<OpenDocumentResult>('open_document', { path });
-      setDoc(result.doc);
+      setDoc(migrateAttributes(result.doc));
       setMeta(result.meta);
       setCurrentPath(result.filePath);
       setView('editor');
@@ -171,7 +172,7 @@ const AppContent: React.FC = () => {
     });
     if (path) {
       const result = await invoke<OpenDocumentResult>('new_document', { path });
-      setDoc(result.doc);
+      setDoc(migrateAttributes(result.doc));
       setMeta(result.meta);
       setCurrentPath(result.filePath);
       setView('editor');

@@ -10,8 +10,7 @@ import { resolveCustomCss } from './utils/cssUtils';
 import {
   unwrapSdoc as sharedUnwrapSdoc,
   wrapSdoc as sharedWrapSdoc,
-  assignAutoIds as sharedAssignAutoIds,
-  syncCrossReferences as sharedSyncCrossReferences,
+  normalizeDocument,
 } from '../shared/document/sdocUtils';
 import { resolveSettings, getCaptionPreset } from '../shared/settingsResolver';
 import type { DocumentSettings, CaptionStyleName, SdocMeta, TiptapNode } from '../shared/types';
@@ -339,9 +338,6 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     // Convert webview URIs back to relative paths before saving
     const convertedContent = convertWebviewUrisToRelativePaths(content);
 
-    // Clean up text nodes (trim trailing whitespace, remove empty text nodes)
-    const cleaned = SdocEditorProvider.cleanTextNodes(convertedContent);
-
     // Read existing file to preserve metadata
     const existingText = document.getText();
     let existingMeta: SdocMeta = {};
@@ -359,9 +355,11 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     const captionStyle = (docCaptionStyle || config.get<string>('caption.style', 'modern')) as CaptionStyleName;
     const crossRefIncludeCaption = existingMeta.settings?.crossRefIncludeCaption ?? config.get<boolean>('caption.crossRefIncludeCaption', false);
 
-    // Assign auto-ids and sync cross-reference text
-    const withIds = SdocEditorProvider.assignAutoIds(cleaned);
-    const synced = SdocEditorProvider.syncCrossReferences(withIds, eqNumbering, captionStyle, crossRefIncludeCaption);
+    const synced = normalizeDocument(convertedContent, {
+      equationNumbering: eqNumbering,
+      captionStyle,
+      crossRefIncludeCaption,
+    });
 
     // Wrap in sdoc envelope, preserving settings
     const sdocFile: Record<string, unknown> = {
@@ -1490,50 +1488,6 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
    */
   private static unwrapSdoc(parsed: unknown): { meta: SdocMeta; doc: TiptapNode } {
     return sharedUnwrapSdoc(parsed);
-  }
-
-  /**
-   * Clean text nodes: trim trailing whitespace from the last text node of each
-   * block-level parent and remove resulting empty text nodes.
-   * Intermediate text nodes keep their trailing space (e.g., "Hello " before bold).
-   */
-  private static cleanTextNodes(node: TiptapNode): TiptapNode {
-    if (!node.content) return node;
-
-    // Recurse into children first
-    const cleaned = node.content
-      .map((child) => SdocEditorProvider.cleanTextNodes(child));
-
-    // Only trim the very last text node in the content array
-    for (let i = cleaned.length - 1; i >= 0; i--) {
-      const child = cleaned[i];
-      if (child?.type === 'text' && typeof child.text === 'string') {
-        const trimmed = child.text.replace(/\s+$/, '');
-        if (!trimmed) {
-          cleaned.splice(i, 1);
-        } else {
-          cleaned[i] = { ...child, text: trimmed };
-        }
-        break;
-      }
-      // Stop at the last inline-level node (don't look past non-text inlines)
-      if (cleaned[i]?.type && cleaned[i].type !== 'text') break;
-    }
-
-    return { ...node, content: cleaned };
-  }
-
-  private static assignAutoIds(doc: TiptapNode): TiptapNode {
-    return sharedAssignAutoIds(doc);
-  }
-
-  private static syncCrossReferences(
-    doc: TiptapNode,
-    equationNumbering: 'sequential' | 'hierarchical' = 'sequential',
-    captionStyle: CaptionStyleName = 'modern',
-    crossRefIncludeCaption = false,
-  ): TiptapNode {
-    return sharedSyncCrossReferences(doc, equationNumbering, captionStyle, crossRefIncludeCaption);
   }
 
   private getHtmlForWebview(webview: vscode.Webview): string {

@@ -118,7 +118,7 @@ pub fn open_document(
 
 #[tauri::command]
 pub fn save_document(
-    content: serde_json::Value,
+    content: Option<serde_json::Value>,
     meta_updates: Option<serde_json::Value>,
     state: tauri::State<DocState>,
 ) -> Result<serde_json::Value, String> {
@@ -128,7 +128,7 @@ pub fn save_document(
     // Read existing file to get current meta
     let existing_text = fs::read_to_string(&path).unwrap_or_default();
     let existing: serde_json::Value = serde_json::from_str(&existing_text).unwrap_or_default();
-    let (mut meta, _) = unwrap_sdoc(&existing);
+    let (mut meta, existing_doc) = unwrap_sdoc(&existing);
 
     // Apply meta updates if provided
     if let Some(updates) = meta_updates {
@@ -149,22 +149,17 @@ pub fn save_document(
         }
     }
 
-    // Auto-extract title from first H1
-    if let Some(title) = extract_title(&content) {
-        meta.title = title;
-    }
-
     // Update modified timestamp
     meta.modified = Utc::now().format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string();
     if meta.created.is_empty() {
         meta.created = meta.modified.clone();
     }
 
-    // Process document
-    let mut doc = content.clone();
-    clean_text_nodes(&mut doc);
-    assign_auto_ids(&mut doc);
-    sync_cross_references(&mut doc);
+    // The shared TypeScript document core owns semantic normalization. Metadata-only
+    // updates preserve the existing document instead of replacing it with JSON null.
+    let doc = content
+        .filter(|value| !value.is_null())
+        .unwrap_or(existing_doc);
 
     let envelope = wrap_sdoc(&meta, &doc);
     let json_str = serde_json::to_string_pretty(&envelope).map_err(|e| e.to_string())?;

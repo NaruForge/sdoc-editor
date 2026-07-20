@@ -5,6 +5,7 @@ import { useEditorContext } from '../context/EditorContext';
 import { useTauriMessaging } from '../hooks/useTauriMessaging';
 import { type TauriAdapter, resolveAssetUrl } from '../adapters/tauriMessaging';
 import { convertMarkdownToJson } from '@shared/converter/markdownToJson';
+import { extractTitle, normalizeDocument } from '@shared/document/sdocUtils';
 import { Toolbar } from './Toolbar';
 import { BubbleMenuBar } from './BubbleMenuBar';
 import { DocumentHeader } from './DocumentHeader';
@@ -172,7 +173,16 @@ export const Editor: React.FC<EditorProps> = ({
   const { editor, setContent, flushUpdate } = useTiptapEditor({
     onUpdate: (content) => {
       setSaveStatus('dirty');
-      trackSave(postMessageRef.current({ type: 'edit', content }));
+      const normalized = normalizeDocument(content as TiptapNode, {
+        equationNumbering: settings.equationNumbering,
+        captionStyle: settings.captionStyle,
+        crossRefIncludeCaption: settings.crossRefIncludeCaption,
+      });
+      trackSave(postMessageRef.current({
+        type: 'edit',
+        content: normalized,
+        meta: { title: extractTitle(normalized) },
+      }));
     },
     pendingEditRef,
   });
