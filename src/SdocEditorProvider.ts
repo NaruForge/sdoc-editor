@@ -9,11 +9,12 @@ import { resolveCompanyLogo, readFontWeights, buildHtmlTheme } from './utils/the
 import { resolveCustomCss } from './utils/cssUtils';
 import {
   unwrapSdoc as sharedUnwrapSdoc,
+  wrapSdoc as sharedWrapSdoc,
   assignAutoIds as sharedAssignAutoIds,
   syncCrossReferences as sharedSyncCrossReferences,
-} from '../shared/mcp/sdocUtils';
+} from '../shared/document/sdocUtils';
 import { resolveSettings, getCaptionPreset } from '../shared/settingsResolver';
-import type { DocumentSettings, CaptionStyleName, TiptapNode } from '../shared/types';
+import type { DocumentSettings, CaptionStyleName, SdocMeta, TiptapNode } from '../shared/types';
 
 export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
   private static readonly SDOC_VERSION = '1.0';
@@ -281,7 +282,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
             type: 'update',
             content: convertedJson,
           });
-        } catch (error) {
+        } catch {
           // Ignore parse errors during typing
         }
       }
@@ -328,7 +329,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     });
   }
 
-  private async updateDocument(document: vscode.TextDocument, content: any): Promise<void> {
+  private async updateDocument(document: vscode.TextDocument, content: TiptapNode): Promise<void> {
     const edit = new vscode.WorkspaceEdit();
     const fullRange = new vscode.Range(
       document.positionAt(0),
@@ -343,12 +344,9 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
 
     // Read existing file to preserve metadata
     const existingText = document.getText();
-    let existingMeta: any = {};
+    let existingMeta: SdocMeta = {};
     try {
-      const existing = existingText.trim() ? JSON.parse(existingText) : {};
-      if (existing.sdoc && existing.meta) {
-        existingMeta = existing.meta;
-      }
+      existingMeta = sharedUnwrapSdoc(existingText.trim() ? JSON.parse(existingText) : {}).meta;
     } catch {
       // intentionally ignored: parse errors during editing
     }
@@ -865,11 +863,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
 
       // Convert image paths to webview URIs
       const documentDir = vscode.Uri.joinPath(document.uri, '..');
-      const convertedDoc = convertImagePathsToWebviewUris(
-        doc as unknown as Record<string, unknown>,
-        documentDir,
-        webviewPanel.webview
-      );
+      const convertedDoc = convertImagePathsToWebviewUris(doc, documentDir, webviewPanel.webview);
 
       webviewPanel.webview.postMessage({ type: 'importContent', content: convertedDoc });
       vscode.window.showInformationMessage('Markdown imported successfully');
@@ -916,27 +910,16 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     );
 
     const existingText = document.getText();
-    let parsed: any;
+    let parsed: unknown;
     try {
       parsed = existingText.trim() ? JSON.parse(existingText) : {};
     } catch {
       return;
     }
 
-    if (parsed.sdoc && parsed.meta) {
-      if (meta.title !== undefined) {
-        parsed.meta.title = meta.title;
-      }
-      if (meta.author !== undefined) {
-        parsed.meta.author = meta.author;
-      }
-      if (meta.version !== undefined) {
-        parsed.meta.version = meta.version;
-      }
-      parsed.meta.modified = new Date().toISOString();
-    }
-
-    const json = JSON.stringify(parsed, null, 2);
+    if (!parsed || typeof parsed !== 'object' || !('sdoc' in parsed)) return;
+    const { doc, meta: existingMeta } = sharedUnwrapSdoc(parsed);
+    const json = JSON.stringify(sharedWrapSdoc(doc, { ...existingMeta, ...meta }), null, 2);
     edit.replace(document.uri, fullRange, json);
 
     this.incrementPendingEdits(document);
@@ -956,24 +939,19 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     );
 
     const existingText = document.getText();
-    let parsed: any;
+    let parsed: unknown;
     try {
       parsed = existingText.trim() ? JSON.parse(existingText) : {};
     } catch {
       return;
     }
 
-    if (!parsed.sdoc) return;
-    if (!parsed.meta) parsed.meta = {};
-
-    if (settings && Object.keys(settings).length > 0) {
-      parsed.meta.settings = settings;
-    } else {
-      delete parsed.meta.settings;
-    }
-    parsed.meta.modified = new Date().toISOString();
-
-    const json = JSON.stringify(parsed, null, 2);
+    if (!parsed || typeof parsed !== 'object' || !('sdoc' in parsed)) return;
+    const { doc, meta } = sharedUnwrapSdoc(parsed);
+    const nextMeta: SdocMeta = { ...meta };
+    if (settings && Object.keys(settings).length > 0) nextMeta.settings = settings;
+    else delete nextMeta.settings;
+    const json = JSON.stringify(sharedWrapSdoc(doc, nextMeta), null, 2);
     edit.replace(document.uri, fullRange, json);
 
     this.incrementPendingEdits(document);
@@ -1109,7 +1087,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     }
   }
 
-  private collectExternalTargets(doc: any): Array<{ id: string; type: string; label: string }> {
+  private collectExternalTargets(doc: TiptapNode): Array<{ id: string; type: string; label: string }> {
     const targets: Array<{ id: string; type: string; label: string }> = [];
     if (!doc?.content) return targets;
 
@@ -1117,7 +1095,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     let imgCnt = 0;
     let tblCnt = 0;
 
-    const getText = (node: any): string => {
+    const getText = (node: TiptapNode): string => {
       if (node.type === 'text') return node.text || '';
       if (!node.content) return '';
       return node.content.map(getText).join('');
@@ -1125,23 +1103,23 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
 
     for (const node of doc.content) {
       if (node.type === 'heading') {
-        const level = node.attrs?.level || 1;
+        const level = typeof node.attrs?.level === 'number' ? node.attrs.level : 1;
         h[level - 1]++;
         for (let j = level; j < 6; j++) h[j] = 0;
         if (level === 1) { imgCnt = 0; tblCnt = 0; }
         const nums = h.slice(0, level).join('.') + '.';
         const text = getText(node);
-        const id = node.attrs?.id || '';
+        const id = typeof node.attrs?.id === 'string' ? node.attrs.id : '';
         if (id) targets.push({ id, type: 'heading', label: `${nums} ${text}` });
       }
-      if (node.type === 'image' && node.attrs?.id) {
+      if (node.type === 'image' && typeof node.attrs?.id === 'string') {
         imgCnt++;
-        const caption = node.attrs?.caption || '';
+        const caption = typeof node.attrs.caption === 'string' ? node.attrs.caption : '';
         targets.push({ id: node.attrs.id, type: 'figure', label: caption ? `Figure ${imgCnt}: ${caption}` : `Figure ${imgCnt}` });
       }
-      if (node.type === 'table' && node.attrs?.id) {
+      if (node.type === 'table' && typeof node.attrs?.id === 'string') {
         tblCnt++;
-        const caption = node.attrs?.caption || '';
+        const caption = typeof node.attrs.caption === 'string' ? node.attrs.caption : '';
         targets.push({ id: node.attrs.id, type: 'table', label: caption ? `Table ${tblCnt}: ${caption}` : `Table ${tblCnt}` });
       }
     }
@@ -1237,9 +1215,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       const { doc, meta } = SdocEditorProvider.unwrapSdoc(parsed);
 
       // Convert webview URIs back to relative paths
-      let convertedDoc = convertWebviewUrisToRelativePaths(
-        doc as Record<string, unknown>
-      ) as unknown as TiptapNode;
+      let convertedDoc = convertWebviewUrisToRelativePaths(doc);
 
       // Read export settings — merge doc-level settings over VS Code defaults
       const config = vscode.workspace.getConfiguration('structuredDocEditor');
@@ -1273,20 +1249,14 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       if (needsSelfContained && resolved.selfContained !== 'none') {
         progress.report({ message: '이미지 처리 중...', increment: 20 });
         const documentDir = path.dirname(document.uri.fsPath);
-        convertedDoc = await embedImagesAsBase64(
-          convertedDoc as unknown as Record<string, unknown>,
-          documentDir
-        ) as unknown as TiptapNode;
+        convertedDoc = await embedImagesAsBase64(convertedDoc, documentDir);
         exportSettings.selfContained = resolved.selfContained;
       }
       // PDF always embeds images regardless of setting
       if (format === 'pdf' && resolved.selfContained === 'none') {
         progress.report({ message: '이미지 처리 중...', increment: 20 });
         const documentDir = path.dirname(document.uri.fsPath);
-        convertedDoc = await embedImagesAsBase64(
-          convertedDoc as unknown as Record<string, unknown>,
-          documentDir
-        ) as unknown as TiptapNode;
+        convertedDoc = await embedImagesAsBase64(convertedDoc, documentDir);
         exportSettings.selfContained = 'images-only';
       }
 
@@ -1518,7 +1488,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
    * Unwrap an .sdoc file: supports both the new envelope format and legacy (bare doc).
    * Also migrates legacy attribute names (data-caption → caption, etc.).
    */
-  private static unwrapSdoc(parsed: any): { meta: any; doc: any } {
+  private static unwrapSdoc(parsed: unknown): { meta: SdocMeta; doc: TiptapNode } {
     return sharedUnwrapSdoc(parsed);
   }
 
@@ -1527,24 +1497,22 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
    * block-level parent and remove resulting empty text nodes.
    * Intermediate text nodes keep their trailing space (e.g., "Hello " before bold).
    */
-  private static cleanTextNodes(node: any): any {
-    if (!node || typeof node !== 'object') return node;
-
+  private static cleanTextNodes(node: TiptapNode): TiptapNode {
     if (!node.content) return node;
 
     // Recurse into children first
     const cleaned = node.content
-      .map((child: any) => SdocEditorProvider.cleanTextNodes(child))
-      .filter((child: any) => child !== null);
+      .map((child) => SdocEditorProvider.cleanTextNodes(child));
 
     // Only trim the very last text node in the content array
     for (let i = cleaned.length - 1; i >= 0; i--) {
-      if (cleaned[i]?.type === 'text' && typeof cleaned[i].text === 'string') {
-        const trimmed = cleaned[i].text.replace(/\s+$/, '');
+      const child = cleaned[i];
+      if (child?.type === 'text' && typeof child.text === 'string') {
+        const trimmed = child.text.replace(/\s+$/, '');
         if (!trimmed) {
           cleaned.splice(i, 1);
         } else {
-          cleaned[i] = { ...cleaned[i], text: trimmed };
+          cleaned[i] = { ...child, text: trimmed };
         }
         break;
       }
@@ -1555,16 +1523,16 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     return { ...node, content: cleaned };
   }
 
-  private static assignAutoIds(doc: any): any {
+  private static assignAutoIds(doc: TiptapNode): TiptapNode {
     return sharedAssignAutoIds(doc);
   }
 
   private static syncCrossReferences(
-    doc: unknown,
+    doc: TiptapNode,
     equationNumbering: 'sequential' | 'hierarchical' = 'sequential',
     captionStyle: CaptionStyleName = 'modern',
     crossRefIncludeCaption = false,
-  ): unknown {
+  ): TiptapNode {
     return sharedSyncCrossReferences(doc, equationNumbering, captionStyle, crossRefIncludeCaption);
   }
 

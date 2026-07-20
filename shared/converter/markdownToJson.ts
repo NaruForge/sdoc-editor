@@ -1,15 +1,4 @@
-interface TiptapNode {
-  type: string;
-  content?: TiptapNode[];
-  attrs?: any;
-  marks?: TiptapMark[];
-  text?: string;
-}
-
-interface TiptapMark {
-  type: string;
-  attrs?: any;
-}
+import type { TiptapNode } from '../types';
 
 /**
  * Converts a Markdown string to a Tiptap-compatible JSON document tree.
@@ -101,7 +90,7 @@ export function convertMarkdownToJson(markdown: string): TiptapNode {
         headingId = anchorMatch[1];
         rawText = rawText.slice(anchorMatch[0].length);
       }
-      const attrs: any = { level };
+      const attrs: Record<string, unknown> = { level };
       if (headingId) { attrs.id = headingId; }
       doc.content!.push({
         type: 'heading',
@@ -174,7 +163,7 @@ export function convertMarkdownToJson(markdown: string): TiptapNode {
     if (imgMatch) {
       const alt = imgMatch[1];
       const src = imgMatch[2];
-      const imgAttrs: any = { src, alt };
+      const imgAttrs: Record<string, unknown> = { src, alt };
 
       // Look ahead for italic caption like "*Image 1: caption*"
       let nextNonEmpty = i + 1;

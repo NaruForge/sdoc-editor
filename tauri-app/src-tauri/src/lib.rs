@@ -14,10 +14,13 @@ pub fn run() {
     let initial_file: Option<std::path::PathBuf> = std::env::args()
         .nth(1)
         .map(std::path::PathBuf::from)
-        .filter(|p| p.exists() && p.extension().map_or(false, |e| {
-            let ext = e.to_string_lossy().to_lowercase();
-            ext == "sdoc" || ext == "json"
-        }));
+        .filter(|p| {
+            p.exists()
+                && p.extension().is_some_and(|e| {
+                    let ext = e.to_string_lossy().to_lowercase();
+                    ext == "sdoc" || ext == "json"
+                })
+        });
 
     let initial_folder = initial_file
         .as_ref()
@@ -77,9 +80,7 @@ pub fn run() {
             commands::resolve_asset_path,
             commands::resolve_document_relative_path,
         ])
-        .setup(|_app| {
-            Ok(())
-        })
+        .setup(|_app| Ok(()))
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

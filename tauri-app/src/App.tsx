@@ -5,8 +5,7 @@ import { open, save } from '@tauri-apps/plugin-dialog';
 import { EditorProvider, useEditorContext } from './context/EditorContext';
 import { Editor } from './components/Editor';
 import { createTauriAdapter } from './adapters/tauriMessaging';
-import type { JSONContent } from '@tiptap/react';
-import type { DocumentSettings, SdocMeta } from '@shared/types';
+import type { DocumentSettings, SdocMeta, TiptapNode } from '@shared/types';
 import type { EditorSettings } from './context/EditorContext';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { UndoToast } from './components/UndoToast';
@@ -24,7 +23,7 @@ export interface ExplorerEntry {
 }
 
 interface OpenDocumentResult {
-  doc: JSONContent;
+  doc: TiptapNode;
   meta: SdocMeta;
   filePath: string;
 }
@@ -83,7 +82,7 @@ function isPathInsideFolder(filePath: string, folder: string): boolean {
 const AppContent: React.FC = () => {
   const { dispatch } = useEditorContext();
   const [view, setView] = useState<AppView>('welcome');
-  const [doc, setDoc] = useState<JSONContent | null>(null);
+  const [doc, setDoc] = useState<TiptapNode | null>(null);
   const [meta, setMeta] = useState<SdocMeta | null>(null);
   const [currentPath, setCurrentPath] = useState<string | null>(null);
   const [recentFiles, setRecentFiles] = useState<string[]>([]);
@@ -415,7 +414,6 @@ const AppContent: React.FC = () => {
         console.warn('Failed to load startup document', error);
       }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const overlays = (

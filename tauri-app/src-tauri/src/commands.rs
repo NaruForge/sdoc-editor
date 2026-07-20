@@ -5,7 +5,14 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Emitter, Manager};
 
-const EXCLUDED_DIRS: &[&str] = &[".git", "node_modules", "target", "dist", "build", ".svelte-kit"];
+const EXCLUDED_DIRS: &[&str] = &[
+    ".git",
+    "node_modules",
+    "target",
+    "dist",
+    "build",
+    ".svelte-kit",
+];
 const MAX_EXPLORER_DEPTH: usize = 6;
 const MAX_RECENT_FOLDERS: usize = 10;
 const MAX_RECENT_DELETIONS: usize = 20;
@@ -16,7 +23,7 @@ fn path_is_excluded(path: &Path) -> bool {
     path.components().any(|c| {
         c.as_os_str()
             .to_str()
-            .map_or(false, |name| EXCLUDED_DIRS.contains(&name))
+            .is_some_and(|name| EXCLUDED_DIRS.contains(&name))
     })
 }
 
@@ -71,7 +78,10 @@ pub struct ExplorerEntry {
 // ─── File Operations ────────────────────────────────────────────────
 
 #[tauri::command]
-pub fn open_document(path: String, state: tauri::State<DocState>) -> Result<serde_json::Value, String> {
+pub fn open_document(
+    path: String,
+    state: tauri::State<DocState>,
+) -> Result<serde_json::Value, String> {
     let path = PathBuf::from(&path);
     if !path.exists() {
         return Err(format!("File not found: {}", path.display()));
@@ -132,7 +142,10 @@ pub fn save_document(
             meta.version = version.to_string();
         }
         if updates.get("settings").is_some() {
-            meta.settings = updates.get("settings").cloned().filter(|value| !value.is_null());
+            meta.settings = updates
+                .get("settings")
+                .cloned()
+                .filter(|value| !value.is_null());
         }
     }
 
@@ -164,7 +177,10 @@ pub fn save_document(
 }
 
 #[tauri::command]
-pub fn new_document(path: String, state: tauri::State<DocState>) -> Result<serde_json::Value, String> {
+pub fn new_document(
+    path: String,
+    state: tauri::State<DocState>,
+) -> Result<serde_json::Value, String> {
     let path = PathBuf::from(&path);
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
@@ -215,7 +231,12 @@ pub fn new_document(path: String, state: tauri::State<DocState>) -> Result<serde
 
 #[tauri::command]
 pub fn get_current_file_path(state: tauri::State<DocState>) -> Option<String> {
-    state.file_path.lock().unwrap().as_ref().map(|p| p.to_string_lossy().to_string())
+    state
+        .file_path
+        .lock()
+        .unwrap()
+        .as_ref()
+        .map(|p| p.to_string_lossy().to_string())
 }
 
 #[tauri::command]
@@ -309,13 +330,14 @@ pub fn rename_entry(
         return Err("이름에 경로 구분자를 사용할 수 없습니다.".to_string());
     }
 
-    let final_name = if is_dir {
-        trimmed.to_string()
-    } else if trimmed.ends_with(".sdoc") || trimmed.ends_with(".tiptap.json") {
+    let final_name = if is_dir || trimmed.ends_with(".sdoc") || trimmed.ends_with(".tiptap.json") {
         trimmed.to_string()
     } else if is_document_path(&old_path) {
         // 원본 문서 파일의 확장자 스타일(.sdoc 또는 .tiptap.json)을 유지한다.
-        let original_name = old_path.file_name().and_then(|n| n.to_str()).unwrap_or_default();
+        let original_name = old_path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or_default();
         if original_name.ends_with(".tiptap.json") {
             format!("{}.tiptap.json", trimmed)
         } else {
@@ -326,7 +348,11 @@ pub fn rename_entry(
         // 확장자가 없으면 원본 확장자를 유지한다.
         let original_ext = old_path.extension().and_then(|e| e.to_str());
         match original_ext {
-            Some(ext) if !trimmed.to_lowercase().ends_with(&format!(".{}", ext.to_lowercase())) => {
+            Some(ext)
+                if !trimmed
+                    .to_lowercase()
+                    .ends_with(&format!(".{}", ext.to_lowercase())) =>
+            {
                 format!("{}.{}", trimmed, ext)
             }
             _ => trimmed.to_string(),
@@ -371,7 +397,11 @@ pub fn rename_entry(
     Ok(ExplorerEntry {
         name: final_name,
         path: new_path.to_string_lossy().to_string(),
-        kind: if is_dir { "folder".to_string() } else { "file".to_string() },
+        kind: if is_dir {
+            "folder".to_string()
+        } else {
+            "file".to_string()
+        },
         depth: 0,
         is_document: !is_dir && is_document_path(&new_path),
     })
@@ -414,9 +444,9 @@ pub fn delete_entry(path: String, state: tauri::State<DocState>) -> Result<(), S
     {
         let mut settings = state.settings.lock().unwrap();
         let target_str = target.to_string_lossy().to_string();
-        settings.recent_files.retain(|f| {
-            f != &target_str && !PathBuf::from(f).starts_with(&target)
-        });
+        settings
+            .recent_files
+            .retain(|f| f != &target_str && !PathBuf::from(f).starts_with(&target));
         save_settings(&settings).ok();
     }
 
@@ -437,7 +467,10 @@ pub fn has_recent_deletions(state: tauri::State<DocState>) -> bool {
 pub fn undo_last_delete(state: tauri::State<DocState>) -> Result<String, String> {
     let item = {
         let stack = state.recent_deletions.lock().unwrap();
-        stack.last().cloned().ok_or("되돌릴 삭제 내역이 없습니다.")?
+        stack
+            .last()
+            .cloned()
+            .ok_or("되돌릴 삭제 내역이 없습니다.")?
     };
     let restored_path = item.original_path();
     restore_trash_item(item).map_err(|e| format!("복원하지 못했습니다: {e}"))?;
@@ -449,28 +482,62 @@ pub fn undo_last_delete(state: tauri::State<DocState>) -> Result<String, String>
 /// Windows와 Linux(freedesktop trash)에서만 지원되는 `trash::os_limited::list`에 의존하므로
 /// macOS에서는 항상 `None`을 반환한다(파일은 여전히 Finder의 휴지통에서 복구 가능하지만,
 /// 앱 내 "되돌리기"는 지원하지 않는다).
-#[cfg(any(windows, all(unix, not(target_os = "macos"), not(target_os = "ios"), not(target_os = "android"))))]
+#[cfg(any(
+    windows,
+    all(
+        unix,
+        not(target_os = "macos"),
+        not(target_os = "ios"),
+        not(target_os = "android")
+    )
+))]
 fn find_trash_item(target: &Path, since: i64) -> Option<trash::TrashItem> {
     let name = target.file_name()?;
     let parent = target.parent()?.to_path_buf();
     trash::os_limited::list()
         .ok()?
         .into_iter()
-        .filter(|item| item.name == name && item.original_parent == parent && item.time_deleted >= since)
+        .filter(|item| {
+            item.name == name && item.original_parent == parent && item.time_deleted >= since
+        })
         .max_by_key(|item| item.time_deleted)
 }
 
-#[cfg(not(any(windows, all(unix, not(target_os = "macos"), not(target_os = "ios"), not(target_os = "android")))))]
+#[cfg(not(any(
+    windows,
+    all(
+        unix,
+        not(target_os = "macos"),
+        not(target_os = "ios"),
+        not(target_os = "android")
+    )
+)))]
 fn find_trash_item(_target: &Path, _since: i64) -> Option<trash::TrashItem> {
     None
 }
 
-#[cfg(any(windows, all(unix, not(target_os = "macos"), not(target_os = "ios"), not(target_os = "android"))))]
+#[cfg(any(
+    windows,
+    all(
+        unix,
+        not(target_os = "macos"),
+        not(target_os = "ios"),
+        not(target_os = "android")
+    )
+))]
 fn restore_trash_item(item: trash::TrashItem) -> Result<(), trash::Error> {
     trash::os_limited::restore_all(vec![item])
 }
 
-#[cfg(not(any(windows, all(unix, not(target_os = "macos"), not(target_os = "ios"), not(target_os = "android")))))]
+#[cfg(not(any(
+    windows,
+    all(
+        unix,
+        not(target_os = "macos"),
+        not(target_os = "ios"),
+        not(target_os = "android")
+    )
+)))]
 fn restore_trash_item(_item: trash::TrashItem) -> Result<(), trash::Error> {
     Err(trash::Error::Unknown {
         description: "이 플랫폼에서는 삭제 되돌리기가 지원되지 않습니다.".to_string(),
@@ -520,7 +587,7 @@ pub fn reveal_in_file_explorer(path: String) -> Result<(), String> {
             .arg(format!("/select,{}", target.display()))
             .spawn()
             .map_err(|e| e.to_string())?;
-        return Ok(());
+        Ok(())
     }
 
     #[cfg(target_os = "macos")]
@@ -530,12 +597,16 @@ pub fn reveal_in_file_explorer(path: String) -> Result<(), String> {
             .arg(&target)
             .spawn()
             .map_err(|e| e.to_string())?;
-        return Ok(());
+        Ok(())
     }
 
     #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     {
-        let folder = if target.is_dir() { target.as_path() } else { target.parent().unwrap_or(&target) };
+        let folder = if target.is_dir() {
+            target.as_path()
+        } else {
+            target.parent().unwrap_or(&target)
+        };
         open::that(folder).map_err(|e| e.to_string())?;
         Ok(())
     }
@@ -582,7 +653,11 @@ pub fn copy_image_to_doc(
     fs::create_dir_all(&images_dir).map_err(|e| e.to_string())?;
 
     let source = PathBuf::from(&source_path);
-    let filename = source.file_name().ok_or("No filename")?.to_string_lossy().to_string();
+    let filename = source
+        .file_name()
+        .ok_or("No filename")?
+        .to_string_lossy()
+        .to_string();
 
     // Deduplicate
     let target = deduplicate_path(&images_dir, &filename);
@@ -660,9 +735,12 @@ pub fn open_drawio_external(path: String) -> Result<(), String> {
     }
 
     // Fallback: open with system default application
-    open::that(&path).map_err(|e| format!(
-        "Failed to open Draw.io file. Please install draw.io desktop app.\nError: {}", e
-    ))
+    open::that(&path).map_err(|e| {
+        format!(
+            "Failed to open Draw.io file. Please install draw.io desktop app.\nError: {}",
+            e
+        )
+    })
 }
 
 #[tauri::command]
@@ -677,7 +755,11 @@ pub fn copy_drawio_to_doc(
     fs::create_dir_all(&drawio_dir).map_err(|e| e.to_string())?;
 
     let source = PathBuf::from(&source_path);
-    let filename = source.file_name().ok_or("No filename")?.to_string_lossy().to_string();
+    let filename = source
+        .file_name()
+        .ok_or("No filename")?
+        .to_string_lossy()
+        .to_string();
     let target = deduplicate_path(&drawio_dir, &filename);
     let final_name = target.file_name().unwrap().to_string_lossy().to_string();
 
@@ -705,32 +787,38 @@ pub fn start_file_watcher(state: tauri::State<DocState>, app: AppHandle) -> Resu
     }
 
     std::thread::spawn(move || {
-        use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher, Event, EventKind};
+        use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
         use std::sync::mpsc;
 
         let (tx, rx) = mpsc::channel::<notify::Result<Event>>();
         let mut watcher = RecommendedWatcher::new(tx, Config::default()).unwrap();
         watcher.watch(&drawio_dir, RecursiveMode::Recursive).ok();
 
-        for event in rx {
-            if let Ok(event) = event {
-                match event.kind {
-                    EventKind::Modify(_) | EventKind::Create(_) => {
-                        for path in &event.paths {
-                            if path.extension().and_then(|e| e.to_str()) == Some("svg") {
-                                let filename = path.file_name().unwrap_or_default().to_string_lossy().to_string();
-                                let relative_path = format!("./drawio/{}", filename);
-                                let abs_path = path.to_string_lossy().to_string();
-                                app.emit("drawio-file-updated", serde_json::json!({
+        for event in rx.into_iter().flatten() {
+            match event.kind {
+                EventKind::Modify(_) | EventKind::Create(_) => {
+                    for path in &event.paths {
+                        if path.extension().and_then(|e| e.to_str()) == Some("svg") {
+                            let filename = path
+                                .file_name()
+                                .unwrap_or_default()
+                                .to_string_lossy()
+                                .to_string();
+                            let relative_path = format!("./drawio/{}", filename);
+                            let abs_path = path.to_string_lossy().to_string();
+                            app.emit(
+                                "drawio-file-updated",
+                                serde_json::json!({
                                     "relativePath": relative_path,
                                     "filePath": abs_path,
                                     "timestamp": chrono::Utc::now().timestamp_millis(),
-                                })).ok();
-                            }
+                                }),
+                            )
+                            .ok();
                         }
                     }
-                    _ => {}
                 }
+                _ => {}
             }
         }
     });
@@ -748,7 +836,11 @@ pub fn start_file_watcher(state: tauri::State<DocState>, app: AppHandle) -> Resu
 /// folder stops the previous watcher thread (it notices the generation counter changed on its
 /// next poll and exits, dropping its `notify::Watcher`) and starts a new one for the new root.
 #[tauri::command]
-pub fn start_workspace_watcher(folder: String, state: tauri::State<DocState>, app: AppHandle) -> Result<(), String> {
+pub fn start_workspace_watcher(
+    folder: String,
+    state: tauri::State<DocState>,
+    app: AppHandle,
+) -> Result<(), String> {
     let root = PathBuf::from(&folder);
     if !root.is_dir() {
         return Err("선택한 경로가 폴더가 아닙니다.".to_string());
@@ -796,9 +888,12 @@ pub fn start_workspace_watcher(folder: String, state: tauri::State<DocState>, ap
                 Ok(Ok(event)) => {
                     let is_structural = matches!(
                         event.kind,
-                        EventKind::Create(_) | EventKind::Remove(_) | EventKind::Modify(ModifyKind::Name(_))
+                        EventKind::Create(_)
+                            | EventKind::Remove(_)
+                            | EventKind::Modify(ModifyKind::Name(_))
                     );
-                    let is_relevant = is_structural && event.paths.iter().any(|p| !path_is_excluded(p));
+                    let is_relevant =
+                        is_structural && event.paths.iter().any(|p| !path_is_excluded(p));
                     if is_relevant {
                         dirty = true;
                         last_change = Instant::now();
@@ -812,14 +907,23 @@ pub fn start_workspace_watcher(folder: String, state: tauri::State<DocState>, ap
             }
 
             // A newer watcher has taken over (folder switched) — stop and drop this one.
-            if app.state::<DocState>().workspace_watch_generation.load(Ordering::SeqCst) != my_generation {
+            if app
+                .state::<DocState>()
+                .workspace_watch_generation
+                .load(Ordering::SeqCst)
+                != my_generation
+            {
                 break;
             }
 
             if dirty && last_change.elapsed() >= DEBOUNCE {
-                app.emit("workspace-changed", serde_json::json!({
-                    "folder": root.to_string_lossy(),
-                })).ok();
+                app.emit(
+                    "workspace-changed",
+                    serde_json::json!({
+                        "folder": root.to_string_lossy(),
+                    }),
+                )
+                .ok();
                 dirty = false;
             }
         }
@@ -860,7 +964,8 @@ pub fn update_settings(
     save_settings(&settings)?;
 
     // Notify webview of settings change
-    app.emit("settings-changed", to_editor_settings(&settings)).ok();
+    app.emit("settings-changed", to_editor_settings(&settings))
+        .ok();
     Ok(())
 }
 
@@ -976,7 +1081,10 @@ fn collect_explorer_entries(
 }
 
 fn is_document_path(path: &Path) -> bool {
-    let file_name = path.file_name().and_then(|name| name.to_str()).unwrap_or_default();
+    let file_name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or_default();
     path.extension().and_then(|ext| ext.to_str()) == Some("sdoc")
         || file_name.ends_with(".tiptap.json")
 }
@@ -1020,7 +1128,9 @@ fn base64_decode_impl(input: &str) -> Result<Vec<u8>, String> {
     let mut buf: u32 = 0;
     let mut bits: u32 = 0;
     for c in input.bytes() {
-        if c == b'=' { break; }
+        if c == b'=' {
+            break;
+        }
         let val = match CHARS.iter().position(|&b| b == c) {
             Some(v) => v as u32,
             None => continue,

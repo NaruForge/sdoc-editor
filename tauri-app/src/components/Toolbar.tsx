@@ -192,7 +192,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           <div className="bubble-color-picker" style={{ top: '100%', left: 0 }} onMouseDown={e => e.preventDefault()}>
             {TEXT_COLORS.map(({ label, value }) => (
               <button key={value} title={label} className={editor.getAttributes('textStyle').color === value ? 'is-active' : ''}
-                onMouseDown={(e) => { e.preventDefault(); value ? editor.chain().focus().setColor(value).run() : editor.chain().focus().unsetColor().run(); setShowColorPicker(false); }}
+                onMouseDown={(e) => { e.preventDefault(); if (value) editor.chain().focus().setColor(value).run(); else editor.chain().focus().unsetColor().run(); setShowColorPicker(false); }}
                 style={{ background: value || 'transparent', border: value ? 'none' : '1px solid #555' }}>
                 {!value && <span style={{ fontSize: 10, color: '#aaa' }}>✕</span>}
               </button>
@@ -215,7 +215,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           <div className="bubble-color-picker" style={{ top: '100%', left: 0 }} onMouseDown={e => e.preventDefault()}>
             {HIGHLIGHT_COLORS.map(({ label, value }) => (
               <button key={value} title={label} className={editor.getAttributes('highlight').color === value ? 'is-active' : ''}
-                onMouseDown={(e) => { e.preventDefault(); value ? editor.chain().focus().setHighlight({ color: value }).run() : editor.chain().focus().unsetHighlight().run(); setShowHighlightPicker(false); }}
+                onMouseDown={(e) => { e.preventDefault(); if (value) editor.chain().focus().setHighlight({ color: value }).run(); else editor.chain().focus().unsetHighlight().run(); setShowHighlightPicker(false); }}
                 style={{ background: value || 'transparent', border: value ? 'none' : '1px solid #555' }}>
                 {!value && <span style={{ fontSize: 10, color: '#aaa' }}>✕</span>}
               </button>

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { type TauriAdapter } from '../adapters/tauriMessaging';
+import { type TauriAdapter, type TauriMessageHandler } from '../adapters/tauriMessaging';
 
 /**
  * Hook that replaces useVSCodeMessaging for Tauri.
@@ -7,7 +7,7 @@ import { type TauriAdapter } from '../adapters/tauriMessaging';
  */
 export function useTauriMessaging(
   adapter: TauriAdapter,
-  onMessage: (message: any) => void
+  onMessage: TauriMessageHandler
 ): { postMessage: (msg: Record<string, unknown> & { type: string }) => Promise<void> } {
   const handlerRef = useRef(onMessage);
   handlerRef.current = onMessage;

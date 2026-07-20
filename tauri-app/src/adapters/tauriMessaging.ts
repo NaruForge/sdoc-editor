@@ -8,9 +8,41 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { open } from '@tauri-apps/plugin-dialog';
 import { convertFileSrc } from '@tauri-apps/api/core';
+import type { ResolvedEditorSettings } from '@shared/types';
+
+type SettingsChangedPayload = Partial<ResolvedEditorSettings>;
+interface DrawioFileUpdatedPayload {
+  relativePath: string;
+  filePath: string;
+  timestamp: number;
+}
+interface SavedImageResult {
+  imagePath: string;
+  imageName: string;
+}
+interface CopiedImageResult {
+  imagePath: string;
+  fileName: string;
+}
+interface DrawioFileResult {
+  drawioPath: string;
+  fileName: string;
+  filePath: string;
+}
+
+export type TauriInboundMessage =
+  | { type: 'settingsChanged'; settings: SettingsChangedPayload }
+  | { type: 'importMarkdownText'; text: string }
+  | { type: 'importHtml'; html: string }
+  | { type: 'imageSaved'; imagePath: string; webviewUri: string; imageName: string }
+  | { type: 'drawioCreated'; drawioPath: string; webviewUri: string; fileName: string }
+  | { type: 'imageInserted'; imagePath: string; webviewUri: string; fileName: string }
+  | { type: 'drawioFileUpdated'; relativePath: string; filePath: string; timestamp: number }
+  | { type: 'imageReplaced'; pos: number; imagePath: string; webviewUri: string; fileName: string }
+  | { type: 'showJsonViewer' };
 
 export interface TauriMessageHandler {
-  (message: Record<string, unknown> & { type: string }): void;
+  (message: TauriInboundMessage): void;
 }
 
 /**
@@ -30,14 +62,14 @@ export function createTauriAdapter() {
 
   // Listen for backend events
   const setupListeners = async () => {
-    const u1 = await listen<any>('settings-changed', (event) => {
+    const u1 = await listen<SettingsChangedPayload>('settings-changed', (event) => {
       for (const handler of listeners) {
         handler({ type: 'settingsChanged', settings: event.payload });
       }
     });
     unlistenFns.push(u1);
 
-    const u2 = await listen<any>('drawio-file-updated', (event) => {
+    const u2 = await listen<DrawioFileUpdatedPayload>('drawio-file-updated', (event) => {
       for (const handler of listeners) {
         handler({
           type: 'drawioFileUpdated',
@@ -75,7 +107,7 @@ export function createTauriAdapter() {
           break;
 
         case 'saveImage': {
-          const result: any = await invoke('save_image', {
+          const result = await invoke<SavedImageResult>('save_image', {
             imageName: msg.imageName,
             imageData: msg.imageData,
             extension: msg.extension,
@@ -98,7 +130,7 @@ export function createTauriAdapter() {
             filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'] }],
           });
           if (selected) {
-            const result: any = await invoke('copy_image_to_doc', {
+            const result = await invoke<CopiedImageResult>('copy_image_to_doc', {
               sourcePath: typeof selected === 'string' ? selected : selected,
             });
             const assetUrl = await resolveAssetUrl(result.imagePath);
@@ -115,12 +147,15 @@ export function createTauriAdapter() {
         }
 
         case 'replaceImage': {
+          if (typeof msg.pos !== 'number') {
+            throw new Error('replaceImage requires a numeric position');
+          }
           const selected = await open({
             multiple: false,
             filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'] }],
           });
           if (selected) {
-            const result: any = await invoke('copy_image_to_doc', {
+            const result = await invoke<CopiedImageResult>('copy_image_to_doc', {
               sourcePath: typeof selected === 'string' ? selected : selected,
             });
             const assetUrl = await resolveAssetUrl(result.imagePath);
@@ -138,7 +173,7 @@ export function createTauriAdapter() {
         }
 
         case 'createDrawio': {
-          const result: any = await invoke('create_drawio_file', {
+          const result = await invoke<DrawioFileResult>('create_drawio_file', {
             fileName: msg.fileName,
           });
           const assetUrl = await resolveAssetUrl(result.drawioPath);
@@ -161,7 +196,7 @@ export function createTauriAdapter() {
             filters: [{ name: 'Draw.io Files', extensions: ['drawio.svg', 'drawio'] }],
           });
           if (selected) {
-            const result: any = await invoke('copy_drawio_to_doc', {
+            const result = await invoke<DrawioFileResult>('copy_drawio_to_doc', {
               sourcePath: typeof selected === 'string' ? selected : selected,
             });
             const assetUrl = await resolveAssetUrl(result.drawioPath);

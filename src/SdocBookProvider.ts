@@ -6,6 +6,8 @@ import { detectBrowser, printToPdf } from './utils/browserDetect';
 import { loadBundledFontsAsBase64 } from './utils/fontUtils';
 import { embedImagesAsBase64 } from './utils/imageUtils';
 import { resolveCompanyLogo, readFontWeights, buildHtmlTheme, readExportSettings } from './utils/themeUtils';
+import { unwrapSdoc } from '../shared/document/sdocUtils';
+import type { TiptapMark, TiptapNode } from '../shared/types';
 
 interface SdocBook {
   sdocBook: string;
@@ -160,17 +162,16 @@ export class SdocBookProvider implements vscode.CustomTextEditorProvider {
     const docPaths = new Set(project.documents.map(d => d.path));
 
     // Merge all documents into one doc tree
-    const mergedContent: any[] = [];
+    const mergedContent: TiptapNode[] = [];
     for (const entry of project.documents) {
       const filePath = path.resolve(projectDir, entry.path);
       const docDir = path.dirname(filePath);
       try {
         const raw = await fs.promises.readFile(filePath, 'utf-8');
-        const parsed = JSON.parse(raw);
-        const doc = (parsed.sdoc && parsed.doc) ? parsed.doc : parsed;
+        const { doc } = unwrapSdoc(JSON.parse(raw) as unknown);
         if (doc.content) {
           // Rebase image paths relative to the project directory
-          const rebased = doc.content.map((node: any) =>
+          const rebased = doc.content.map((node) =>
             this.rebaseImagePaths(node, docDir, projectDir)
           );
           mergedContent.push(...rebased);
@@ -180,7 +181,7 @@ export class SdocBookProvider implements vscode.CustomTextEditorProvider {
       }
     }
 
-    let mergedDoc: any = { type: 'doc', content: mergedContent };
+    let mergedDoc: TiptapNode = { type: 'doc', content: mergedContent };
 
     // Resolve cross-doc links: ./file.sdoc#id → #id (since all content is merged)
     mergedDoc = this.resolveCrossDocLinks(mergedDoc, docPaths);
@@ -228,11 +229,11 @@ export class SdocBookProvider implements vscode.CustomTextEditorProvider {
       const pdfPath = document.uri.fsPath.replace(/\.sdocbook$/, '.pdf');
       const tempHtmlPath = document.uri.fsPath.replace(/\.sdocbook$/, '.tmp.html');
 
-      fs.writeFileSync(tempHtmlPath, htmlContent, 'utf-8');
+      await fs.promises.writeFile(tempHtmlPath, htmlContent, 'utf-8');
       try {
         await printToPdf(browserPath, tempHtmlPath, pdfPath);
       } finally {
-        try { fs.unlinkSync(tempHtmlPath); } catch { /* ignore */ }
+        try { await fs.promises.unlink(tempHtmlPath); } catch { /* intentionally ignored */ }
       }
 
       const action = await vscode.window.showInformationMessage(
@@ -244,7 +245,7 @@ export class SdocBookProvider implements vscode.CustomTextEditorProvider {
       }
     } else {
       const htmlPath = document.uri.fsPath.replace(/\.sdocbook$/, '.html');
-      fs.writeFileSync(htmlPath, htmlContent, 'utf-8');
+      await fs.promises.writeFile(htmlPath, htmlContent, 'utf-8');
 
       const action = await vscode.window.showInformationMessage(
         `Project HTML exported: ${htmlPath}`,
@@ -257,12 +258,11 @@ export class SdocBookProvider implements vscode.CustomTextEditorProvider {
   }
 
   /** Rebase image src paths from document-relative to project-relative */
-  private rebaseImagePaths(node: any, docDir: string, projectDir: string): any {
-    if (!node || typeof node !== 'object') return node;
-    const cloned = Array.isArray(node) ? [...node] : { ...node };
+  private rebaseImagePaths(node: TiptapNode, docDir: string, projectDir: string): TiptapNode {
+    const cloned: TiptapNode = { ...node };
 
-    if (cloned.type === 'image' && cloned.attrs?.src) {
-      const src: string = cloned.attrs.src;
+    if (cloned.type === 'image' && typeof cloned.attrs?.src === 'string') {
+      const src = cloned.attrs.src;
       if (!src.startsWith('data:') && !src.startsWith('http')) {
         const absPath = path.resolve(docDir, src);
         const rebasedPath = path.relative(projectDir, absPath).replace(/\\/g, '/');
@@ -271,7 +271,7 @@ export class SdocBookProvider implements vscode.CustomTextEditorProvider {
     }
 
     if (cloned.content && Array.isArray(cloned.content)) {
-      cloned.content = cloned.content.map((child: any) =>
+      cloned.content = cloned.content.map((child) =>
         this.rebaseImagePaths(child, docDir, projectDir)
       );
     }
@@ -279,14 +279,13 @@ export class SdocBookProvider implements vscode.CustomTextEditorProvider {
   }
 
   /** Resolve cross-doc links: ./file.sdoc#id → #id for merged output */
-  private resolveCrossDocLinks(node: any, docPaths: Set<string>): any {
-    if (!node || typeof node !== 'object') return node;
-    const cloned = Array.isArray(node) ? [...node] : { ...node };
+  private resolveCrossDocLinks(node: TiptapNode, docPaths: Set<string>): TiptapNode {
+    const cloned: TiptapNode = { ...node };
 
     if (cloned.marks && Array.isArray(cloned.marks)) {
-      cloned.marks = cloned.marks.map((mark: any) => {
-        if (mark.type === 'link' && mark.attrs?.href) {
-          const href: string = mark.attrs.href;
+      cloned.marks = cloned.marks.map((mark: TiptapMark) => {
+        if (mark.type === 'link' && typeof mark.attrs?.href === 'string') {
+          const href = mark.attrs.href;
           // Match ./file.sdoc#anchor or ./file.sdoc
           const match = href.match(/^\.\/([^#]+\.sdoc)(#.+)?$/);
           if (match) {
@@ -305,7 +304,7 @@ export class SdocBookProvider implements vscode.CustomTextEditorProvider {
     }
 
     if (cloned.content && Array.isArray(cloned.content)) {
-      cloned.content = cloned.content.map((child: any) =>
+      cloned.content = cloned.content.map((child) =>
         this.resolveCrossDocLinks(child, docPaths)
       );
     }

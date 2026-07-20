@@ -5,6 +5,39 @@ All notable changes to the "Structured Doc Editor" extension will be documented 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.12] - 2026-07-20
+
+### Changed
+- Rebuilt the README as a concise open-source project landing page shared by GitHub and the VS Code Marketplace
+- Added Marketplace, CI, license, repository, issue tracker, homepage, and discovery metadata
+- Clarified installation, supported formats, AI integration, desktop usage, document format, and contributor workflows
+- Verified that VSIX packaging embeds the root README as the Marketplace description
+
+### Removed
+- Removed the redundant shared-folder extension updater and its activation-time check, command, setting, and `version.json` artifact
+- Removed the `Setup AI Support` command and all workspace mutation for copied instructions or MCP configuration
+- Removed the bundled Chat Skill, MCP server, AI authoring assets, and their runtime dependencies
+
+## [0.4.11] - 2026-07-20
+
+### Added
+- Marketplace icon using the LG Active Red and Heritage Red color palette with an original structured-document symbol
+- Repository-wide `AGENTS.md`, architecture guide, and ADRs for durable contributor guidance
+- GitHub Actions checks, Dependabot configuration, version synchronization, and core document tests
+
+### Changed
+- Unified the VS Code and Tauri packages under one npm workspace and upgraded the build/test toolchain
+- Moved shared editor components and Tiptap extensions into `shared/editor/`
+- Strengthened document, MCP, host-message, and image-path type boundaries
+- Lazy-loaded Mermaid to reduce editor startup work
+- Replaced machine-specific packaging scripts with a portable, pinned VSIX workflow
+
+### Removed
+- Retired the completed `.ai` task database, stale planning archives, duplicate ESLint configs, and obsolete build scripts
+
+### Security
+- Updated runtime and development dependencies; `npm audit` now reports zero known vulnerabilities
+
 ## [0.4.10] - 2026-07-20
 
 ### Added

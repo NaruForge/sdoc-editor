@@ -25,7 +25,8 @@ import { ZoomBar } from './ZoomBar';
 import { collectTargets } from '../extensions/CrossReference';
 import { CROSSREF_RESYNC_META } from '../extensions/CrossReference';
 import type { RefTarget } from '../extensions/CrossReference';
-import type { DocumentSettings } from '@shared/types';
+import type { DocumentSettings, TiptapNode } from '@shared/types';
+import type { WebviewToExtensionMessage } from '@shared/types/messages';
 
 export const Editor: React.FC = () => {
   const { state, dispatch } = useEditorContext();
@@ -41,12 +42,12 @@ export const Editor: React.FC = () => {
   const pendingEditRef = useRef(0);
   const setContentRef = useRef<((content: JSONContent) => void) | null>(null);
   const initDoneRef = useRef(false);
+  const settings = state.settings;
 
   // Apply settings to CSS custom properties and global state
   useEffect(() => {
-    const { settings } = state;
     // Expose settings globally for NodeViews (CustomImage, CustomTable)
-    (window as any).__editorSettings = settings;
+    window.__editorSettings = settings;
 
     // Apply CSS custom properties for caption prefixes
     const proseMirrorEl = document.querySelector('.ProseMirror') as HTMLElement;
@@ -69,14 +70,14 @@ export const Editor: React.FC = () => {
 
     // Sync heading numbering toggle with settings
     setShowNumbering(settings.headingNumbering);
-  }, [state.settings]);
+  }, [settings]);
 
   // postMessageRef bridges the circular dependency: useTiptapEditor → postMessage → useEditorMessages
-  const postMessageRef = useRef<(msg: Record<string, unknown>) => void>(() => {});
+  const postMessageRef = useRef<(msg: WebviewToExtensionMessage) => void>(() => {});
 
   const { editor, setContent, flushUpdate } = useTiptapEditor({
     onUpdate: (content, saveRequested) => {
-      postMessageRef.current({ type: 'edit', content, saveRequested });
+      postMessageRef.current({ type: 'edit', content: content as TiptapNode, saveRequested });
     },
     pendingEditRef,
   });
@@ -142,7 +143,7 @@ export const Editor: React.FC = () => {
     }
   };
 
-  const handlePaste = async (event: ClipboardEvent) => {
+  const handlePaste = useCallback(async (event: ClipboardEvent) => {
     const items = event.clipboardData?.items;
     if (!items) return;
 
@@ -164,7 +165,7 @@ export const Editor: React.FC = () => {
         break;
       }
     }
-  };
+  }, [dialogDispatch]);
 
   const handleImageNameConfirm = async (name: string) => {
     if (!dialogs.pendingImage) return;
@@ -231,7 +232,7 @@ export const Editor: React.FC = () => {
         return true;
       }).run();
     } else {
-      (editor.chain().focus() as any).insertDiagram(language, code).run();
+      editor.chain().focus().insertDiagram(language, code).run();
     }
     dialogDispatch({ type: 'SET_DIAGRAM_DIALOG', payload: null });
     flushUpdate();
@@ -347,10 +348,10 @@ export const Editor: React.FC = () => {
     postMessage({ type: 'replaceImage', pos });
   };
 
-  const handleImageContextMenuOpen = (x: number, y: number, pos: number, src: string, _alt: string) => {
+  const handleImageContextMenuOpen = useCallback((x: number, y: number, pos: number, src: string, _alt: string) => {
     const isDrawio = src.includes('.drawio.svg') || src.includes('/drawio/');
     dialogDispatch({ type: 'SET_IMAGE_CONTEXT_MENU', payload: { x, y, pos, src, isDrawio } });
-  };
+  }, [dialogDispatch]);
 
   const handleImageContextMenuProperties = () => {
     if (!dialogs.imageContextMenu || !editor) return;
@@ -406,34 +407,34 @@ export const Editor: React.FC = () => {
         dispatch({ type: 'SET_READY', payload: true });
       }
     }
-  }, [editor, setContent]);
+  }, [editor, setContent, state.doc, dispatch]);
 
   // Expose flushUpdate to window for NodeView access
   useEffect(() => {
     if (editor) {
-      (window as any).__editorFlushUpdate = flushUpdate;
-      (window as any).__showImageProperties = (pos: number, src: string, alt: string) => {
+      window.__editorFlushUpdate = flushUpdate;
+      window.__showImageProperties = (pos: number, src: string, alt: string) => {
         const isDrawio = src.includes('.drawio.svg') || src.includes('/drawio/');
         dialogDispatch({ type: 'SET_IMAGE_PROPERTIES', payload: { pos, src, alt, align: 'center', isDrawio } });
       };
-      (window as any).__showImageContextMenu = (x: number, y: number, pos: number, src: string, alt: string) => {
+      window.__showImageContextMenu = (x: number, y: number, pos: number, src: string, alt: string) => {
         handleImageContextMenuOpen(x, y, pos, src, alt);
       };
-      (window as any).__showMathDialog = (latex: string, isBlock: boolean, pos: number) => {
+      window.__showMathDialog = (latex: string, isBlock: boolean, pos: number) => {
         dialogDispatch({ type: 'SET_MATH_DIALOG', payload: { latex, isBlock, pos } });
       };
-      (window as any).__showDiagramDialog = (code: string, language: string, pos: number) => {
+      window.__showDiagramDialog = (code: string, language: string, pos: number) => {
         dialogDispatch({ type: 'SET_DIAGRAM_DIALOG', payload: { code, language, pos } });
       };
     }
     return () => {
-      delete (window as any).__editorFlushUpdate;
-      delete (window as any).__showImageProperties;
-      delete (window as any).__showImageContextMenu;
-      delete (window as any).__showMathDialog;
-      delete (window as any).__showDiagramDialog;
+      delete window.__editorFlushUpdate;
+      delete window.__showImageProperties;
+      delete window.__showImageContextMenu;
+      delete window.__showMathDialog;
+      delete window.__showDiagramDialog;
     };
-  }, [editor, flushUpdate]);
+  }, [editor, flushUpdate, dialogDispatch, handleImageContextMenuOpen]);
 
   // Add paste event listener for clipboard images
   useEffect(() => {
@@ -445,7 +446,7 @@ export const Editor: React.FC = () => {
     return () => {
       editorElement.removeEventListener('paste', handlePaste as unknown as EventListener);
     };
-  }, [editor]);
+  }, [editor, handlePaste]);
 
   // Mouse back/forward button (Button3 = back, Button4 = forward) → cursor history navigation
   useEffect(() => {
@@ -622,6 +623,7 @@ export const Editor: React.FC = () => {
         <LinkDialog
           onConfirm={(url, text) => handleLinkConfirm(url, text)}
           onCancel={() => dialogDispatch({ type: 'CLOSE_LINK_DIALOG' })}
+          onBrowseSdoc={() => window.vscode?.postMessage({ type: 'browseSdocFiles' })}
           defaultText={editor.state.doc.textBetween(
             editor.state.selection.from,
             editor.state.selection.to,

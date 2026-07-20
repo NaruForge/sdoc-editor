@@ -1,60 +1,13 @@
-interface TiptapNode {
-  type: string;
-  content?: TiptapNode[];
-  attrs?: Record<string, unknown>;
-  marks?: TiptapMark[];
-  text?: string;
-}
-
-interface TiptapMark {
-  type: string;
-  attrs?: Record<string, unknown>;
-}
-
 import hljs from 'highlight.js';
 import { escapeHtml, formatDate, formatCaptionLabel } from './utils';
 import { toRoman } from '../settingsResolver';
-
-interface HtmlTheme {
-  companyLogo?: string;
-  companyName?: string;
-  primaryColor?: string;
-  accentColor?: string;
-  fontFamily?: string;
-  customStyles?: string;
-  embeddedFonts?: { weight: number; dataUri: string }[];
-  fontWeights?: { body: number; bold: number; h1: number; h2: number; h3: number };
-}
-
-interface EmbeddedAssets {
-  katexCss?: string;
-  katexJs?: string;
-  autoRenderJs?: string;
-  mermaidJs?: string;
-}
-
-interface ExportSettings {
-  imageCaptionPrefix?: string;
-  tableCaptionPrefix?: string;
-  equationCaptionPrefix?: string;
-  captionSeparator?: string;
-  tableNumberStyle?: 'arabic' | 'roman';
-  equationParens?: boolean;
-  captionNumbering?: 'sequential' | 'hierarchical';
-  equationNumbering?: 'sequential' | 'hierarchical';
-  exportImagePath?: 'relative' | 'absolute';
-  selfContained?: 'none' | 'images-only' | 'full';
-  embeddedAssets?: EmbeddedAssets;
-  documentDir?: string;
-}
-
-export interface SdocMeta {
-  title?: string;
-  author?: string;
-  version?: string;
-  created?: string;
-  modified?: string;
-}
+import type {
+  HtmlExportSettings as ExportSettings,
+  HtmlTheme,
+  SdocMeta,
+  TiptapMark,
+  TiptapNode,
+} from '../types';
 
 interface ConvertContext {
   settings: ExportSettings;

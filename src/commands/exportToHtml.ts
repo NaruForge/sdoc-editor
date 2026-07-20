@@ -5,7 +5,7 @@ import { convertJsonToHtml } from '../../shared/converter';
 import { convertWebviewUrisToRelativePaths, embedImagesAsBase64 } from '../utils/imageUtils';
 import { resolveCompanyLogo } from '../utils/themeUtils';
 import { resolveCustomCss } from '../utils/cssUtils';
-import type { DocumentSettings } from '../../shared/types';
+import type { DocumentSettings, HtmlExportSettings } from '../../shared/types';
 
 export async function exportToHtml(context: vscode.ExtensionContext) {
   // Get the active tab's input
@@ -89,7 +89,7 @@ export async function exportToHtml(context: vscode.ExtensionContext) {
       equationNumbering: config.get<'sequential' | 'hierarchical'>('equation.numbering', 'sequential'),
       exportImagePath: config.get<'relative' | 'absolute'>('export.imagePath', 'relative'),
       selfContained: config.get<'none' | 'images-only' | 'full'>('export.selfContained', 'images-only'),
-      embeddedAssets: undefined as any,
+      embeddedAssets: undefined as HtmlExportSettings['embeddedAssets'],
     };
 
     // Embed images as base64 when selfContained is enabled

@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
+import type { TiptapNode } from '../../shared/types';
 
 export const MIME_MAP: Record<string, string> = {
   png: 'image/png',
@@ -13,17 +14,15 @@ export const MIME_MAP: Record<string, string> = {
 };
 
 export function convertImagePathsToWebviewUris(
-  node: Record<string, unknown>,
+  node: TiptapNode,
   documentDir: vscode.Uri,
   webview: vscode.Webview,
-): Record<string, unknown> {
-  if (!node || typeof node !== 'object') return node;
-
-  const cloned: Record<string, unknown> = Array.isArray(node) ? [...node] as unknown as Record<string, unknown> : { ...node };
+): TiptapNode {
+  const cloned: TiptapNode = { ...node };
 
   if (cloned.type === 'image') {
-    const attrs = cloned.attrs as Record<string, unknown> | undefined;
-    const src = attrs?.src as string | undefined;
+    const attrs = cloned.attrs;
+    const src = typeof attrs?.src === 'string' ? attrs.src : undefined;
     if (src?.startsWith('./')) {
       const imagePath = src.replace('./', '');
       const imageUri = vscode.Uri.joinPath(documentDir, imagePath);
@@ -32,8 +31,8 @@ export function convertImagePathsToWebviewUris(
     }
   }
 
-  if (Array.isArray(cloned.content)) {
-    cloned.content = (cloned.content as Record<string, unknown>[]).map(
+  if (cloned.content) {
+    cloned.content = cloned.content.map(
       (child) => convertImagePathsToWebviewUris(child, documentDir, webview),
     );
   }
@@ -42,15 +41,13 @@ export function convertImagePathsToWebviewUris(
 }
 
 export function convertWebviewUrisToRelativePaths(
-  node: Record<string, unknown>,
-): Record<string, unknown> {
-  if (!node || typeof node !== 'object') return node;
-
-  const cloned: Record<string, unknown> = Array.isArray(node) ? [...node] as unknown as Record<string, unknown> : { ...node };
+  node: TiptapNode,
+): TiptapNode {
+  const cloned: TiptapNode = { ...node };
 
   if (cloned.type === 'image') {
-    const attrs = cloned.attrs as Record<string, unknown> | undefined;
-    const src = attrs?.src as string | undefined;
+    const attrs = cloned.attrs;
+    const src = typeof attrs?.src === 'string' ? attrs.src : undefined;
     if (src && (src.includes('vscode-webview') || src.includes('vscode-resource'))) {
       const imageMatch = src.match(/images\/([^?#]+)/);
       const drawioMatch = src.match(/drawio\/([^?#]+)/);
@@ -62,8 +59,8 @@ export function convertWebviewUrisToRelativePaths(
     }
   }
 
-  if (Array.isArray(cloned.content)) {
-    cloned.content = (cloned.content as Record<string, unknown>[]).map(
+  if (cloned.content) {
+    cloned.content = cloned.content.map(
       (child) => convertWebviewUrisToRelativePaths(child),
     );
   }
@@ -72,16 +69,14 @@ export function convertWebviewUrisToRelativePaths(
 }
 
 export async function embedImagesAsBase64(
-  node: Record<string, unknown>,
+  node: TiptapNode,
   documentDir: string,
-): Promise<Record<string, unknown>> {
-  if (!node || typeof node !== 'object') return node;
-
-  const cloned: Record<string, unknown> = Array.isArray(node) ? [...node] as unknown as Record<string, unknown> : { ...node };
+): Promise<TiptapNode> {
+  const cloned: TiptapNode = { ...node };
 
   if (cloned.type === 'image') {
-    const attrs = cloned.attrs as Record<string, unknown> | undefined;
-    const src = attrs?.src as string | undefined;
+    const attrs = cloned.attrs;
+    const src = typeof attrs?.src === 'string' ? attrs.src : undefined;
     if (src && !src.startsWith('data:') && !src.startsWith('http://') && !src.startsWith('https://')) {
       try {
         const imagePath = path.resolve(documentDir, src);
@@ -97,9 +92,9 @@ export async function embedImagesAsBase64(
     }
   }
 
-  if (Array.isArray(cloned.content)) {
+  if (cloned.content) {
     cloned.content = await Promise.all(
-      (cloned.content as Record<string, unknown>[]).map(
+      cloned.content.map(
         (child) => embedImagesAsBase64(child, documentDir),
       ),
     );

@@ -3,7 +3,7 @@
  * Caption presets: IEEE / ISO / Modern / Korean.
  */
 
-import type { DocumentSettings, CaptionStyleName } from './types';
+import type { DocumentSettings, CaptionStyleName, ResolvedEditorSettings } from './types';
 export type { CaptionStyleName };
 
 // ─── Caption Presets ────────────────────────────────────────────
@@ -93,6 +93,33 @@ export const SETTINGS_DEFAULTS: Required<DocumentSettings> = {
   slideTransition: 'none',
   showTitleSlide: true,
   outputDir: '',
+};
+
+/** Defaults shared by the VS Code webview and the Tauri editor. */
+export const EDITOR_SETTINGS_DEFAULTS: ResolvedEditorSettings = {
+  captionStyle: SETTINGS_DEFAULTS.captionStyle,
+  imageCaptionPrefix: CAPTION_PRESETS.modern.figurePrefix,
+  tableCaptionPrefix: CAPTION_PRESETS.modern.tablePrefix,
+  equationCaptionPrefix: CAPTION_PRESETS.modern.equationPrefix,
+  captionSeparator: CAPTION_PRESETS.modern.separator,
+  tableNumberStyle: CAPTION_PRESETS.modern.tableNumberStyle,
+  equationParens: CAPTION_PRESETS.modern.equationParens,
+  captionNumbering: SETTINGS_DEFAULTS.captionNumbering,
+  equationNumbering: SETTINGS_DEFAULTS.equationNumbering,
+  crossRefIncludeCaption: SETTINGS_DEFAULTS.crossRefIncludeCaption,
+  headingNumbering: SETTINGS_DEFAULTS.headingNumbering,
+  headingDecoration: SETTINGS_DEFAULTS.headingDecoration,
+  headingH1Color: SETTINGS_DEFAULTS.headingH1Color,
+  headingH2Color: SETTINGS_DEFAULTS.headingH2Color,
+  headingH3Color: SETTINGS_DEFAULTS.headingH3Color,
+  defaultImageAlignment: 'center',
+  exportImagePath: 'relative',
+  pdfScale: SETTINGS_DEFAULTS.pdfScale,
+  selfContained: SETTINGS_DEFAULTS.selfContained,
+  slideBreakLevel: SETTINGS_DEFAULTS.slideBreakLevel,
+  slideTransition: SETTINGS_DEFAULTS.slideTransition,
+  showTitleSlide: SETTINGS_DEFAULTS.showTitleSlide,
+  outputDir: SETTINGS_DEFAULTS.outputDir,
 };
 
 /**

@@ -1,6 +1,6 @@
 # PRODUCT.md — Structured Doc Editor 제품/기술 명세서
 
-> 이 문서는 **다른 AI 에이전트가 이 프로젝트를 처음부터 동일한 형태로 재구현(clone)할 수 있도록** 작성된 완전한 기술·제품 명세서입니다.
+> 이 문서는 **다른 개발자가 이 프로젝트를 처음부터 동일한 형태로 재구현(clone)할 수 있도록** 작성된 완전한 기술·제품 명세서입니다.
 > 목적, 사용자 경험(UX/UI), 데이터 모델, 아키텍처, 각 기능의 구현 방식, 빌드/배포 방법까지 재현에 필요한 모든 정보를 포함합니다.
 
 ---
@@ -20,7 +20,6 @@
   - Git으로 버전 관리 가능(pretty-printed JSON → 라인 단위 diff 가능)
   - WYSIWYG 편집 UX 제공(Notion/Confluence 스타일)
   - 필요 시 Markdown/AsciiDoc/HTML/PDF/Slide 등 다양한 포맷으로 **무손실에 가깝게 내보내기**
-  - **AI 에이전트가 JSON을 직접 읽고 쓸 수 있는 구조**를 지향(MCP 서버, Copilot Skill 내장)
 - 기술 문서(IEEE 논문 스타일 캡션, 수식 자동 번호, 그림/표 자동 번호, 다이어그램)에 특화되어 있으며, 회사 브랜딩(로고/색상/폰트)을 적용한 HTML/PDF/슬라이드 내보내기를 지원하여 **사내 표준 문서 도구**로 사용하는 것을 목표로 합니다.
 
 ### 1.3 타깃 사용자 및 사용 시나리오
@@ -28,7 +27,6 @@
 - VS Code를 사용하는 개발자/엔지니어가 설계 문서, 기술 보고서, 회의록을 작성
 - Git 저장소에 `.sdoc` 파일을 커밋하여 팀과 리뷰/협업
 - 작성한 문서를 고객사/경영진 공유용 HTML, PDF 또는 발표용 슬라이드로 내보내기
-- AI 에이전트(Copilot 등)가 MCP 도구를 통해 문서를 자동 생성/검증/내보내기
 
 ### 1.4 배포 형태 두 가지
 
@@ -49,14 +47,13 @@ vscode-structed-doc/
 │   ├── extension.ts          # activate() — 커맨드/커스텀에디터 등록
 │   ├── SdocEditorProvider.ts # .sdoc/.tiptap.json 커스텀 에디터 Provider
 │   ├── SdocBookProvider.ts   # .sdocbook 프로젝트(다중 문서) 에디터 Provider
-│   ├── updateChecker.ts      # 사내 공유폴더 기반 자동 업데이트 확인
 │   ├── commands/             # 내보내기 커맨드 (exportToHtml/Adoc/Markdown/Pdf/Slides)
-│   ├── mcp/server.ts         # MCP(Model Context Protocol) stdio 서버 엔트리
 │   └── utils/                # browserDetect, cssUtils, fontUtils, imageUtils, themeUtils, webviewHelper
 │
-├── shared/                   # vscode API 의존 없는 순수 TS — Extension/MCP/Tauri가 모두 공유
+├── shared/                   # vscode API 의존 없는 순수 TS — Extension/Tauri가 공유
 │   ├── converter/            # ★ 단일 소스 변환기 (jsonToHtml/Adoc/Markdown/Slides, markdownToJson)
-│   ├── mcp/                  # MCP 툴 핸들러 구현 (toolHandlers.ts, sdocUtils.ts, aiAuthoringGuide.ts)
+│   ├── document/             # document envelope, migration, ID, cross-reference 처리
+│   ├── editor/               # VS Code/Tauri 공용 React 컴포넌트와 Tiptap 확장
 │   ├── types/messages.ts     # Extension ↔ Webview 메시지 프로토콜 타입 (discriminated union)
 │   ├── types.ts              # TiptapNode/Mark, SdocMeta, DocumentSettings, ExportSettings 등 공유 타입
 │   └── settingsResolver.ts   # 설정 병합(default → workspace → per-document) + 캡션 프리셋
@@ -73,12 +70,12 @@ vscode-structed-doc/
 │   ├── src/                  # webview-ui와 거의 동일한 구조 + 파일 탐색기/메뉴바/시작화면
 │   └── src-tauri/             # Rust 백엔드 (commands.rs, document.rs, settings.rs)
 │
-├── docs/agent/                 # AI 에이전트 온보딩 자료 (Instructions, Copilot Skill, MCP 안내)
 ├── sdoc.schema.json            # .sdoc JSON Schema (draft-07)
 ├── sdocbook.schema.json         # .sdocbook JSON Schema
-├── esbuild.mjs                 # Extension host 빌드 (extension.js, mcp-server.js 2개 엔트리)
-├── package.json                 # 루트 = VS Code Extension manifest (npm workspaces: webview-ui)
-└── .ai/                        # AI Task Standard(ATS) 작업 관리 (STATUS.md, decisions.md, tasks/)
+├── esbuild.mjs                 # Extension host 빌드 (extension.js)
+├── AGENTS.md                    # 저장소 작업 규칙과 검증 명령
+├── docs/architecture.md         # 런타임 경계와 데이터 흐름
+└── package.json                 # VS Code manifest + npm workspaces(webview-ui, tauri-app)
 ```
 
 ---
@@ -209,7 +206,7 @@ vscode-structed-doc/
 
 ### 4.5 내보내기(Export) / 가져오기(Import)
 
-모든 변환 로직은 **`shared/converter/`에 단일 소스**로 존재(“converter singleton” 규칙). VS Code 확장, MCP 서버, Tauri 앱이 모두 동일한 함수를 import합니다. Converter는 순수 TypeScript이며 `vscode` API 의존성이 전혀 없습니다.
+모든 변환 로직은 **`shared/converter/`에 단일 소스**로 존재(“converter singleton” 규칙). VS Code 확장과 Tauri 앱이 동일한 함수를 import합니다. Converter는 순수 TypeScript이며 `vscode` API 의존성이 전혀 없습니다.
 
 | 파일 | 대상 포맷 | 핵심 로직 |
 |---|---|---|
@@ -247,26 +244,6 @@ interface ConvertContext {
 - `diagram` 노드(`language: "mermaid"`)를 `mermaid` npm 패키지로 실시간 SVG 렌더링
 - 클릭 시 분할 창(코드 편집기 + 실시간 미리보기) 다이얼로그가 열리며 flowchart/sequence/ER/gantt 등 6종 프리셋 템플릿 제공
 - `language` 필드는 plantuml/d2/graphviz 확장을 염두에 두고 설계되었으나 현재는 mermaid만 실제 렌더링 지원
-
-### 4.8 MCP(Model Context Protocol) 서버 — AI 에이전트 통합
-
-- 엔트리: `src/mcp/server.ts` → esbuild로 `dist/mcp-server.js`로 별도 번들, `@modelcontextprotocol/sdk` + `zod`로 구현, `StdioServerTransport` 사용
-- 실제 로직은 `shared/mcp/toolHandlers.ts`에 위치(순수 TS, extension host와 공유)
-- 제공 도구(Tools):
-  - `sdoc_validate` — JSON Schema 검증
-  - `sdoc_create` — 빈 문서/템플릿 생성
-  - `sdoc_export` — HTML/Markdown/AsciiDoc/Slides로 변환
-  - `sdoc_import` — Markdown → sdoc 변환
-  - `sdoc_getSchema` — 스키마 반환
-  - `sdoc_assignIds` — heading/image/table 자동 ID 부여
-  - `sdoc_syncRefs` — 교차참조 텍스트 동기화
-  - `sdoc_migrate` — 레거시 포맷 마이그레이션
-  - `sdoc_query` — 문서 구조 조회(TOC/이미지 목록 등)
-- 리소스: `sdoc://schema`
-- `structuredDocEditor.setupAgent` 커맨드가 `.github/mcp.json`(stdio 서버 등록)과 `.github/instructions/sdoc-format.instructions.md`를 워크스페이스에 자동 배치
-- `package.json`의 `contributes.chatSkills`로 Copilot Skill(`docs/agent/.github/skills/sdoc-editing/SKILL.md`)이 설치만으로 자동 등록됨 — 스킬에는 편집 규칙(헤딩 수동 번호 금지, LaTeX 이스케이프, camelCase attrs, 상대경로 이미지 등)과 템플릿/예제가 포함
-
----
 
 ## 5. UX / UI 상세 설계
 
@@ -376,16 +353,16 @@ interface ConvertContext {
 
 ### 7.1 VS Code Extension
 
-- `esbuild.mjs`: 2개 엔트리 — `src/extension.ts` → `dist/extension.js`, `src/mcp/server.ts` → `dist/mcp-server.js`
+- `esbuild.mjs`: `src/extension.ts` → `dist/extension.js` 단일 엔트리 번들
 - 웹뷰는 Vite로 별도 빌드 → `dist/webview/`
-- 루트 `package.json`은 `workspaces: ["webview-ui"]`로 npm workspace 구성
-- 패키징: `npm run package` → `build-vsix.ps1`/`build-vsix.sh` 또는 `vsce package`
-- 사내 자동 업데이트: `structuredDocEditor.update.sharedFolder` 설정에 지정된 공유 폴더를 스캔하여 새 버전 VSIX가 있으면 알림
+- 루트 `package.json`은 `webview-ui`, `tauri-app` 두 npm workspace를 통합 관리
+- 패키징: `npm run package` → 고정 버전의 로컬 `@vscode/vsce`로 `output/`에 VSIX 생성
+- 업데이트: Visual Studio Marketplace와 VS Code의 표준 확장 업데이트 흐름 사용
 
 ### 7.2 Tauri 앱
 
-- `build-tauri-app.ps1`(Windows PowerShell) — Rust 툴체인(`rust-toolchain.toml`로 버전 고정) + Node.js 필요
-- `npm run tauri:build` → `cargo tauri build` + `scripts/copy-portable.mjs`로 포터블 버전도 생성
+- `npm run build:desktop`은 Tauri 프런트엔드를 빌드하며, 설치 패키지는 `npm run tauri build --workspace=sdoc-editor-tauri`로 생성
+- Rust 툴체인은 `tauri-app/rust-toolchain.toml`에 고정
 - 출력물: `src-tauri/target/release/bundle/`에 `.msi`/`.nsis` 인스톨러
 
 ### 7.3 폰트/에셋
@@ -395,17 +372,13 @@ interface ConvertContext {
 
 ---
 
-## 8. AI Task Standard(ATS) 개발 프로세스
+## 8. 개발 협업 체계
 
-이 프로젝트 자체가 **AI 에이전트와의 협업 개발**을 전제로 설계되었습니다:
-
-- `.ai/config.yaml` — 프로젝트 prefix(`SDOC`) 등 설정
-- `.ai/STATUS.md` — Ready/In Progress/Done/Blocked 상태의 작업 목록, 각 작업은 `tasks/{PREFIX}-{NNN}.md`와 링크
-- `.ai/decisions.md` — 주요 설계 결정 이력(날짜/작업/에이전트/결정/근거) — 새 세션은 반드시 이 파일을 먼저 확인하고 과거 결정을 뒤집지 않음
-- `.ai/tasks/` — 개별 작업 명세(Context/Scope/Progress 섹션 포함)
-- `.github/instructions/*.instructions.md` — 코드 영역별(`webview-ui/**`, `tauri-app/**`, `src/**,shared/**`, `**/converter/**`) 강제 규칙 파일 — 새 코드 작성 전 반드시 열람
-
-이 구조를 재구현할 때도 **동일한 ATS 워크플로우**(작업 추적 + 결정 기록 + 영역별 가이드라인)를 함께 도입하는 것을 권장합니다.
+- `AGENTS.md`는 사람과 AI 도구가 함께 따르는 짧고 안정적인 저장소 규칙의 단일 진입점입니다.
+- `docs/architecture.md`는 Extension, 공용 코어, 웹뷰, Tauri 사이의 의존 방향을 설명합니다.
+- 장기적인 구조 결정은 `docs/adr/`에 기록합니다.
+- 작업 상태와 토론은 GitHub 이슈/PR에서 관리하며, 완료 작업을 저장소 안의 별도 데이터베이스에 중복 기록하지 않습니다.
+- `.github/instructions/*.instructions.md`에는 영역별로 필요한 최소한의 추가 규칙만 둡니다.
 
 ---
 
@@ -418,11 +391,9 @@ interface ConvertContext {
 3. **설정 해석기**: 기본값 → workspace 설정 → 문서별 설정 병합 로직 + 캡션 프리셋(ieee/iso/modern/korean) 정의
 4. **변환기(Converter) 단일화**: `shared/converter/`에 HTML/Markdown/AsciiDoc/Slides 변환기를 ConvertContext 패턴으로 구현, vscode API 의존 금지
 5. **VS Code Extension 셸**: `CustomTextEditorProvider` + 메시지 프로토콜(discriminated union) + envelope 마이그레이션
-6. **MCP 서버**: `@modelcontextprotocol/sdk`로 stdio 서버, converter/schema를 재사용하는 도구 세트 노출
-7. **Tauri 데스크톱 앱**: webview-ui를 미러링하고 메시징만 Tauri invoke 계층으로 교체, Rust 백엔드에 파일탐색기/트래시/워처 구현
-8. **UX 폴리시**: Activity Bar/TOC/LOF/LOT, Zoom 슬라이더, 커서 히스토리, 섹션 접기 등 편의 기능은 후순위로 점진 추가
-9. **AI 통합**: Copilot Skill(`chatSkills`) + Instructions 자동 배치 커맨드(`setupAgent`) 추가
+6. **Tauri 데스크톱 앱**: webview-ui를 미러링하고 메시징만 Tauri invoke 계층으로 교체, Rust 백엔드에 파일탐색기/트래시/워처 구현
+7. **UX 폴리시**: Activity Bar/TOC/LOF/LOT, Zoom 슬라이더, 커서 히스토리, 섹션 접기 등 편의 기능은 후순위로 점진 추가
 
 ---
 
-*이 문서는 2026-07 시점의 리포지토리 상태(v0.4.9)를 기준으로 작성되었습니다. 최신 기능 목록은 `README.md`와 `.ai/STATUS.md`를 함께 참고하세요.*
+*이 문서는 2026-07 시점의 리포지토리 상태(v0.4.12)를 기준으로 작성되었습니다. 최신 기능 목록은 `README.md`와 `CHANGELOG.md`를 참고하세요.*

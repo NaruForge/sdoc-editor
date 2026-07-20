@@ -1,37 +1,6 @@
 import { formatDate, formatCaptionLabel } from './utils';
 import { toRoman } from '../settingsResolver';
-
-interface TiptapNode {
-  type: string;
-  content?: TiptapNode[];
-  attrs?: Record<string, unknown>;
-  marks?: TiptapMark[];
-  text?: string;
-}
-
-interface TiptapMark {
-  type: string;
-  attrs?: Record<string, unknown>;
-}
-
-interface ExportSettings {
-  imageCaptionPrefix?: string;
-  tableCaptionPrefix?: string;
-  equationCaptionPrefix?: string;
-  captionSeparator?: string;
-  tableNumberStyle?: 'arabic' | 'roman';
-  equationParens?: boolean;
-  captionNumbering?: 'sequential' | 'hierarchical';
-  equationNumbering?: 'sequential' | 'hierarchical';
-}
-
-export interface SdocMeta {
-  title?: string;
-  author?: string;
-  version?: string;
-  created?: string;
-  modified?: string;
-}
+import type { ExportSettings, SdocMeta, TiptapMark, TiptapNode } from '../types';
 
 interface ConvertContext {
   settings: ExportSettings;

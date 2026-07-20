@@ -242,6 +242,16 @@ export interface FlushCompleteMessage {
   type: 'flushComplete';
 }
 
+export interface SelectCssFileMessage {
+  type: 'selectCssFile';
+  target: 'slide' | 'html';
+}
+
+export interface ClearCssFileMessage {
+  type: 'clearCssFile';
+  target: 'slide' | 'html';
+}
+
 export type WebviewToExtensionMessage =
   | ReadyMessage
   | EditMessage
@@ -259,7 +269,9 @@ export type WebviewToExtensionMessage =
   | ImportHtmlFromWebviewMessage
   | UpdateMetaMessage
   | UpdateDocSettingsMessage
-  | FlushCompleteMessage;
+  | FlushCompleteMessage
+  | SelectCssFileMessage
+  | ClearCssFileMessage;
 
 // ─── SdocBook Messages (Webview → Extension) ───────────────────
 

@@ -2,34 +2,11 @@
 applyTo: "tauri-app/**"
 ---
 
-# Tauri Desktop App
+# Tauri desktop host
 
-## Architecture
-
-- Mirrors `webview-ui/` structure: same components, extensions, hooks, styles.
-- Uses `tauri-app/src/adapters/tauriMessaging.ts` instead of VS Code messaging.
-- Has its own `package.json` and `node_modules` (mermaid installed separately).
-- Rust backend in `src-tauri/` handles file I/O, settings persistence, window management.
-
-## Sync Rules
-
-When editor features change in `webview-ui/`, the same changes must be applied here:
-- **Extensions**: Copy modified files from `webview-ui/src/extensions/` → `tauri-app/src/extensions/`.
-- **Components**: Copy modified components and adapt imports (messaging adapter).
-- **tiptapExtensions.ts**: Keep the extension registration list in sync.
-- **Styles**: `tauri-theme.css` mirrors `vscode-theme.css` but uses standalone CSS variables (no `--vscode-*` prefix).
-
-## Key Differences from webview-ui
-
-| Aspect | webview-ui | tauri-app |
-|---|---|---|
-| Messaging | `useVSCodeMessaging` + `vscode.postMessage` | `tauriMessaging.ts` + Tauri invoke |
-| CSS variables | `--vscode-editor-*` | standalone equivalents |
-| File I/O | VS Code extension host | Rust backend (`commands.rs`) |
-| Build | Vite → `dist/webview/` | Vite + `cargo tauri build` |
-
-## Build
-
-- **Script**: `build-tauri-app.ps1` (Windows PowerShell).
-- Requires: Node.js + npm (Windows native), Rust toolchain.
-- Output: `.msi` installer in `src-tauri/target/release/bundle/`.
+- `tauri-app/src/` owns the desktop shell, Tauri adapters, and desktop-only UI.
+- Host-neutral editor code belongs in `shared/editor/` and is re-exported locally only for stable imports.
+- `tauri-app/src-tauri/` owns native file operations, settings, watchers, and packaging.
+- Keep JavaScript package versions aligned through the root npm workspace.
+- Document-format changes require equivalent TypeScript and Rust contract tests.
+- Verify frontend changes with `npm run build:desktop`; verify Rust with fmt, clippy, and tests from `AGENTS.md`.
