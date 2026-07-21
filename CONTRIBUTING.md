@@ -31,6 +31,22 @@ npm run build:all
 | `npm run build:desktop` | Tauri 프런트엔드 빌드 |
 | `npm run build:all` | 두 배포면의 프런트엔드 전체 빌드 |
 | `npm run package` | `output/`에 VSIX 생성 |
+| `npm run tauri:build --workspace=sdoc-editor-tauri` | Windows 설치 패키지·portable EXE 로컬 빌드 |
+
+### 데스크톱 릴리스 (GitHub Actions)
+
+버전을 `package.json` / `tauri-app` / `Cargo.toml`에 맞춘 뒤 (`npm run version:check`), 태그를 푸시하면 Windows 산출물이 Release에 올라갑니다.
+
+```bash
+# 예: package.json version 이 0.4.13 일 때
+git tag v0.4.13
+git push origin v0.4.13
+```
+
+워크플로: `.github/workflows/release-desktop.yml`  
+첨부 파일: NSIS 설치 EXE, MSI, portable EXE  
+
+태그 없이 빌드만 확인하려면 Actions에서 **Release Desktop** → **Run workflow**를 사용합니다 (아티팩트만 업로드, Release 미생성).
 
 Rust 백엔드를 변경했다면 다음 검증도 수행합니다.
 

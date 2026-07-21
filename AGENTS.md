@@ -57,8 +57,9 @@ cargo test --manifest-path tauri-app/Cargo.toml --workspace
 
 - `npm run package` creates the VSIX in `output/`.
 - `npm run build:desktop` builds the Tauri frontend only.
-- Native installers are built through Tauri after the frontend and Rust checks pass.
+- Native installers are built through Tauri after the frontend and Rust checks pass (`npm run tauri:build --workspace=sdoc-editor-tauri`).
 - Versions are synchronized by `npm run version:check`.
+- Desktop GitHub Releases: push a `v*` tag matching `package.json` to run `.github/workflows/release-desktop.yml` (Windows NSIS, MSI, portable EXE).
 
 ## Agent orchestration
 
