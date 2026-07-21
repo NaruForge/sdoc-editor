@@ -45,7 +45,7 @@ export interface BookParseResult {
 }
 
 export interface BookDocumentLoader {
-  load(path: string): Promise<unknown>;
+  load(path: string, signal?: AbortSignal): Promise<unknown>;
 }
 
 export type BookDocumentStatus = 'ok' | 'missing' | 'invalid';

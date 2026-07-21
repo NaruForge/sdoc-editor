@@ -10,6 +10,8 @@ import {
 } from '../shared/book';
 import type { TiptapNode } from '../shared/types';
 import { buildNumberingIndex } from '../shared/document/numbering';
+import { assertPersistedDocument } from '../shared/document/documentContract';
+import { convertJsonToAdoc, convertJsonToHtml, convertJsonToMarkdown, convertJsonToSlides } from '../shared/converter';
 
 const text = (value: string, href?: string): TiptapNode => ({
   type: 'text',
@@ -58,6 +60,14 @@ describe('sdocbook parsing', () => {
       'DOCUMENT_DUPLICATE',
     ]);
     expect(parseBook('').diagnostics.map((item) => item.code)).toContain('BOOK_NO_DOCUMENTS');
+  });
+
+  it('rejects document paths that collide on a portable Windows checkout', () => {
+    const result = parseBook({
+      sdocBook: '1.0',
+      documents: [{ path: './Guide/Intro.sdoc' }, { path: './guide/intro.sdoc' }],
+    });
+    expect(result.diagnostics).toContainEqual(expect.objectContaining({ code: 'DOCUMENT_DUPLICATE' }));
   });
 
   it('validates optional metadata instead of silently dropping invalid values', () => {
@@ -129,10 +139,69 @@ describe('sdocbook composition', () => {
 
     expect(result.meta).toEqual({ title: 'System Guide', author: 'Team' });
     expect(result.documents.map((document) => document.label)).toEqual(['intro', 'Reference']);
-    expect(result.doc.content?.map((node) => node.type)).toEqual(['heading', 'image', 'paragraph', 'heading']);
-    expect(result.doc.content?.[1].attrs?.src).toBe('chapters/images/overview.png');
-    expect(result.doc.content?.[2].content?.[0].marks?.[0].attrs?.href).toBe('#api');
+    expect(result.doc.content?.map((node) => node.type)).toEqual([
+      'horizontalRule', 'heading', 'image', 'paragraph', 'horizontalRule', 'heading',
+    ]);
+    expect(result.doc.content?.[2].attrs?.src).toBe('chapters/images/overview.png');
+    expect(result.doc.content?.[3].content?.[0].marks?.[0].attrs?.href).toBe('#api');
     expect(result.diagnostics).toEqual([]);
+    expect(() => assertPersistedDocument({ sdoc: '1.0', meta: result.meta, doc: result.doc })).not.toThrow();
+  });
+
+  it('maps fragmentless document links to deterministic chapter anchors', async () => {
+    const result = await composeBook({
+      sdocBook: '1.0',
+      documents: [{ path: './one.sdoc' }, { path: './nested/two.sdoc' }],
+    }, memoryLoader({
+      './one.sdoc': { type: 'doc', content: [{ type: 'paragraph', content: [text('Next', './nested/two.sdoc')] }] },
+      './nested/two.sdoc': { type: 'doc', content: [{ type: 'paragraph', content: [text('Two')] }] },
+    }));
+    const secondAnchor = result.doc.content?.[2].attrs?.id;
+    expect(secondAnchor).toBe('chapter-nested-two');
+    expect(result.doc.content?.[1].content?.[0].marks?.[0].attrs?.href).toBe(`#${secondAnchor}`);
+    expect(convertJsonToHtml(result.doc)).toContain(`id="${secondAnchor}"`);
+    expect(convertJsonToMarkdown(result.doc)).toContain(`<a id="${secondAnchor}"></a>`);
+    expect(convertJsonToAdoc(result.doc)).toContain(`[[${secondAnchor}]]`);
+    expect(convertJsonToSlides(result.doc)).toContain(`id="${secondAnchor}"`);
+    expect(convertJsonToHtml(result.doc)).not.toContain(`<hr id="${secondAnchor}"`);
+    expect(convertJsonToMarkdown(result.doc)).not.toContain(`<a id="${secondAnchor}"></a>\n---`);
+    expect(convertJsonToAdoc(result.doc)).not.toContain(`[[${secondAnchor}]]\n'''`);
+  });
+
+  it('loads chapters in parallel while preserving manifest and diagnostic order', async () => {
+    const started: string[] = [];
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const composing = composeBook({
+      sdocBook: '1.0', documents: [{ path: './slow.sdoc' }, { path: './broken.sdoc' }],
+    }, {
+      async load(chapterPath) {
+        started.push(chapterPath);
+        if (chapterPath === './slow.sdoc') await gate;
+        throw new BookDocumentLoadError('read-failed', chapterPath);
+      },
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(started).toEqual(['./slow.sdoc', './broken.sdoc']);
+    release();
+    const result = await composing;
+    expect(result.diagnostics.map((item) => item.documentPath)).toEqual(['./slow.sdoc', './broken.sdoc']);
+  });
+
+  it('aborts superseded composition without publishing chapter diagnostics', async () => {
+    const controller = new AbortController();
+    const composing = composeBook({
+      sdocBook: '1.0', documents: [{ path: './slow.sdoc' }],
+    }, {
+      async load(_chapterPath, signal) {
+        await new Promise<void>((_resolve, reject) => {
+          signal?.addEventListener('abort', () => reject(signal.reason), { once: true });
+        });
+      },
+    }, [], controller.signal);
+    controller.abort(new Error('superseded'));
+    await expect(composing).rejects.toThrow('superseded');
   });
 
   it('returns diagnostics instead of silently exporting incomplete content', async () => {
@@ -191,7 +260,7 @@ describe('sdocbook composition', () => {
       severity: 'error',
       code: 'ASSET_PATH_OUTSIDE_BOOK',
     }));
-    expect(result.doc.content?.[0].attrs?.src).toBeUndefined();
+    expect(result.doc.content?.[1].attrs?.src).toBeUndefined();
   });
 
   it('validates complete chapter contracts before composition', async () => {
@@ -223,7 +292,7 @@ describe('sdocbook composition', () => {
       captionStyle: 'modern', crossRefIncludeCaption: false,
       counterResetPaths: result.counterResetPaths,
     });
-    expect(result.counterResetPaths).toEqual(['0', '1']);
+    expect(result.counterResetPaths).toEqual(['0', '2']);
     expect(numbering.byId.get('one')?.number).toBe('1');
     expect(numbering.byId.get('two')?.number).toBe('1');
   });

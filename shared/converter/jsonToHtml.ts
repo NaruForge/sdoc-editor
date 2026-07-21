@@ -57,6 +57,12 @@ function convertNode(node: TiptapNode, ctx: ConvertContext): string {
       return paragraphText ? `<p${pAlign}>${paragraphText}</p>` : '<p></p>';
     }
 
+    case 'horizontalRule': {
+      return typeof node.attrs?.id === 'string'
+        ? `<span id="${escapeHtml(node.attrs.id)}" hidden></span>`
+        : '<hr>';
+    }
+
     case 'bulletList': {
       const bulletItems = node.content ? node.content.map(n => convertNode(n, ctx)).join('\n') : '';
       return `<ul>\n${bulletItems}\n</ul>`;

@@ -60,6 +60,9 @@ function convertNode(node: TiptapNode, ctx: ConvertContext): string {
       return paragraphText ? `${paragraphText}\n` : '';
     }
 
+    case 'horizontalRule':
+      return typeof node.attrs?.id === 'string' ? `<a id="${node.attrs.id}"></a>\n` : '---\n';
+
     case 'bulletList':
       return node.content ? node.content.map((item) => convertListItem(item, '-', ctx)).join('') : '';
 

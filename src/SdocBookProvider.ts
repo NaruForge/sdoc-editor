@@ -44,53 +44,105 @@ export class SdocBookProvider implements vscode.CustomTextEditorProvider {
 
     let updateSequence = 0;
     let disposed = false;
+    let shellInitialized = false;
+    let updateTimer: NodeJS.Timeout | undefined;
+    let activeLoad: AbortController | undefined;
+    let includeKeys = new Set<string>();
+    let includeWatchers: vscode.Disposable[] = [];
+    const portableFileKey = (filePath: string): string => path.resolve(filePath).normalize('NFC').toLocaleLowerCase('en-US');
+    const replaceIncludeWatchers = (book: SdocBook): void => {
+      includeWatchers.forEach((item) => item.dispose());
+      includeWatchers = [];
+      includeKeys = new Set(book.documents.map((entry) => portableFileKey(path.resolve(
+        path.dirname(document.uri.fsPath), entry.path,
+      ))));
+      for (const entry of book.documents) {
+        const watcher = vscode.workspace.createFileSystemWatcher(
+          new vscode.RelativePattern(vscode.Uri.file(path.dirname(document.uri.fsPath)), entry.path.replace(/^\.\//, '')),
+        );
+        includeWatchers.push(
+          watcher,
+          watcher.onDidCreate(() => scheduleUpdate()),
+          watcher.onDidChange(() => scheduleUpdate()),
+          watcher.onDidDelete(() => scheduleUpdate()),
+        );
+      }
+    };
     const updateWebview = async (): Promise<void> => {
       const sequence = ++updateSequence;
-      const result = await this.loadBook(document);
+      activeLoad?.abort(new Error('Book composition superseded.'));
+      const controller = new AbortController();
+      activeLoad = controller;
+      let result: {
+        book?: SdocBook;
+        composition?: BookCompositionResult;
+        diagnostics: BookDiagnostic[];
+      };
+      try {
+        result = await this.loadBook(document, controller.signal);
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        throw error;
+      }
       if (disposed || sequence !== updateSequence) return;
       if (!result.book) {
         webviewPanel.webview.html = this.getErrorHtml(result.diagnostics[0]?.message ?? 'Invalid .sdocbook file');
+        shellInitialized = false;
         return;
       }
+      replaceIncludeWatchers(result.book);
       const docs = result.composition?.documents ?? result.book.documents.map((entry) => ({
         path: entry.path,
         label: entry.label || path.basename(entry.path, '.sdoc'),
         status: 'invalid' as const,
       }));
-      webviewPanel.webview.html = this.getHtml(
+      const nextHtml = this.getHtml(
         webviewPanel.webview,
         result.book,
         docs,
         result.diagnostics,
       );
+      if (!shellInitialized) {
+        webviewPanel.webview.html = nextHtml;
+        shellInitialized = true;
+      } else {
+        await webviewPanel.webview.postMessage({
+          type: 'bookState',
+          generation: sequence,
+          body: this.extractBookBody(nextHtml),
+        });
+      }
     };
 
-    void updateWebview();
+    const scheduleUpdate = (immediate = false): void => {
+      activeLoad?.abort(new Error('Book composition superseded.'));
+      if (updateTimer) clearTimeout(updateTimer);
+      updateTimer = setTimeout(() => {
+        updateTimer = undefined;
+        void updateWebview().catch((error: unknown) => {
+          vscode.window.showErrorMessage(`Failed to refresh book: ${error instanceof Error ? error.message : String(error)}`);
+        });
+      }, immediate ? 0 : 100);
+    };
+
+    scheduleUpdate(true);
 
     const projectDir = path.dirname(document.uri.fsPath);
     const isProjectDocument = (candidate: vscode.TextDocument): boolean => {
       if (candidate.uri.toString() === document.uri.toString()) return true;
       if (candidate.uri.scheme !== 'file' || !candidate.uri.fsPath.toLowerCase().endsWith('.sdoc')) return false;
-      const relative = path.relative(projectDir, candidate.uri.fsPath);
-      return relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
+      return includeKeys.has(portableFileKey(candidate.uri.fsPath));
     };
     const changeSubscription = vscode.workspace.onDidChangeTextDocument((event) => {
-      if (isProjectDocument(event.document)) void updateWebview();
+      if (isProjectDocument(event.document)) scheduleUpdate();
     });
-    const watcher = vscode.workspace.createFileSystemWatcher(
-      new vscode.RelativePattern(vscode.Uri.file(projectDir), '**/*.sdoc'),
-    );
-    const watcherSubscriptions = [
-      watcher.onDidCreate(() => void updateWebview()),
-      watcher.onDidChange(() => void updateWebview()),
-      watcher.onDidDelete(() => void updateWebview()),
-    ];
 
     webviewPanel.onDidDispose(() => {
       disposed = true;
+      activeLoad?.abort(new Error('Book editor disposed.'));
+      if (updateTimer) clearTimeout(updateTimer);
       changeSubscription.dispose();
-      watcherSubscriptions.forEach((subscription) => subscription.dispose());
-      watcher.dispose();
+      includeWatchers.forEach((item) => item.dispose());
     });
 
     webviewPanel.webview.onDidReceiveMessage(async (message: unknown) => {
@@ -164,7 +216,7 @@ export class SdocBookProvider implements vscode.CustomTextEditorProvider {
           break;
         }
         case 'refreshBook':
-          await updateWebview();
+          scheduleUpdate(true);
           break;
       }
     });
@@ -173,7 +225,8 @@ export class SdocBookProvider implements vscode.CustomTextEditorProvider {
   private createDocumentLoader(bookDocument: vscode.TextDocument): BookDocumentLoader {
     const projectDir = path.dirname(bookDocument.uri.fsPath);
     return {
-      load: async (bookPath: string): Promise<unknown> => {
+      load: async (bookPath: string, signal?: AbortSignal): Promise<unknown> => {
+        signal?.throwIfAborted();
         const requestedPath = path.resolve(projectDir, bookPath);
         let canonicalRoot: string;
         let canonicalTarget: string;
@@ -197,7 +250,7 @@ export class SdocBookProvider implements vscode.CustomTextEditorProvider {
         );
         if (openDocument) return openDocument.getText();
         try {
-          return new TextDecoder().decode(await vscode.workspace.fs.readFile(uri));
+          return new TextDecoder().decode(await fs.promises.readFile(canonicalTarget, { signal }));
         } catch (error) {
           if (error instanceof vscode.FileSystemError && error.code === 'FileNotFound') {
             throw new BookDocumentLoadError('not-found', bookPath);
@@ -211,7 +264,7 @@ export class SdocBookProvider implements vscode.CustomTextEditorProvider {
     };
   }
 
-  private async loadBook(document: vscode.TextDocument): Promise<{
+  private async loadBook(document: vscode.TextDocument, signal?: AbortSignal): Promise<{
     book?: SdocBook;
     composition?: BookCompositionResult;
     diagnostics: BookDiagnostic[];
@@ -222,6 +275,7 @@ export class SdocBookProvider implements vscode.CustomTextEditorProvider {
       parsed.book,
       this.createDocumentLoader(document),
       parsed.diagnostics,
+      signal,
     );
     return { book: parsed.book, composition, diagnostics: composition.diagnostics };
   }
@@ -407,7 +461,7 @@ export class SdocBookProvider implements vscode.CustomTextEditorProvider {
   .diagnostic.warning { color: var(--vscode-editorWarning-foreground); }
   .diagnostic-code { font-family: var(--vscode-editor-font-family, monospace); margin-right: 8px; }
   .empty { color: var(--vscode-descriptionForeground); font-style: italic; padding: 20px; text-align: center; }
-</style></head><body>
+</style></head><body><div id="book-root">
   <h1>📚 ${this.escHtml(project.title || 'Untitled Project')}</h1>
   <div class="meta">
     <div><label>Title</label><input data-meta-key="title" value="${this.escHtml(project.title || '')}"></div>
@@ -430,10 +484,13 @@ export class SdocBookProvider implements vscode.CustomTextEditorProvider {
   <div class="doc-list">
     ${docs.length > 0 ? docRows : '<div class="empty">No documents added. Click "Add Document" to start.</div>'}
   </div>
+</div>
 <script nonce="${nonce}">
   const vscode = acquireVsCodeApi();
-  document.querySelector('[data-action="add"]').addEventListener('click', () => vscode.postMessage({ type: 'addDocument' }));
-  document.querySelector('[data-action="refresh"]').addEventListener('click', () => vscode.postMessage({ type: 'refreshBook' }));
+  let latestGeneration = 0;
+  const bindBookUi = () => {
+  document.querySelector('[data-action="add"]')?.addEventListener('click', () => vscode.postMessage({ type: 'addDocument' }));
+  document.querySelector('[data-action="refresh"]')?.addEventListener('click', () => vscode.postMessage({ type: 'refreshBook' }));
   document.querySelectorAll('[data-open-index]').forEach((element) => element.addEventListener('click', () => {
     vscode.postMessage({ type: 'openDocument', index: Number(element.dataset.openIndex) });
   }));
@@ -449,12 +506,42 @@ export class SdocBookProvider implements vscode.CustomTextEditorProvider {
   document.querySelectorAll('[data-export]').forEach((element) => element.addEventListener('click', () => {
     vscode.postMessage({ type: 'exportProject', format: element.dataset.export });
   }));
+  };
+  bindBookUi();
+  window.addEventListener('message', (event) => {
+    const message = event.data;
+    if (message?.type !== 'bookState' || message.generation <= latestGeneration || typeof message.body !== 'string') return;
+    latestGeneration = message.generation;
+    const root = document.getElementById('book-root');
+    if (!root) return;
+    const active = document.activeElement;
+    const editingKey = active instanceof HTMLInputElement ? active.dataset.metaKey : undefined;
+    const editingValue = active instanceof HTMLInputElement ? active.value : undefined;
+    const selectionStart = active instanceof HTMLInputElement ? active.selectionStart : null;
+    const selectionEnd = active instanceof HTMLInputElement ? active.selectionEnd : null;
+    root.innerHTML = message.body;
+    bindBookUi();
+    if (editingKey) {
+      const replacement = root.querySelector('[data-meta-key="' + editingKey + '"]');
+      if (replacement instanceof HTMLInputElement && editingValue !== undefined) {
+        replacement.value = editingValue;
+        replacement.focus();
+        if (selectionStart !== null && selectionEnd !== null) replacement.setSelectionRange(selectionStart, selectionEnd);
+      }
+    }
+  });
 </script>
 </body></html>`;
   }
 
   private getErrorHtml(msg: string): string {
     return `<!DOCTYPE html><html><body><h2>Error</h2><p>${this.escHtml(msg)}</p></body></html>`;
+  }
+
+  private extractBookBody(html: string): string {
+    const match = html.match(/<div id="book-root">([\s\S]*?)<\/div>\s*<script/);
+    if (!match) throw new Error('Unable to render the book state.');
+    return match[1];
   }
 
   private escHtml(s: string): string {

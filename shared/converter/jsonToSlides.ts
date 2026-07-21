@@ -197,6 +197,12 @@ function convertSlideNode(node: TiptapNode, ctx: ConvertContext): string {
       return `        <div class="math-block"${id}>\\[${escapeHtml(`${latex}\\tag*{${label}}`)}\\]</div>`;
     }
 
+    case 'horizontalRule': {
+      return typeof node.attrs?.id === 'string'
+        ? `        <span id="${escapeHtml(node.attrs.id)}" hidden></span>`
+        : '        <hr>';
+    }
+
     case 'diagram':
       return `        <pre class="mermaid">${escapeHtml((node.attrs?.code as string) || '')}</pre>`;
 

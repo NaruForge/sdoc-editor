@@ -419,7 +419,17 @@
       "type": "object",
       "required": ["type"],
       "properties": {
-        "type": { "const": "horizontalRule" }
+        "type": { "const": "horizontalRule" },
+        "attrs": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": ["string", "null"],
+              "pattern": "^[A-Za-z][A-Za-z0-9._:-]*$"
+            }
+          },
+          "additionalProperties": false
+        }
       },
       "additionalProperties": false
     },

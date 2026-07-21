@@ -124,7 +124,8 @@ export function parseBook(input: unknown): BookParseResult {
           documentPath: normalizedPath,
         });
       }
-      if (seenPaths.has(normalizedPath)) {
+      const portableCollisionKey = normalizedPath.normalize('NFC').toLocaleLowerCase('en-US');
+      if (seenPaths.has(portableCollisionKey)) {
         diagnostics.push({
           severity: 'error',
           code: 'DOCUMENT_DUPLICATE',
@@ -132,7 +133,7 @@ export function parseBook(input: unknown): BookParseResult {
           documentPath: normalizedPath,
         });
       }
-      seenPaths.add(normalizedPath);
+      seenPaths.add(portableCollisionKey);
 
       for (const property of Object.keys(item)) {
         if (property !== 'path' && property !== 'label') {

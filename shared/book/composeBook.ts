@@ -54,6 +54,7 @@ interface TransformContext {
   includedPaths: Set<string>;
   idsByDocument: Map<string, Set<string>>;
   diagnostics: BookDiagnostic[];
+  chapterAnchors: Map<string, string>;
 }
 
 function transformMark(mark: TiptapMark, context: TransformContext): TiptapMark {
@@ -104,7 +105,8 @@ function transformMark(mark: TiptapMark, context: TransformContext): TiptapMark 
       nodeId: targetId,
     });
   }
-  return { ...mark, attrs: { ...mark.attrs, href: targetId ? `#${targetId}` : '' } };
+  const anchor = targetId || context.chapterAnchors.get(targetPath);
+  return { ...mark, attrs: { ...mark.attrs, href: anchor ? `#${anchor}` : href } };
 }
 
 function transformNode(node: TiptapNode, context: TransformContext): TiptapNode {
@@ -142,18 +144,23 @@ export async function composeBook(
   book: SdocBook,
   loader: BookDocumentLoader,
   initialDiagnostics: readonly BookDiagnostic[] = [],
+  signal?: AbortSignal,
 ): Promise<BookCompositionResult> {
   const diagnostics = [...initialDiagnostics];
-  const documents: ResolvedBookDocument[] = [];
-
-  for (const entry of book.documents) {
+  const loadDocument = async (entry: SdocBook['documents'][number]): Promise<{
+    resolved: ResolvedBookDocument;
+    diagnostics: BookDiagnostic[];
+  }> => {
+    const documentDiagnostics: BookDiagnostic[] = [];
     const resolved: ResolvedBookDocument = {
       path: entry.path,
       label: entry.label || basenameWithoutSdoc(entry.path),
       status: 'invalid',
     };
     try {
-      const parsed = parseLoadedDocument(await loader.load(entry.path));
+      signal?.throwIfAborted();
+      const parsed = parseLoadedDocument(await loader.load(entry.path, signal));
+      signal?.throwIfAborted();
       const contract = parseDocumentContract(parsed);
       if (!contract.ok) {
         throw new Error(contract.diagnostics.map((item) => `${item.path}: ${item.message}`).join('; '));
@@ -162,18 +169,22 @@ export async function composeBook(
       resolved.doc = contract.envelope.doc;
       resolved.status = 'ok';
     } catch (error) {
+      if (signal?.aborted) throw error;
       const loadError = error instanceof BookDocumentLoadError ? error : null;
       const missing = loadError?.failure === 'not-found';
       resolved.status = missing ? 'missing' : 'invalid';
-      diagnostics.push({
+      documentDiagnostics.push({
         severity: 'error',
         code: missing ? 'DOCUMENT_MISSING' : loadError ? 'DOCUMENT_READ_FAILED' : 'DOCUMENT_INVALID',
         message: `${missing ? 'Document not found' : 'Unable to load document'}: ${entry.path}${error instanceof Error ? ` (${error.message})` : ''}`,
         documentPath: entry.path,
       });
     }
-    documents.push(resolved);
-  }
+    return { resolved, diagnostics: documentDiagnostics };
+  };
+  const loaded = await Promise.all(book.documents.map(loadDocument));
+  const documents = loaded.map((item) => item.resolved);
+  for (const item of loaded) diagnostics.push(...item.diagnostics);
 
   const idsByDocument = new Map<string, Set<string>>();
   const idOwners = new Map<string, string>();
@@ -211,7 +222,19 @@ export async function composeBook(
     }
   }
 
-  const includedPaths = new Set(book.documents.map((entry) => entry.path));
+  const includedPaths = new Set(documents.filter((document) => document.doc).map((document) => document.path));
+  const usedAnchorIds = new Set(idOwners.keys());
+  const chapterAnchors = new Map<string, string>();
+  for (const entry of book.documents.filter((candidate) => includedPaths.has(candidate.path))) {
+    const stem = entry.path.replace(/^\.\//, '').replace(/\.sdoc$/i, '')
+      .normalize('NFKD').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '').toLowerCase() || 'document';
+    const base = `chapter-${stem}`;
+    let anchor = base;
+    let suffix = 2;
+    while (usedAnchorIds.has(anchor)) anchor = `${base}-${suffix++}`;
+    usedAnchorIds.add(anchor);
+    chapterAnchors.set(entry.path, anchor);
+  }
   const mergedContent: TiptapNode[] = [];
   const counterResetPaths: string[] = [];
   for (const document of documents) {
@@ -222,8 +245,12 @@ export async function composeBook(
       includedPaths,
       idsByDocument,
       diagnostics,
+      chapterAnchors,
     };
-    mergedContent.push(...document.doc.content.map((node) => transformNode(node, context)));
+    mergedContent.push(
+      { type: 'horizontalRule', attrs: { id: chapterAnchors.get(document.path) } },
+      ...document.doc.content.map((node) => transformNode(node, context)),
+    );
   }
 
   const meta: SdocMeta = {};
