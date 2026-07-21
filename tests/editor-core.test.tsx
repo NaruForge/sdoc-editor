@@ -2,6 +2,8 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
+import { getSchema } from '@tiptap/core';
+import { EditorState } from '@tiptap/pm/state';
 import { PanelEmptyState } from '../shared/editor/components/PanelEmptyState';
 import { createTiptapExtensions } from '../shared/editor/extensions/tiptapExtensions';
 import {
@@ -42,6 +44,51 @@ describe('shared editor core', () => {
     tableRuntime.flush();
     expect(runtime.openDrawio).toHaveBeenCalledWith('diagram.drawio.svg');
     expect(runtime.flush).toHaveBeenCalledOnce();
+  });
+
+  it('registers persisted ids for every referenceable Tiptap node', () => {
+    const schema = getSchema(createTiptapExtensions(createRuntime()));
+
+    expect(schema.nodes.heading.spec.attrs).toHaveProperty('id');
+    expect(schema.nodes.image.spec.attrs).toHaveProperty('id');
+    expect(schema.nodes.table.spec.attrs).toHaveProperty('id');
+    expect(schema.nodes.mathBlock.spec.attrs).toHaveProperty('id');
+
+    const roundTripped = schema.nodeFromJSON({
+      type: 'doc',
+      content: [
+        { type: 'heading', attrs: { level: 1, id: 'heading-custom' }, content: [{ type: 'text', text: 'Title' }] },
+        { type: 'image', attrs: { src: './images/a.png', id: 'figure-custom' } },
+        { type: 'table', attrs: { id: 'table-custom' }, content: [{ type: 'tableRow', content: [{ type: 'tableCell', content: [{ type: 'paragraph' }] }] }] },
+        { type: 'mathBlock', attrs: { latex: 'x=1', id: 'eq-custom' } },
+      ],
+    }).toJSON();
+    expect(roundTripped.content?.map((node) => node.attrs?.id)).toEqual([
+      'heading-custom', 'figure-custom', 'table-custom', 'eq-custom',
+    ]);
+  });
+
+  it('assigns ids to newly inserted referenceable nodes before host persistence', () => {
+    const extensions = createTiptapExtensions(createRuntime());
+    const schema = getSchema(extensions);
+    const idExtension = extensions.find((extension) => extension.name === 'persistentNodeIds');
+    const plugins = idExtension?.config.addProseMirrorPlugins?.call(idExtension) ?? [];
+    const initialDoc = schema.nodeFromJSON({ type: 'doc', content: [{ type: 'paragraph' }] });
+    const nextDoc = schema.nodeFromJSON({
+      type: 'doc',
+      content: [{
+        type: 'heading',
+        attrs: { level: 1 },
+        content: [{ type: 'text', text: 'Stable title' }],
+      }],
+    });
+    const state = EditorState.create({ schema, doc: initialDoc, plugins });
+    const applied = state.applyTransaction(
+      state.tr.replaceWith(0, state.doc.content.size, nextDoc.content),
+    ).state;
+
+    const heading = applied.doc.toJSON().content?.find((node) => node.type === 'heading');
+    expect(heading?.attrs?.id).toBe('stable-title');
   });
 
   it('renders the shared panel empty state without a host environment', () => {

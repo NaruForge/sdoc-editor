@@ -1,3 +1,4 @@
+mod atomic_write;
 mod commands;
 mod document;
 mod settings;
@@ -42,6 +43,8 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .manage(DocState {
             file_path: Mutex::new(initial_file),
+            document_id: Mutex::new(None),
+            document_revision: Mutex::new(0),
             current_folder: Mutex::new(initial_folder),
             settings: Mutex::new(settings),
             workspace_watch_root: Mutex::new(None),

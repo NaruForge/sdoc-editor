@@ -27,6 +27,8 @@ interface OpenDocumentResult {
   doc: TiptapNode;
   meta: SdocMeta;
   filePath: string;
+  documentId: string;
+  revision: number;
 }
 
 const DOC_SETTING_KEYS: (keyof EditorSettings & keyof DocumentSettings)[] = [
@@ -106,8 +108,29 @@ const AppContent: React.FC = () => {
   }, [workspaceFolder]);
 
   const adapter = useMemo(() => createTauriAdapter(), []);
+  const closeInProgressRef = useRef(false);
 
   useEffect(() => () => adapter.dispose(), [adapter]);
+
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    void import('@tauri-apps/api/window').then(async ({ getCurrentWindow }) => {
+      const window = getCurrentWindow();
+      unlisten = await window.onCloseRequested(async (event) => {
+        if (closeInProgressRef.current) return;
+        event.preventDefault();
+        closeInProgressRef.current = true;
+        try {
+          await adapter.flushAndWait();
+          await window.destroy();
+        } catch (error: unknown) {
+          closeInProgressRef.current = false;
+          alert(`Unable to close because the document could not be saved: ${String(error)}`);
+        }
+      });
+    });
+    return () => unlisten?.();
+  }, [adapter]);
 
   const loadWorkspace = useCallback(async (folder?: string | null) => {
     const target = folder ?? workspaceFolder;
@@ -128,7 +151,9 @@ const AppContent: React.FC = () => {
 
   const loadDocument = useCallback(async (path: string, options: { fromRecent?: boolean } = {}) => {
     try {
+      await adapter.flushAndWait();
       const result = await invoke<OpenDocumentResult>('open_document', { path });
+      adapter.setDocumentSession(result.documentId, result.revision);
       setDoc(migrateAttributes(result.doc));
       setMeta(result.meta);
       setCurrentPath(result.filePath);
@@ -166,14 +191,16 @@ const AppContent: React.FC = () => {
       }
       alert(`문서를 열 수 없습니다: ${e}`);
     }
-  }, [dispatch, loadWorkspace]);
+  }, [adapter, dispatch, loadWorkspace]);
 
   const handleNew = useCallback(async () => {
+    await adapter.flushAndWait();
     const path = await save({
       filters: [{ name: 'Structured Document', extensions: ['sdoc'] }],
     });
     if (path) {
       const result = await invoke<OpenDocumentResult>('new_document', { path });
+      adapter.setDocumentSession(result.documentId, result.revision);
       setDoc(migrateAttributes(result.doc));
       setMeta(result.meta);
       setCurrentPath(result.filePath);
@@ -186,7 +213,7 @@ const AppContent: React.FC = () => {
         console.warn('Failed to refresh workspace', error);
       });
     }
-  }, [dispatch, loadWorkspace]);
+  }, [adapter, dispatch, loadWorkspace]);
 
   const handleOpen = useCallback(async () => {
     const selected = await open({
@@ -200,9 +227,10 @@ const AppContent: React.FC = () => {
   }, [loadDocument]);
 
   const handleExit = useCallback(async () => {
+    await adapter.flushAndWait();
     const { exit } = await import('@tauri-apps/plugin-process');
     await exit(0);
-  }, []);
+  }, [adapter]);
 
   const handleSelectFolder = useCallback(async () => {
     try {
@@ -247,10 +275,12 @@ const AppContent: React.FC = () => {
     if (!fileName) {
       return;
     }
+    await adapter.flushAndWait();
     const result = await invoke<OpenDocumentResult>('create_document_in_folder', {
       folder,
       fileName,
     });
+    adapter.setDocumentSession(result.documentId, result.revision);
     setDoc(result.doc);
     setMeta(result.meta);
     setCurrentPath(result.filePath);
@@ -259,19 +289,20 @@ const AppContent: React.FC = () => {
     dispatch({ type: 'SET_DOC_SETTINGS', payload: result.meta.settings ?? null });
     dispatch({ type: 'SET_SETTINGS', payload: editorSettings });
     await loadWorkspace(workspaceFolder ?? folder);
-  }, [dispatch, handleSelectFolder, loadWorkspace, workspaceFolder]);
+  }, [adapter, dispatch, handleSelectFolder, loadWorkspace, workspaceFolder]);
 
   const handleRenameEntry = useCallback(async (path: string, newName: string) => {
     try {
+      await adapter.flushAndWait();
       const renamed = await invoke<ExplorerEntry>('rename_entry', { path, newName });
       if (currentPath === path) {
-        setCurrentPath(renamed.path);
+        await loadDocument(renamed.path);
       }
       await loadWorkspace(workspaceFolder);
     } catch (e: unknown) {
       alert(`이름을 변경할 수 없습니다: ${e}`);
     }
-  }, [currentPath, loadWorkspace, workspaceFolder]);
+  }, [adapter, currentPath, loadDocument, loadWorkspace, workspaceFolder]);
 
   /** 탐색기에서 파일/폴더를 삭제(휴지통으로 이동)한다. 현재 열려 있는 문서(또는 그 하위)를
    *  삭제한 경우 편집기를 닫고 시작 화면으로 돌아가 존재하지 않는 파일에 저장을 시도하는
@@ -283,6 +314,7 @@ const AppContent: React.FC = () => {
 
   const performDelete = useCallback(async (entry: ExplorerEntry) => {
     try {
+      await adapter.flushAndWait();
       await invoke('delete_entry', { path: entry.path });
       if (currentPath && isPathInsideFolder(currentPath, entry.path)) {
         setDoc(null);
@@ -296,7 +328,7 @@ const AppContent: React.FC = () => {
     } catch (e: unknown) {
       alert(`삭제할 수 없습니다: ${e}`);
     }
-  }, [currentPath, loadWorkspace, workspaceFolder]);
+  }, [adapter, currentPath, loadWorkspace, workspaceFolder]);
 
   const handleConfirmDelete = useCallback(() => {
     if (pendingDelete) {
@@ -335,13 +367,14 @@ const AppContent: React.FC = () => {
   }, [loadWorkspace, workspaceFolder]);
 
   const handleJsonView = useCallback(async () => {
+    await adapter.flushAndWait();
     const path: string | null = await invoke('get_current_file_path');
     if (path) {
       const text: string = await invoke('read_import_file', { path });
       setJsonContent(text);
       setView('json');
     }
-  }, []);
+  }, [adapter]);
 
   // Listen for OS-level events forwarded from the Rust backend
   useEffect(() => {

@@ -27,6 +27,7 @@ import { Superscript } from '@tiptap/extension-superscript';
 import { Callout } from './Callout';
 import { CursorHistory } from './CursorHistory';
 import type { ResolvedEditorSettings } from '@shared/types';
+import { assignAutoIds } from '../../document/sdocUtils';
 import {
   NOOP_EDITOR_EXTENSION_RUNTIME,
   type EditorExtensionOptions,
@@ -198,6 +199,43 @@ const HeadingKeyboardShortcuts = Extension.create({
   },
 });
 
+const REFERENCEABLE_NODE_TYPES = new Set(['heading', 'image', 'table', 'mathBlock']);
+
+/** Assign persistent identities inside the editor transaction, before any host save round-trip. */
+const PersistentNodeIds = Extension.create({
+  name: 'persistentNodeIds',
+
+  addProseMirrorPlugins() {
+    return [new Plugin({
+      appendTransaction(transactions, _oldState, newState) {
+        if (!transactions.some((transaction) => transaction.docChanged)) return null;
+        const normalized = assignAutoIds(newState.doc.toJSON());
+        const ids: string[] = [];
+        const collect = (node: ReturnType<typeof newState.doc.toJSON>): void => {
+          if (REFERENCEABLE_NODE_TYPES.has(node.type) && typeof node.attrs?.id === 'string') {
+            ids.push(node.attrs.id);
+          }
+          node.content?.forEach(collect);
+        };
+        collect(normalized);
+
+        let index = 0;
+        let changed = false;
+        const transaction = newState.tr;
+        newState.doc.descendants((node, pos) => {
+          if (!REFERENCEABLE_NODE_TYPES.has(node.type.name)) return;
+          const id = ids[index++];
+          if (id && node.attrs.id !== id) {
+            transaction.setNodeMarkup(pos, undefined, { ...node.attrs, id });
+            changed = true;
+          }
+        });
+        return changed ? transaction : null;
+      },
+    })];
+  },
+});
+
 /* ===== Equation Numbering ===== */
 const eqNumberingKey = new PluginKey('equationNumbering');
 
@@ -356,6 +394,12 @@ const HeadingNumbering = Extension.create({
       {
         types: ['heading'],
         attributes: {
+          id: {
+            default: null,
+            parseHTML: (element: HTMLElement) => element.getAttribute('id') || element.getAttribute('data-id'),
+            renderHTML: (attributes: { id?: string | null }) =>
+              attributes.id ? { id: attributes.id, 'data-id': attributes.id } : {},
+          },
           numbered: {
             default: null,
             parseHTML: (element: HTMLElement) => (element.getAttribute('data-numbered') === 'false' ? false : null),
@@ -378,6 +422,7 @@ export function createTiptapExtensions(runtime: EditorExtensionRuntime) {
     codeBlock: false,
   }),
   HeadingNumbering,
+  PersistentNodeIds,
   Callout,
   CustomCodeBlock,
   Underline,

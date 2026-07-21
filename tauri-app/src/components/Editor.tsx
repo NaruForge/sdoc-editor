@@ -8,6 +8,7 @@ import { useTauriMessaging } from '../hooks/useTauriMessaging';
 import { type TauriAdapter, resolveAssetUrl } from '../adapters/tauriMessaging';
 import { convertMarkdownToJson } from '@shared/converter/markdownToJson';
 import { extractTitle, normalizeDocument } from '@shared/document/sdocUtils';
+import { dehydrateDocumentAssets, hydrateDocumentAssets } from '@shared/document/runtimeAssets';
 import { Toolbar } from '@shared/editor/components/Toolbar';
 import { BubbleMenuBar } from '@shared/editor/components/BubbleMenuBar';
 import { DocumentHeader } from '@shared/editor/components/DocumentHeader';
@@ -55,17 +56,7 @@ interface ImageAttrsWithRelativePath {
  * Convert relative image paths (./images/*, ./drawio/*) in a doc tree to asset URLs.
  */
 async function convertImagePaths(doc: TiptapNode): Promise<TiptapNode> {
-  const cloned: TiptapNode = { ...doc };
-  const src = typeof cloned.attrs?.src === 'string' ? cloned.attrs.src : undefined;
-  if (cloned.type === 'image' && src?.startsWith('./')) {
-    try {
-      cloned.attrs = { ...cloned.attrs, src: await resolveAssetUrl(src) };
-    } catch { /* keep original */ }
-  }
-  if (cloned.content && Array.isArray(cloned.content)) {
-    cloned.content = await Promise.all(cloned.content.map(convertImagePaths));
-  }
-  return cloned;
+  return hydrateDocumentAssets(doc, resolveAssetUrl);
 }
 
 interface EditorProps {
@@ -155,7 +146,6 @@ export const Editor: React.FC<EditorProps> = ({
   );
   const [editorContextMenu, setEditorContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [showCrossRefDialog, setShowCrossRefDialog] = useState(false);
-  const pendingEditRef = useRef(false);
   const initDoneRef = useRef(false);
   const postMessageRef = useRef<(msg: EditorToHostMessage) => Promise<void>>(() => Promise.resolve());
   const settings = state.settings;
@@ -199,7 +189,7 @@ export const Editor: React.FC<EditorProps> = ({
   const { editor, setContent, flushUpdate } = useTiptapEditor({
     onUpdate: (content) => {
       setSaveStatus('dirty');
-      const normalized = normalizeDocument(content as TiptapNode, {
+      const normalized = normalizeDocument(dehydrateDocumentAssets(content as TiptapNode), {
         equationNumbering: settings.equationNumbering,
         captionStyle: settings.captionStyle,
         crossRefIncludeCaption: settings.crossRefIncludeCaption,
@@ -210,10 +200,14 @@ export const Editor: React.FC<EditorProps> = ({
         meta: { title: extractTitle(normalized) },
       }));
     },
-    pendingEditRef,
     runtime: extensionRuntime,
   });
   flushUpdateRef.current = flushUpdate;
+
+  useEffect(() => {
+    adapter.setFlushHandler(() => flushUpdate());
+    return () => adapter.setFlushHandler(null);
+  }, [adapter, flushUpdate]);
 
   useEffect(() => {
     const proseMirrorEl = document.querySelector('.ProseMirror') as HTMLElement;

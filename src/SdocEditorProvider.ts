@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
+import { randomUUID } from 'crypto';
 import { getNonce, getWebviewUri } from './utils/webviewHelper';
 import { convertMarkdownToJson } from '../shared/converter';
 import { generateFontFaceCSS } from './utils/fontUtils';
@@ -14,6 +15,8 @@ import type { DocumentSettings, CaptionStyleName, SdocMeta, TiptapNode } from '.
 import { isEditorToHostMessage } from '../shared/types/messageGuards';
 import { VsCodeAssetService } from './services/VsCodeAssetService';
 import { VsCodeExportService } from './services/VsCodeExportService';
+import { RecoverableSerialQueue } from '../shared/persistence/RecoverableSerialQueue';
+import { parseDocumentContract } from '../shared/document/documentContract';
 
 export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
   private static readonly SDOC_VERSION = '1.0';
@@ -35,10 +38,13 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     return providerRegistration;
   }
 
-  /** Per-document pending apply-edit counter to suppress echo-back */
-  private pendingApplyEdits = new Map<string, number>();
-  /** Per-document flush resolver: resolves when an edit arrives after a requestFlush */
-  private pendingFlushResolvers = new Map<string, () => void>();
+  /** Exact snapshots expected from our own WorkspaceEdit, never a blind event counter. */
+  private pendingAppliedTexts = new Map<string, string[]>();
+  private pendingFlushResolvers = new Map<string, {
+    resolve: () => void;
+    reject: (error: Error) => void;
+    timer: NodeJS.Timeout;
+  }>();
   constructor(private readonly context: vscode.ExtensionContext) {
     this.exportService = new VsCodeExportService(context);
   }
@@ -61,6 +67,9 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     };
 
     webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview);
+    const sessionId = randomUUID();
+    const documentId = document.uri.toString();
+    let writeBlockedReason: string | undefined;
 
     // Read and send editor settings to webview
     const readVscodeDocDefaults = (): Partial<DocumentSettings> => {
@@ -138,13 +147,21 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     const sendUpdate = () => {
       try {
         const text = document.getText();
-        const parsed = text.trim() ? JSON.parse(text) : { sdoc: SdocEditorProvider.SDOC_VERSION, meta: {}, doc: { type: 'doc', content: [] } };
+        const parsed: unknown = text.trim() ? JSON.parse(text) : { sdoc: SdocEditorProvider.SDOC_VERSION, meta: {}, doc: { type: 'doc', content: [] } };
+        const contract = parseDocumentContract(parsed);
+        writeBlockedReason = contract.ok
+          ? undefined
+          : contract.diagnostics.map((item) => `${item.path}: ${item.message}`).join('; ');
         // Unwrap sdoc envelope → extract doc node
         const { doc, meta } = sharedUnwrapSdoc(parsed);
         // Convert image paths to webview URIs
         const convertedJson = convertImagePathsToWebviewUris(doc, documentDir, webviewPanel.webview);
         webviewPanel.webview.postMessage({
           type: 'init',
+          sessionId,
+          documentId,
+          revision: document.version,
+          ...(writeBlockedReason ? { readOnlyReason: writeBlockedReason } : {}),
           content: convertedJson,
         });
         // Send metadata and settings
@@ -157,28 +174,81 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       }
     };
 
+    const postAuthoritativeUpdate = (): void => {
+      const parsed: unknown = JSON.parse(document.getText());
+      const { doc } = sharedUnwrapSdoc(parsed);
+      webviewPanel.webview.postMessage({
+        type: 'update', sessionId, documentId, revision: document.version,
+        content: convertImagePathsToWebviewUris(doc, documentDir, webviewPanel.webview),
+      });
+    };
+
     // Handle messages from webview (sequential queue to preserve order)
-    let messageQueue: Promise<void> = Promise.resolve();
+    const messageQueue = new RecoverableSerialQueue();
     webviewPanel.webview.onDidReceiveMessage((message: unknown) => {
       if (!isEditorToHostMessage(message)) {
         console.warn('Ignoring malformed Structured Doc editor message', message);
         return;
       }
-      messageQueue = messageQueue.then(async () => {
+      if (writeBlockedReason && ['edit', 'updateMeta', 'updateDocSettings'].includes(message.type)) {
+        vscode.window.showErrorMessage(`Document is read-only because it is invalid: ${writeBlockedReason}`);
+        return;
+      }
+      messageQueue.enqueue(async () => {
         switch (message.type) {
           case 'ready':
             sendUpdate();
             break;
           case 'edit':
-            await this.updateDocument(document, message.content);
-            this.resolveFlush(document);
+            if (message.sessionId !== sessionId || message.documentId !== documentId
+              || message.baseRevision !== document.version || !message.editId) {
+              const parsed = JSON.parse(document.getText());
+              const { doc } = sharedUnwrapSdoc(parsed);
+              webviewPanel.webview.postMessage({
+                type: 'editRejected', sessionId, editId: message.editId ?? '',
+                revision: document.version, reason: 'stale revision or document identity',
+                content: convertImagePathsToWebviewUris(doc, documentDir, webviewPanel.webview),
+              });
+              if (message.flushRequestId) {
+                this.rejectFlush(message.flushRequestId, new Error('Editor flush was rejected as stale.'));
+              }
+              break;
+            }
+            try {
+              await this.updateDocument(document, message.content);
+              webviewPanel.webview.postMessage({
+                type: 'editAcknowledged', sessionId, editId: message.editId, revision: document.version,
+              });
+              if (message.flushRequestId) this.resolveFlush(message.flushRequestId);
+            } catch (error) {
+              const parsed: unknown = JSON.parse(document.getText());
+              const { doc } = sharedUnwrapSdoc(parsed);
+              webviewPanel.webview.postMessage({
+                type: 'editRejected', sessionId, editId: message.editId,
+                revision: document.version,
+                reason: error instanceof Error ? error.message : String(error),
+                content: convertImagePathsToWebviewUris(doc, documentDir, webviewPanel.webview),
+              });
+              if (message.flushRequestId) {
+                this.rejectFlush(message.flushRequestId, new Error('Editor flush failed to apply.'));
+              }
+              throw error;
+            }
             // If the webview requested a save (Ctrl+S while debounce pending), trigger save now
             if (message.saveRequested && document.isDirty) {
-              await document.save();
+              setTimeout(() => {
+                void (async () => {
+                  try {
+                    await document.save();
+                  } catch (error: unknown) {
+                    vscode.window.showErrorMessage(`Failed to save document: ${String(error)}`);
+                  }
+                })();
+              }, 0);
             }
             break;
           case 'flushComplete':
-            this.resolveFlush(document);
+            if (message.sessionId === sessionId && message.requestId) this.resolveFlush(message.requestId);
             break;
           case 'viewJson':
             await this.openJsonView(document);
@@ -218,9 +288,11 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
             break;
           case 'updateMeta':
             await this.updateMeta(document, message.meta);
+            postAuthoritativeUpdate();
             break;
           case 'updateDocSettings':
             await this.updateDocSettings(document, webviewPanel, message.settings);
+            postAuthoritativeUpdate();
             break;
           case 'selectCssFile': {
             const selectedPath = await this.selectCssFile(document);
@@ -245,6 +317,10 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
             break;
           }
         }
+      }, (error: unknown) => {
+        const detail = error instanceof Error ? error.message : String(error);
+        console.error('Structured Doc message failed', error);
+        vscode.window.showErrorMessage(`Structured Doc operation failed: ${detail}`);
       });
     });
 
@@ -252,17 +328,18 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     const willSaveSubscription = vscode.workspace.onWillSaveTextDocument((e) => {
       if (e.document.uri.toString() !== document.uri.toString()) return;
 
-      const flushPromise = new Promise<void>((resolve) => {
-        const key = document.uri.toString();
-        this.pendingFlushResolvers.set(key, resolve);
-        webviewPanel.webview.postMessage({ type: 'requestFlush' });
-        // Timeout to prevent hanging saves if webview is unresponsive
-        setTimeout(() => {
-          if (this.pendingFlushResolvers.has(key)) {
-            this.pendingFlushResolvers.delete(key);
-            resolve();
+      const flushPromise = new Promise<void>((resolve, reject) => {
+        const requestId = randomUUID();
+        const timer = setTimeout(() => {
+          if (this.pendingFlushResolvers.has(requestId)) {
+            const error = new Error('Timed out waiting for the editor to flush its latest content.');
+            this.rejectFlush(requestId, error);
+            vscode.window.showErrorMessage(error.message);
           }
         }, 1000);
+        this.pendingFlushResolvers.set(requestId, { resolve, reject, timer });
+        webviewPanel.webview.postMessage({ type: 'requestFlush', sessionId, requestId });
+        // Timeout to prevent hanging saves if webview is unresponsive
       });
 
       e.waitUntil(flushPromise);
@@ -284,6 +361,9 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
           const convertedJson = convertImagePathsToWebviewUris(doc, documentDir, webviewPanel.webview);
           webviewPanel.webview.postMessage({
             type: 'update',
+            sessionId,
+            documentId,
+            revision: document.version,
             content: convertedJson,
           });
         } catch {
@@ -326,9 +406,12 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       willSaveSubscription.dispose();
       drawioWatcher.dispose();
       settingsSubscription.dispose();
-      const key = document.uri.toString();
-      this.pendingApplyEdits.delete(key);
-      this.pendingFlushResolvers.delete(key);
+      this.pendingAppliedTexts.delete(document.uri.toString());
+      for (const [requestId, pending] of this.pendingFlushResolvers) {
+        clearTimeout(pending.timer);
+        pending.reject(new Error('Editor was closed before its content could be flushed.'));
+        this.pendingFlushResolvers.delete(requestId);
+      }
     });
   }
 
@@ -385,34 +468,69 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     const json = JSON.stringify(sdocFile, null, 2);
     edit.replace(document.uri, fullRange, json);
 
-    this.incrementPendingEdits(document);
-    await vscode.workspace.applyEdit(edit);
+    await this.applyExpectedEdit(document, edit, json);
   }
 
-  /** Increment per-document pending edit counter */
-  private incrementPendingEdits(document: vscode.TextDocument): void {
+  private expectAppliedText(document: vscode.TextDocument, text: string): void {
     const key = document.uri.toString();
-    this.pendingApplyEdits.set(key, (this.pendingApplyEdits.get(key) ?? 0) + 1);
+    const pending = this.pendingAppliedTexts.get(key) ?? [];
+    pending.push(text);
+    this.pendingAppliedTexts.set(key, pending);
   }
 
-  /** Decrement per-document pending edit counter; returns true if it was consumed */
+  private async applyExpectedEdit(
+    document: vscode.TextDocument,
+    edit: vscode.WorkspaceEdit,
+    expectedText: string,
+  ): Promise<void> {
+    this.expectAppliedText(document, expectedText);
+    let applied: boolean;
+    try {
+      applied = await vscode.workspace.applyEdit(edit);
+    } catch (error) {
+      this.removeExpectedText(document, expectedText);
+      throw error;
+    }
+    if (!applied) {
+      this.removeExpectedText(document, expectedText);
+      throw new Error('VS Code rejected the document edit.');
+    }
+  }
+
   private consumePendingEdit(document: vscode.TextDocument): boolean {
     const key = document.uri.toString();
-    const count = this.pendingApplyEdits.get(key) ?? 0;
-    if (count > 0) {
-      this.pendingApplyEdits.set(key, count - 1);
-      return true;
-    }
-    return false;
+    const pending = this.pendingAppliedTexts.get(key) ?? [];
+    const index = pending.indexOf(document.getText());
+    if (index < 0) return false;
+    pending.splice(index, 1);
+    if (pending.length === 0) this.pendingAppliedTexts.delete(key);
+    return true;
+  }
+
+  private removeExpectedText(document: vscode.TextDocument, text: string): void {
+    const key = document.uri.toString();
+    const pending = this.pendingAppliedTexts.get(key) ?? [];
+    const index = pending.indexOf(text);
+    if (index >= 0) pending.splice(index, 1);
+    if (pending.length === 0) this.pendingAppliedTexts.delete(key);
   }
 
   /** Resolve any pending flush for this document */
-  private resolveFlush(document: vscode.TextDocument): void {
-    const key = document.uri.toString();
-    const resolver = this.pendingFlushResolvers.get(key);
-    if (resolver) {
-      this.pendingFlushResolvers.delete(key);
-      resolver();
+  private resolveFlush(requestId: string): void {
+    const pending = this.pendingFlushResolvers.get(requestId);
+    if (pending) {
+      clearTimeout(pending.timer);
+      this.pendingFlushResolvers.delete(requestId);
+      pending.resolve();
+    }
+  }
+
+  private rejectFlush(requestId: string, error: Error): void {
+    const pending = this.pendingFlushResolvers.get(requestId);
+    if (pending) {
+      clearTimeout(pending.timer);
+      this.pendingFlushResolvers.delete(requestId);
+      pending.reject(error);
     }
   }
 
@@ -509,8 +627,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     const json = JSON.stringify(sharedWrapSdoc(doc, { ...existingMeta, ...meta }), null, 2);
     edit.replace(document.uri, fullRange, json);
 
-    this.incrementPendingEdits(document);
-    await vscode.workspace.applyEdit(edit);
+    await this.applyExpectedEdit(document, edit, json);
   }
 
   /** Save per-document settings into meta.settings, then re-send merged settings to webview. */
@@ -541,8 +658,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     const json = JSON.stringify(sharedWrapSdoc(doc, nextMeta), null, 2);
     edit.replace(document.uri, fullRange, json);
 
-    this.incrementPendingEdits(document);
-    await vscode.workspace.applyEdit(edit);
+    await this.applyExpectedEdit(document, edit, json);
 
     // Re-read and re-send merged settings so the webview reflects the change
     const config = vscode.workspace.getConfiguration('structuredDocEditor');

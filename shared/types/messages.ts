@@ -53,11 +53,34 @@ export interface EditorSettings {
 
 export interface InitMessage {
   type: 'init';
+  sessionId: string;
+  documentId: string;
+  revision: number;
+  readOnlyReason?: string;
   content: TiptapNode;
 }
 
 export interface UpdateMessage {
   type: 'update';
+  sessionId: string;
+  documentId: string;
+  revision: number;
+  content: TiptapNode;
+}
+
+export interface EditAcknowledgedMessage {
+  type: 'editAcknowledged';
+  sessionId: string;
+  editId: string;
+  revision: number;
+}
+
+export interface EditRejectedMessage {
+  type: 'editRejected';
+  sessionId: string;
+  editId: string;
+  revision: number;
+  reason: string;
   content: TiptapNode;
 }
 
@@ -132,6 +155,8 @@ export interface ShowJsonViewerMessage {
 
 export interface RequestFlushMessage {
   type: 'requestFlush';
+  sessionId: string;
+  requestId: string;
 }
 
 export interface ExportStartedMessage {
@@ -153,6 +178,8 @@ export interface SdocFileBrowseResultMessage {
 export type ExtensionToWebviewMessage =
   | InitMessage
   | UpdateMessage
+  | EditAcknowledgedMessage
+  | EditRejectedMessage
   | SettingsChangedMessage
   | DocSettingsChangedMessage
   | MetaUpdateMessage
@@ -178,6 +205,11 @@ export interface ReadyMessage {
 
 export interface EditMessage {
   type: 'edit';
+  sessionId?: string;
+  documentId?: string;
+  editId?: string;
+  baseRevision?: number;
+  flushRequestId?: string;
   content: TiptapNode;
   meta?: Partial<SdocMeta>;
   saveRequested?: boolean;
@@ -252,6 +284,8 @@ export interface UpdateDocSettingsMessage {
 
 export interface FlushCompleteMessage {
   type: 'flushComplete';
+  sessionId?: string;
+  requestId?: string;
 }
 
 export interface SelectCssFileMessage {

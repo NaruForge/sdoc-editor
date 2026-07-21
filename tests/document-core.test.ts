@@ -10,6 +10,7 @@ import {
   wrapSdoc,
 } from '../shared/document/sdocUtils';
 import type { TiptapNode } from '../shared/types';
+import { parseDocumentContract } from '../shared/document/documentContract';
 
 interface ContractFixture {
   legacyMigration: {
@@ -63,6 +64,24 @@ const text = (value: string, href?: string): TiptapNode => ({
 });
 
 describe('sdoc envelope', () => {
+  it('fails closed for malformed and unsupported future documents', () => {
+    expect(parseDocumentContract({ unexpected: true })).toMatchObject({ ok: false, kind: 'malformed' });
+    expect(parseDocumentContract({
+      sdoc: '2.0', meta: {}, doc: { type: 'doc', content: [] },
+    })).toMatchObject({ ok: false, kind: 'unsupported-version' });
+  });
+
+  it('preserves schema-valid metadata extensions through round-trip', () => {
+    const parsed = parseDocumentContract({
+      sdoc: '1.0',
+      meta: { title: 'Extended', review: { status: 'approved' } },
+      doc: { type: 'doc', content: [] },
+    });
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    const wrapped = wrapSdoc(parsed.envelope.doc, parsed.envelope.meta);
+    expect(wrapped.meta.review).toEqual({ status: 'approved' });
+  });
   it('unwraps legacy documents and recursively migrates data attributes', () => {
     const legacy: TiptapNode = {
       type: 'doc',
@@ -118,6 +137,13 @@ describe('sdoc envelope', () => {
 });
 
 describe('document structure', () => {
+  it('preserves literal code block whitespace exactly', () => {
+    const normalized = normalizeDocument({
+      type: 'doc',
+      content: [{ type: 'codeBlock', attrs: { language: 'text' }, content: [{ type: 'text', text: '  a\t \n' }] }],
+    });
+    expect(normalized.content?.[0].content?.[0].text).toBe('  a\t \n');
+  });
   it('assigns stable unique IDs for duplicate headings and numbered blocks', () => {
     const doc = assignAutoIds({
       type: 'doc',
@@ -170,5 +196,51 @@ describe('document structure', () => {
 
     expect(semanticIds(normalized)).toEqual(contract.normalization.expectedIds);
     expect(referenceTexts(normalized)).toEqual(contract.normalization.expectedReferenceTexts);
+  });
+
+  it('assigns persistent ids to nested referenceable nodes in document order', () => {
+    const doc = assignAutoIds({
+      type: 'doc',
+      content: [
+        { type: 'heading', attrs: { level: 1 }, content: [text('Top')] },
+        { type: 'blockquote', content: [{ type: 'image', attrs: { caption: 'Nested' } }] },
+        { type: 'table', attrs: { caption: 'Top table' } },
+      ],
+    });
+    expect(doc.content?.[0].attrs?.id).toBe('top');
+    expect(doc.content?.[1].content?.[0].attrs?.id).toBe('figure-1');
+    expect(doc.content?.[2].attrs?.id).toBe('table-1');
+  });
+
+  it('keeps a heading identity and reference when the heading is renamed', () => {
+    const normalized = normalizeDocument({
+      type: 'doc',
+      content: [
+        { type: 'heading', attrs: { level: 1, id: 'intro' }, content: [text('Overview')] },
+        { type: 'paragraph', content: [text('old title', '#intro')] },
+      ],
+    });
+
+    expect(normalized.content?.[0].attrs?.id).toBe('intro');
+    expect(normalized.content?.[1].content?.[0].marks?.[0].attrs?.href).toBe('#intro');
+    expect(normalized.content?.[1].content?.[0].text).toBe('1. Overview');
+  });
+
+  it('keeps figure and table identities attached to their objects after reorder', () => {
+    const normalized = normalizeDocument({
+      type: 'doc',
+      content: [
+        { type: 'table', attrs: { id: 'ports', caption: 'Ports' } },
+        { type: 'image', attrs: { id: 'system', caption: 'System' } },
+        { type: 'paragraph', content: [text('old figure', '#system'), text('old table', '#ports')] },
+      ],
+    });
+
+    expect(normalized.content?.[0].attrs).toMatchObject({ id: 'ports', caption: 'Ports' });
+    expect(normalized.content?.[1].attrs).toMatchObject({ id: 'system', caption: 'System' });
+    expect(normalized.content?.[2].content?.map((node) => node.marks?.[0].attrs?.href)).toEqual([
+      '#system', '#ports',
+    ]);
+    expect(normalized.content?.[2].content?.map((node) => node.text)).toEqual(['Figure 1', 'Table 1']);
   });
 });

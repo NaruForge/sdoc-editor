@@ -8,6 +8,12 @@ export const CustomTable = Table.extend<EditorExtensionOptions>({
   addAttributes() {
     return {
       ...this.parent?.(),
+      id: {
+        default: null,
+        parseHTML: (element: HTMLElement) => element.getAttribute('data-id'),
+        renderHTML: (attributes: Record<string, unknown>) =>
+          typeof attributes.id === 'string' && attributes.id ? { 'data-id': attributes.id } : {},
+      },
       caption: {
         default: null,
         parseHTML: (element: HTMLElement) => element.getAttribute('data-caption'),

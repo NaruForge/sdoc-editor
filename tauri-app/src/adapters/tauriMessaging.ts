@@ -11,6 +11,7 @@ import { convertFileSrc } from '@tauri-apps/api/core';
 import type { ResolvedEditorSettings } from '@shared/types';
 import type { EditorHostBridge, HostMessageHandler } from '@shared/editor/hostBridge';
 import type { EditorToHostMessage, HostToEditorMessage } from '@shared/types/messages';
+import { RecoverableSerialQueue } from '@shared/persistence/RecoverableSerialQueue';
 
 type SettingsChangedPayload = Partial<ResolvedEditorSettings>;
 interface DrawioFileUpdatedPayload {
@@ -46,10 +47,19 @@ export async function resolveAssetUrl(relativePath: string): Promise<string> {
 /**
  * Replaces useVSCodeMessaging — provides postMessage and onMessage via Tauri IPC.
  */
-export function createTauriAdapter(): EditorHostBridge {
+export interface TauriAdapter extends EditorHostBridge {
+  setDocumentSession(documentId: string, revision: number): void;
+  setFlushHandler(handler: (() => void) | null): void;
+  flushAndWait(): Promise<void>;
+}
+
+export function createTauriAdapter(): TauriAdapter {
   const listeners: TauriMessageHandler[] = [];
   const unlistenFns: UnlistenFn[] = [];
   let disposed = false;
+  let session: { documentId: string; revision: number } | null = null;
+  let flushHandler: (() => void) | null = null;
+  const saveQueue = new RecoverableSerialQueue();
 
   const retainListener = (unlisten: UnlistenFn) => {
     if (disposed) {
@@ -85,6 +95,16 @@ export function createTauriAdapter(): EditorHostBridge {
 
   return {
     kind: 'tauri',
+    setDocumentSession(documentId: string, revision: number) {
+      session = { documentId, revision };
+    },
+    setFlushHandler(handler: (() => void) | null) {
+      flushHandler = handler;
+    },
+    flushAndWait() {
+      flushHandler?.();
+      return saveQueue.whenIdle();
+    },
     postMessage: async (msg: EditorToHostMessage) => {
       // Route messages to appropriate Tauri commands
       switch (msg.type) {
@@ -93,24 +113,38 @@ export function createTauriAdapter(): EditorHostBridge {
           break;
 
         case 'edit':
-          await invoke('save_document', {
-            content: msg.content,
-            metaUpdates: msg.meta ?? null,
-          });
+          if (!session) throw new Error('No active document session');
+          await saveQueue.enqueue(async () => {
+            if (!session) throw new Error('No active document session');
+            session = await invoke<{ documentId: string; revision: number }>('save_document', {
+              content: msg.content,
+              metaUpdates: msg.meta ?? null,
+              documentId: session.documentId,
+              revision: session.revision,
+            });
+          }, () => {});
           break;
 
         case 'updateMeta':
-          await invoke('save_document', {
-            content: null,
-            metaUpdates: msg.meta,
-          });
+          if (!session) throw new Error('No active document session');
+          await saveQueue.enqueue(async () => {
+            if (!session) throw new Error('No active document session');
+            session = await invoke<{ documentId: string; revision: number }>('save_document', {
+              content: null, metaUpdates: msg.meta,
+              documentId: session.documentId, revision: session.revision,
+            });
+          }, () => {});
           break;
 
         case 'updateDocSettings':
-          await invoke('save_document', {
-            content: null,
-            metaUpdates: { settings: msg.settings },
-          });
+          if (!session) throw new Error('No active document session');
+          await saveQueue.enqueue(async () => {
+            if (!session) throw new Error('No active document session');
+            session = await invoke<{ documentId: string; revision: number }>('save_document', {
+              content: null, metaUpdates: { settings: msg.settings },
+              documentId: session.documentId, revision: session.revision,
+            });
+          }, () => {});
           for (const handler of listeners) {
             handler({ type: 'docSettingsChanged', docSettings: msg.settings });
           }
@@ -316,5 +350,3 @@ export function createTauriAdapter(): EditorHostBridge {
 function assertNever(value: never): never {
   throw new Error(`Unsupported editor message: ${JSON.stringify(value)}`);
 }
-
-export type TauriAdapter = EditorHostBridge;

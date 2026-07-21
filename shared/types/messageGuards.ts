@@ -23,7 +23,11 @@ export function isEditorToHostMessage(value: unknown): value is EditorToHostMess
     case 'flushComplete':
       return true;
     case 'edit':
-      return isRecord(value.content) && value.content.type === 'doc';
+      return isRecord(value.content) && value.content.type === 'doc'
+        && (value.sessionId === undefined || hasString(value, 'sessionId'))
+        && (value.documentId === undefined || hasString(value, 'documentId'))
+        && (value.editId === undefined || hasString(value, 'editId'))
+        && (value.baseRevision === undefined || hasNumber(value, 'baseRevision'));
     case 'saveImage':
       return hasString(value, 'imageName') && hasString(value, 'imageData') && hasString(value, 'extension');
     case 'createDrawio':
@@ -52,12 +56,22 @@ export function isHostToEditorMessage(value: unknown): value is HostToEditorMess
   if (!isRecord(value) || typeof value.type !== 'string') return false;
 
   switch (value.type) {
-    case 'requestFlush':
     case 'exportDone':
     case 'showJsonViewer':
       return true;
+    case 'requestFlush':
+      return hasString(value, 'sessionId') && hasString(value, 'requestId');
     case 'init':
     case 'update':
+      return hasString(value, 'sessionId') && hasString(value, 'documentId')
+        && hasNumber(value, 'revision')
+        && (value.readOnlyReason === undefined || hasString(value, 'readOnlyReason'))
+        && isRecord(value.content) && value.content.type === 'doc';
+    case 'editAcknowledged':
+      return hasString(value, 'sessionId') && hasString(value, 'editId') && hasNumber(value, 'revision');
+    case 'editRejected':
+      return hasString(value, 'sessionId') && hasString(value, 'editId') && hasNumber(value, 'revision')
+        && hasString(value, 'reason') && isRecord(value.content) && value.content.type === 'doc';
     case 'importContent':
       return isRecord(value.content) && value.content.type === 'doc';
     case 'settingsChanged':

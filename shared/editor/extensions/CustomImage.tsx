@@ -31,6 +31,12 @@ export const CustomImage = Image.extend<EditorExtensionOptions>({
     const getDefaultAlignment = () => this.options.runtime.getSettings().defaultImageAlignment;
     return {
       ...this.parent?.(),
+      id: {
+        default: null,
+        parseHTML: (element: HTMLElement) => element.getAttribute('data-id'),
+        renderHTML: (attributes: Record<string, unknown>) =>
+          typeof attributes.id === 'string' && attributes.id ? { 'data-id': attributes.id } : {},
+      },
       caption: {
         default: null,
         parseHTML: (element: HTMLElement) => element.getAttribute('data-caption'),

@@ -1,3 +1,4 @@
+use crate::atomic_write::atomic_write;
 use crate::document::*;
 use crate::settings::*;
 use chrono::Utc;
@@ -54,6 +55,8 @@ fn remember_recent_folder(state: &DocState, folder: &Path) {
 /// State for the currently open document.
 pub struct DocState {
     pub file_path: std::sync::Mutex<Option<PathBuf>>,
+    pub document_id: std::sync::Mutex<Option<String>>,
+    pub document_revision: std::sync::Mutex<u64>,
     pub current_folder: std::sync::Mutex<Option<PathBuf>>,
     pub settings: std::sync::Mutex<AppSettings>,
     /// Root folder currently being watched by the workspace file watcher (see
@@ -87,6 +90,48 @@ pub struct ExplorerEntry {
 
 // ─── File Operations ────────────────────────────────────────────────
 
+fn validate_save_request(
+    active_document_id: Option<&str>,
+    active_revision: u64,
+    document_id: &str,
+    revision: u64,
+) -> Result<(), String> {
+    if active_document_id != Some(document_id) {
+        return Err("Save rejected: document identity does not match the active document".into());
+    }
+    if revision != active_revision {
+        return Err(format!(
+            "Save rejected: stale revision {revision}; expected {active_revision}"
+        ));
+    }
+    Ok(())
+}
+
+fn validate_persisted_document(value: &serde_json::Value) -> Result<(), String> {
+    if value.get("type").and_then(|entry| entry.as_str()) == Some("doc") {
+        return Ok(());
+    }
+    let version = value
+        .get("sdoc")
+        .and_then(|entry| entry.as_str())
+        .ok_or("Malformed document: missing sdoc version")?;
+    if version != "1.0" {
+        return Err(format!("Unsupported document version: {version}"));
+    }
+    if value
+        .get("doc")
+        .and_then(|doc| doc.get("type"))
+        .and_then(|entry| entry.as_str())
+        != Some("doc")
+    {
+        return Err("Malformed document: doc must be a Tiptap doc node".into());
+    }
+    if value.get("meta").is_some_and(|meta| !meta.is_object()) {
+        return Err("Malformed document: meta must be an object".into());
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub fn open_document(
     path: String,
@@ -98,10 +143,15 @@ pub fn open_document(
     }
     let text = fs::read_to_string(&path).map_err(|e| e.to_string())?;
     let parsed: serde_json::Value = serde_json::from_str(&text).map_err(|e| e.to_string())?;
+    validate_persisted_document(&parsed)?;
     let (meta, doc) = unwrap_sdoc(&parsed);
 
     // Update state
-    *state.file_path.lock().unwrap() = Some(path.clone());
+    let canonical_path = path.canonicalize().map_err(|e| e.to_string())?;
+    let document_id = canonical_path.to_string_lossy().to_string();
+    *state.file_path.lock().unwrap() = Some(canonical_path.clone());
+    *state.document_id.lock().unwrap() = Some(document_id.clone());
+    *state.document_revision.lock().unwrap() = 0;
     if let Some(parent) = path.parent() {
         *state.current_folder.lock().unwrap() = Some(parent.to_path_buf());
         remember_recent_folder(&state, parent);
@@ -122,7 +172,9 @@ pub fn open_document(
     Ok(serde_json::json!({
         "meta": meta,
         "doc": doc,
-        "filePath": path.to_string_lossy(),
+        "filePath": canonical_path.to_string_lossy(),
+        "documentId": document_id,
+        "revision": 0,
     }))
 }
 
@@ -130,14 +182,26 @@ pub fn open_document(
 pub fn save_document(
     content: Option<serde_json::Value>,
     meta_updates: Option<serde_json::Value>,
+    document_id: String,
+    revision: u64,
     state: tauri::State<DocState>,
 ) -> Result<serde_json::Value, String> {
+    let active_document_id = state.document_id.lock().unwrap().clone();
+    let mut active_revision = state.document_revision.lock().unwrap();
+    validate_save_request(
+        active_document_id.as_deref(),
+        *active_revision,
+        &document_id,
+        revision,
+    )?;
     let file_path = state.file_path.lock().unwrap().clone();
     let path = file_path.ok_or("No file open")?;
 
     // Read existing file to get current meta
-    let existing_text = fs::read_to_string(&path).unwrap_or_default();
-    let existing: serde_json::Value = serde_json::from_str(&existing_text).unwrap_or_default();
+    let existing_text = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    let existing: serde_json::Value =
+        serde_json::from_str(&existing_text).map_err(|e| e.to_string())?;
+    validate_persisted_document(&existing)?;
     let (mut meta, existing_doc) = unwrap_sdoc(&existing);
 
     // Apply meta updates if provided
@@ -173,11 +237,14 @@ pub fn save_document(
 
     let envelope = wrap_sdoc(&meta, &doc);
     let json_str = serde_json::to_string_pretty(&envelope).map_err(|e| e.to_string())?;
-    fs::write(&path, json_str).map_err(|e| e.to_string())?;
+    atomic_write(&path, json_str.as_bytes())?;
+    *active_revision += 1;
 
     Ok(serde_json::json!({
         "modified": meta.modified,
         "filePath": path.to_string_lossy(),
+        "documentId": document_id,
+        "revision": *active_revision,
     }))
 }
 
@@ -208,9 +275,13 @@ pub fn new_document(
     });
     let envelope = wrap_sdoc(&meta, &doc);
     let json_str = serde_json::to_string_pretty(&envelope).map_err(|e| e.to_string())?;
-    fs::write(&path, json_str).map_err(|e| e.to_string())?;
+    atomic_write(&path, json_str.as_bytes())?;
 
-    *state.file_path.lock().unwrap() = Some(path.clone());
+    let canonical_path = path.canonicalize().map_err(|e| e.to_string())?;
+    let document_id = canonical_path.to_string_lossy().to_string();
+    *state.file_path.lock().unwrap() = Some(canonical_path.clone());
+    *state.document_id.lock().unwrap() = Some(document_id.clone());
+    *state.document_revision.lock().unwrap() = 0;
     if let Some(parent) = path.parent() {
         *state.current_folder.lock().unwrap() = Some(parent.to_path_buf());
         remember_recent_folder(&state, parent);
@@ -230,7 +301,9 @@ pub fn new_document(
     Ok(serde_json::json!({
         "meta": meta,
         "doc": doc,
-        "filePath": path.to_string_lossy(),
+        "filePath": canonical_path.to_string_lossy(),
+        "documentId": document_id,
+        "revision": 0,
     }))
 }
 
@@ -242,4 +315,31 @@ pub fn get_current_file_path(state: tauri::State<DocState>) -> Option<String> {
         .unwrap()
         .as_ref()
         .map(|p| p.to_string_lossy().to_string())
+}
+
+#[cfg(test)]
+mod persistence_tests {
+    use super::{validate_persisted_document, validate_save_request};
+
+    #[test]
+    fn rejects_a_delayed_save_for_another_document() {
+        let error = validate_save_request(Some("document-b"), 0, "document-a", 0).unwrap_err();
+        assert!(error.contains("identity"));
+    }
+
+    #[test]
+    fn rejects_a_stale_revision() {
+        let error = validate_save_request(Some("document-a"), 4, "document-a", 3).unwrap_err();
+        assert!(error.contains("stale revision"));
+    }
+
+    #[test]
+    fn rejects_malformed_and_future_documents() {
+        assert!(validate_persisted_document(&serde_json::json!({ "unexpected": true })).is_err());
+        assert!(validate_persisted_document(&serde_json::json!({
+            "sdoc": "2.0", "meta": {}, "doc": { "type": "doc", "content": [] }
+        }))
+        .unwrap_err()
+        .contains("Unsupported"));
+    }
 }

@@ -1,7 +1,8 @@
 /** Host-neutral `.sdoc` document processing. */
 
 import { getCaptionPreset, toRoman, type CaptionStyleName } from '../settingsResolver';
-import type { DocumentSettings, SdocEnvelope, SdocMeta, TiptapMark, TiptapNode } from '../types';
+import type { SdocEnvelope, SdocMeta, TiptapMark, TiptapNode } from '../types';
+import { preserveMeta } from './documentContract';
 
 export type { SdocEnvelope, SdocMeta } from '../types';
 
@@ -21,17 +22,7 @@ const numberValue = (value: unknown, fallback: number): number =>
   typeof value === 'number' ? value : fallback;
 
 function readMeta(value: unknown): SdocMeta {
-  if (!isRecord(value)) return {};
-  const meta: SdocMeta = {};
-  if (typeof value.title === 'string') meta.title = value.title;
-  if (typeof value.author === 'string') meta.author = value.author;
-  if (typeof value.version === 'string') meta.version = value.version;
-  if (typeof value.created === 'string') meta.created = value.created;
-  if (typeof value.modified === 'string') meta.modified = value.modified;
-  if (isRecord(value.settings)) {
-    meta.settings = value.settings as Partial<DocumentSettings>;
-  }
-  return meta;
+  return preserveMeta(value);
 }
 
 export function unwrapSdoc(parsed: unknown): { meta: SdocMeta; doc: TiptapNode } {
@@ -49,6 +40,7 @@ export function wrapSdoc(doc: TiptapNode, meta: SdocMeta): SdocEnvelope {
   const envelope: SdocEnvelope = {
     sdoc: SDOC_VERSION,
     meta: {
+      ...meta,
       title: meta.title || '',
       author: meta.author || '',
       version: meta.version || '0.1',
@@ -92,6 +84,10 @@ export function createEmptySdoc(meta: Partial<SdocMeta>): SdocEnvelope {
  */
 export function cleanTextNodes(node: TiptapNode): TiptapNode {
   if (!node.content) return node;
+
+  if (node.type === 'codeBlock') {
+    return { ...node, content: node.content.map((child) => ({ ...child })) };
+  }
 
   const content = node.content.map(cleanTextNodes);
   for (let index = content.length - 1; index >= 0; index--) {
@@ -160,13 +156,13 @@ function getNodeText(node: TiptapNode): string {
 const attrString = (node: TiptapNode, key: string): string => stringValue(node.attrs?.[key]);
 
 export function assignAutoIds(doc: TiptapNode): TiptapNode {
-  if (!doc.content) return doc;
-
-  const reservedExistingIds = new Set(
-    doc.content
-      .map((node) => attrString(node, 'id'))
-      .filter((id) => id.length > 0),
-  );
+  const reservedExistingIds = new Set<string>();
+  const reserve = (node: TiptapNode): void => {
+    const id = attrString(node, 'id');
+    if (id) reservedExistingIds.add(id);
+    node.content?.forEach(reserve);
+  };
+  reserve(doc);
   const assignedIds = new Set<string>();
   const seenExistingIds = new Set<string>();
   let imageCounter = 0;
@@ -198,20 +194,21 @@ export function assignAutoIds(doc: TiptapNode): TiptapNode {
     return candidate;
   };
 
-  const content = doc.content.map((node): TiptapNode => {
+  const assign = (node: TiptapNode): TiptapNode => {
     let generatedBase: string | undefined;
     if (node.type === 'heading') generatedBase = slugify(getNodeText(node));
     if (node.type === 'image') generatedBase = `figure-${++imageCounter}`;
     if (node.type === 'table') generatedBase = `table-${++tableCounter}`;
     if (node.type === 'mathBlock') generatedBase = `eq-${++equationCounter}`;
-    if (!generatedBase) return node;
+    const content = node.content?.map(assign);
+    if (!generatedBase) return { ...node, ...(content ? { content } : {}) };
 
     const existing = attrString(node, 'id');
     const id = existing ? preserveExistingId(existing) : uniqueGeneratedId(generatedBase);
-    return { ...node, attrs: { ...node.attrs, id } };
-  });
+    return { ...node, attrs: { ...node.attrs, id }, ...(content ? { content } : {}) };
+  };
 
-  return { ...doc, content };
+  return assign(doc);
 }
 
 export function syncCrossReferences(

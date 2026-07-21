@@ -17,8 +17,13 @@ interface UseEditorMessagesOptions {
   flushUpdate: () => void;
   setContentRef: MutableRefObject<((content: JSONContent) => void) | null>;
   initDoneRef: MutableRefObject<boolean>;
-  pendingEditRef: MutableRefObject<number>;
   setMeta: React.Dispatch<React.SetStateAction<MetaState>>;
+  persistenceSessionRef: MutableRefObject<{
+    sessionId: string;
+    documentId: string;
+    revision: number;
+    pendingFlushRequestId?: string;
+  } | null>;
 }
 
 export function useEditorMessages({
@@ -26,8 +31,8 @@ export function useEditorMessages({
   flushUpdate,
   setContentRef,
   initDoneRef,
-  pendingEditRef,
   setMeta,
+  persistenceSessionRef,
 }: UseEditorMessagesOptions) {
   const { dispatch } = useEditorContext();
   const editorRef = useRef(editor);
@@ -44,6 +49,12 @@ export function useEditorMessages({
 
     switch (message.type) {
       case 'init':
+        persistenceSessionRef.current = {
+          sessionId: message.sessionId,
+          documentId: message.documentId,
+          revision: message.revision,
+        };
+        ed?.setEditable(!message.readOnlyReason);
         if (setContentRef.current) {
           setContentRef.current(message.content);
           if (!initDoneRef.current) {
@@ -55,20 +66,33 @@ export function useEditorMessages({
         }
         break;
       case 'update':
-        if (pendingEditRef.current > 0) {
-          pendingEditRef.current--;
-          break;
-        }
+        if (persistenceSessionRef.current?.sessionId !== message.sessionId) break;
+        persistenceSessionRef.current.revision = message.revision;
         if (setContentRef.current) {
           setContentRef.current(message.content);
         }
         break;
       case 'requestFlush':
+        if (persistenceSessionRef.current?.sessionId !== message.sessionId) break;
+        persistenceSessionRef.current.pendingFlushRequestId = message.requestId;
         if (ed) {
           flush();
         } else {
-          postMessage({ type: 'flushComplete' });
+          postMessage({ type: 'flushComplete', sessionId: message.sessionId, requestId: message.requestId });
         }
+        break;
+      case 'editAcknowledged':
+        if (persistenceSessionRef.current?.sessionId === message.sessionId) {
+          persistenceSessionRef.current.revision = Math.max(
+            persistenceSessionRef.current.revision,
+            message.revision,
+          );
+        }
+        break;
+      case 'editRejected':
+        if (persistenceSessionRef.current?.sessionId !== message.sessionId) break;
+        persistenceSessionRef.current.revision = message.revision;
+        setContentRef.current?.(message.content);
         break;
       case 'settingsChanged': {
         const s = { ...message.settings };

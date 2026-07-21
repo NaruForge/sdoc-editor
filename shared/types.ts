@@ -74,6 +74,7 @@ export interface ResolvedEditorSettings {
 }
 
 export interface SdocMeta {
+  [key: string]: unknown;
   title?: string;
   author?: string;
   version?: string;

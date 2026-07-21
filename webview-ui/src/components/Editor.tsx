@@ -39,8 +39,13 @@ export const Editor: React.FC = () => {
   });
   const [meta, setMeta] = useState<MetaState>({ title: '', author: '', version: '', created: '', modified: '' });
   const { dialogs, dialogDispatch, openTableContextMenu, openEditorContextMenu } = useDialogState();
-  const pendingEditRef = useRef(0);
   const setContentRef = useRef<((content: JSONContent) => void) | null>(null);
+  const persistenceSessionRef = useRef<{
+    sessionId: string;
+    documentId: string;
+    revision: number;
+    pendingFlushRequestId?: string;
+  } | null>(null);
   const initDoneRef = useRef(false);
   const settings = state.settings;
 
@@ -92,9 +97,19 @@ export const Editor: React.FC = () => {
 
   const { editor, setContent, flushUpdate } = useTiptapEditor({
     onUpdate: (content, saveRequested) => {
-      postMessageRef.current({ type: 'edit', content: content as TiptapNode, saveRequested });
+      const session = persistenceSessionRef.current;
+      if (!session) return;
+      const editId = crypto.randomUUID();
+      const baseRevision = session.revision;
+      session.revision += 1;
+      const flushRequestId = session.pendingFlushRequestId;
+      delete session.pendingFlushRequestId;
+      postMessageRef.current({
+        type: 'edit', content: content as TiptapNode, saveRequested,
+        sessionId: session.sessionId, documentId: session.documentId,
+        editId, baseRevision, flushRequestId,
+      });
     },
-    pendingEditRef,
     runtime: extensionRuntime,
   });
   flushUpdateRef.current = flushUpdate;
@@ -119,8 +134,8 @@ export const Editor: React.FC = () => {
     flushUpdate,
     setContentRef,
     initDoneRef,
-    pendingEditRef,
     setMeta,
+    persistenceSessionRef,
   });
   postMessageRef.current = postMessage;
 

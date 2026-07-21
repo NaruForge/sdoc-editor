@@ -1,35 +1,23 @@
 import { useEditor, JSONContent } from '@tiptap/react';
-import { useRef, useEffect, useCallback, useMemo, MutableRefObject } from 'react';
+import { useRef, useEffect, useCallback, useMemo } from 'react';
 import { createTiptapExtensions } from '../extensions/tiptapExtensions';
 import type { EditorExtensionRuntime } from '../extensionRuntime';
 
 interface UseTiptapEditorOptions {
   onUpdate: (content: JSONContent, saveRequested?: boolean) => void;
-  pendingEditRef: MutableRefObject<number | boolean>;
   runtime: EditorExtensionRuntime;
 }
 
-export const useTiptapEditor = ({ onUpdate, pendingEditRef, runtime }: UseTiptapEditorOptions) => {
-  const skipUpdateRef = useRef(false);
+export const useTiptapEditor = ({ onUpdate, runtime }: UseTiptapEditorOptions) => {
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const onUpdateRef = useRef(onUpdate);
   useEffect(() => { onUpdateRef.current = onUpdate; }, [onUpdate]);
 
   const extensions = useMemo(() => createTiptapExtensions(runtime), [runtime]);
-  const markPending = useCallback(() => {
-    if (typeof pendingEditRef.current === 'number') pendingEditRef.current++;
-    else pendingEditRef.current = true;
-  }, [pendingEditRef]);
-
   const editor = useEditor({
     extensions,
     content: '',
     onUpdate: ({ editor }) => {
-      if (skipUpdateRef.current) {
-        skipUpdateRef.current = false;
-        return;
-      }
-
       // Debounce updates to avoid too many messages
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
@@ -37,7 +25,6 @@ export const useTiptapEditor = ({ onUpdate, pendingEditRef, runtime }: UseTiptap
 
       debounceTimerRef.current = setTimeout(() => {
         const json = editor.getJSON();
-        markPending();
         onUpdateRef.current(json);
       }, 300);
     },
@@ -45,8 +32,6 @@ export const useTiptapEditor = ({ onUpdate, pendingEditRef, runtime }: UseTiptap
 
   const setContent = (content: JSONContent) => {
     if (!editor) return;
-
-    skipUpdateRef.current = true;
 
     // Save cursor position before replacing content
     const { from, to } = editor.state.selection;
@@ -75,9 +60,8 @@ export const useTiptapEditor = ({ onUpdate, pendingEditRef, runtime }: UseTiptap
 
     // Immediately send current state
     const json = editor.getJSON();
-    markPending();
     onUpdateRef.current(json, saveRequested);
-  }, [editor, markPending]);
+  }, [editor]);
 
   // Flush pending edits on Ctrl+S so save always captures the latest state
   useEffect(() => {

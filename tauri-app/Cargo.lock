@@ -3010,6 +3010,7 @@ dependencies = [
  "tauri-plugin-process",
  "tauri-plugin-shell",
  "trash",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
