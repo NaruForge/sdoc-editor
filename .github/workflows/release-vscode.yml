@@ -48,6 +48,8 @@ jobs:
             exit 1
           fi
 
+          echo "Marketplace profile ID: $profile_id"
+
           {
             echo '## Visual Studio Marketplace identity'
             echo
@@ -108,4 +110,3 @@ jobs:
 
       - name: Publish VSIX to Visual Studio Marketplace
         run: npx vsce publish --azure-credential --packagePath output/structured-doc-editor-*.vsix --skip-duplicate
-
