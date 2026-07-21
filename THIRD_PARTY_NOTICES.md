@@ -2,9 +2,19 @@
 
 Structured Doc Editor includes or builds upon the packages listed below. Each package remains governed by its own license; the project MIT license does not replace those terms.
 
-This inventory is generated from the installed npm production dependency graph and the locked Cargo runtime/build dependency graph. Regenerate it after dependency changes with `npm run licenses:generate`; CI verifies it with `npm run licenses:check`.
+This inventory is generated from the vendored asset manifest, installed npm production dependency graph, and locked Cargo runtime/build dependency graph. Regenerate it after dependency or bundled asset changes with `npm run licenses:generate`; CI verifies it with `npm run licenses:check`.
 
 The inventory links each package source. License and notice files found in installed package distributions are reproduced after the inventory; identical texts are grouped deterministically.
+
+## Bundled font assets
+
+| Asset | Version/revision | License | Source | File | License text |
+| --- | --- | --- | --- | --- | --- |
+| Pretendard Variable | 1.3.9 | OFL-1.1 | [source](https://github.com/orioncactus/pretendard/tree/5c41199ea0024a9e0b2cb31735265056e5472d76) | `shared/editor/assets/fonts/PretendardVariable.woff2` | `licenses/fonts/Pretendard-OFL.txt` |
+| JetBrains Mono Variable | 19371302b95d | OFL-1.1 | [source](https://github.com/JetBrains/JetBrainsMono/tree/19371302b95d218af43299bce79ddbddd0bc364d) | `shared/editor/assets/fonts/JetBrainsMono-Variable.woff2` | `licenses/fonts/JetBrainsMono-OFL.txt` |
+| JetBrains Mono Variable Italic | 19371302b95d | OFL-1.1 | [source](https://github.com/JetBrains/JetBrainsMono/tree/19371302b95d218af43299bce79ddbddd0bc364d) | `shared/editor/assets/fonts/JetBrainsMono-VariableItalic.woff2` | `licenses/fonts/JetBrainsMono-OFL.txt` |
+
+## Package dependency inventory
 
 Dependency count: 753
 

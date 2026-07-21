@@ -24,6 +24,27 @@ These files are **not licensed under the repository's MIT License**. Their prese
 
 The VS Code packaging rules exclude the restricted `media/` paths; only `media/sdoc-editor-icon.png` is included from `media/`. The desktop application does not use the legacy logo or font files, but its current icon set remains a packaging input until the separately planned branding cleanup. Contributors must not add new references to the restricted assets.
 
+## Bundled open-source fonts
+
+The editor embeds the following WOFF2 files for offline use. Both fonts are
+distributed under the SIL Open Font License 1.1; the unmodified license texts
+are included in `licenses/fonts/` and in VSIX, MSI, NSIS, and portable builds.
+
+- Pretendard Variable v1.3.9
+  - Upstream: `https://github.com/orioncactus/pretendard`
+  - Revision: `5c41199ea0024a9e0b2cb31735265056e5472d76`
+  - File: `shared/editor/assets/fonts/PretendardVariable.woff2`
+  - SHA-256: `9599f12fd42fc0bce1cd50b47a0c022e108d7aa64dd0d1bb0ed44f3282d900b4`
+  - License: `licenses/fonts/Pretendard-OFL.txt`
+- JetBrains Mono Variable
+  - Upstream: `https://github.com/JetBrains/JetBrainsMono`
+  - Revision: `19371302b95d218af43299bce79ddbddd0bc364d`
+  - Regular SHA-256: `31ec365b93e4bad6f202ce23352a56d01ca4462b2afc782ed2cf6fa42ca9ac0e`
+  - Italic SHA-256: `76a805b6ea613ce2e3973f1bac6fa29db23116b2881390b59247d22890844ecc`
+  - Files: `shared/editor/assets/fonts/JetBrainsMono-Variable.woff2` and
+    `shared/editor/assets/fonts/JetBrainsMono-VariableItalic.woff2`
+  - License: `licenses/fonts/JetBrainsMono-OFL.txt`
+
 ## Adding an asset
 
 Every new image, font, sample document, diagram, or media file must have reviewable provenance. A contribution should identify:

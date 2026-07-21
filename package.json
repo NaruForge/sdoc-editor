@@ -2,7 +2,7 @@
   "name": "structured-doc-editor",
   "displayName": "Structured Doc Editor",
   "description": "WYSIWYG editor for .tiptap.json/.sdoc files with Markdown/AsciiDoc/HTML export",
-  "version": "0.4.14",
+  "version": "0.4.15",
   "publisher": "swbaek",
   "license": "MIT",
   "repository": {

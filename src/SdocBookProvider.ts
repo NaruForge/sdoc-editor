@@ -40,7 +40,10 @@ export class SdocBookProvider implements vscode.CustomTextEditorProvider {
     document: vscode.TextDocument,
     webviewPanel: vscode.WebviewPanel,
   ): Promise<void> {
-    webviewPanel.webview.options = { enableScripts: true };
+    webviewPanel.webview.options = {
+      enableScripts: true,
+      localResourceRoots: [vscode.Uri.joinPath(this.context.extensionUri, 'dist', 'webview')],
+    };
 
     let updateSequence = 0;
     let disposed = false;
@@ -86,7 +89,10 @@ export class SdocBookProvider implements vscode.CustomTextEditorProvider {
       }
       if (disposed || sequence !== updateSequence) return;
       if (!result.book) {
-        webviewPanel.webview.html = this.getErrorHtml(result.diagnostics[0]?.message ?? 'Invalid .sdocbook file');
+        webviewPanel.webview.html = this.getErrorHtml(
+          webviewPanel.webview,
+          result.diagnostics[0]?.message ?? 'Invalid .sdocbook file',
+        );
         shellInitialized = false;
         return;
       }
@@ -395,6 +401,10 @@ export class SdocBookProvider implements vscode.CustomTextEditorProvider {
     diagnostics: BookDiagnostic[],
   ): string {
     const nonce = randomBytes(16).toString('base64');
+    const assetRoot = vscode.Uri.joinPath(this.context.extensionUri, 'dist', 'webview', 'assets');
+    const pretendardUri = webview.asWebviewUri(vscode.Uri.joinPath(assetRoot, 'PretendardVariable.woff2'));
+    const jetBrainsMonoUri = webview.asWebviewUri(vscode.Uri.joinPath(assetRoot, 'JetBrainsMono-Variable.woff2'));
+    const jetBrainsMonoItalicUri = webview.asWebviewUri(vscode.Uri.joinPath(assetRoot, 'JetBrainsMono-VariableItalic.woff2'));
     const errorCount = diagnostics.filter((item) => item.severity === 'error').length;
     const warningCount = diagnostics.filter((item) => item.severity === 'warning').length;
     const exportDisabled = errorCount > 0 ? ' disabled' : '';
@@ -426,9 +436,14 @@ export class SdocBookProvider implements vscode.CustomTextEditorProvider {
 
     return `<!DOCTYPE html>
 <html><head><meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'nonce-${nonce}'; script-src 'nonce-${nonce}';">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; font-src ${webview.cspSource}; style-src ${webview.cspSource} 'nonce-${nonce}'; script-src 'nonce-${nonce}';">
 <style nonce="${nonce}">
-  body { font-family: var(--vscode-font-family, sans-serif); color: var(--vscode-foreground); background: var(--vscode-editor-background); padding: 20px; max-width: 800px; margin: 0 auto; }
+  @font-face { font-family: 'Pretendard Variable'; src: url('${pretendardUri}') format('woff2-variations'); font-style: normal; font-weight: 45 920; font-display: swap; }
+  @font-face { font-family: 'JetBrains Mono'; src: url('${jetBrainsMonoUri}') format('woff2-variations'); font-style: normal; font-weight: 100 800; font-display: swap; }
+  @font-face { font-family: 'JetBrains Mono'; src: url('${jetBrainsMonoItalicUri}') format('woff2-variations'); font-style: italic; font-weight: 100 800; font-display: swap; }
+  :root { --sdoc-font-sans: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, 'Segoe UI', 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif; --sdoc-font-mono: 'JetBrains Mono', 'Cascadia Mono', Consolas, monospace; }
+  body { font-family: var(--sdoc-font-sans); color: var(--vscode-foreground); background: var(--vscode-editor-background); padding: 20px; max-width: 800px; margin: 0 auto; }
+  button, input { font-family: inherit; }
   h1 { font-size: 1.5em; margin-bottom: 8px; }
   .meta { display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
   .meta label { font-size: 12px; color: var(--vscode-descriptionForeground); display: block; margin-bottom: 2px; }
@@ -445,7 +460,7 @@ export class SdocBookProvider implements vscode.CustomTextEditorProvider {
   .doc-num { width: 24px; text-align: right; color: var(--vscode-descriptionForeground); font-size: 12px; }
   .doc-label { cursor: pointer; color: var(--vscode-textLink-foreground); flex: 1; border: 0; background: transparent; padding: 0; text-align: left; font: inherit; }
   .doc-label:hover { text-decoration: underline; }
-  .doc-path { color: var(--vscode-descriptionForeground); font-size: 12px; }
+  .doc-path { color: var(--vscode-descriptionForeground); font-size: 12px; font-family: var(--sdoc-font-mono); font-variant-ligatures: none; font-feature-settings: 'liga' 0, 'calt' 0; }
   .doc-status { border-radius: 10px; padding: 1px 6px; font-size: 10px; }
   .doc-status.error { color: var(--vscode-errorForeground); background: var(--vscode-inputValidation-errorBackground); }
   .doc-status.warning { color: var(--vscode-editorWarning-foreground); background: var(--vscode-inputValidation-warningBackground); }
@@ -459,7 +474,7 @@ export class SdocBookProvider implements vscode.CustomTextEditorProvider {
   .diagnostic { margin: 4px 0; }
   .diagnostic.error { color: var(--vscode-errorForeground); }
   .diagnostic.warning { color: var(--vscode-editorWarning-foreground); }
-  .diagnostic-code { font-family: var(--vscode-editor-font-family, monospace); margin-right: 8px; }
+  .diagnostic-code { font-family: var(--sdoc-font-mono); font-variant-ligatures: none; font-feature-settings: 'liga' 0, 'calt' 0; margin-right: 8px; }
   .empty { color: var(--vscode-descriptionForeground); font-style: italic; padding: 20px; text-align: center; }
 </style></head><body><div id="book-root">
   <h1>📚 ${this.escHtml(project.title || 'Untitled Project')}</h1>
@@ -534,8 +549,19 @@ export class SdocBookProvider implements vscode.CustomTextEditorProvider {
 </body></html>`;
   }
 
-  private getErrorHtml(msg: string): string {
-    return `<!DOCTYPE html><html><body><h2>Error</h2><p>${this.escHtml(msg)}</p></body></html>`;
+  private getErrorHtml(webview: vscode.Webview, msg: string): string {
+    const nonce = randomBytes(16).toString('base64');
+    const fontUri = webview.asWebviewUri(vscode.Uri.joinPath(
+      this.context.extensionUri,
+      'dist',
+      'webview',
+      'assets',
+      'PretendardVariable.woff2',
+    ));
+    return `<!DOCTYPE html><html><head>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; font-src ${webview.cspSource}; style-src 'nonce-${nonce}';">
+<style nonce="${nonce}">@font-face { font-family: 'Pretendard Variable'; src: url('${fontUri}') format('woff2-variations'); font-style: normal; font-weight: 45 920; font-display: swap; } body { font-family: 'Pretendard Variable', Pretendard, system-ui, 'Segoe UI', 'Malgun Gothic', sans-serif; color: var(--vscode-foreground); background: var(--vscode-editor-background); }</style>
+</head><body><h2>Error</h2><p>${this.escHtml(msg)}</p></body></html>`;
   }
 
   private extractBookBody(html: string): string {

@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 :root {
-  font-family: var(--vscode-font-family);
+  font-family: var(--sdoc-font-sans);
   font-size: var(--vscode-font-size);
   font-weight: var(--vscode-font-weight);
 }
@@ -19,6 +19,23 @@ body {
 body {
   background-color: var(--vscode-editor-background);
   color: var(--vscode-editor-foreground);
+  font-family: var(--sdoc-font-sans);
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: var(--sdoc-font-sans);
+}
+
+code,
+pre,
+kbd,
+samp {
+  font-family: var(--sdoc-font-mono);
+  font-variant-ligatures: none;
+  font-feature-settings: 'liga' 0, 'calt' 0;
 }
 
 #root {
@@ -40,7 +57,7 @@ body {
 .ProseMirror {
   background-color: var(--vscode-editor-background);
   color: var(--vscode-editor-foreground);
-  font-family: var(--vscode-font-family), sans-serif;
+  font-family: var(--sdoc-font-sans);
   font-weight: var(--font-weight-body, 400);
   padding: 16px;
   padding-bottom: 40vh; /* 문서 하단 여백: 뷰포트 높이의 40% */
@@ -278,7 +295,7 @@ body {
   top: 6px;
   right: 8px;
   font-size: 11px;
-  font-family: var(--vscode-font-family);
+  font-family: var(--sdoc-font-sans);
   background-color: var(--vscode-dropdown-background, var(--vscode-input-background));
   color: var(--vscode-dropdown-foreground, var(--vscode-input-foreground));
   border: 1px solid var(--vscode-dropdown-border, var(--vscode-panel-border));
@@ -301,6 +318,7 @@ body {
   padding-top: 28px;
   margin: 0;
   overflow-x: auto;
+  font-family: var(--sdoc-font-mono);
 }
 
 .ProseMirror pre {
@@ -310,14 +328,29 @@ body {
   padding: 12px;
   margin: 0.5em 0;
   overflow-x: auto;
+  font-family: var(--sdoc-font-mono);
 }
 
 .ProseMirror code {
   background-color: var(--vscode-textCodeBlock-background);
   padding: 2px 4px;
   border-radius: 3px;
-  font-family: var(--vscode-editor-font-family);
+  font-family: var(--sdoc-font-mono);
   font-size: 0.9em;
+}
+
+.ProseMirror code,
+.ProseMirror pre,
+.form-readonly,
+.form-textarea--code,
+.kbd-hint,
+.settings-color-value,
+.settings-path-input,
+.settings-file-path,
+.math-edit-input,
+.eq-number {
+  font-variant-ligatures: none;
+  font-feature-settings: 'liga' 0, 'calt' 0;
 }
 
 .ProseMirror pre code {
@@ -461,7 +494,7 @@ body {
   cursor: pointer;
   border-radius: 4px;
   font-size: 12px;
-  font-family: var(--vscode-font-family);
+  font-family: var(--sdoc-font-sans);
   transition: background 0.1s;
 }
 
@@ -674,7 +707,7 @@ body {
   border: 1px solid var(--vscode-focusBorder);
   border-radius: 4px;
   outline: none;
-  font-family: var(--vscode-font-family);
+  font-family: var(--sdoc-font-sans);
 }
 
 .caption-input::placeholder {
@@ -783,7 +816,7 @@ body {
   background-color: var(--vscode-input-background, #3c3c3c);
   color: var(--vscode-input-foreground, #ccc);
   font-size: 13px;
-  font-family: var(--vscode-font-family);
+  font-family: var(--sdoc-font-sans);
   outline: none;
 }
 
@@ -811,7 +844,7 @@ body {
   cursor: pointer;
   text-align: left;
   font-size: 13px;
-  font-family: var(--vscode-font-family);
+  font-family: var(--sdoc-font-sans);
   position: relative;
   transition: background-color 0.1s;
 }
@@ -852,7 +885,7 @@ body {
   border: 1px solid var(--vscode-input-border);
   border-radius: 3px;
   font-size: 12px;
-  font-family: var(--vscode-font-family);
+  font-family: var(--sdoc-font-sans);
 }
 
 /* Bubble Menu */
@@ -1059,7 +1092,7 @@ body {
   border: 1px solid var(--vscode-input-border);
   border-radius: 4px;
   font-size: 13px;
-  font-family: var(--vscode-font-family);
+  font-family: var(--sdoc-font-sans);
 }
 
 .form-input:focus,
@@ -1082,7 +1115,7 @@ body {
   border-radius: 4px;
   font-size: 13px;
   cursor: pointer;
-  font-family: var(--vscode-font-family);
+  font-family: var(--sdoc-font-sans);
 }
 
 .btn-primary {
@@ -1172,7 +1205,7 @@ body {
   border-radius: 2px;
   font-size: 13px;
   color: var(--vscode-input-foreground);
-  font-family: var(--vscode-editor-font-family);
+  font-family: var(--sdoc-font-mono);
   word-break: break-all;
 }
 
@@ -1185,7 +1218,7 @@ body {
   border: 1px solid var(--vscode-input-border);
   border-radius: 2px;
   font-size: 13px;
-  font-family: var(--vscode-editor-font-family, monospace);
+  font-family: var(--sdoc-font-mono);
   outline: none;
   resize: vertical;
   box-sizing: border-box;
@@ -1236,6 +1269,7 @@ body {
 .kbd-hint {
   opacity: 0.7;
   font-size: 11px;
+  font-family: var(--sdoc-font-mono);
 }
 
 /* Dialog split layout (e.g. diagram code + preview) */
@@ -1394,7 +1428,7 @@ body {
   border-bottom: 2px solid transparent;
   outline: none;
   padding: 4px 0;
-  font-family: var(--vscode-font-family), sans-serif;
+  font-family: var(--sdoc-font-sans);
   letter-spacing: -0.02em;
   line-height: 1.2;
   transition: border-color 0.2s;
@@ -1450,7 +1484,7 @@ body {
   border-radius: 3px;
   padding: 1px 4px;
   font-size: 12px;
-  font-family: var(--vscode-font-family);
+  font-family: var(--sdoc-font-sans);
   outline: none;
   width: 180px;
 }
@@ -1732,7 +1766,7 @@ body {
   text-align: right;
   opacity: 0.8;
   padding: 0;
-  font-family: var(--vscode-font-family, monospace);
+  font-family: var(--sdoc-font-sans);
 }
 
 .editor-zoom-bar .zoom-label:hover {
@@ -1924,7 +1958,7 @@ body {
   text-align: left;
   cursor: pointer;
   color: var(--vscode-foreground);
-  font-family: var(--vscode-font-family);
+  font-family: var(--sdoc-font-sans);
   transition: background-color 0.1s;
   white-space: nowrap;
   overflow: hidden;
@@ -2035,7 +2069,7 @@ body {
   font-size: 0.9em;
   color: var(--vscode-foreground);
   opacity: 0.75;
-  font-family: var(--vscode-editor-font-family, monospace);
+  font-family: var(--sdoc-font-mono);
   user-select: none;
 }
 
@@ -2052,7 +2086,7 @@ body {
 .math-edit-input {
   width: 100%;
   box-sizing: border-box;
-  font-family: var(--vscode-editor-font-family, monospace);
+  font-family: var(--sdoc-font-mono);
   font-size: 0.9em;
   border: 1px solid var(--vscode-focusBorder, #007fd4);
   border-radius: 3px;
@@ -2176,7 +2210,7 @@ body {
   opacity: 0.6;
   cursor: pointer;
   transition: opacity 0.15s, border-color 0.15s;
-  font-family: var(--vscode-font-family);
+  font-family: var(--sdoc-font-sans);
 }
 
 .side-panel-tab:hover {
@@ -2236,7 +2270,7 @@ body {
   border: none;
   color: var(--vscode-foreground);
   cursor: pointer;
-  font-family: var(--vscode-font-family);
+  font-family: var(--sdoc-font-sans);
 }
 
 .settings-section-header:hover {
@@ -2295,7 +2329,7 @@ body {
 
 .settings-color-value {
   font-size: 11px;
-  font-family: monospace;
+  font-family: var(--sdoc-font-mono);
   color: var(--vscode-descriptionForeground);
 }
 
@@ -2308,7 +2342,7 @@ body {
   border: 1px solid var(--vscode-input-border, #3c3c3c);
   border-radius: 3px;
   outline: none;
-  font-family: var(--vscode-font-family);
+  font-family: var(--sdoc-font-sans);
 }
 
 .settings-text-input:focus {
@@ -2319,6 +2353,7 @@ body {
   flex: 1;
   min-width: 0;
   width: auto;
+  font-family: var(--sdoc-font-mono);
 }
 
 .settings-number-input {
@@ -2330,7 +2365,7 @@ body {
   border: 1px solid var(--vscode-input-border, #3c3c3c);
   border-radius: 3px;
   outline: none;
-  font-family: var(--vscode-font-family);
+  font-family: var(--sdoc-font-sans);
 }
 
 .settings-number-input:focus {
@@ -2377,6 +2412,7 @@ body {
   background: var(--vscode-input-background);
   border: 1px solid var(--vscode-input-border, transparent);
   border-radius: 3px;
+  font-family: var(--sdoc-font-mono);
 }
 
 .settings-file-btn,
@@ -2410,7 +2446,7 @@ body {
   border: none;
   border-radius: 3px;
   cursor: pointer;
-  font-family: var(--vscode-font-family);
+  font-family: var(--sdoc-font-sans);
   transition: background-color 0.15s;
 }
 

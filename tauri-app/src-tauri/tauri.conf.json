@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/nicegui/tauri-conf-schema-v2/refs/heads/main/tauri.conf.json",
   "productName": "Structured Doc Editor",
-  "version": "0.4.14",
+  "version": "0.4.15",
   "identifier": "io.github.contributor-01.sdoc-editor",
   "build": {
     "frontendDist": "../dist",
@@ -37,7 +37,9 @@
     "copyright": "Copyright © 2026 contributor-01 and Structured Doc Editor contributors",
     "resources": {
       "../../LICENSE": "LICENSE.txt",
-      "../../THIRD_PARTY_NOTICES.md": "THIRD_PARTY_NOTICES.md"
+      "../../THIRD_PARTY_NOTICES.md": "THIRD_PARTY_NOTICES.md",
+      "../../licenses/fonts/Pretendard-OFL.txt": "FONT_LICENSES/Pretendard-OFL.txt",
+      "../../licenses/fonts/JetBrainsMono-OFL.txt": "FONT_LICENSES/JetBrainsMono-OFL.txt"
     },
     "icon": [
       "icons/32x32.png",

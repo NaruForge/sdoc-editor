@@ -7,10 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.15] - 2026-07-21
+
 ### Added
 - Public security reporting, code of conduct, asset licensing, and contributor rights guidance
 - Reproducible npm/Cargo third-party notices, license-policy checks, and release artifact privacy scanning
 - Structured bug and feature issue forms plus a pull request checklist
+- Locally bundled Pretendard Variable and JetBrains Mono fonts with OFL license notices
 
 ### Changed
 - Reframed product documentation for a public open-source audience and removed the obsolete feature-analysis report
@@ -18,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Replaced legacy organization defaults with a neutral application identifier, system fonts, and blue visual defaults
 - Pinned GitHub Actions to immutable commits and expanded Dependabot to npm, Cargo, and workflow dependencies
 - Packaged the portable Windows app with the project license and third-party notices in a ZIP archive
+- Unified VS Code, `.sdocbook`, and Tauri typography while preserving KaTeX math fonts and existing layout metrics
+- Disabled code ligatures for code, paths, logs, and other monospaced interface text
 
 ### Removed
 - Unused Draw.io plugin samples with unclear provenance

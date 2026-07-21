@@ -7,6 +7,35 @@ import path from 'node:path';
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const noticePath = path.join(repoRoot, 'THIRD_PARTY_NOTICES.md');
 const rootPackage = JSON.parse(readFileSync(path.join(repoRoot, 'package.json'), 'utf8'));
+const vendoredAssets = [
+  {
+    name: 'Pretendard Variable',
+    version: '1.3.9',
+    license: 'OFL-1.1',
+    source: 'https://github.com/orioncactus/pretendard/tree/5c41199ea0024a9e0b2cb31735265056e5472d76',
+    file: 'shared/editor/assets/fonts/PretendardVariable.woff2',
+    sha256: '9599f12fd42fc0bce1cd50b47a0c022e108d7aa64dd0d1bb0ed44f3282d900b4',
+    licenseFile: 'licenses/fonts/Pretendard-OFL.txt',
+  },
+  {
+    name: 'JetBrains Mono Variable',
+    version: '19371302b95d',
+    license: 'OFL-1.1',
+    source: 'https://github.com/JetBrains/JetBrainsMono/tree/19371302b95d218af43299bce79ddbddd0bc364d',
+    file: 'shared/editor/assets/fonts/JetBrainsMono-Variable.woff2',
+    sha256: '31ec365b93e4bad6f202ce23352a56d01ca4462b2afc782ed2cf6fa42ca9ac0e',
+    licenseFile: 'licenses/fonts/JetBrainsMono-OFL.txt',
+  },
+  {
+    name: 'JetBrains Mono Variable Italic',
+    version: '19371302b95d',
+    license: 'OFL-1.1',
+    source: 'https://github.com/JetBrains/JetBrainsMono/tree/19371302b95d218af43299bce79ddbddd0bc364d',
+    file: 'shared/editor/assets/fonts/JetBrainsMono-VariableItalic.woff2',
+    sha256: '76a805b6ea613ce2e3973f1bac6fa29db23116b2881390b59247d22890844ecc',
+    licenseFile: 'licenses/fonts/JetBrainsMono-OFL.txt',
+  },
+];
 const workspacePackageNames = new Set(
   (rootPackage.workspaces ?? [])
     .map((workspace) => npmPackageMetadata(path.join(repoRoot, workspace)).name)
@@ -125,6 +154,15 @@ function validateLicense(dependency) {
   }
 }
 
+function validateVendoredAsset(asset) {
+  const bytes = readFileSync(path.join(repoRoot, asset.file));
+  const digest = createHash('sha256').update(bytes).digest('hex');
+  if (digest !== asset.sha256) {
+    throw new Error(`Vendored asset ${asset.file} has unexpected SHA-256 ${digest}.`);
+  }
+  statSync(path.join(repoRoot, asset.licenseFile));
+}
+
 function collectNpmDependencies() {
   if (!process.env.npm_execpath) {
     throw new Error('Run this generator through `npm run licenses:generate` or `npm run licenses:check`.');
@@ -220,6 +258,7 @@ function generateNotice() {
     `${left.ecosystem}\0${left.name}\0${left.version}`.localeCompare(`${right.ecosystem}\0${right.name}\0${right.version}`, 'en'),
   );
   dependencies.forEach(validateLicense);
+  vendoredAssets.forEach(validateVendoredAsset);
 
   const noticeGroups = new Map();
   for (const dependency of dependencies) {
@@ -238,9 +277,19 @@ function generateNotice() {
     '',
     'Structured Doc Editor includes or builds upon the packages listed below. Each package remains governed by its own license; the project MIT license does not replace those terms.',
     '',
-    'This inventory is generated from the installed npm production dependency graph and the locked Cargo runtime/build dependency graph. Regenerate it after dependency changes with `npm run licenses:generate`; CI verifies it with `npm run licenses:check`.',
+    'This inventory is generated from the vendored asset manifest, installed npm production dependency graph, and locked Cargo runtime/build dependency graph. Regenerate it after dependency or bundled asset changes with `npm run licenses:generate`; CI verifies it with `npm run licenses:check`.',
     '',
     'The inventory links each package source. License and notice files found in installed package distributions are reproduced after the inventory; identical texts are grouped deterministically.',
+    '',
+    '## Bundled font assets',
+    '',
+    '| Asset | Version/revision | License | Source | File | License text |',
+    '| --- | --- | --- | --- | --- | --- |',
+    ...vendoredAssets.map((asset) =>
+      `| ${escapeCell(asset.name)} | ${escapeCell(asset.version)} | ${escapeCell(asset.license)} | [source](${asset.source}) | \`${asset.file}\` | \`${asset.licenseFile}\` |`,
+    ),
+    '',
+    '## Package dependency inventory',
     '',
     `Dependency count: ${dependencies.length}`,
     '',

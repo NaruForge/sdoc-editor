@@ -16,8 +16,10 @@ const destDir = resolve(root, 'target', 'release', 'bundle', 'portable');
 const dest = resolve(destDir, `${productName}_${version}_x64_portable.exe`);
 const licenseSource = resolve(root, '..', 'LICENSE');
 const noticesSource = resolve(root, '..', 'THIRD_PARTY_NOTICES.md');
+const fontLicensesSource = resolve(root, '..', 'licenses', 'fonts');
 const licenseDest = resolve(destDir, 'LICENSE.txt');
 const noticesDest = resolve(destDir, 'THIRD_PARTY_NOTICES.md');
+const fontLicensesDest = resolve(destDir, 'FONT_LICENSES');
 const archive = resolve(destDir, `${productName}_${version}_x64_portable.zip`);
 
 if (!existsSync(src)) {
@@ -29,6 +31,8 @@ mkdirSync(destDir, { recursive: true });
 cpSync(src, dest);
 cpSync(licenseSource, licenseDest);
 cpSync(noticesSource, noticesDest);
+rmSync(fontLicensesDest, { recursive: true, force: true });
+cpSync(fontLicensesSource, fontLicensesDest, { recursive: true });
 rmSync(archive, { force: true });
 
 const zip = spawnSync(
@@ -43,6 +47,7 @@ const zip = spawnSync(
     basename(dest),
     basename(licenseDest),
     basename(noticesDest),
+    basename(fontLicensesDest),
   ],
   { stdio: 'inherit' },
 );
