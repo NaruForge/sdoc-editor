@@ -10,9 +10,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Host-neutral `.sdocbook` parsing, composition, path normalization, and structured diagnostics in `shared/book/`
 - Book validation status for missing or invalid documents, duplicate IDs, and broken references
+- Runtime validation of persisted `.sdoc` output against `sdoc.schema.json`
+- Regression coverage for save races, malformed and future documents, traversal, export serialization, book composition, and large-document selection lookup
 
 ### Changed
-- Book export now uses unsaved open VS Code documents, watches included files, and blocks incomplete output when validation has errors
+- Document persistence now uses stable IDs, revisions, acknowledgements, flush barriers, portable asset dehydration, and atomic Tauri writes
+- VS Code Command Palette and toolbar exports now share one service and use current flushed editor content
+- Numbering and reference labels now use one shared index across both hosts and every export format
+- Book composition now loads chapters in parallel, preserves ordered diagnostics, adds deterministic anchors, cancels superseded work, and watches only includes
+- VS Code and Tauri now share dialog state, font styling, Draw.io path matching, and indexed structure lookup behavior
+
+### Security
+- Invalid or unsupported documents open fail-closed and cannot overwrite their source
+- Asset creation, resolution, export embedding, and book loading enforce canonical containment and reject traversal or symlink escapes
+- Tauri filesystem and asset capabilities are restricted to validated, explicitly allowed files
 
 ## [0.4.13] - 2026-07-20
 

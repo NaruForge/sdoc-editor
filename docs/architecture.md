@@ -24,12 +24,17 @@ Tauri desktop ─────┘                       │
 - `shared/types.ts` defines TypeScript document and settings types.
 - `shared/document/sdocUtils.ts` owns migration, cleanup, ID assignment, title extraction, cross-reference synchronization, and normalization.
 - `tests/fixtures/document-contract.json` protects legacy and current behavior across TypeScript and Rust tests.
+- `shared/document/documentContract.ts` narrows external JSON, rejects unsupported versions, and validates persisted output with AJV.
+- `shared/document/runtimeAssets.ts` separates host hydration from portable persistence dehydration.
+- Save protocols carry document identity, base revision, edit identity, and acknowledgement; hosts reject stale or cross-document writes.
 
 Rust reads and writes the envelope but deliberately does not reproduce document semantics. The Tauri frontend runs the same TypeScript migration and normalization used by the VS Code host.
 
 ### Book composition
 
 `shared/book/` is the host-neutral `.sdocbook` boundary. It parses untrusted manifests, normalizes project-relative paths, loads chapters through an injected `BookDocumentLoader`, composes one document tree, and returns structured diagnostics. Preview and export consumers must use this result instead of independently merging files. The VS Code provider supplies open-buffer and filesystem access; a future Tauri host can supply its own loader without copying composition rules.
+
+Chapter loading is parallel while results and diagnostics remain in manifest order. Each valid chapter receives a deterministic invisible export anchor. Loaders accept cancellation, and host watchers subscribe only to current includes.
 
 ### Editor UI
 
@@ -40,6 +45,15 @@ The host-neutral `EditorHostBridge` and the discriminated unions in `shared/type
 ### Conversion and settings
 
 `shared/converter/` contains host-neutral import/export conversion. `shared/settingsResolver.ts` owns defaults, caption presets, and document-over-workspace setting resolution. Neither layer may access VS Code, Tauri, or the filesystem.
+
+`shared/document/numbering.ts` is the single numbering index for editor previews, lists, cross-references, and HTML, Markdown, AsciiDoc, and Slides output. Export services flush host editors first and pass current in-memory documents to shared converters.
+
+### Path and runtime boundaries
+
+- Persisted assets use portable `./images/...` or `./drawio/...` paths; display URLs and hydration metadata are runtime-only.
+- Hosts validate basename, extension, canonical containment, and symlink containment independently of the UI.
+- Tauri grants asset protocol access only after resolving a validated document-relative asset.
+- Watcher events include owner document, generation, and portable relative path; stale generations are ignored and duplicate events are coalesced.
 
 ## Host responsibilities
 

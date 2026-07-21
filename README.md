@@ -110,6 +110,15 @@ code --install-extension swbaek.structured-doc-editor
 
 Book 화면은 포함 문서를 자동으로 검사합니다. 누락되거나 잘못된 문서, 중복 ID, 깨진 참조가 있으면 진단을 표시하고 불완전한 통합 export를 차단합니다. 열려 있는 `.sdoc`의 아직 저장하지 않은 변경도 검증과 export에 사용됩니다. 현재 Book 관리 화면과 통합 export는 VS Code 확장에서 지원합니다.
 
+각 장은 병렬로 불러오되 manifest 순서대로 합성되며, 장 링크와 로컬 이미지 경로는 book 경계 안에서 안전하게 다시 계산됩니다. 손상된 장은 다른 장의 미리보기를 지우지 않고 해당 장의 진단으로 표시됩니다.
+
+## 데이터 안전성
+
+- 저장 전 최신 편집 내용을 flush하고 문서 identity와 revision을 확인해, 이전 문서의 지연 저장이 새 문서에 적용되지 않게 합니다.
+- 잘못된 JSON이나 지원하지 않는 미래 버전은 원본 보호를 위해 읽기 전용으로 열립니다.
+- 이미지와 Draw.io 파일은 portable 상대 경로만 저장하며, export와 파일 작업은 문서 경계 밖 경로와 symlink 탈출을 거부합니다.
+- Command Palette와 편집기 toolbar export는 동일한 변환기와 설정 해석 규칙을 사용합니다.
+
 ## 설정
 
 VS Code 설정에서 `Structured Doc Editor`를 검색하면 다음 항목을 조정할 수 있습니다.
