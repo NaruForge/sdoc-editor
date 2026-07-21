@@ -7,6 +7,7 @@ import { detectBrowser, printToPdf } from './utils/browserDetect';
 import { loadBundledFontsAsBase64 } from './utils/fontUtils';
 import { embedImagesAsBase64 } from './utils/imageUtils';
 import { resolveCompanyLogo, readFontWeights, buildHtmlTheme, readExportSettings } from './utils/themeUtils';
+import { withTemporaryDirectory } from './utils/temporaryDirectory';
 import {
   BookDocumentLoadError,
   composeBook,
@@ -306,14 +307,11 @@ export class SdocBookProvider implements vscode.CustomTextEditorProvider {
       htmlContent = htmlContent.replace('</head>', `<style>body{zoom:${pdfScale};}</style>\n</head>`);
 
       const pdfPath = document.uri.fsPath.replace(/\.sdocbook$/, '.pdf');
-      const tempHtmlPath = document.uri.fsPath.replace(/\.sdocbook$/, '.tmp.html');
-
-      await fs.promises.writeFile(tempHtmlPath, htmlContent, 'utf-8');
-      try {
+      await withTemporaryDirectory('sdocbook-pdf-', async (tempDir) => {
+        const tempHtmlPath = path.join(tempDir, 'document.html');
+        await fs.promises.writeFile(tempHtmlPath, htmlContent, 'utf-8');
         await printToPdf(browserPath, tempHtmlPath, pdfPath);
-      } finally {
-        try { await fs.promises.unlink(tempHtmlPath); } catch { /* intentionally ignored */ }
-      }
+      });
 
       const action = await vscode.window.showInformationMessage(
         `Project PDF exported: ${pdfPath}`,

@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
+import { writeFile } from 'fs/promises';
 import { convertJsonToHtml, convertJsonToAdoc, convertJsonToMarkdown, convertJsonToSlides } from '../../shared/converter';
 import { detectBrowser, printToPdf } from '../utils/browserDetect';
 import { loadBundledFontsAsBase64 } from '../utils/fontUtils';
@@ -8,33 +9,39 @@ import { resolveCompanyLogo, readFontWeights, buildHtmlTheme } from '../utils/th
 import { resolveCustomCss } from '../utils/cssUtils';
 import { resolveSettings, getCaptionPreset } from '../../shared/settingsResolver';
 import { unwrapSdoc as sharedUnwrapSdoc } from '../../shared/document/sdocUtils';
+import { parseDocumentContract, readDocumentSettings } from '../../shared/document/documentContract';
 import type { CaptionStyleName, DocumentSettings } from '../../shared/types';
+import { DocumentExportQueue } from '../../shared/export/DocumentExportQueue';
+import { withTemporaryDirectory } from '../utils/temporaryDirectory';
+import { loadCachedCdnAssets } from './CdnAssetService';
+
+export type ExportFormat = 'html' | 'adoc' | 'markdown' | 'pdf' | 'slides';
 
 export class VsCodeExportService {
-  private readonly exportInProgress = new Set<string>();
+  private readonly exportQueue = new DocumentExportQueue();
 
   constructor(private readonly context: vscode.ExtensionContext) {}
 
   async exportDocument(
     document: vscode.TextDocument,
-    format: 'html' | 'adoc' | 'markdown' | 'pdf' | 'slides',
-    webview: vscode.Webview
+    format: ExportFormat,
+    webview?: vscode.Webview
   ): Promise<void> {
     const docKey = document.uri.toString();
+    return this.exportQueue.run(docKey, () => this.exportNow(document, format, webview));
+  }
 
-    // Guard: prevent duplicate concurrent exports for the same document
-    if (this.exportInProgress.has(docKey)) {
-      vscode.window.showWarningMessage('이미 내보내기가 진행 중입니다. 잠시 기다려 주세요.');
-      return;
-    }
-
+  private async exportNow(
+    document: vscode.TextDocument,
+    format: ExportFormat,
+    webview?: vscode.Webview,
+  ): Promise<void> {
     const formatLabels: Record<string, string> = {
       html: 'HTML', pdf: 'PDF', markdown: 'Markdown', adoc: 'AsciiDoc', slides: 'Slides',
     };
     const label = formatLabels[format] ?? format.toUpperCase();
 
-    this.exportInProgress.add(docKey);
-    webview.postMessage({ type: 'exportStarted', format });
+    await webview?.postMessage({ type: 'exportStarted', format });
 
     // ExportResult: info needed to show completion message AFTER withProgress closes
     type ExportResult = {
@@ -57,8 +64,7 @@ export class VsCodeExportService {
         }
       );
     } finally {
-      this.exportInProgress.delete(docKey);
-      webview.postMessage({ type: 'exportDone' });
+      await webview?.postMessage({ type: 'exportDone' });
     }
 
     // Show success notification AFTER progress notification has closed
@@ -85,7 +91,7 @@ export class VsCodeExportService {
 
   private async _doExport(
     document: vscode.TextDocument,
-    format: 'html' | 'adoc' | 'markdown' | 'pdf' | 'slides',
+    format: ExportFormat,
     label: string,
     progress: vscode.Progress<{ message?: string; increment?: number }>
   ): Promise<{
@@ -94,10 +100,13 @@ export class VsCodeExportService {
     openUri: vscode.Uri;
     openKind: 'external' | 'html' | 'text';
   } | null> {
-    try {
       progress.report({ message: '문서 읽는 중...', increment: 5 });
       const text = document.getText();
-      const parsed = text.trim() ? JSON.parse(text) : { sdoc: '1.0', meta: {}, doc: { type: 'doc', content: [] } };
+      const parsed: unknown = text.trim() ? JSON.parse(text) : { sdoc: '1.0', meta: {}, doc: { type: 'doc', content: [] } };
+      const contract = parseDocumentContract(parsed);
+      if (!contract.ok) {
+        throw new Error(contract.diagnostics.map((item) => `${item.path}: ${item.message}`).join('; '));
+      }
 
       // Unwrap envelope
       const { doc, meta } = sharedUnwrapSdoc(parsed);
@@ -119,7 +128,7 @@ export class VsCodeExportService {
         slideTransition: config.get<'none' | 'fade' | 'slide' | 'convex' | 'concave' | 'zoom'>('slide.transition', 'none'),
         showTitleSlide: config.get<boolean>('slide.showTitleSlide', true),
       };
-      const resolved = resolveSettings(meta.settings as Partial<DocumentSettings> | undefined, vscodeDefaults);
+      const resolved = resolveSettings(readDocumentSettings(parsed), vscodeDefaults);
       const preset = getCaptionPreset(resolved.captionStyle);
       const exportSettings: Record<string, unknown> = {
         captionStyle: resolved.captionStyle,
@@ -142,6 +151,10 @@ export class VsCodeExportService {
         const documentDir = path.dirname(document.uri.fsPath);
         convertedDoc = await embedImagesAsBase64(convertedDoc, documentDir);
         exportSettings.selfContained = resolved.selfContained;
+      }
+      if ((format === 'html' || format === 'pdf') && resolved.selfContained === 'full') {
+        progress.report({ message: 'Embedding export runtime...', increment: 10 });
+        exportSettings.embeddedAssets = await loadCachedCdnAssets(this.context);
       }
       // PDF always embeds images regardless of setting
       if (format === 'pdf' && resolved.selfContained === 'none') {
@@ -206,24 +219,17 @@ export class VsCodeExportService {
           const pdfScale = resolved.pdfScale / 100;
           content = content.replace('</head>', `<style>body{zoom:${pdfScale};}</style>\n</head>`);
 
-          const tempHtmlPath = document.uri.fsPath.replace(/(\.tiptap\.json|\.sdoc)$/, '.tmp.html');
           const pdfUri = this.buildExportUri(document, '.pdf', resolved.outputDir);
           const shouldOverwritePdf = await this.confirmOverwrite(pdfUri);
           if (!shouldOverwritePdf) return null;
           await vscode.workspace.fs.createDirectory(vscode.Uri.file(path.dirname(pdfUri.fsPath)));
 
           progress.report({ message: 'PDF 인쇄 중...', increment: 40 });
-          const tempHtmlUri = vscode.Uri.file(tempHtmlPath);
-          await vscode.workspace.fs.writeFile(tempHtmlUri, new TextEncoder().encode(content));
-          try {
+          await withTemporaryDirectory('sdoc-pdf-', async (tempDir) => {
+            const tempHtmlPath = path.join(tempDir, 'document.html');
+            await writeFile(tempHtmlPath, content, 'utf8');
             await printToPdf(browserPath, tempHtmlPath, pdfUri.fsPath);
-          } finally {
-            try {
-              await vscode.workspace.fs.delete(tempHtmlUri);
-            } catch {
-              // intentionally ignored: best-effort cleanup for transient export HTML
-            }
-          }
+          });
 
           return {
             successMsg: `PDF exported: ${pdfUri.fsPath}`,
@@ -311,12 +317,6 @@ export class VsCodeExportService {
         openUri: outputUri,
         openKind: format === 'html' ? 'html' : 'text',
       };
-    } catch (error) {
-      vscode.window.showErrorMessage(
-        `Failed to export: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-      return null;
-    }
   }
 
   private getWorkspaceBasePath(document: vscode.TextDocument): string {

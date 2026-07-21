@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import { getCaptionPreset, resolveSettings } from '../../shared/settingsResolver';
+import type { CaptionStyleName } from '../../shared/types';
 import * as path from 'path';
 import { resolveFontWeight } from './fontUtils';
 import { MIME_MAP } from './imageUtils';
@@ -61,10 +63,24 @@ export function buildHtmlTheme(
 }
 
 export function readExportSettings(config: vscode.WorkspaceConfiguration): Record<string, unknown> {
-  return {
-    imageCaptionPrefix: config.get<string>('caption.imagePrefix', ''),
-    tableCaptionPrefix: config.get<string>('caption.tablePrefix', ''),
+  const resolved = resolveSettings(undefined, {
+    captionStyle: config.get<CaptionStyleName>('caption.style', 'modern'),
+    headingNumbering: config.get<boolean>('heading.numbering', true),
     captionNumbering: config.get<'sequential' | 'hierarchical'>('caption.numbering', 'sequential'),
+    equationNumbering: config.get<'sequential' | 'hierarchical'>('equation.numbering', 'sequential'),
+  });
+  const preset = getCaptionPreset(resolved.captionStyle);
+  return {
+    captionStyle: resolved.captionStyle,
+    headingNumbering: resolved.headingNumbering,
+    imageCaptionPrefix: preset.figurePrefix,
+    tableCaptionPrefix: preset.tablePrefix,
+    equationCaptionPrefix: preset.equationPrefix,
+    captionSeparator: preset.separator,
+    tableNumberStyle: preset.tableNumberStyle,
+    equationParens: preset.equationParens,
+    captionNumbering: resolved.captionNumbering,
+    equationNumbering: resolved.equationNumbering,
     exportImagePath: config.get<'relative' | 'absolute'>('export.imagePath', 'relative'),
   };
 }

@@ -14,18 +14,21 @@ import { resolveEditorSettings, resolveSettings, getCaptionPreset } from '../sha
 import type { DocumentSettings, CaptionStyleName, SdocMeta, TiptapNode } from '../shared/types';
 import { isEditorToHostMessage } from '../shared/types/messageGuards';
 import { VsCodeAssetService } from './services/VsCodeAssetService';
-import { VsCodeExportService } from './services/VsCodeExportService';
+import { VsCodeExportService, type ExportFormat } from './services/VsCodeExportService';
 import { RecoverableSerialQueue } from '../shared/persistence/RecoverableSerialQueue';
 import { assertPersistedDocument, parseDocumentContract, readDocumentSettings, validateDocumentSettings } from '../shared/document/documentContract';
 import { dehydrateDocumentAssets } from '../shared/document/runtimeAssets';
+import { runExportAfterFlush } from '../shared/export/runExportAfterFlush';
 
 export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
   private static readonly SDOC_VERSION = '1.0';
+  private static instance: SdocEditorProvider | undefined;
   private readonly assetService = new VsCodeAssetService();
   private readonly exportService: VsCodeExportService;
 
   public static register(context: vscode.ExtensionContext): vscode.Disposable {
     const provider = new SdocEditorProvider(context);
+    SdocEditorProvider.instance = provider;
     const providerRegistration = vscode.window.registerCustomEditorProvider(
       'structuredDocEditor.sdoc',
       provider,
@@ -39,12 +42,23 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     return providerRegistration;
   }
 
+  public static async exportActiveDocument(format: ExportFormat): Promise<void> {
+    const provider = SdocEditorProvider.instance;
+    if (!provider) throw new Error('Structured Doc Editor is not active.');
+    await provider.exportActive(format);
+  }
+
   /** Exact snapshots expected from our own WorkspaceEdit, never a blind event counter. */
   private pendingAppliedTexts = new Map<string, string[]>();
   private pendingFlushResolvers = new Map<string, {
     resolve: () => void;
     reject: (error: Error) => void;
     timer: NodeJS.Timeout;
+  }>();
+  private readonly editorSessions = new Map<string, {
+    document: vscode.TextDocument;
+    panel: vscode.WebviewPanel;
+    sessionId: string;
   }>();
   constructor(private readonly context: vscode.ExtensionContext) {
     this.exportService = new VsCodeExportService(context);
@@ -71,6 +85,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview);
     const sessionId = randomUUID();
     const documentId = document.uri.toString();
+    this.editorSessions.set(documentId, { document, panel: webviewPanel, sessionId });
     let writeBlockedReason: string | undefined;
     let readOnlyWarningShown = false;
 
@@ -218,6 +233,22 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         vscode.window.showErrorMessage(`Document is read-only because it is invalid: ${writeBlockedReason}`);
         return;
       }
+      // Export must stay outside the serial message queue: its flush response is itself
+      // an editor message and would otherwise wait behind the export that is awaiting it.
+      if (message.type === 'export') {
+        void runExportAfterFlush(
+          () => this.flushEditor(webviewPanel.webview, sessionId),
+          () => this.exportService.exportDocument(document, message.format, webviewPanel.webview),
+        ).catch((error: unknown) => {
+          const detail = error instanceof Error ? error.message : String(error);
+          vscode.window.showErrorMessage(`Structured Doc export failed: ${detail}`);
+        });
+        return;
+      }
+      if (message.type === 'flushComplete') {
+        if (message.sessionId === sessionId && message.requestId) this.resolveFlush(message.requestId);
+        return;
+      }
       messageQueue.enqueue(async () => {
         switch (message.type) {
           case 'ready':
@@ -271,9 +302,6 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
               }, 0);
             }
             break;
-          case 'flushComplete':
-            if (message.sessionId === sessionId && message.requestId) this.resolveFlush(message.requestId);
-            break;
           case 'viewJson':
             await this.openJsonView(document);
             break;
@@ -294,9 +322,6 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
             break;
           case 'replaceImage':
             await this.assetService.replaceImage(document, webviewPanel.webview, message.pos);
-            break;
-          case 'export':
-            await this.exportService.exportDocument(document, message.format, webviewPanel.webview);
             break;
           case 'openDocument':
             await this.openLinkedDocument(document, message.path, message.anchor);
@@ -352,21 +377,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     const willSaveSubscription = vscode.workspace.onWillSaveTextDocument((e) => {
       if (e.document.uri.toString() !== document.uri.toString()) return;
 
-      const flushPromise = new Promise<void>((resolve, reject) => {
-        const requestId = randomUUID();
-        const timer = setTimeout(() => {
-          if (this.pendingFlushResolvers.has(requestId)) {
-            const error = new Error('Timed out waiting for the editor to flush its latest content.');
-            this.rejectFlush(requestId, error);
-            vscode.window.showErrorMessage(error.message);
-          }
-        }, 1000);
-        this.pendingFlushResolvers.set(requestId, { resolve, reject, timer });
-        webviewPanel.webview.postMessage({ type: 'requestFlush', sessionId, requestId });
-        // Timeout to prevent hanging saves if webview is unresponsive
-      });
-
-      e.waitUntil(flushPromise);
+      e.waitUntil(this.flushEditor(webviewPanel.webview, sessionId, 1000));
     });
 
     // Handle external document changes
@@ -426,6 +437,9 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
 
     // Cleanup
     webviewPanel.onDidDispose(() => {
+      if (this.editorSessions.get(documentId)?.panel === webviewPanel) {
+        this.editorSessions.delete(documentId);
+      }
       changeDocumentSubscription.dispose();
       willSaveSubscription.dispose();
       drawioWatcher.dispose();
@@ -543,6 +557,43 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     const index = pending.indexOf(text);
     if (index >= 0) pending.splice(index, 1);
     if (pending.length === 0) this.pendingAppliedTexts.delete(key);
+  }
+
+  private async exportActive(format: ExportFormat): Promise<void> {
+    const activeTab = vscode.window.tabGroups.activeTabGroup.activeTab;
+    const input = activeTab?.input;
+    const uri = input instanceof vscode.TabInputCustom || input instanceof vscode.TabInputText
+      ? input.uri
+      : undefined;
+    if (!uri || (!uri.path.endsWith('.sdoc') && !uri.path.endsWith('.tiptap.json'))) {
+      throw new Error('The active tab is not a Structured Doc document.');
+    }
+
+    const key = uri.toString();
+    const session = this.editorSessions.get(key);
+    const document = session?.document
+      ?? vscode.workspace.textDocuments.find((candidate) => candidate.uri.toString() === key)
+      ?? await vscode.workspace.openTextDocument(uri);
+    await runExportAfterFlush(
+      session ? () => this.flushEditor(session.panel.webview, session.sessionId) : undefined,
+      () => this.exportService.exportDocument(document, format, session?.panel.webview),
+    );
+  }
+
+  private flushEditor(webview: vscode.Webview, sessionId: string, timeoutMs = 5000): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      const requestId = randomUUID();
+      const timer = setTimeout(() => {
+        if (!this.pendingFlushResolvers.has(requestId)) return;
+        this.rejectFlush(requestId, new Error('Timed out waiting for the editor to flush its latest content.'));
+      }, timeoutMs);
+      this.pendingFlushResolvers.set(requestId, { resolve, reject, timer });
+      void webview.postMessage({ type: 'requestFlush', sessionId, requestId }).then((delivered) => {
+        if (!delivered) this.rejectFlush(requestId, new Error('The editor is unavailable for export.'));
+      }, (error: unknown) => {
+        this.rejectFlush(requestId, error instanceof Error ? error : new Error(String(error)));
+      });
+    });
   }
 
   /** Resolve any pending flush for this document */

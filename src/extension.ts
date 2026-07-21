@@ -1,13 +1,9 @@
 import * as vscode from 'vscode';
-import * as fs from 'fs';
+import { readFile } from 'fs/promises';
 import * as path from 'path';
 import { SdocEditorProvider } from './SdocEditorProvider';
 import { SdocBookProvider } from './SdocBookProvider';
-import { exportToHtml } from './commands/exportToHtml';
-import { exportToAdoc } from './commands/exportToAdoc';
-import { exportToMarkdown } from './commands/exportToMarkdown';
-import { exportToPdf } from './commands/exportToPdf';
-import { exportToSlides } from './commands/exportToSlides';
+import type { ExportFormat } from './services/VsCodeExportService';
 import { createEmptySdoc } from '../shared/document/sdocUtils';
 
 /**
@@ -16,7 +12,9 @@ import { createEmptySdoc } from '../shared/document/sdocUtils';
 async function showWhatsNewIfNeeded(context: vscode.ExtensionContext): Promise<void> {
   try {
     const packageJsonPath = path.join(context.extensionPath, 'package.json');
-    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+    const packageJson: unknown = JSON.parse(await readFile(packageJsonPath, 'utf-8'));
+    if (!packageJson || typeof packageJson !== 'object' || !('version' in packageJson)
+      || typeof packageJson.version !== 'string') return;
     const currentVersion = packageJson.version;
     const previousVersion = context.globalState.get<string>('sdocEditor.version');
 
@@ -54,7 +52,7 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     vscode.commands.registerCommand(
       'structuredDocEditor.exportToHtml',
-      () => exportToHtml(context)
+      () => dispatchExport('html')
     )
   );
 
@@ -62,7 +60,7 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     vscode.commands.registerCommand(
       'structuredDocEditor.exportToAdoc',
-      () => exportToAdoc(context)
+      () => dispatchExport('adoc')
     )
   );
 
@@ -70,7 +68,7 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     vscode.commands.registerCommand(
       'structuredDocEditor.exportToMarkdown',
-      () => exportToMarkdown(context)
+      () => dispatchExport('markdown')
     )
   );
 
@@ -78,7 +76,7 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     vscode.commands.registerCommand(
       'structuredDocEditor.exportToPdf',
-      () => exportToPdf(context)
+      () => dispatchExport('pdf')
     )
   );
 
@@ -86,10 +84,20 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     vscode.commands.registerCommand(
       'structuredDocEditor.exportToSlides',
-      () => exportToSlides(context)
+      () => dispatchExport('slides')
     )
   );
 
+}
+
+async function dispatchExport(format: ExportFormat): Promise<void> {
+  try {
+    await SdocEditorProvider.exportActiveDocument(format);
+  } catch (error) {
+    await vscode.window.showErrorMessage(
+      `Failed to export: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
 }
 
 async function createNewSdoc(): Promise<void> {
