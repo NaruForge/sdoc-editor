@@ -9,11 +9,11 @@ const SETTINGS_FILE: &str = "settings.json";
 pub struct AppSettings {
     #[serde(default = "default_true")]
     pub heading_decoration: bool,
-    #[serde(default = "default_lg_red")]
+    #[serde(default = "default_primary_color")]
     pub heading_h1_color: String,
-    #[serde(default = "default_lg_red")]
+    #[serde(default = "default_primary_color")]
     pub heading_h2_color: String,
-    #[serde(default = "default_lg_red")]
+    #[serde(default = "default_primary_color")]
     pub heading_h3_color: String,
     #[serde(default = "default_center")]
     pub default_image_alignment: String,
@@ -21,7 +21,7 @@ pub struct AppSettings {
     pub export_image_path: String,
     #[serde(default = "default_company_name")]
     pub theme_company_name: String,
-    #[serde(default = "default_lg_red")]
+    #[serde(default = "default_primary_color")]
     pub theme_primary_color: String,
     #[serde(default = "default_gray")]
     pub theme_accent_color: String,
@@ -41,8 +41,8 @@ pub struct AppSettings {
 fn default_true() -> bool {
     true
 }
-fn default_lg_red() -> String {
-    "#A50034".to_string()
+fn default_primary_color() -> String {
+    "#2563EB".to_string()
 }
 fn default_center() -> String {
     "center".to_string()
@@ -51,7 +51,7 @@ fn default_relative() -> String {
     "relative".to_string()
 }
 fn default_company_name() -> String {
-    "LG Magna e-Powertrain".to_string()
+    "Structured Doc Editor".to_string()
 }
 fn default_gray() -> String {
     "#6b6b6b".to_string()
@@ -100,4 +100,20 @@ pub fn to_editor_settings(settings: &AppSettings) -> serde_json::Value {
         "defaultImageAlignment": settings.default_image_alignment,
         "exportImagePath": settings.export_image_path,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::AppSettings;
+
+    #[test]
+    fn defaults_are_project_neutral() {
+        let settings = AppSettings::default();
+
+        assert_eq!(settings.heading_h1_color, "#2563EB");
+        assert_eq!(settings.heading_h2_color, "#2563EB");
+        assert_eq!(settings.heading_h3_color, "#2563EB");
+        assert_eq!(settings.theme_primary_color, "#2563EB");
+        assert_eq!(settings.theme_company_name, "Structured Doc Editor");
+    }
 }

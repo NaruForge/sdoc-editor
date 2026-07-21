@@ -161,15 +161,25 @@ npm run build:all
 | `npm run check` | 버전, 타입, 린트, 단위 테스트 검사 |
 | `npm run build:all` | VS Code 확장과 Tauri 프런트엔드 빌드 |
 | `npm run package` | `output/`에 VSIX 생성 |
+| `npm run licenses:check` | npm/Cargo 라이선스와 고지 검증(Rust 필요) |
 
 저장소 구조와 의존성 방향은 [아키텍처 문서](docs/architecture.md), 자세한 작업 규칙은 [기여 가이드](CONTRIBUTING.md)를 참고하세요.
 
 > VS Code Marketplace 설명과 GitHub 프로젝트 소개는 이 루트 `README.md`를 함께 사용합니다. `npm run package`가 README를 VSIX의 `extension/readme.md`로 포함하므로 두 문서를 따로 관리하지 않습니다.
 
+## 프로젝트 문서
+
+- [제품 비전과 범위](PRODUCT.md)
+- [아키텍처와 의존성 규칙](docs/architecture.md)
+- [기여 가이드](CONTRIBUTING.md)
+- [보안 취약점 신고](SECURITY.md)
+- [행동 규칙](CODE_OF_CONDUCT.md)
+- [자산과 라이선스 범위](ASSETS.md)
+
 ## 기여하기
 
-버그 제보와 기능 제안은 [GitHub Issues](https://github.com/NaruForge/sdoc-editor/issues)에 남겨 주세요. 코드 기여 전에는 [CONTRIBUTING.md](CONTRIBUTING.md)의 개발 환경, 아키텍처 경계, 검증 절차를 확인해 주세요.
+버그 제보와 기능 제안은 [GitHub Issues](https://github.com/NaruForge/sdoc-editor/issues)에 남겨 주세요. 코드 기여 전에는 [CONTRIBUTING.md](CONTRIBUTING.md)의 개발 환경, 아키텍처 경계, 검증 절차와 기여 권리 조건을 확인해 주세요. 보안 취약점은 공개 이슈로 올리지 말고 [보안 정책](SECURITY.md)을 따라 신고해 주세요.
 
 ## 라이선스
 
-[MIT](LICENSE) © contributor-01
+소스 코드는 기본적으로 [MIT License](LICENSE)로 배포됩니다. 제3자 의존성과 MIT 범위 밖 자산은 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)와 [ASSETS.md](ASSETS.md)를 확인해 주세요.

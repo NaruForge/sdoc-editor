@@ -9,6 +9,12 @@ import type { ExportSettings, SlideSettings, TiptapNode } from '../shared/types'
 import { resolveTauriEditorSettings } from '../tauri-app/src/settingsAdapter';
 
 describe('settings', () => {
+  it('uses host-neutral visual defaults', () => {
+    expect(SETTINGS_DEFAULTS.headingH1Color).toBe('#2563EB');
+    expect(SETTINGS_DEFAULTS.headingH2Color).toBe('#2563EB');
+    expect(SETTINGS_DEFAULTS.headingH3Color).toBe('#2563EB');
+  });
+
   it('merges document settings over external settings and defaults', () => {
     const resolved = resolveSettings(
       { captionStyle: 'korean', pdfScale: undefined },

@@ -4,13 +4,35 @@ updates:
     directory: /
     schedule:
       interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Seoul
+    open-pull-requests-limit: 10
     groups:
       javascript:
         patterns: ["*"]
+    labels: [dependencies, javascript]
   - package-ecosystem: cargo
     directory: /tauri-app
     schedule:
       interval: weekly
+      day: monday
+      time: "09:30"
+      timezone: Asia/Seoul
+    open-pull-requests-limit: 10
     groups:
       rust:
         patterns: ["*"]
+    labels: [dependencies, rust]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "10:00"
+      timezone: Asia/Seoul
+    open-pull-requests-limit: 10
+    groups:
+      github-actions:
+        patterns: ["*"]
+    labels: [dependencies, github-actions]

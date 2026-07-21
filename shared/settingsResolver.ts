@@ -78,9 +78,9 @@ export function toRoman(num: number): string {
 export const SETTINGS_DEFAULTS: Required<DocumentSettings> = {
   headingNumbering: true,
   headingDecoration: true,
-  headingH1Color: '#A50034',
-  headingH2Color: '#A50034',
-  headingH3Color: '#A50034',
+  headingH1Color: '#2563EB',
+  headingH2Color: '#2563EB',
+  headingH3Color: '#2563EB',
   captionStyle: 'modern',
   captionNumbering: 'sequential',
   equationNumbering: 'sequential',

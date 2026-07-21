@@ -2,6 +2,7 @@
 .vscode/**
 .vscode-test/**
 .codex/**
+.agents/**
 src/**
 webview-ui/src/**
 webview-ui/node_modules/**

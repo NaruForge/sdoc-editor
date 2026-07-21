@@ -253,7 +253,7 @@ export class VsCodeExportService {
           const slideEmbeddedFonts = await loadBundledFontsAsBase64(this.context.extensionUri, usedSlideWeights);
           const slideTheme = {
             ...buildHtmlTheme(config, slideLogo, slideFontWeights, slideEmbeddedFonts),
-            primaryColor: config.get<string>('slide.primaryColor') || config.get<string>('theme.primaryColor') || '#A50034',
+            primaryColor: config.get<string>('slide.primaryColor') || config.get<string>('theme.primaryColor') || '#2563EB',
             accentColor: config.get<string>('slide.accentColor') || config.get<string>('theme.accentColor') || '#6b6b6b',
             customStyles: await resolveCustomCss(
               resolved.slideCssPath,

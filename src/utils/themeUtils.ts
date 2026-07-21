@@ -52,7 +52,7 @@ export function buildHtmlTheme(
   return {
     companyLogo,
     companyName: config.get<string>('theme.companyName') || '',
-    primaryColor: config.get<string>('theme.primaryColor') || '#A50034',
+    primaryColor: config.get<string>('theme.primaryColor') || '#2563EB',
     accentColor: config.get<string>('theme.accentColor') || '#6b6b6b',
     fontFamily: config.get<string>('theme.fontFamily') ||
       "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",

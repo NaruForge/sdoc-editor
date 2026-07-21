@@ -1,6 +1,6 @@
 export const TEXT_COLORS = [
   { label: '기본', value: '' },
-  { label: 'Crimson', value: '#A50034' },
+  { label: '파랑 (기본)', value: '#2563EB' },
   { label: '빨강', value: '#ef4444' },
   { label: '주황', value: '#f97316' },
   { label: '노랑', value: '#eab308' },

@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Public security reporting, code of conduct, asset licensing, and contributor rights guidance
+- Reproducible npm/Cargo third-party notices, license-policy checks, and release artifact privacy scanning
+- Structured bug and feature issue forms plus a pull request checklist
+
+### Changed
+- Reframed product documentation for a public open-source audience and removed the obsolete feature-analysis report
+- Clarified that release actions are maintainer-only and that bundled third-party assets require explicit provenance
+- Replaced legacy organization defaults with a neutral application identifier, system fonts, and blue visual defaults
+- Pinned GitHub Actions to immutable commits and expanded Dependabot to npm, Cargo, and workflow dependencies
+- Packaged the portable Windows app with the project license and third-party notices in a ZIP archive
+
+### Removed
+- Unused Draw.io plugin samples with unclear provenance
+
 ## [0.4.14] - 2026-07-21
 
 ### Fixed
@@ -67,7 +82,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.4.11] - 2026-07-20
 
 ### Added
-- Marketplace icon using the LG Active Red and Heritage Red color palette with an original structured-document symbol
+- Marketplace icon using a red gradient palette with an original structured-document symbol
 - Repository-wide `AGENTS.md`, architecture guide, and ADRs for durable contributor guidance
 - GitHub Actions checks, Dependabot configuration, version synchronization, and core document tests
 

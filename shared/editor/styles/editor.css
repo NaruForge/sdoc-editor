@@ -53,9 +53,9 @@ body {
   --table-caption-prefix: '';
   --caption-separator: ' ';
   /* Heading colors (set via JS from VS Code settings). H4~H6은 전용 설정이 없어 H3 색상을 재사용한다. */
-  --heading-h1-color: #A50034;
-  --heading-h2-color: #A50034;
-  --heading-h3-color: #A50034;
+  --heading-h1-color: #2563EB;
+  --heading-h2-color: #2563EB;
+  --heading-h3-color: #2563EB;
   /* Font weight custom properties (set via JS from VS Code settings) */
   --font-weight-body: 400;
   --font-weight-bold: 700;
@@ -93,12 +93,12 @@ body {
 }
 
 .show-numbering.show-heading-decoration .ProseMirror h1 {
-  border-bottom: 2px solid var(--heading-h1-color, #A50034);
+  border-bottom: 2px solid var(--heading-h1-color, #2563EB);
 }
 
 .show-numbering .ProseMirror h1::before {
   content: attr(data-number-label) ". ";
-  color: var(--heading-h1-color, #A50034);
+  color: var(--heading-h1-color, #2563EB);
   margin-right: 0.3em;
 }
 
@@ -114,7 +114,7 @@ body {
 
 .show-numbering .ProseMirror h2::before {
   content: attr(data-number-label) ". ";
-  color: var(--heading-h2-color, #A50034);
+  color: var(--heading-h2-color, #2563EB);
   margin-right: 0.3em;
 }
 
@@ -130,7 +130,7 @@ body {
 
 .show-numbering .ProseMirror h3::before {
   content: attr(data-number-label) ". ";
-  color: var(--heading-h3-color, #A50034);
+  color: var(--heading-h3-color, #2563EB);
   margin-right: 0.3em;
 }
 
@@ -144,7 +144,7 @@ body {
 
 .show-numbering .ProseMirror h4::before {
   content: attr(data-number-label) ". ";
-  color: var(--heading-h3-color, #A50034);
+  color: var(--heading-h3-color, #2563EB);
   margin-right: 0.3em;
 }
 
@@ -158,7 +158,7 @@ body {
 
 .show-numbering .ProseMirror h5::before {
   content: attr(data-number-label) ". ";
-  color: var(--heading-h3-color, #A50034);
+  color: var(--heading-h3-color, #2563EB);
   margin-right: 0.3em;
 }
 
@@ -171,7 +171,7 @@ body {
 
 .show-numbering .ProseMirror h6::before {
   content: attr(data-number-label) ". ";
-  color: var(--heading-h3-color, #A50034);
+  color: var(--heading-h3-color, #2563EB);
   margin-right: 0.3em;
 }
 
@@ -203,7 +203,7 @@ body {
 }
 
 .hide-numbering.show-heading-decoration .ProseMirror h1 {
-  border-bottom: 2px solid var(--heading-h1-color, #A50034);
+  border-bottom: 2px solid var(--heading-h1-color, #2563EB);
 }
 
 .hide-numbering .ProseMirror h2 {
@@ -383,7 +383,7 @@ body {
 .ProseMirror ul[data-type="taskList"] li > label input[type="checkbox"] {
   width: 16px;
   height: 16px;
-  accent-color: #A50034;
+  accent-color: #2563EB;
   cursor: pointer;
 }
 
@@ -1359,7 +1359,7 @@ body {
 /* Link styles */
 .ProseMirror a,
 .ProseMirror .editor-link {
-  color: #A50034;
+  color: #2563EB;
   text-decoration: underline;
   cursor: pointer;
   transition: color 0.2s;
@@ -1367,7 +1367,7 @@ body {
 
 .ProseMirror a:hover,
 .ProseMirror .editor-link:hover {
-  color: #A50034;
+  color: #2563EB;
   text-decoration: underline;
 }
 
@@ -1512,7 +1512,7 @@ body {
 
 /* Internal reference link styling (href starts with #) */
 .ProseMirror a[href^="#"] {
-  color: #A50034;
+  color: #2563EB;
   text-decoration: none;
   cursor: pointer;
 }

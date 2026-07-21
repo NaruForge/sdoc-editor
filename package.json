@@ -150,21 +150,21 @@
         },
         "structuredDocEditor.heading.h1Color": {
           "type": "string",
-          "default": "#A50034",
+          "default": "#2563EB",
           "pattern": "^#[0-9a-fA-F]{3,8}$",
-          "markdownDescription": "H1 heading numbering 및 decoration 색상 (hex 형식). 예: `#A50034` (Crimson), `#333333`, `#569cd6`"
+          "markdownDescription": "H1 heading numbering 및 decoration 색상 (hex 형식). 예: `#2563EB` (Blue), `#333333`, `#569cd6`"
         },
         "structuredDocEditor.heading.h2Color": {
           "type": "string",
-          "default": "#A50034",
+          "default": "#2563EB",
           "pattern": "^#[0-9a-fA-F]{3,8}$",
-          "markdownDescription": "H2 heading numbering 색상 (hex 형식). 예: `#A50034` (Crimson), `#6b6b6b` (Gray)"
+          "markdownDescription": "H2 heading numbering 색상 (hex 형식). 예: `#2563EB` (Blue), `#6b6b6b` (Gray)"
         },
         "structuredDocEditor.heading.h3Color": {
           "type": "string",
-          "default": "#A50034",
+          "default": "#2563EB",
           "pattern": "^#[0-9a-fA-F]{3,8}$",
-          "markdownDescription": "H3 heading numbering 색상 (hex 형식). 예: `#A50034` (Crimson), `#6b6b6b` (Gray)"
+          "markdownDescription": "H3 heading numbering 색상 (hex 형식). 예: `#2563EB` (Blue), `#6b6b6b` (Gray)"
         },
         "structuredDocEditor.image.defaultAlignment": {
           "type": "string",
@@ -228,7 +228,7 @@
         },
         "structuredDocEditor.theme.primaryColor": {
           "type": "string",
-          "default": "#A50034",
+          "default": "#2563EB",
           "description": "Primary color for headings and table headers in HTML export"
         },
         "structuredDocEditor.theme.accentColor": {
@@ -404,6 +404,9 @@
     "test:watch": "vitest",
     "version:check": "node scripts/check-versions.mjs",
     "check": "npm run version:check && npm run validators:check && npm run typecheck && npm run lint && npm test",
+    "licenses:generate": "node scripts/generate-third-party-notices.mjs",
+    "licenses:check": "node scripts/generate-third-party-notices.mjs --check",
+    "release:check-artifacts": "node scripts/check-release-artifacts.mjs",
     "validators:generate": "node scripts/generate-document-validators.mjs",
     "validators:check": "node scripts/generate-document-validators.mjs --check",
     "watch:ext": "node esbuild.mjs --watch",

@@ -10,7 +10,7 @@
     "lint": "eslint src",
     "preview": "vite preview",
     "tauri": "tauri",
-    "tauri:build": "tauri build && node scripts/copy-portable.mjs"
+    "tauri:build": "node scripts/build-native.mjs && node scripts/copy-portable.mjs"
   },
   "dependencies": {
     "@floating-ui/dom": "^1.8.0",

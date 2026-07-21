@@ -12,8 +12,8 @@ jobs:
   javascript:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version-file: .node-version
           cache: npm
@@ -21,7 +21,7 @@ jobs:
       - run: npm run check
       - run: npm run build:all
       - run: npm run package
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: vsix
           path: output/*
@@ -31,14 +31,20 @@ jobs:
     env:
       CARGO_BUILD_JOBS: 1
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@master
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # master
         with:
           toolchain: 1.90.0
           components: rustfmt, clippy
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           workspaces: tauri-app
+      - run: npm ci
+      - run: npm run licenses:check
       - run: cargo fmt --manifest-path tauri-app/Cargo.toml --all -- --check
       - run: cargo clippy --manifest-path tauri-app/Cargo.toml --workspace --all-targets -- -D warnings
       - run: cargo test --manifest-path tauri-app/Cargo.toml --workspace

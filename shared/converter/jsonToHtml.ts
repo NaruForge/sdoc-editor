@@ -390,7 +390,7 @@ function generateScriptTags(settings: ExportSettings): string {
 function generateHtmlDocument(bodyContent: string, theme?: HtmlTheme, meta?: SdocMeta, ctx?: ConvertContext): string {
   const companyLogo = theme?.companyLogo || '';
   const companyName = theme?.companyName || '';
-  const primaryColor = theme?.primaryColor || '#A50034';
+  const primaryColor = theme?.primaryColor || '#2563EB';
   const accentColor = theme?.accentColor || '#6b6b6b';
   const fontFamily = theme?.fontFamily || "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
   const customStyles = theme?.customStyles || '';

@@ -364,7 +364,7 @@ const MERMAID_INIT = `mermaid.initialize({
 });`;
 
 function generateSlideDocument(slideSections: string, theme?: SlideTheme, meta?: SdocMeta, ctx?: ConvertContext): string {
-  const primaryColor = theme?.primaryColor || '#A50034';
+  const primaryColor = theme?.primaryColor || '#2563EB';
   const accentColor = theme?.accentColor || '#6b6b6b';
   const fontFamily = theme?.fontFamily || "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
   const companyLogo = theme?.companyLogo || '';
