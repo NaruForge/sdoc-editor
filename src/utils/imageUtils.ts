@@ -1,6 +1,11 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
+import { realpath } from 'fs/promises';
 import type { TiptapNode } from '../../shared/types';
+import {
+  parseContainedRelativeAssetPath,
+  parsePortableAssetPath,
+} from '../../shared/security/portableAssets';
 
 export const MIME_MAP: Record<string, string> = {
   png: 'image/png',
@@ -23,11 +28,11 @@ export function convertImagePathsToWebviewUris(
   if (cloned.type === 'image') {
     const attrs = cloned.attrs;
     const src = typeof attrs?.src === 'string' ? attrs.src : undefined;
-    if (src?.startsWith('./')) {
-      const imagePath = src.replace('./', '');
-      const imageUri = vscode.Uri.joinPath(documentDir, imagePath);
+    const portable = parsePortableAssetPath(src);
+    if (portable) {
+      const imageUri = vscode.Uri.joinPath(documentDir, portable.directory, ...portable.segments);
       const webviewUri = webview.asWebviewUri(imageUri);
-      cloned.attrs = { ...attrs, src: webviewUri.toString() };
+      cloned.attrs = { ...attrs, src: webviewUri.toString(), relativePath: portable.path };
     }
   }
 
@@ -48,14 +53,24 @@ export function convertWebviewUrisToRelativePaths(
   if (cloned.type === 'image') {
     const attrs = cloned.attrs;
     const src = typeof attrs?.src === 'string' ? attrs.src : undefined;
-    if (src && (src.includes('vscode-webview') || src.includes('vscode-resource'))) {
-      const imageMatch = src.match(/images\/([^?#]+)/);
-      const drawioMatch = src.match(/drawio\/([^?#]+)/);
-      if (imageMatch) {
-        cloned.attrs = { ...attrs, src: `./images/${imageMatch[1]}` };
-      } else if (drawioMatch) {
-        cloned.attrs = { ...attrs, src: `./drawio/${drawioMatch[1]}` };
+    const explicitPath = parsePortableAssetPath(attrs?.relativePath);
+    if (explicitPath) {
+      cloned.attrs = { ...attrs, src: explicitPath.path };
+    } else if (src && (src.includes('vscode-webview') || src.includes('vscode-resource'))) {
+      let recovered: ReturnType<typeof parsePortableAssetPath>;
+      try {
+        const pathname = decodeURIComponent(new URL(src).pathname);
+        const matches = ['/images/', '/drawio/']
+          .map((marker) => ({ marker, index: pathname.lastIndexOf(marker) }))
+          .filter(({ index }) => index >= 0)
+          .sort((left, right) => right.index - left.index);
+        if (matches[0]) {
+          recovered = parsePortableAssetPath(`.${pathname.slice(matches[0].index)}`);
+        }
+      } catch {
+        recovered = undefined;
       }
+      cloned.attrs = { ...attrs, src: recovered?.path ?? '' };
     }
   }
 
@@ -77,18 +92,25 @@ export async function embedImagesAsBase64(
   if (cloned.type === 'image') {
     const attrs = cloned.attrs;
     const src = typeof attrs?.src === 'string' ? attrs.src : undefined;
-    if (src && !src.startsWith('data:') && !src.startsWith('http://') && !src.startsWith('https://')) {
-      try {
-        const imagePath = path.resolve(documentDir, src);
-        const imageUri = vscode.Uri.file(imagePath);
-        const imageData = await vscode.workspace.fs.readFile(imageUri);
-        const base64 = Buffer.from(imageData).toString('base64');
-        const ext = path.extname(src).toLowerCase().replace('.', '');
-        const mime = MIME_MAP[ext] || 'application/octet-stream';
-        cloned.attrs = { ...attrs, src: `data:${mime};base64,${base64}` };
-      } catch {
-        // intentionally ignored: keep original src if file not found
+    const isExternal = src?.startsWith('data:') || src?.startsWith('http://') || src?.startsWith('https://');
+    if (src && !isExternal) {
+      const segments = parseContainedRelativeAssetPath(src);
+      if (!segments || !segments.some((segment) => segment === 'images' || segment === 'drawio')) {
+        throw new Error(`Export blocked unsafe image path: ${src}`);
       }
+      const root = await realpath(path.resolve(documentDir));
+      const imagePath = await realpath(path.resolve(root, ...segments));
+      const relative = path.relative(root, imagePath);
+      if (!relative || path.isAbsolute(relative) || relative === '..' || relative.startsWith(`..${path.sep}`)) {
+        throw new Error(`Export blocked image outside the document root: ${src}`);
+      }
+      const imageUri = vscode.Uri.file(imagePath);
+      const imageData = await vscode.workspace.fs.readFile(imageUri);
+      const base64 = Buffer.from(imageData).toString('base64');
+      const ext = path.extname(src).toLowerCase().replace('.', '');
+      const mime = MIME_MAP[ext];
+      if (!mime) throw new Error(`Export blocked unsupported image type: ${src}`);
+      cloned.attrs = { ...attrs, src: `data:${mime};base64,${base64}` };
     }
   }
 

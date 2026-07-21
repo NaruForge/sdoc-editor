@@ -167,4 +167,38 @@ describe('sdocbook composition', () => {
     expect(result.documents[0].status).toBe('invalid');
     expect(result.diagnostics[0].code).toBe('DOCUMENT_INVALID');
   });
+
+  it('blocks unsafe chapter assets instead of preserving traversal paths', async () => {
+    const result = await composeBook({
+      sdocBook: '1.0',
+      documents: [{ path: './chapters/unsafe.sdoc' }],
+    }, memoryLoader({
+      './chapters/unsafe.sdoc': {
+        type: 'doc',
+        content: [{ type: 'image', attrs: { src: '../../../secret.txt' } }],
+      },
+    }));
+
+    expect(result.diagnostics).toContainEqual(expect.objectContaining({
+      severity: 'error',
+      code: 'ASSET_PATH_OUTSIDE_BOOK',
+    }));
+    expect(result.doc.content?.[0].attrs?.src).toBeUndefined();
+  });
+
+  it('validates complete chapter contracts before composition', async () => {
+    const result = await composeBook({
+      sdocBook: '1.0',
+      documents: [{ path: './invalid.sdoc' }],
+    }, memoryLoader({
+      './invalid.sdoc': {
+        sdoc: '1.0',
+        meta: { title: 42 },
+        doc: { type: 'doc', content: [] },
+      },
+    }));
+
+    expect(result.documents[0].status).toBe('invalid');
+    expect(result.diagnostics[0].code).toBe('DOCUMENT_INVALID');
+  });
 });

@@ -173,7 +173,24 @@ export class SdocBookProvider implements vscode.CustomTextEditorProvider {
     const projectDir = path.dirname(bookDocument.uri.fsPath);
     return {
       load: async (bookPath: string): Promise<unknown> => {
-        const uri = vscode.Uri.file(path.resolve(projectDir, bookPath));
+        const requestedPath = path.resolve(projectDir, bookPath);
+        let canonicalRoot: string;
+        let canonicalTarget: string;
+        try {
+          [canonicalRoot, canonicalTarget] = await Promise.all([
+            fs.promises.realpath(projectDir),
+            fs.promises.realpath(requestedPath),
+          ]);
+        } catch (error) {
+          const code = (error as NodeJS.ErrnoException).code;
+          if (code === 'ENOENT') throw new BookDocumentLoadError('not-found', bookPath);
+          throw new BookDocumentLoadError('read-failed', error instanceof Error ? error.message : String(error));
+        }
+        const relative = path.relative(canonicalRoot, canonicalTarget);
+        if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+          throw new BookDocumentLoadError('read-failed', `Document resolves outside the book root: ${bookPath}`);
+        }
+        const uri = vscode.Uri.file(canonicalTarget);
         const openDocument = vscode.workspace.textDocuments.find(
           (candidate) => candidate.uri.toString() === uri.toString(),
         );

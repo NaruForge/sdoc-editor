@@ -1,4 +1,4 @@
-import { unwrapSdoc } from '../document/sdocUtils';
+import { parseDocumentContract } from '../document/documentContract';
 import type { SdocMeta, TiptapMark, TiptapNode } from '../types';
 import { normalizeBookDocumentPath } from './parseBook';
 import {
@@ -9,15 +9,6 @@ import {
   type ResolvedBookDocument,
   type SdocBook,
 } from './types';
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
-
-const isDocumentValue = (value: unknown): boolean => {
-  if (!isRecord(value)) return false;
-  if (value.type === 'doc') return true;
-  return value.sdoc === '1.0' && isRecord(value.doc) && value.doc.type === 'doc';
-};
 
 const basenameWithoutSdoc = (path: string): string => {
   const name = path.split('/').pop() ?? path;
@@ -46,10 +37,10 @@ function resolveFromDocument(documentPath: string, target: string): string | nul
   return normalizeBookDocumentPath(segments.join('/'));
 }
 
-function rebaseAssetPath(documentPath: string, source: string): string {
+function rebaseAssetPath(documentPath: string, source: string): string | null {
   if (source.startsWith('data:') || source.startsWith('http')) return source;
   const resolved = resolveFromDocument(documentPath, source);
-  return resolved?.replace(/^\.\//, '') ?? source;
+  return resolved?.replace(/^\.\//, '') ?? null;
 }
 
 function collectIds(node: TiptapNode, ids: string[]): void {
@@ -119,7 +110,20 @@ function transformMark(mark: TiptapMark, context: TransformContext): TiptapMark 
 function transformNode(node: TiptapNode, context: TransformContext): TiptapNode {
   let attrs = node.attrs ? { ...node.attrs } : undefined;
   if (node.type === 'image' && typeof attrs?.src === 'string') {
-    attrs = { ...attrs, src: rebaseAssetPath(context.sourcePath, attrs.src) };
+    const rebased = rebaseAssetPath(context.sourcePath, attrs.src);
+    if (rebased === null) {
+      context.diagnostics.push({
+        severity: 'error',
+        code: 'ASSET_PATH_OUTSIDE_BOOK',
+        message: `Asset path escapes the book root: ${attrs.src}`,
+        documentPath: context.sourcePath,
+        nodeId: typeof attrs.id === 'string' ? attrs.id : undefined,
+      });
+      const { src: _unsafeSource, ...safeAttrs } = attrs;
+      attrs = safeAttrs;
+    } else {
+      attrs = { ...attrs, src: rebased };
+    }
   }
   return {
     ...node,
@@ -150,10 +154,12 @@ export async function composeBook(
     };
     try {
       const parsed = parseLoadedDocument(await loader.load(entry.path));
-      if (!isDocumentValue(parsed)) throw new Error('Expected a .sdoc envelope or Tiptap doc root.');
-      const { meta, doc } = unwrapSdoc(parsed);
-      resolved.meta = meta;
-      resolved.doc = doc;
+      const contract = parseDocumentContract(parsed);
+      if (!contract.ok) {
+        throw new Error(contract.diagnostics.map((item) => `${item.path}: ${item.message}`).join('; '));
+      }
+      resolved.meta = contract.envelope.meta;
+      resolved.doc = contract.envelope.doc;
       resolved.status = 'ok';
     } catch (error) {
       const loadError = error instanceof BookDocumentLoadError ? error : null;

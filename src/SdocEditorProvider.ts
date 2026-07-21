@@ -63,7 +63,8 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       localResourceRoots: [
         vscode.Uri.joinPath(this.context.extensionUri, 'dist', 'webview'),
         vscode.Uri.joinPath(this.context.extensionUri, 'media', 'fonts'),
-        documentDir, // Allow access to images in the same directory as .sdoc file
+        vscode.Uri.joinPath(documentDir, 'images'),
+        vscode.Uri.joinPath(documentDir, 'drawio'),
       ],
     };
 
@@ -877,7 +878,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; font-src ${webview.cspSource}; script-src 'nonce-${nonce}' ${webview.cspSource}; img-src ${webview.cspSource} data: https:;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; font-src ${webview.cspSource}; script-src 'nonce-${nonce}' ${webview.cspSource}; img-src ${webview.cspSource} data:;">
   <style>${fontFaces}</style>
   <link href="${styleUri}" rel="stylesheet">
   <title>Structured Doc Editor</title>

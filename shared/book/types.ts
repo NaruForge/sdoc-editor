@@ -26,6 +26,7 @@ export type BookDiagnosticCode =
   | 'DOCUMENT_MISSING'
   | 'DOCUMENT_READ_FAILED'
   | 'DOCUMENT_INVALID'
+  | 'ASSET_PATH_OUTSIDE_BOOK'
   | 'ID_DUPLICATE'
   | 'REFERENCE_BROKEN';
 
@@ -74,4 +75,3 @@ export class BookDocumentLoadError extends Error {
     this.name = 'BookDocumentLoadError';
   }
 }
-
