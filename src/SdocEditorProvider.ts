@@ -16,7 +16,8 @@ import { isEditorToHostMessage } from '../shared/types/messageGuards';
 import { VsCodeAssetService } from './services/VsCodeAssetService';
 import { VsCodeExportService } from './services/VsCodeExportService';
 import { RecoverableSerialQueue } from '../shared/persistence/RecoverableSerialQueue';
-import { parseDocumentContract } from '../shared/document/documentContract';
+import { assertPersistedDocument, parseDocumentContract, readDocumentSettings, validateDocumentSettings } from '../shared/document/documentContract';
+import { dehydrateDocumentAssets } from '../shared/document/runtimeAssets';
 
 export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
   private static readonly SDOC_VERSION = '1.0';
@@ -70,6 +71,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     const sessionId = randomUUID();
     const documentId = document.uri.toString();
     let writeBlockedReason: string | undefined;
+    let readOnlyWarningShown = false;
 
     // Read and send editor settings to webview
     const readVscodeDocDefaults = (): Partial<DocumentSettings> => {
@@ -90,8 +92,8 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     const readDocSettings = (): Partial<DocumentSettings> | undefined => {
       try {
         const text = document.getText();
-        const parsed = text.trim() ? JSON.parse(text) : {};
-        return parsed?.meta?.settings;
+        const parsed: unknown = text.trim() ? JSON.parse(text) : {};
+        return readDocumentSettings(parsed);
       } catch {
         return undefined;
       }
@@ -152,6 +154,12 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         writeBlockedReason = contract.ok
           ? undefined
           : contract.diagnostics.map((item) => `${item.path}: ${item.message}`).join('; ');
+        if (writeBlockedReason && !readOnlyWarningShown) {
+          readOnlyWarningShown = true;
+          vscode.window.showWarningMessage(
+            `Structured Doc opened read-only to protect the original file: ${writeBlockedReason}`,
+          );
+        }
         // Unwrap sdoc envelope → extract doc node
         const { doc, meta } = sharedUnwrapSdoc(parsed);
         // Convert image paths to webview URIs
@@ -190,7 +198,13 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         console.warn('Ignoring malformed Structured Doc editor message', message);
         return;
       }
-      if (writeBlockedReason && ['edit', 'updateMeta', 'updateDocSettings'].includes(message.type)) {
+      const readOnlySafeMessages = new Set([
+        'ready', 'flushComplete', 'viewJson', 'export', 'openDocument', 'browseSdocFiles',
+      ]);
+      if (writeBlockedReason && !readOnlySafeMessages.has(message.type)) {
+        if (message.type === 'edit' && message.flushRequestId) {
+          this.rejectFlush(message.flushRequestId, new Error(writeBlockedReason));
+        }
         vscode.window.showErrorMessage(`Document is read-only because it is invalid: ${writeBlockedReason}`);
         return;
       }
@@ -312,7 +326,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
             if (currentSettings) {
               const { [key]: _removed, ...rest } = currentSettings;
               const newSettings = Object.keys(rest).length > 0 ? rest : null;
-              await this.updateDocSettings(document, webviewPanel, newSettings as Partial<DocumentSettings> | null);
+              await this.updateDocSettings(document, webviewPanel, newSettings);
             }
             break;
           }
@@ -423,7 +437,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     );
 
     // Convert webview URIs back to relative paths before saving
-    const convertedContent = convertWebviewUrisToRelativePaths(content);
+    const convertedContent = dehydrateDocumentAssets(convertWebviewUrisToRelativePaths(content));
 
     // Read existing file to preserve metadata
     const existingText = document.getText();
@@ -452,6 +466,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     const sdocFile: Record<string, unknown> = {
       sdoc: SdocEditorProvider.SDOC_VERSION,
       meta: {
+        ...existingMeta,
         title: existingMeta.title || '',
         author: existingMeta.author || '',
         version: existingMeta.version || '0.1',
@@ -463,6 +478,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       },
       doc: synced,
     };
+    assertPersistedDocument(sdocFile);
 
     // Pretty-print JSON for better git diffs
     const json = JSON.stringify(sdocFile, null, 2);
@@ -624,7 +640,9 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
 
     if (!parsed || typeof parsed !== 'object' || !('sdoc' in parsed)) return;
     const { doc, meta: existingMeta } = sharedUnwrapSdoc(parsed);
-    const json = JSON.stringify(sharedWrapSdoc(doc, { ...existingMeta, ...meta }), null, 2);
+    const nextEnvelope = sharedWrapSdoc(doc, { ...existingMeta, ...meta });
+    assertPersistedDocument(nextEnvelope);
+    const json = JSON.stringify(nextEnvelope, null, 2);
     edit.replace(document.uri, fullRange, json);
 
     await this.applyExpectedEdit(document, edit, json);
@@ -636,6 +654,9 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     webviewPanel: vscode.WebviewPanel,
     settings: Partial<DocumentSettings> | null,
   ): Promise<void> {
+    if (settings !== null && !validateDocumentSettings(settings)) {
+      throw new Error('Document settings violate sdoc.schema.json');
+    }
     const edit = new vscode.WorkspaceEdit();
     const fullRange = new vscode.Range(
       document.positionAt(0),
@@ -655,7 +676,9 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     const nextMeta: SdocMeta = { ...meta };
     if (settings && Object.keys(settings).length > 0) nextMeta.settings = settings;
     else delete nextMeta.settings;
-    const json = JSON.stringify(sharedWrapSdoc(doc, nextMeta), null, 2);
+    const nextEnvelope = sharedWrapSdoc(doc, nextMeta);
+    assertPersistedDocument(nextEnvelope);
+    const json = JSON.stringify(nextEnvelope, null, 2);
     edit.replace(document.uri, fullRange, json);
 
     await this.applyExpectedEdit(document, edit, json);
@@ -890,8 +913,8 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
   private readDocSettings(document: vscode.TextDocument): Partial<DocumentSettings> | null {
     try {
       const text = document.getText();
-      const parsed = text.trim() ? JSON.parse(text) : {};
-      return parsed?.meta?.settings ?? null;
+      const parsed: unknown = text.trim() ? JSON.parse(text) : {};
+      return readDocumentSettings(parsed) ?? null;
     } catch {
       return null;
     }

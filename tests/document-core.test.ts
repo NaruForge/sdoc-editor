@@ -10,7 +10,11 @@ import {
   wrapSdoc,
 } from '../shared/document/sdocUtils';
 import type { TiptapNode } from '../shared/types';
-import { parseDocumentContract } from '../shared/document/documentContract';
+import {
+  assertPersistedDocument,
+  parseDocumentContract,
+  validateDocumentSettings,
+} from '../shared/document/documentContract';
 
 interface ContractFixture {
   legacyMigration: {
@@ -71,6 +75,17 @@ describe('sdoc envelope', () => {
     })).toMatchObject({ ok: false, kind: 'unsupported-version' });
   });
 
+  it('rejects malformed external document settings without casting', () => {
+    expect(validateDocumentSettings({ captionStyle: 'korean', pdfScale: 80 })).toBe(true);
+    expect(validateDocumentSettings({ captionStyle: 'unknown' })).toBe(false);
+    expect(validateDocumentSettings({ headingNumbering: 'yes' })).toBe(false);
+    expect(parseDocumentContract({
+      sdoc: '1.0',
+      meta: { title: 123, settings: { captionStyle: 'unknown' }, review: { status: 'draft' } },
+      doc: { type: 'doc', content: [] },
+    })).toMatchObject({ ok: false, kind: 'malformed' });
+  });
+
   it('preserves schema-valid metadata extensions through round-trip', () => {
     const parsed = parseDocumentContract({
       sdoc: '1.0',
@@ -99,6 +114,10 @@ describe('sdoc envelope', () => {
       caption: 'Architecture',
       align: 'center',
       width: '80%',
+    });
+    const strict = parseDocumentContract(legacy);
+    expect(strict.ok && strict.envelope.doc.content?.[0].attrs).toEqual({
+      caption: 'Architecture', align: 'center', width: '80%',
     });
   });
 
@@ -143,6 +162,24 @@ describe('document structure', () => {
       content: [{ type: 'codeBlock', attrs: { language: 'text' }, content: [{ type: 'text', text: '  a\t \n' }] }],
     });
     expect(normalized.content?.[0].content?.[0].text).toBe('  a\t \n');
+  });
+
+  it('validates persisted editor marks, rules, images, and equations against the schema', () => {
+    const envelope = wrapSdoc(normalizeDocument({
+      type: 'doc',
+      content: [
+        { type: 'paragraph', content: [{
+          type: 'text', text: 'colored', marks: [
+            { type: 'textStyle', attrs: { color: '#123456' } },
+            { type: 'highlight', attrs: { color: '#ffff00' } },
+          ],
+        }] },
+        { type: 'horizontalRule' },
+        { type: 'image', attrs: { src: './images/nested/a.png', id: 'figure-a', width: '80%' } },
+        { type: 'mathBlock', attrs: { latex: 'x=1', id: 'eq-a' } },
+      ],
+    }), {});
+    expect(() => assertPersistedDocument(envelope)).not.toThrow();
   });
   it('assigns stable unique IDs for duplicate headings and numbered blocks', () => {
     const doc = assignAutoIds({
@@ -196,6 +233,7 @@ describe('document structure', () => {
 
     expect(semanticIds(normalized)).toEqual(contract.normalization.expectedIds);
     expect(referenceTexts(normalized)).toEqual(contract.normalization.expectedReferenceTexts);
+    expect(() => assertPersistedDocument(wrapSdoc(normalized, {}))).not.toThrow();
   });
 
   it('assigns persistent ids to nested referenceable nodes in document order', () => {
@@ -210,6 +248,9 @@ describe('document structure', () => {
     expect(doc.content?.[0].attrs?.id).toBe('top');
     expect(doc.content?.[1].content?.[0].attrs?.id).toBe('figure-1');
     expect(doc.content?.[2].attrs?.id).toBe('table-1');
+    expect(queryDocumentStructure(doc).figures).toEqual([
+      { id: 'figure-1', caption: 'Nested', number: 1 },
+    ]);
   });
 
   it('keeps a heading identity and reference when the heading is renamed', () => {

@@ -87,6 +87,7 @@
         { "$ref": "#/definitions/diagramNode" },
         { "$ref": "#/definitions/blockquoteNode" },
         { "$ref": "#/definitions/calloutNode" },
+        { "$ref": "#/definitions/horizontalRuleNode" },
         { "$ref": "#/definitions/hardBreakNode" }
       ]
     },
@@ -293,7 +294,8 @@
           "properties": {
             "colspan": { "type": "integer", "minimum": 1, "default": 1 },
             "rowspan": { "type": "integer", "minimum": 1, "default": 1 },
-            "colwidth": { "type": ["array", "null"], "items": { "type": "integer" } }
+            "colwidth": { "type": ["array", "null"], "items": { "type": "integer" } },
+            "align": { "type": ["string", "null"], "enum": ["left", "center", "right", null] }
           },
           "additionalProperties": false
         },
@@ -315,7 +317,8 @@
           "properties": {
             "colspan": { "type": "integer", "minimum": 1, "default": 1 },
             "rowspan": { "type": "integer", "minimum": 1, "default": 1 },
-            "colwidth": { "type": ["array", "null"], "items": { "type": "integer" } }
+            "colwidth": { "type": ["array", "null"], "items": { "type": "integer" } },
+            "align": { "type": ["string", "null"], "enum": ["left", "center", "right", null] }
           },
           "additionalProperties": false
         },
@@ -340,6 +343,8 @@
             "title": { "type": ["string", "null"], "description": "Image title (tooltip)." },
             "caption": { "type": ["string", "null"], "description": "Image caption text." },
             "align": { "type": "string", "enum": ["left", "center", "right"], "default": "center" },
+            "width": { "type": ["string", "number", "null"] },
+            "height": { "type": ["string", "number", "null"] },
             "id": { "type": ["string", "null"], "description": "Anchor id for cross-references." }
           },
           "additionalProperties": false
@@ -357,7 +362,8 @@
           "type": "object",
           "required": ["latex"],
           "properties": {
-            "latex": { "type": "string", "description": "LaTeX math expression." }
+            "latex": { "type": "string", "description": "LaTeX math expression." },
+            "id": { "type": ["string", "null"], "description": "Anchor id for cross-references." }
           },
           "additionalProperties": false
         }
@@ -405,6 +411,15 @@
       "required": ["type"],
       "properties": {
         "type": { "const": "hardBreak" }
+      },
+      "additionalProperties": false
+    },
+
+    "horizontalRuleNode": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "const": "horizontalRule" }
       },
       "additionalProperties": false
     },
@@ -475,7 +490,8 @@
             "href": { "type": "string" },
             "target": { "type": "string" },
             "rel": { "type": "string" },
-            "class": { "type": "string" }
+            "class": { "type": "string" },
+            "color": { "type": "string" }
           },
           "additionalProperties": false
         }

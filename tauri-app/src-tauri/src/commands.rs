@@ -4,6 +4,7 @@ use crate::settings::*;
 use chrono::Utc;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 
 mod assets;
 mod file_io;
@@ -108,28 +109,66 @@ fn validate_save_request(
 }
 
 fn validate_persisted_document(value: &serde_json::Value) -> Result<(), String> {
-    if value.get("type").and_then(|entry| entry.as_str()) == Some("doc") {
-        return Ok(());
+    fn migrate_legacy_attrs(value: &mut serde_json::Value) {
+        match value {
+            serde_json::Value::Object(map) => {
+                if let Some(attrs) = map.get_mut("attrs").and_then(|entry| entry.as_object_mut()) {
+                    for (legacy, canonical) in [
+                        ("data-caption", "caption"),
+                        ("data-align", "align"),
+                        ("data-width", "width"),
+                    ] {
+                        if let Some(entry) = attrs.remove(legacy) {
+                            attrs.insert(canonical.to_string(), entry);
+                        }
+                    }
+                }
+                for child in map.values_mut() {
+                    migrate_legacy_attrs(child);
+                }
+            }
+            serde_json::Value::Array(values) => {
+                for child in values {
+                    migrate_legacy_attrs(child);
+                }
+            }
+            _ => {}
+        }
     }
-    let version = value
-        .get("sdoc")
-        .and_then(|entry| entry.as_str())
-        .ok_or("Malformed document: missing sdoc version")?;
-    if version != "1.0" {
-        return Err(format!("Unsupported document version: {version}"));
+
+    let mut candidate = if value.get("type").and_then(|entry| entry.as_str()) == Some("doc") {
+        serde_json::json!({ "sdoc": "1.0", "meta": {}, "doc": value })
+    } else {
+        let version = value
+            .get("sdoc")
+            .and_then(|entry| entry.as_str())
+            .ok_or("Malformed document: missing sdoc version")?;
+        if version != "1.0" {
+            return Err(format!("Unsupported document version: {version}"));
+        }
+        let mut candidate = value.clone();
+        if let Some(object) = candidate.as_object_mut() {
+            object
+                .entry("meta".to_string())
+                .or_insert_with(|| serde_json::json!({}));
+        }
+        candidate
+    };
+    migrate_legacy_attrs(&mut candidate);
+    static VALIDATOR: OnceLock<jsonschema::Validator> = OnceLock::new();
+    let validator = VALIDATOR.get_or_init(|| {
+        let schema: serde_json::Value =
+            serde_json::from_str(include_str!("../../../sdoc.schema.json"))
+                .expect("bundled sdoc schema must be valid JSON");
+        jsonschema::validator_for(&schema).expect("bundled sdoc schema must compile")
+    });
+    match validator.validate(&candidate) {
+        Ok(()) => Ok(()),
+        Err(error) => Err(format!(
+            "Malformed document at {}: {}",
+            error.instance_path, error
+        )),
     }
-    if value
-        .get("doc")
-        .and_then(|doc| doc.get("type"))
-        .and_then(|entry| entry.as_str())
-        != Some("doc")
-    {
-        return Err("Malformed document: doc must be a Tiptap doc node".into());
-    }
-    if value.get("meta").is_some_and(|meta| !meta.is_object()) {
-        return Err("Malformed document: meta must be an object".into());
-    }
-    Ok(())
 }
 
 #[tauri::command]
@@ -236,6 +275,8 @@ pub fn save_document(
         .unwrap_or(existing_doc);
 
     let envelope = wrap_sdoc(&meta, &doc);
+    let envelope_value = serde_json::to_value(&envelope).map_err(|e| e.to_string())?;
+    validate_persisted_document(&envelope_value)?;
     let json_str = serde_json::to_string_pretty(&envelope).map_err(|e| e.to_string())?;
     atomic_write(&path, json_str.as_bytes())?;
     *active_revision += 1;
@@ -265,6 +306,7 @@ pub fn new_document(
         created: now.clone(),
         modified: now,
         settings: None,
+        extensions: serde_json::Map::new(),
     };
     let doc = serde_json::json!({
         "type": "doc",
@@ -341,5 +383,36 @@ mod persistence_tests {
         }))
         .unwrap_err()
         .contains("Unsupported"));
+        assert!(validate_persisted_document(&serde_json::json!({
+            "sdoc": "1.0", "meta": { "title": 42 },
+            "doc": { "type": "doc", "content": [] }
+        }))
+        .is_err());
+        assert!(validate_persisted_document(&serde_json::json!({
+            "sdoc": "1.0", "meta": {},
+            "doc": { "type": "doc", "content": [{ "type": "unknownBlock" }] }
+        }))
+        .is_err());
+        assert!(validate_persisted_document(&serde_json::json!({
+            "sdoc": "1.0", "meta": { "title": 42 },
+            "doc": { "type": "doc", "content": [{
+                "type": "image", "attrs": { "src": "images/a.png", "data-caption": "A" }
+            }] }
+        }))
+        .is_err());
+        assert!(validate_persisted_document(&serde_json::json!({
+            "type": "doc", "content": [{ "type": "unknownBlock" }]
+        }))
+        .is_err());
+    }
+
+    #[test]
+    fn validates_legacy_attributes_only_after_exact_migration() {
+        assert!(validate_persisted_document(&serde_json::json!({
+            "type": "doc", "content": [{
+                "type": "image", "attrs": { "src": "images/a.png", "data-caption": "A" }
+            }]
+        }))
+        .is_ok());
     }
 }

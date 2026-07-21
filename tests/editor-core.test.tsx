@@ -10,6 +10,9 @@ import {
   NOOP_EDITOR_EXTENSION_RUNTIME,
   type EditorExtensionRuntime,
 } from '../shared/editor/extensionRuntime';
+import { assertPersistedDocument } from '../shared/document/documentContract';
+import { wrapSdoc } from '../shared/document/sdocUtils';
+import { dehydrateDocumentAssets } from '../shared/document/runtimeAssets';
 
 function createRuntime(): EditorExtensionRuntime {
   return {
@@ -66,6 +69,7 @@ describe('shared editor core', () => {
     expect(roundTripped.content?.map((node) => node.attrs?.id)).toEqual([
       'heading-custom', 'figure-custom', 'table-custom', 'eq-custom',
     ]);
+    expect(() => assertPersistedDocument(wrapSdoc(dehydrateDocumentAssets(roundTripped), {}))).not.toThrow();
   });
 
   it('assigns ids to newly inserted referenceable nodes before host persistence', () => {

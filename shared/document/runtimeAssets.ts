@@ -43,6 +43,8 @@ export function dehydrateDocumentAssets(node: TiptapNode): TiptapNode {
       attrs.src = '';
     }
     delete attrs.relativePath;
+    delete attrs.webviewUri;
+    delete attrs.assetUrl;
   }
 
   return {

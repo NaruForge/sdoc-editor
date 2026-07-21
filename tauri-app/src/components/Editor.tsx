@@ -7,8 +7,9 @@ import { useEditorContext } from '@shared/editor/context/EditorContext';
 import { useTauriMessaging } from '../hooks/useTauriMessaging';
 import { type TauriAdapter, resolveAssetUrl } from '../adapters/tauriMessaging';
 import { convertMarkdownToJson } from '@shared/converter/markdownToJson';
-import { extractTitle, normalizeDocument } from '@shared/document/sdocUtils';
+import { extractTitle, normalizeDocument, wrapSdoc } from '@shared/document/sdocUtils';
 import { dehydrateDocumentAssets, hydrateDocumentAssets } from '@shared/document/runtimeAssets';
+import { assertPersistedDocument } from '@shared/document/documentContract';
 import { Toolbar } from '@shared/editor/components/Toolbar';
 import { BubbleMenuBar } from '@shared/editor/components/BubbleMenuBar';
 import { DocumentHeader } from '@shared/editor/components/DocumentHeader';
@@ -194,6 +195,7 @@ export const Editor: React.FC<EditorProps> = ({
         captionStyle: settings.captionStyle,
         crossRefIncludeCaption: settings.crossRefIncludeCaption,
       });
+      assertPersistedDocument(wrapSdoc(normalized, {}));
       trackSave(postMessageRef.current({
         type: 'edit',
         content: normalized,

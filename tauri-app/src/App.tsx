@@ -7,6 +7,7 @@ import { Editor } from './components/Editor';
 import { createTauriAdapter } from './adapters/tauriMessaging';
 import type { DocumentSettings, SdocMeta, TiptapNode } from '@shared/types';
 import { migrateAttributes } from '@shared/document/sdocUtils';
+import { parseDocumentContract, validateDocumentSettings } from '@shared/document/documentContract';
 import type { EditorSettings } from '@shared/editor/context/EditorContext';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { UndoToast } from './components/UndoToast';
@@ -153,14 +154,19 @@ const AppContent: React.FC = () => {
     try {
       await adapter.flushAndWait();
       const result = await invoke<OpenDocumentResult>('open_document', { path });
+      const contract = parseDocumentContract({ sdoc: '1.0', meta: result.meta, doc: result.doc });
+      if (!contract.ok) {
+        throw new Error(contract.diagnostics.map((item) => `${item.path}: ${item.message}`).join('; '));
+      }
       adapter.setDocumentSession(result.documentId, result.revision);
-      setDoc(migrateAttributes(result.doc));
-      setMeta(result.meta);
+      setDoc(contract.envelope.doc);
+      setMeta(contract.envelope.meta);
       setCurrentPath(result.filePath);
       setView('editor');
 
       const editorSettings = await invoke<Partial<EditorSettings>>('get_editor_settings');
-      const docSettings = result.meta.settings ?? null;
+      const docSettings = validateDocumentSettings(contract.envelope.meta.settings)
+        ? contract.envelope.meta.settings : null;
       dispatch({ type: 'SET_DOC_SETTINGS', payload: docSettings });
       dispatch({ type: 'SET_SETTINGS', payload: { ...editorSettings, ...toEditorSettingsPatch(docSettings) } });
 
@@ -207,7 +213,8 @@ const AppContent: React.FC = () => {
       setView('editor');
 
       const editorSettings = await invoke<Partial<EditorSettings>>('get_editor_settings');
-      dispatch({ type: 'SET_DOC_SETTINGS', payload: result.meta.settings ?? null });
+      const docSettings = validateDocumentSettings(result.meta.settings) ? result.meta.settings : null;
+      dispatch({ type: 'SET_DOC_SETTINGS', payload: docSettings });
       dispatch({ type: 'SET_SETTINGS', payload: editorSettings });
       await loadWorkspace(result.filePath.split(/[\\/]/).slice(0, -1).join('/')).catch((error: unknown) => {
         console.warn('Failed to refresh workspace', error);
@@ -286,7 +293,8 @@ const AppContent: React.FC = () => {
     setCurrentPath(result.filePath);
     setView('editor');
     const editorSettings = await invoke<Partial<EditorSettings>>('get_editor_settings');
-    dispatch({ type: 'SET_DOC_SETTINGS', payload: result.meta.settings ?? null });
+    const docSettings = validateDocumentSettings(result.meta.settings) ? result.meta.settings : null;
+    dispatch({ type: 'SET_DOC_SETTINGS', payload: docSettings });
     dispatch({ type: 'SET_SETTINGS', payload: editorSettings });
     await loadWorkspace(workspaceFolder ?? folder);
   }, [adapter, dispatch, handleSelectFolder, loadWorkspace, workspaceFolder]);

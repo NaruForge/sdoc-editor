@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { convertJsonToMarkdown } from '../shared/converter/jsonToMarkdown';
 import { convertMarkdownToJson } from '../shared/converter/markdownToJson';
 import { resolveSettings, SETTINGS_DEFAULTS, toRoman } from '../shared/settingsResolver';
+import { assertPersistedDocument } from '../shared/document/documentContract';
+import { normalizeDocument, wrapSdoc } from '../shared/document/sdocUtils';
 
 describe('settings', () => {
   it('merges document settings over external settings and defaults', () => {
@@ -24,6 +26,7 @@ describe('markdown conversion', () => {
   it('round-trips headings, paragraphs, and Mermaid diagrams', () => {
     const markdown = '# Architecture\n\nA structured document.\n\n```mermaid\ngraph TD\nA-->B\n```';
     const doc = convertMarkdownToJson(markdown);
+    expect(() => assertPersistedDocument(wrapSdoc(normalizeDocument(doc), {}))).not.toThrow();
     const output = convertJsonToMarkdown(doc);
 
     expect(output).toContain('# Architecture');

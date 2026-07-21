@@ -23,6 +23,8 @@ pub struct SdocMeta {
     pub modified: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub settings: Option<serde_json::Value>,
+    #[serde(flatten)]
+    pub extensions: serde_json::Map<String, serde_json::Value>,
 }
 
 /// Read envelope metadata while preserving document content byte-for-byte at
@@ -99,6 +101,18 @@ mod tests {
                 "equationNumbering": "hierarchical"
             }))
         );
+    }
+
+    #[test]
+    fn envelope_round_trip_preserves_metadata_extensions() {
+        let input = serde_json::json!({
+            "sdoc": "1.0",
+            "meta": { "title": "Extended", "review": { "status": "approved" } },
+            "doc": { "type": "doc", "content": [] }
+        });
+        let (meta, doc) = unwrap_sdoc(&input);
+        let output = serde_json::to_value(wrap_sdoc(&meta, &doc)).unwrap();
+        assert_eq!(output["meta"]["review"]["status"], "approved");
     }
 
     #[test]

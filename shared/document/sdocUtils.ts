@@ -3,6 +3,10 @@
 import { getCaptionPreset, toRoman, type CaptionStyleName } from '../settingsResolver';
 import type { SdocEnvelope, SdocMeta, TiptapMark, TiptapNode } from '../types';
 import { preserveMeta } from './documentContract';
+import { mapDocument, walkDocument } from './walker';
+import { migrateAttributes } from './migrations';
+
+export { migrateAttributes } from './migrations';
 
 export type { SdocEnvelope, SdocMeta } from '../types';
 
@@ -107,29 +111,6 @@ export function cleanTextNodes(node: TiptapNode): TiptapNode {
   return { ...node, content };
 }
 
-export function migrateAttributes(node: TiptapNode): TiptapNode {
-  const attrs = node.attrs ? { ...node.attrs } : undefined;
-  if (attrs) {
-    if ('data-caption' in attrs) {
-      attrs.caption = attrs['data-caption'];
-      delete attrs['data-caption'];
-    }
-    if ('data-align' in attrs) {
-      attrs.align = attrs['data-align'];
-      delete attrs['data-align'];
-    }
-    if ('data-width' in attrs) {
-      attrs.width = attrs['data-width'];
-      delete attrs['data-width'];
-    }
-  }
-  return {
-    ...node,
-    ...(attrs ? { attrs } : {}),
-    ...(node.content ? { content: node.content.map(migrateAttributes) } : {}),
-  };
-}
-
 export function extractTitle(doc: TiptapNode): string {
   const heading = doc.content?.find((node) => node.type === 'heading');
   return heading ? getNodeText(heading) : '';
@@ -157,12 +138,10 @@ const attrString = (node: TiptapNode, key: string): string => stringValue(node.a
 
 export function assignAutoIds(doc: TiptapNode): TiptapNode {
   const reservedExistingIds = new Set<string>();
-  const reserve = (node: TiptapNode): void => {
+  for (const { node } of walkDocument(doc)) {
     const id = attrString(node, 'id');
     if (id) reservedExistingIds.add(id);
-    node.content?.forEach(reserve);
-  };
-  reserve(doc);
+  }
   const assignedIds = new Set<string>();
   const seenExistingIds = new Set<string>();
   let imageCounter = 0;
@@ -194,21 +173,18 @@ export function assignAutoIds(doc: TiptapNode): TiptapNode {
     return candidate;
   };
 
-  const assign = (node: TiptapNode): TiptapNode => {
+  return mapDocument(doc, (node): TiptapNode => {
     let generatedBase: string | undefined;
     if (node.type === 'heading') generatedBase = slugify(getNodeText(node));
     if (node.type === 'image') generatedBase = `figure-${++imageCounter}`;
     if (node.type === 'table') generatedBase = `table-${++tableCounter}`;
     if (node.type === 'mathBlock') generatedBase = `eq-${++equationCounter}`;
-    const content = node.content?.map(assign);
-    if (!generatedBase) return { ...node, ...(content ? { content } : {}) };
+    if (!generatedBase) return node;
 
     const existing = attrString(node, 'id');
     const id = existing ? preserveExistingId(existing) : uniqueGeneratedId(generatedBase);
-    return { ...node, attrs: { ...node.attrs, id }, ...(content ? { content } : {}) };
-  };
-
-  return assign(doc);
+    return { ...node, attrs: { ...node.attrs, id } };
+  });
 }
 
 export function syncCrossReferences(
@@ -228,7 +204,7 @@ export function syncCrossReferences(
   let equationInSection = 0;
   const headings = [0, 0, 0, 0, 0, 0];
 
-  for (const node of doc.content) {
+  for (const { node } of walkDocument(doc)) {
     if (node.type === 'heading') {
       const level = numberValue(node.attrs?.level, 1);
       const numbered = node.attrs?.numbered !== false;
@@ -272,18 +248,15 @@ export function syncCrossReferences(
     }
   }
 
-  const updateReferences = (node: TiptapNode): TiptapNode => {
+  return mapDocument(doc, (node): TiptapNode => {
     const link = node.marks?.find(isInternalLink);
     const href = stringValue(link?.attrs?.href);
     const label = href ? labels.get(href.slice(1)) : undefined;
     return {
       ...node,
       ...(label && node.type === 'text' ? { text: label } : {}),
-      ...(node.content ? { content: node.content.map(updateReferences) } : {}),
     };
-  };
-
-  return updateReferences(doc);
+  });
 }
 
 export interface DocumentNormalizationOptions {
@@ -334,7 +307,7 @@ export function queryDocumentStructure(doc: TiptapNode): QueryResult {
   let tableCount = 0;
   let equationCount = 0;
 
-  for (const node of doc.content) {
+  for (const { node } of walkDocument(doc)) {
     const id = attrString(node, 'id');
     if (id) allIds.add(id);
     if (node.type === 'heading') {
@@ -358,7 +331,7 @@ export function queryDocumentStructure(doc: TiptapNode): QueryResult {
     if (node.type === 'mathBlock') result.equations.push({ id, number: ++equationCount });
   }
 
-  const collectReferences = (node: TiptapNode): void => {
+  for (const { node } of walkDocument(doc)) {
     const link = node.marks?.find(isInternalLink);
     if (link) {
       const href = stringValue(link.attrs?.href);
@@ -368,8 +341,6 @@ export function queryDocumentStructure(doc: TiptapNode): QueryResult {
         targetExists: allIds.has(href.slice(1)),
       });
     }
-    node.content?.forEach(collectReferences);
-  };
-  collectReferences(doc);
+  }
   return result;
 }
