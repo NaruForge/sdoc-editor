@@ -56,6 +56,8 @@ npm run build:all
 
 릴리스가 승인되면 `package.json`, Tauri package, `Cargo.toml`의 버전을 맞추고 `npm run version:check`를 통과시킨 뒤 동일한 `v*` 태그를 사용합니다. `.github/workflows/release-desktop.yml`은 Windows NSIS, MSI와 라이선스 고지를 포함한 portable ZIP을 빌드합니다.
 
+같은 태그로 `.github/workflows/release-vscode.yml`도 실행되어 VSIX를 만든 뒤 Visual Studio Marketplace에 게시합니다. 이 워크플로는 GitHub OIDC와 Microsoft Entra 관리 ID를 사용하며 PAT 또는 장기 보관 클라이언트 비밀을 사용하지 않습니다. 수동 실행은 최초 설정에 필요한 Marketplace 관리 ID 프로필만 확인하고 확장을 게시하지 않습니다.
+
 Rust 백엔드를 변경했다면 다음 검증도 수행합니다.
 
 ```powershell

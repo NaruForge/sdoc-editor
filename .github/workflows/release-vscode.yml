@@ -1,0 +1,111 @@
+name: Publish VS Code Extension
+
+# A manual run only prints the managed identity profile ID used during the
+# one-time Marketplace setup. Publishing is restricted to matching v* tags.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: release-vscode-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  identity-profile:
+    name: Show Marketplace identity profile
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: vscode-marketplace
+
+    steps:
+      - name: Sign in to Azure with GitHub OIDC
+        uses: azure/login@8c334a195cbb38e46038007b304988d888bf676a # v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Get managed identity Marketplace profile ID
+        shell: bash
+        run: |
+          profile_id="$(az rest \
+            --method get \
+            --url 'https://app.vssps.visualstudio.com/_apis/profile/profiles/me' \
+            --resource '499b84ac-1321-427f-aa17-267ca6975798' \
+            --query id \
+            --output tsv)"
+
+          if [[ -z "$profile_id" ]]; then
+            echo 'The Marketplace profile ID was empty.' >&2
+            exit 1
+          fi
+
+          {
+            echo '## Visual Studio Marketplace identity'
+            echo
+            echo 'Add this managed identity resource ID to publisher `contributor-01` as a Contributor:'
+            echo
+            echo "\`$profile_id\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  publish:
+    name: Package and publish VSIX
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: vscode-marketplace
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      - name: Sign in to Azure with GitHub OIDC
+        uses: azure/login@8c334a195cbb38e46038007b304988d888bf676a # v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify package versions are synchronized
+        run: npm run version:check
+
+      - name: Verify tag matches package version
+        shell: pwsh
+        run: |
+          $tag = '${{ github.ref_name }}'
+          $pkg = Get-Content package.json -Raw | ConvertFrom-Json
+          $expected = "v$($pkg.version)"
+          if ($tag -ne $expected) {
+            Write-Error "Git tag '$tag' does not match package.json version '$expected'."
+            exit 1
+          }
+
+      - name: Verify Marketplace authorization
+        run: npx vsce verify-pat swbaek --azure-credential
+
+      - name: Package VSIX
+        run: npm run package
+
+      - name: Inspect release artifact
+        run: npm run release:check-artifacts
+
+      - name: Publish VSIX to Visual Studio Marketplace
+        run: npx vsce publish --azure-credential --packagePath output/structured-doc-editor-*.vsix --skip-duplicate
+
