@@ -11,6 +11,7 @@ import { parseDocumentContract, validateDocumentSettings } from '@shared/documen
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { UndoToast } from './components/UndoToast';
 import { resolveTauriEditorSettings } from './settingsAdapter';
+import { closeTauriApplication, createCloseRequestHandler } from './applicationLifecycle';
 
 type AppView = 'welcome' | 'editor' | 'json';
 
@@ -77,29 +78,34 @@ const AppContent: React.FC = () => {
   }, [workspaceFolder]);
 
   const adapter = useMemo(() => createTauriAdapter(), []);
-  const closeInProgressRef = useRef(false);
+  const closeApplication = useCallback(async () => {
+    const { exit } = await import('@tauri-apps/plugin-process');
+    await closeTauriApplication({
+      flush: () => adapter.flushAndWait(),
+      stopWatchers: () => invoke('stop_file_watcher'),
+      exit: () => exit(0),
+    });
+  }, [adapter]);
 
   useEffect(() => () => adapter.dispose(), [adapter]);
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;
+    let cancelled = false;
+    const handleCloseRequest = createCloseRequestHandler(closeApplication, (error) => {
+      alert(`Unable to close because the document could not be saved: ${String(error)}`);
+    });
     void import('@tauri-apps/api/window').then(async ({ getCurrentWindow }) => {
       const window = getCurrentWindow();
-      unlisten = await window.onCloseRequested(async (event) => {
-        if (closeInProgressRef.current) return;
-        event.preventDefault();
-        closeInProgressRef.current = true;
-        try {
-          await adapter.flushAndWait();
-          await window.destroy();
-        } catch (error: unknown) {
-          closeInProgressRef.current = false;
-          alert(`Unable to close because the document could not be saved: ${String(error)}`);
-        }
-      });
+      const registeredUnlisten = await window.onCloseRequested(handleCloseRequest);
+      if (cancelled) registeredUnlisten();
+      else unlisten = registeredUnlisten;
     });
-    return () => unlisten?.();
-  }, [adapter]);
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, [adapter, closeApplication]);
 
   const loadWorkspace = useCallback(async (folder?: string | null) => {
     const target = folder ?? workspaceFolder;
@@ -203,11 +209,8 @@ const AppContent: React.FC = () => {
   }, [loadDocument]);
 
   const handleExit = useCallback(async () => {
-    await adapter.flushAndWait();
-    await invoke('stop_file_watcher');
-    const { exit } = await import('@tauri-apps/plugin-process');
-    await exit(0);
-  }, [adapter]);
+    await closeApplication();
+  }, [closeApplication]);
 
   const handleSelectFolder = useCallback(async () => {
     try {

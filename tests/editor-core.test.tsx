@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { getSchema } from '@tiptap/core';
 import { EditorState } from '@tiptap/pm/state';
+import type { EditorView } from '@tiptap/pm/view';
 import { PanelEmptyState } from '../shared/editor/components/PanelEmptyState';
 import { createTiptapExtensions } from '../shared/editor/extensions/tiptapExtensions';
 import {
@@ -93,6 +94,34 @@ describe('shared editor core', () => {
 
     const heading = applied.doc.toJSON().content?.find((node) => node.type === 'heading');
     expect(heading?.attrs?.id).toBe('stable-title');
+  });
+
+  it('applies semantic heading numbers during the initial editor render', () => {
+    const runtime = createRuntime();
+    const extensions = createTiptapExtensions(runtime);
+    const schema = getSchema(extensions);
+    const semanticExtension = extensions.find((extension) => extension.name === 'semanticNumbering');
+    const plugins = semanticExtension?.config.addProseMirrorPlugins?.call(semanticExtension) ?? [];
+    const state = EditorState.create({
+      schema,
+      doc: schema.nodeFromJSON({
+        type: 'doc',
+        content: [{
+          type: 'heading',
+          attrs: { level: 1, id: 'first-heading' },
+          content: [{ type: 'text', text: 'First heading' }],
+        }],
+      }),
+    });
+    const heading = { dataset: {} } as HTMLElement;
+    const view = {
+      state,
+      nodeDOM: vi.fn(() => heading),
+    } as unknown as EditorView;
+
+    plugins[0].spec.view?.(view);
+
+    expect(heading.dataset.numberLabel).toBe('1');
   });
 
   it('renders the shared panel empty state without a host environment', () => {

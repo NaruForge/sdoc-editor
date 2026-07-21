@@ -318,33 +318,35 @@ const SemanticNumbering = Extension.create<EditorExtensionOptions>({
   addProseMirrorPlugins() {
     const runtime = this.options.runtime;
     return [new Plugin({
-      view() {
+      view(initialView) {
         let previousDoc: import('@tiptap/pm/model').Node | undefined;
         let previousSettings = '';
+        const applyNumbering = (view: EditorView) => {
+          const settings = runtime.getSettings();
+          const settingsKey = [settings.headingNumbering, settings.captionNumbering,
+            settings.equationNumbering, settings.captionStyle].join('|');
+          if (previousDoc?.eq(view.state.doc) && previousSettings === settingsKey) return;
+          previousDoc = view.state.doc;
+          previousSettings = settingsKey;
+          const numbering = buildNumberingIndex(view.state.doc.toJSON() as TiptapNode, settings);
+          const preset = getCaptionPreset(settings.captionStyle);
+          view.state.doc.descendants((node, pos) => {
+            const id = String(node.attrs.id ?? '');
+            const entry = numbering.byId.get(id);
+            if (!entry) return;
+            const dom = view.nodeDOM(pos) as HTMLElement | null;
+            if (!dom) return;
+            if (entry.kind === 'heading') {
+              dom.dataset.numberLabel = entry.number;
+            } else if (entry.kind === 'figure' || entry.kind === 'table') {
+              const label = dom.querySelector<HTMLElement>('.caption-label');
+              if (label) label.dataset.numberLabel = `${entry.baseLabel}${preset.separator}`;
+            }
+          });
+        };
+        applyNumbering(initialView);
         return {
-          update(view) {
-            const settings = runtime.getSettings();
-            const settingsKey = [settings.headingNumbering, settings.captionNumbering,
-              settings.equationNumbering, settings.captionStyle].join('|');
-            if (previousDoc?.eq(view.state.doc) && previousSettings === settingsKey) return;
-            previousDoc = view.state.doc;
-            previousSettings = settingsKey;
-            const numbering = buildNumberingIndex(view.state.doc.toJSON() as TiptapNode, settings);
-            const preset = getCaptionPreset(settings.captionStyle);
-            view.state.doc.descendants((node, pos) => {
-              const id = String(node.attrs.id ?? '');
-              const entry = numbering.byId.get(id);
-              if (!entry) return;
-              const dom = view.nodeDOM(pos) as HTMLElement | null;
-              if (!dom) return;
-              if (entry.kind === 'heading') {
-                dom.dataset.numberLabel = entry.number;
-              } else if (entry.kind === 'figure' || entry.kind === 'table') {
-                const label = dom.querySelector<HTMLElement>('.caption-label');
-                if (label) label.dataset.numberLabel = `${entry.baseLabel}${preset.separator}`;
-              }
-            });
-          },
+          update: applyNumbering,
         };
       },
     })];
