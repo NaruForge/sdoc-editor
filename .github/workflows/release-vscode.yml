@@ -6,12 +6,6 @@ on:
   push:
     tags:
       - 'v*'
-  workflow_dispatch:
-    inputs:
-      release_tag:
-        description: Existing v* tag to publish during a release retry
-        required: true
-        type: string
 
 permissions:
   contents: read
@@ -31,8 +25,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref }}
 
       - name: Setup Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -56,11 +48,7 @@ jobs:
       - name: Verify tag matches package version
         shell: pwsh
         run: |
-          $tag = if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
-            '${{ inputs.release_tag }}'
-          } else {
-            '${{ github.ref_name }}'
-          }
+          $tag = '${{ github.ref_name }}'
           $pkg = Get-Content package.json -Raw | ConvertFrom-Json
           $expected = "v$($pkg.version)"
           if ($tag -ne $expected) {
