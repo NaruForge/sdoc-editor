@@ -310,6 +310,38 @@ const EquationNumbering = Extension.create<EditorExtensionOptions>({
   },
 });
 
+interface SemanticNumberingState {
+  decorations: DecorationSet;
+  settingsKey: string;
+}
+
+const semanticNumberingKey = new PluginKey<SemanticNumberingState>('semanticNumbering');
+
+const semanticSettingsKey = (settings: ResolvedEditorSettings): string => [
+  settings.headingNumbering,
+  settings.captionNumbering,
+  settings.equationNumbering,
+  settings.captionStyle,
+].join('|');
+
+const buildSemanticNumberingDecorations = (
+  doc: ProseMirrorNode,
+  settings: ResolvedEditorSettings,
+): DecorationSet => {
+  const numbering = buildNumberingIndex(doc.toJSON() as TiptapNode, settings);
+  const decorations: Decoration[] = [];
+  doc.descendants((node, pos) => {
+    if (node.type.name !== 'heading') return;
+    const id = String(node.attrs.id ?? '');
+    const entry = numbering.byId.get(id);
+    if (!entry?.numbered) return;
+    decorations.push(Decoration.node(pos, pos + node.nodeSize, {
+      'data-number-label': entry.number,
+    }));
+  });
+  return DecorationSet.create(doc, decorations);
+};
+
 const SemanticNumbering = Extension.create<EditorExtensionOptions>({
   name: 'semanticNumbering',
   addOptions() {
@@ -318,13 +350,36 @@ const SemanticNumbering = Extension.create<EditorExtensionOptions>({
   addProseMirrorPlugins() {
     const runtime = this.options.runtime;
     return [new Plugin({
+      key: semanticNumberingKey,
+      state: {
+        init(_, state): SemanticNumberingState {
+          const settings = runtime.getSettings();
+          return {
+            decorations: buildSemanticNumberingDecorations(state.doc, settings),
+            settingsKey: semanticSettingsKey(settings),
+          };
+        },
+        apply(transaction, previous, _oldState, newState): SemanticNumberingState {
+          const settings = runtime.getSettings();
+          const settingsKey = semanticSettingsKey(settings);
+          if (!transaction.docChanged && previous.settingsKey === settingsKey) return previous;
+          return {
+            decorations: buildSemanticNumberingDecorations(newState.doc, settings),
+            settingsKey,
+          };
+        },
+      },
+      props: {
+        decorations(state) {
+          return semanticNumberingKey.getState(state)?.decorations ?? null;
+        },
+      },
       view(initialView) {
         let previousDoc: import('@tiptap/pm/model').Node | undefined;
         let previousSettings = '';
         const applyNumbering = (view: EditorView) => {
           const settings = runtime.getSettings();
-          const settingsKey = [settings.headingNumbering, settings.captionNumbering,
-            settings.equationNumbering, settings.captionStyle].join('|');
+          const settingsKey = semanticSettingsKey(settings);
           if (previousDoc?.eq(view.state.doc) && previousSettings === settingsKey) return;
           previousDoc = view.state.doc;
           previousSettings = settingsKey;
@@ -333,15 +388,11 @@ const SemanticNumbering = Extension.create<EditorExtensionOptions>({
           view.state.doc.descendants((node, pos) => {
             const id = String(node.attrs.id ?? '');
             const entry = numbering.byId.get(id);
-            if (!entry) return;
+            if (entry?.kind !== 'figure' && entry?.kind !== 'table') return;
             const dom = view.nodeDOM(pos) as HTMLElement | null;
             if (!dom) return;
-            if (entry.kind === 'heading') {
-              dom.dataset.numberLabel = entry.number;
-            } else if (entry.kind === 'figure' || entry.kind === 'table') {
-              const label = dom.querySelector<HTMLElement>('.caption-label');
-              if (label) label.dataset.numberLabel = `${entry.baseLabel}${preset.separator}`;
-            }
+            const label = dom.querySelector<HTMLElement>('.caption-label');
+            if (label) label.dataset.numberLabel = `${entry.baseLabel}${preset.separator}`;
           });
         };
         applyNumbering(initialView);

@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { getSchema } from '@tiptap/core';
 import { EditorState } from '@tiptap/pm/state';
-import type { EditorView } from '@tiptap/pm/view';
+import type { DecorationSet } from '@tiptap/pm/view';
 import { PanelEmptyState } from '../shared/editor/components/PanelEmptyState';
 import { createTiptapExtensions } from '../shared/editor/extensions/tiptapExtensions';
 import {
@@ -96,7 +96,7 @@ describe('shared editor core', () => {
     expect(heading?.attrs?.id).toBe('stable-title');
   });
 
-  it('applies semantic heading numbers during the initial editor render', () => {
+  it('provides semantic heading numbers as initial node decorations', () => {
     const runtime = createRuntime();
     const extensions = createTiptapExtensions(runtime);
     const schema = getSchema(extensions);
@@ -104,6 +104,7 @@ describe('shared editor core', () => {
     const plugins = semanticExtension?.config.addProseMirrorPlugins?.call(semanticExtension) ?? [];
     const state = EditorState.create({
       schema,
+      plugins,
       doc: schema.nodeFromJSON({
         type: 'doc',
         content: [{
@@ -113,15 +114,11 @@ describe('shared editor core', () => {
         }],
       }),
     });
-    const heading = { dataset: {} } as HTMLElement;
-    const view = {
-      state,
-      nodeDOM: vi.fn(() => heading),
-    } as unknown as EditorView;
+    const decorations = plugins[0].props.decorations?.(state) as DecorationSet | undefined;
+    const headingDecoration = decorations?.find()[0];
+    const attrs = (headingDecoration?.type as { attrs?: Record<string, string> } | undefined)?.attrs;
 
-    plugins[0].spec.view?.(view);
-
-    expect(heading.dataset.numberLabel).toBe('1');
+    expect(attrs?.['data-number-label']).toBe('1');
   });
 
   it('renders the shared panel empty state without a host environment', () => {
