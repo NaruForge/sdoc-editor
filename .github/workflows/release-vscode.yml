@@ -58,6 +58,9 @@ jobs:
             echo "\`$profile_id\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Verify Marketplace Contributor access
+        run: npx --yes @vscode/vsce@3.9.2 verify-pat swbaek --azure-credential
+
   publish:
     name: Package and publish VSIX
     if: startsWith(github.ref, 'refs/tags/v')
