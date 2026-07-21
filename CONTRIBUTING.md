@@ -10,7 +10,7 @@
 
 ## 개발 환경
 
-- Node.js 22.13 이상 (`.node-version` 참고)
+- Node.js 22.22.2 이상 (`.node-version` 참고)
 - npm 10 이상
 - VS Code 1.85 이상
 - 데스크톱/Rust 작업 시 Rust 1.90과 Windows WebView2

@@ -145,7 +145,7 @@ npm run tauri dev --workspace=sdoc-editor-tauri
 
 ## 개발
 
-요구 사항은 Node.js 22.13 이상, npm 10 이상이며 데스크톱 개발에는 Rust 1.90과 WebView2가 추가로 필요합니다.
+요구 사항은 Node.js 22.22.2 이상, npm 10 이상이며 데스크톱 개발에는 Rust 1.90과 WebView2가 추가로 필요합니다.
 
 ```bash
 git clone https://github.com/NaruForge/sdoc-editor.git

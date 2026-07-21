@@ -644,7 +644,7 @@ Dependency count: 745
 | npm | ajv | 8.20.0 | MIT | [source](https://ajv.js.org) |
 | npm | commander | 7.2.0 | MIT | [source](https://github.com/tj/commander.js) |
 | npm | commander | 8.3.0 | MIT | [source](https://github.com/tj/commander.js) |
-| npm | confbox | 0.1.8 | MIT | [source](https://registry.npmjs.org/confbox/-/confbox-0.1.8.tgz) |
+| npm | confbox | 0.1.8 | MIT | [source](https://www.npmjs.com/package/confbox/v/0.1.8) |
 | npm | cose-base | 1.0.3 | MIT | [source](https://github.com/iVis-at-Bilkent/cose-base) |
 | npm | cose-base | 2.2.0 | MIT | [source](https://github.com/iVis-at-Bilkent/cose-base) |
 | npm | csstype | 3.2.3 | MIT | [source](https://github.com/frenic/csstype) |
@@ -689,8 +689,8 @@ Dependency count: 745
 | npm | dagre-d3-es | 7.0.14 | MIT | [source](https://github.com/tbo47/dagre-es) |
 | npm | dayjs | 1.11.20 | MIT | [source](https://github.com/iamkun/dayjs) |
 | npm | delaunator | 5.1.0 | ISC | [source](https://github.com/mapbox/delaunator) |
-| npm | dequal | 2.0.3 | MIT | [source](https://registry.npmjs.org/dequal/-/dequal-2.0.3.tgz) |
-| npm | devlop | 1.1.0 | MIT | [source](https://registry.npmjs.org/devlop/-/devlop-1.1.0.tgz) |
+| npm | dequal | 2.0.3 | MIT | [source](https://www.npmjs.com/package/dequal/v/2.0.3) |
+| npm | devlop | 1.1.0 | MIT | [source](https://www.npmjs.com/package/devlop/v/1.1.0) |
 | npm | dompurify | 3.4.12 | (MPL-2.0 OR Apache-2.0) | [source](https://github.com/cure53/DOMPurify) |
 | npm | es-toolkit | 1.49.0 | MIT | [source](https://github.com/toss/es-toolkit) |
 | npm | fast-deep-equal | 3.1.3 | MIT | [source](https://github.com/epoberezkin/fast-deep-equal) |
@@ -701,7 +701,7 @@ Dependency count: 745
 | npm | iconv-lite | 0.6.3 | MIT | [source](https://github.com/ashtuchkin/iconv-lite) |
 | npm | internmap | 1.0.1 | ISC | [source](https://github.com/mbostock/internmap) |
 | npm | internmap | 2.0.3 | ISC | [source](https://github.com/mbostock/internmap) |
-| npm | js-tokens | 4.0.0 | MIT | [source](https://registry.npmjs.org/js-tokens/-/js-tokens-4.0.0.tgz) |
+| npm | js-tokens | 4.0.0 | MIT | [source](https://www.npmjs.com/package/js-tokens/v/4.0.0) |
 | npm | json-schema-traverse | 1.0.0 | MIT | [source](https://github.com/epoberezkin/json-schema-traverse) |
 | npm | katex | 0.16.47 | MIT | [source](https://github.com/KaTeX/KaTeX) |
 | npm | katex | 0.18.1 | MIT | [source](https://github.com/KaTeX/KaTeX) |
@@ -720,18 +720,18 @@ Dependency count: 745
 | npm | package-manager-detector | 1.6.0 | MIT | [source](https://github.com/antfu-collective/package-manager-detector) |
 | npm | path-data-parser | 0.1.0 | MIT | [source](https://github.com/pshihn/path-data-parser) |
 | npm | pathe | 2.0.3 | MIT | [source](https://www.npmjs.com/package/pathe/v/2.0.3) |
-| npm | pkg-types | 1.3.1 | MIT | [source](https://registry.npmjs.org/pkg-types/-/pkg-types-1.3.1.tgz) |
+| npm | pkg-types | 1.3.1 | MIT | [source](https://www.npmjs.com/package/pkg-types/v/1.3.1) |
 | npm | points-on-curve | 0.2.0 | MIT | [source](https://github.com/pshihn/bezier-points) |
 | npm | points-on-path | 0.2.1 | MIT | [source](https://github.com/pshihn/points-on-path) |
 | npm | prosemirror-changeset | 2.4.1 | MIT | [source](https://code.haverbeke.berlin/prosemirror/prosemirror-changeset) |
-| npm | prosemirror-commands | 1.7.1 | MIT | [source](https://registry.npmjs.org/prosemirror-commands/-/prosemirror-commands-1.7.1.tgz) |
-| npm | prosemirror-dropcursor | 1.8.2 | MIT | [source](https://registry.npmjs.org/prosemirror-dropcursor/-/prosemirror-dropcursor-1.8.2.tgz) |
-| npm | prosemirror-gapcursor | 1.4.1 | MIT | [source](https://registry.npmjs.org/prosemirror-gapcursor/-/prosemirror-gapcursor-1.4.1.tgz) |
-| npm | prosemirror-history | 1.5.0 | MIT | [source](https://registry.npmjs.org/prosemirror-history/-/prosemirror-history-1.5.0.tgz) |
-| npm | prosemirror-inputrules | 1.5.1 | MIT | [source](https://registry.npmjs.org/prosemirror-inputrules/-/prosemirror-inputrules-1.5.1.tgz) |
+| npm | prosemirror-commands | 1.7.1 | MIT | [source](https://www.npmjs.com/package/prosemirror-commands/v/1.7.1) |
+| npm | prosemirror-dropcursor | 1.8.2 | MIT | [source](https://www.npmjs.com/package/prosemirror-dropcursor/v/1.8.2) |
+| npm | prosemirror-gapcursor | 1.4.1 | MIT | [source](https://www.npmjs.com/package/prosemirror-gapcursor/v/1.4.1) |
+| npm | prosemirror-history | 1.5.0 | MIT | [source](https://www.npmjs.com/package/prosemirror-history/v/1.5.0) |
+| npm | prosemirror-inputrules | 1.5.1 | MIT | [source](https://www.npmjs.com/package/prosemirror-inputrules/v/1.5.1) |
 | npm | prosemirror-keymap | 1.2.3 | MIT | [source](https://www.npmjs.com/package/prosemirror-keymap/v/1.2.3) |
 | npm | prosemirror-model | 1.25.11 | MIT | [source](https://code.haverbeke.berlin/prosemirror/prosemirror-model) |
-| npm | prosemirror-schema-list | 1.5.1 | MIT | [source](https://registry.npmjs.org/prosemirror-schema-list/-/prosemirror-schema-list-1.5.1.tgz) |
+| npm | prosemirror-schema-list | 1.5.1 | MIT | [source](https://www.npmjs.com/package/prosemirror-schema-list/v/1.5.1) |
 | npm | prosemirror-state | 1.4.4 | MIT | [source](https://www.npmjs.com/package/prosemirror-state/v/1.4.4) |
 | npm | prosemirror-tables | 1.8.5 | MIT | [source](https://github.com/ProseMirror/prosemirror-tables) |
 | npm | prosemirror-transform | 1.12.0 | MIT | [source](https://www.npmjs.com/package/prosemirror-transform/v/1.12.0) |
@@ -740,7 +740,7 @@ Dependency count: 745
 | npm | react-dom | 19.2.7 | MIT | [source](https://github.com/facebook/react) |
 | npm | react | 18.3.1 | MIT | [source](https://github.com/facebook/react) |
 | npm | react | 19.2.7 | MIT | [source](https://github.com/facebook/react) |
-| npm | require-from-string | 2.0.2 | MIT | [source](https://registry.npmjs.org/require-from-string/-/require-from-string-2.0.2.tgz) |
+| npm | require-from-string | 2.0.2 | MIT | [source](https://www.npmjs.com/package/require-from-string/v/2.0.2) |
 | npm | robust-predicates | 3.0.3 | Unlicense | [source](https://github.com/mourner/robust-predicates) |
 | npm | rope-sequence | 1.3.4 | MIT | [source](https://github.com/marijnh/rope-sequence) |
 | npm | roughjs | 4.6.6 | MIT | [source](https://github.com/pshihn/rough) |
@@ -751,7 +751,7 @@ Dependency count: 745
 | npm | stylis | 4.3.6 | MIT | [source](https://github.com/thysultan/stylis.js) |
 | npm | tinyexec | 1.0.4 | MIT | [source](https://github.com/tinylibs/tinyexec) |
 | npm | ts-dedent | 2.2.0 | MIT | [source](https://github.com/tamino-martinius/node-ts-dedent) |
-| npm | ufo | 1.6.3 | MIT | [source](https://registry.npmjs.org/ufo/-/ufo-1.6.3.tgz) |
+| npm | ufo | 1.6.3 | MIT | [source](https://www.npmjs.com/package/ufo/v/1.6.3) |
 | npm | use-sync-external-store | 1.6.0 | MIT | [source](https://github.com/facebook/react) |
 | npm | uuid | 14.0.1 | MIT | [source](https://github.com/uuidjs/uuid) |
 | npm | w3c-keyname | 2.2.8 | MIT | [source](https://github.com/marijnh/w3c-keyname) |

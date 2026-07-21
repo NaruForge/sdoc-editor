@@ -160,8 +160,7 @@ function collectNpmDependencies() {
           license,
           source: repositoryUrl(metadata.repository)
             || repositoryUrl(metadata.homepage)
-            || repositoryUrl(source)
-            || (/^https:\/\//.test(source) ? source : `https://www.npmjs.com/package/${encodeURIComponent(name)}/v/${version}`),
+            || `https://www.npmjs.com/package/${encodeURIComponent(name)}/v/${version}`,
           noticeFiles: typeof dependency.path === 'string' ? noticeFiles(dependency.path) : [],
         });
       }
