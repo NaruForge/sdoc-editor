@@ -58,6 +58,8 @@ pub struct DocState {
     pub file_path: std::sync::Mutex<Option<PathBuf>>,
     pub document_id: std::sync::Mutex<Option<String>>,
     pub document_revision: std::sync::Mutex<u64>,
+    /// Exact source last opened or written by this process, used to detect external edits.
+    pub document_source_text: std::sync::Mutex<Option<String>>,
     pub current_folder: std::sync::Mutex<Option<PathBuf>>,
     pub settings: std::sync::Mutex<AppSettings>,
     /// Root folder currently being watched by the workspace file watcher (see
@@ -106,6 +108,15 @@ fn validate_save_request(
         return Err(format!(
             "Save rejected: stale revision {revision}; expected {active_revision}"
         ));
+    }
+    Ok(())
+}
+
+fn validate_unchanged_source(expected: Option<&str>, current: &str) -> Result<(), String> {
+    if expected.is_some_and(|source| source != current) {
+        return Err(
+            "Save rejected: the document was modified outside Structured Doc Editor".into(),
+        );
     }
     Ok(())
 }
@@ -193,6 +204,7 @@ pub fn open_document(
     *state.file_path.lock().unwrap() = Some(canonical_path.clone());
     *state.document_id.lock().unwrap() = Some(document_id.clone());
     *state.document_revision.lock().unwrap() = 0;
+    *state.document_source_text.lock().unwrap() = Some(text);
     if let Some(parent) = path.parent() {
         *state.current_folder.lock().unwrap() = Some(parent.to_path_buf());
         remember_recent_folder(&state, parent);
@@ -240,6 +252,8 @@ pub fn save_document(
 
     // Read existing file to get current meta
     let existing_text = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    let expected_source = state.document_source_text.lock().unwrap().clone();
+    validate_unchanged_source(expected_source.as_deref(), &existing_text)?;
     let existing: serde_json::Value =
         serde_json::from_str(&existing_text).map_err(|e| e.to_string())?;
     validate_persisted_document(&existing)?;
@@ -281,6 +295,7 @@ pub fn save_document(
     validate_persisted_document(&envelope_value)?;
     let json_str = serde_json::to_string_pretty(&envelope).map_err(|e| e.to_string())?;
     atomic_write(&path, json_str.as_bytes())?;
+    *state.document_source_text.lock().unwrap() = Some(json_str);
     *active_revision += 1;
 
     Ok(serde_json::json!({
@@ -326,6 +341,7 @@ pub fn new_document(
     *state.file_path.lock().unwrap() = Some(canonical_path.clone());
     *state.document_id.lock().unwrap() = Some(document_id.clone());
     *state.document_revision.lock().unwrap() = 0;
+    *state.document_source_text.lock().unwrap() = Some(json_str);
     if let Some(parent) = path.parent() {
         *state.current_folder.lock().unwrap() = Some(parent.to_path_buf());
         remember_recent_folder(&state, parent);
@@ -363,7 +379,7 @@ pub fn get_current_file_path(state: tauri::State<DocState>) -> Option<String> {
 
 #[cfg(test)]
 mod persistence_tests {
-    use super::{validate_persisted_document, validate_save_request};
+    use super::{validate_persisted_document, validate_save_request, validate_unchanged_source};
 
     #[test]
     fn rejects_a_delayed_save_for_another_document() {
@@ -375,6 +391,14 @@ mod persistence_tests {
     fn rejects_a_stale_revision() {
         let error = validate_save_request(Some("document-a"), 4, "document-a", 3).unwrap_err();
         assert!(error.contains("stale revision"));
+    }
+
+    #[test]
+    fn rejects_an_external_edit_before_overwriting_it() {
+        let error =
+            validate_unchanged_source(Some("opened source"), "externally changed").unwrap_err();
+        assert!(error.contains("modified outside"));
+        assert!(validate_unchanged_source(Some("same"), "same").is_ok());
     }
 
     #[test]

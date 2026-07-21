@@ -45,6 +45,7 @@ pub fn run() {
             file_path: Mutex::new(initial_file),
             document_id: Mutex::new(None),
             document_revision: Mutex::new(0),
+            document_source_text: Mutex::new(None),
             current_folder: Mutex::new(initial_folder),
             settings: Mutex::new(settings),
             workspace_watch_root: Mutex::new(None),

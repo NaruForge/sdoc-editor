@@ -27,6 +27,12 @@ describe('document asset persistence boundary', () => {
     expect(traversal.attrs).toEqual({ src: './images/../secret.txt' });
   });
 
+  it('keeps a document editable when one portable asset cannot be resolved', async () => {
+    const original = { type: 'doc', content: [{ type: 'image', attrs: { src: './images/missing.png' } }] };
+    const hydrated = await hydrateDocumentAssets(original, async () => { throw new Error('missing'); });
+    expect(hydrated).toEqual(original);
+  });
+
   it('persists only a portable relative image path after Tauri hydration', () => {
     const dehydrated = dehydrateDocumentAssets({
       type: 'doc',

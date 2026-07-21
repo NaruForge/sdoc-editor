@@ -16,8 +16,13 @@ export async function hydrateDocumentAssets(
   if (node.type === 'image' && attrs && typeof attrs.src === 'string'
     && isPortableAssetPath(attrs.src)) {
     const relativePath = attrs.src;
-    attrs.src = await resolveAsset(relativePath);
-    attrs.relativePath = relativePath;
+    try {
+      attrs.src = await resolveAsset(relativePath);
+      attrs.relativePath = relativePath;
+    } catch {
+      // A missing asset must not prevent the rest of a valid document from opening.
+      attrs.src = relativePath;
+    }
   }
   return {
     ...node,
