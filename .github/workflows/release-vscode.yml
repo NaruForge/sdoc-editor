@@ -1,13 +1,11 @@
 name: Publish VS Code Extension
 
-# A manual run only prints the managed identity profile ID used during the
-# one-time Marketplace setup. Publishing is restricted to matching v* tags.
+# Package and publish the VS Code extension for matching v* release tags.
 
 on:
   push:
     tags:
       - 'v*'
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -18,52 +16,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  identity-profile:
-    name: Show Marketplace identity profile
-    if: github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    environment: vscode-marketplace
-
-    steps:
-      - name: Sign in to Azure with GitHub OIDC
-        uses: azure/login@8c334a195cbb38e46038007b304988d888bf676a # v2
-        with:
-          client-id: ${{ vars.AZURE_CLIENT_ID }}
-          tenant-id: ${{ vars.AZURE_TENANT_ID }}
-          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Get managed identity Marketplace profile ID
-        shell: bash
-        run: |
-          profile_id="$(az rest \
-            --method get \
-            --url 'https://app.vssps.visualstudio.com/_apis/profile/profiles/me' \
-            --resource '499b84ac-1321-427f-aa17-267ca6975798' \
-            --query id \
-            --output tsv)"
-
-          if [[ -z "$profile_id" ]]; then
-            echo 'The Marketplace profile ID was empty.' >&2
-            exit 1
-          fi
-
-          echo "Marketplace profile ID: $profile_id"
-
-          {
-            echo '## Visual Studio Marketplace identity'
-            echo
-            echo 'Add this managed identity resource ID to publisher `contributor-01` as a Contributor:'
-            echo
-            echo "\`$profile_id\`"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Verify Marketplace Contributor access
-        run: npx --yes @vscode/vsce@3.9.2 verify-pat swbaek --azure-credential
-
   publish:
     name: Package and publish VSIX
-    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: vscode-marketplace
