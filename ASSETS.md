@@ -4,7 +4,7 @@ The root [MIT License](LICENSE) applies to project source code and documentation
 
 ## Project artwork
 
-`media/sdoc-editor-icon.png` is the Structured Doc Editor project icon used by the VS Code package. It is distributed with the project under the root license. Project names and artwork do not grant rights to unrelated third-party trademarks.
+`media/sdoc-editor-icon.png` is the Structured Doc Editor project icon used by the VS Code extension and as the source for the generated Tauri desktop icon set in `tauri-app/src-tauri/icons/`. It is distributed with the project under the root license. Project names and artwork do not grant rights to unrelated third-party trademarks.
 
 Provenance record:
 
@@ -18,11 +18,10 @@ The following legacy assets are present in the source tree pending a separate cl
 
 - `media/legacy-brand-logo.png`
 - `media/fonts/`
-- `tauri-app/src-tauri/icons/` (legacy desktop icon set with incomplete provenance)
 
 These files are **not licensed under the repository's MIT License**. Their presence does not grant permission to copy, modify, redistribute, or use the associated trademarks or typefaces. Downstream distributors must omit them unless they have independently obtained the necessary rights.
 
-The VS Code packaging rules exclude the restricted `media/` paths; only `media/sdoc-editor-icon.png` is included from `media/`. The desktop application does not use the legacy logo or font files, but its current icon set remains a packaging input until the separately planned branding cleanup. Contributors must not add new references to the restricted assets.
+The VS Code packaging rules exclude the restricted `media/` paths; only `media/sdoc-editor-icon.png` is included from `media/`. The desktop icon files are generated derivatives of that project icon and are not restricted legacy assets. The desktop application does not use the legacy logo or font files. Contributors must not add new references to the restricted assets.
 
 ## Bundled open-source fonts
 
