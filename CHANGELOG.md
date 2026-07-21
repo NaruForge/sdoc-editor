@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.16] - 2026-07-22
+
+### Added
+- Secretless Visual Studio Marketplace publishing from `v*` release tags through GitHub OIDC and a Microsoft Entra managed identity
+
+### Changed
+- Aligned the Windows desktop application icon with the VS Code extension branding
+
+### Fixed
+- Rendered heading numbers from the shared semantic numbering index so Tauri no longer displays only the separator dot
+
 ## [0.4.15] - 2026-07-21
 
 ### Added
