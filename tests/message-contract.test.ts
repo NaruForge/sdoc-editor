@@ -5,7 +5,10 @@ describe('editor host message boundary', () => {
   it('accepts valid discriminated messages', () => {
     expect(isEditorToHostMessage({ type: 'edit', content: { type: 'doc', content: [] } })).toBe(true);
     expect(isEditorToHostMessage({ type: 'selectCssFile', target: 'html' })).toBe(true);
-    expect(isHostToEditorMessage({ type: 'drawioFileUpdated', relativePath: './drawio/a.svg', newWebviewUri: 'asset://a' })).toBe(true);
+    expect(isHostToEditorMessage({
+      type: 'drawioFileUpdated', documentId: 'doc-a', generation: 2,
+      relativePath: './drawio/a.drawio.svg', newWebviewUri: 'asset://a',
+    })).toBe(true);
   });
 
   it('rejects unknown and malformed messages', () => {

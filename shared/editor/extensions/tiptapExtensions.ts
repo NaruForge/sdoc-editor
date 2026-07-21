@@ -274,9 +274,21 @@ const EquationNumbering = Extension.create<EditorExtensionOptions>({
       new Plugin({
         key: eqNumberingKey,
         view() {
+          let previousDoc: import('@tiptap/pm/model').Node | undefined;
+          let previousSettings = '';
           return {
             update(view: EditorView) {
-              const map = buildEqNumberMap(view.state.doc, runtime.getSettings());
+              const settings = runtime.getSettings();
+              const settingsKey = JSON.stringify({
+                captionStyle: settings.captionStyle,
+                headingNumbering: settings.headingNumbering,
+                captionNumbering: settings.captionNumbering,
+                equationNumbering: settings.equationNumbering,
+              });
+              if (previousDoc?.eq(view.state.doc) && previousSettings === settingsKey) return;
+              previousDoc = view.state.doc;
+              previousSettings = settingsKey;
+              const map = buildEqNumberMap(view.state.doc, settings);
               view.state.doc.descendants((node, offset) => {
                 if (node.type.name !== 'mathBlock') return;
                 // nodeDOM(offset) directly returns the NodeView's outer DOM element.

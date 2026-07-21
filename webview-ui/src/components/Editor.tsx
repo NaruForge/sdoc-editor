@@ -5,6 +5,7 @@ import { useTiptapEditor } from '@shared/editor/hooks/useTiptapEditor';
 import { useEditorContext } from '@shared/editor/context/EditorContext';
 import { useEditorMessages, type MetaState } from '../hooks/useEditorMessages';
 import { useDialogState } from '@shared/editor/hooks/useDialogState';
+import { applyEditorSettingsCss } from '@shared/editor/applyEditorSettingsCss';
 import { Toolbar } from '@shared/editor/components/Toolbar';
 import { BubbleMenuBar } from '@shared/editor/components/BubbleMenuBar';
 import { DocumentHeader } from '@shared/editor/components/DocumentHeader';
@@ -53,22 +54,7 @@ export const Editor: React.FC = () => {
   useEffect(() => {
     // Apply CSS custom properties for caption prefixes
     const proseMirrorEl = document.querySelector('.ProseMirror') as HTMLElement;
-    if (proseMirrorEl) {
-      proseMirrorEl.style.setProperty('--image-caption-prefix', `'${settings.imageCaptionPrefix}'`);
-      proseMirrorEl.style.setProperty('--table-caption-prefix', `'${settings.tableCaptionPrefix}'`);
-      proseMirrorEl.style.setProperty('--caption-separator', `'${settings.captionSeparator}'`);
-      proseMirrorEl.dataset.tableNumberStyle = settings.tableNumberStyle;
-      proseMirrorEl.style.setProperty('--heading-h1-color', settings.headingH1Color);
-      proseMirrorEl.style.setProperty('--heading-h2-color', settings.headingH2Color);
-      proseMirrorEl.style.setProperty('--heading-h3-color', settings.headingH3Color);
-      proseMirrorEl.style.setProperty('--font-weight-body', String(settings.fontWeightBody));
-      proseMirrorEl.style.setProperty('--font-weight-bold', String(settings.fontWeightBold));
-      proseMirrorEl.style.setProperty('--font-weight-h1', String(settings.fontWeightH1));
-      proseMirrorEl.style.setProperty('--font-weight-h2', String(settings.fontWeightH2));
-      proseMirrorEl.style.setProperty('--font-weight-h3', String(settings.fontWeightH3));
-    }
-    // Set font-weight vars on root so editor-title-input (outside ProseMirror) can inherit them
-    document.documentElement.style.setProperty('--font-weight-h1', String(settings.fontWeightH1));
+    applyEditorSettingsCss(proseMirrorEl, document.documentElement, settings);
 
     // Sync heading numbering toggle with settings
     setShowNumbering(settings.headingNumbering);

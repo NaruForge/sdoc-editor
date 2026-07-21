@@ -15,8 +15,9 @@ import { RecoverableSerialQueue } from '@shared/persistence/RecoverableSerialQue
 
 type SettingsChangedPayload = Partial<ResolvedEditorSettings>;
 interface DrawioFileUpdatedPayload {
+  documentId: string;
+  generation: number;
   relativePath: string;
-  filePath: string;
   timestamp: number;
 }
 interface SavedImageResult {
@@ -58,6 +59,7 @@ export function createTauriAdapter(): TauriAdapter {
   const unlistenFns: UnlistenFn[] = [];
   let disposed = false;
   let session: { documentId: string; revision: number } | null = null;
+  let latestDrawioGeneration = 0;
   let flushHandler: (() => void) | null = null;
   const saveQueue = new RecoverableSerialQueue();
 
@@ -79,14 +81,24 @@ export function createTauriAdapter(): TauriAdapter {
     retainListener(u1);
 
     const u2 = await listen<DrawioFileUpdatedPayload>('drawio-file-updated', (event) => {
-      const assetUrl = convertFileSrc(event.payload.filePath);
-      for (const handler of listeners) {
-        handler({
-          type: 'drawioFileUpdated',
-          relativePath: event.payload.relativePath,
-          newWebviewUri: `${assetUrl}?t=${event.payload.timestamp}`,
-        });
-      }
+      if (!session || event.payload.documentId !== session.documentId) return;
+      if (event.payload.generation < latestDrawioGeneration) return;
+      latestDrawioGeneration = event.payload.generation;
+      void resolveAssetUrl(event.payload.relativePath).then((assetUrl) => {
+        if (!session || event.payload.documentId !== session.documentId
+          || event.payload.generation !== latestDrawioGeneration) return;
+        for (const handler of listeners) {
+          handler({
+            type: 'drawioFileUpdated',
+            documentId: event.payload.documentId,
+            generation: event.payload.generation,
+            relativePath: event.payload.relativePath,
+            newWebviewUri: `${assetUrl}?t=${event.payload.timestamp}`,
+          });
+        }
+      }).catch((error: unknown) => {
+        console.warn('Rejected Draw.io watcher update', error);
+      });
     });
     retainListener(u2);
   };
@@ -97,6 +109,7 @@ export function createTauriAdapter(): TauriAdapter {
     kind: 'tauri',
     setDocumentSession(documentId: string, revision: number) {
       session = { documentId, revision };
+      latestDrawioGeneration = 0;
     },
     setFlushHandler(handler: (() => void) | null) {
       flushHandler = handler;

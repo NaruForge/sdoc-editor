@@ -69,6 +69,8 @@ pub struct DocState {
     /// compares its own snapshot against the current value to detect it has been superseded
     /// by a newer watcher (e.g. after switching folders) and should stop.
     pub workspace_watch_generation: std::sync::atomic::AtomicU64,
+    /// Supersedes the Draw.io watcher whenever the active document changes.
+    pub drawio_watch_generation: std::sync::atomic::AtomicU64,
     /// Stack of recently trashed items (most recent last), used to implement "undo delete".
     /// Only populated on platforms where `trash::os_limited` is available (Windows/Linux);
     /// on macOS this stays empty and undo is unavailable (files are still safely in the

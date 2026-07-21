@@ -49,6 +49,7 @@ pub fn run() {
             settings: Mutex::new(settings),
             workspace_watch_root: Mutex::new(None),
             workspace_watch_generation: std::sync::atomic::AtomicU64::new(0),
+            drawio_watch_generation: std::sync::atomic::AtomicU64::new(0),
             recent_deletions: Mutex::new(Vec::new()),
         })
         .invoke_handler(tauri::generate_handler![
@@ -72,6 +73,7 @@ pub fn run() {
             commands::open_drawio_external,
             commands::copy_drawio_to_doc,
             commands::start_file_watcher,
+            commands::stop_file_watcher,
             commands::start_workspace_watcher,
             commands::get_settings,
             commands::get_editor_settings,

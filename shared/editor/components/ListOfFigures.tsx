@@ -1,9 +1,10 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { Editor as TiptapEditor } from '@tiptap/react';
 import { Image as ImageIcon } from 'lucide-react';
 import { PanelEmptyState } from './PanelEmptyState';
 import { buildNumberingIndex } from '../../document/numbering';
 import type { ResolvedEditorSettings, TiptapNode } from '../../types';
+import { findActivePosition } from '../structureIndex';
 
 interface LofEntry {
   pos: number;
@@ -19,6 +20,7 @@ interface ListOfFiguresProps {
 export const ListOfFigures: React.FC<ListOfFiguresProps> = ({ editor, settings }) => {
   const [entries, setEntries] = useState<LofEntry[]>([]);
   const [activePos, setActivePos] = useState<number>(-1);
+  const entryPositions = useMemo(() => entries.map((entry) => entry.pos), [entries]);
 
   const buildEntries = useCallback(() => {
     if (!editor) return;
@@ -50,21 +52,13 @@ export const ListOfFigures: React.FC<ListOfFiguresProps> = ({ editor, settings }
     if (!editor) return;
     const handler = () => {
       const cursorPos = editor.state.selection.anchor;
-      let bestPos = -1;
-      editor.state.doc.descendants((node, pos) => {
-        if (node.type.name === 'image' && pos <= cursorPos) {
-          bestPos = pos;
-        }
-      });
-      setActivePos(bestPos);
+      setActivePos(findActivePosition(entryPositions, cursorPos));
     };
     editor.on('selectionUpdate', handler);
-    editor.on('transaction', handler);
     return () => {
       editor.off('selectionUpdate', handler);
-      editor.off('transaction', handler);
     };
-  }, [editor]);
+  }, [editor, entryPositions]);
 
   const handleClick = (entry: LofEntry) => {
     if (!editor) return;

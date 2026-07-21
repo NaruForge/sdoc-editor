@@ -22,6 +22,7 @@ import { runExportAfterFlush } from '../shared/export/runExportAfterFlush';
 
 export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
   private static readonly SDOC_VERSION = '1.0';
+  private static watcherGeneration = 0;
   private static instance: SdocEditorProvider | undefined;
   private readonly assetService = new VsCodeAssetService();
   private readonly exportService: VsCodeExportService;
@@ -412,17 +413,21 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       new vscode.RelativePattern(documentDir, 'drawio/**/*.drawio.svg')
     );
 
+    const drawioGeneration = ++SdocEditorProvider.watcherGeneration;
+    const pendingDrawioEvents = new Map<string, NodeJS.Timeout>();
     const notifyDrawioUpdated = (uri: vscode.Uri) => {
-      const fileName = uri.path.split('/').pop()!;
-      const relativePath = `./drawio/${fileName}`;
-      const webviewUri = webviewPanel.webview.asWebviewUri(uri);
+      const relativePath = `./${path.relative(documentDir.fsPath, uri.fsPath).replace(/\\/g, '/')}`;
+      const previous = pendingDrawioEvents.get(relativePath);
+      if (previous) clearTimeout(previous);
       // 캐시 버스팅: 타임스탬프를 쿼리 파라미터로 추가
-      const cacheBustedUri = `${webviewUri.toString()}?t=${Date.now()}`;
-      webviewPanel.webview.postMessage({
-        type: 'drawioFileUpdated',
-        relativePath,
-        newWebviewUri: cacheBustedUri,
-      });
+      pendingDrawioEvents.set(relativePath, setTimeout(() => {
+        pendingDrawioEvents.delete(relativePath);
+        const webviewUri = webviewPanel.webview.asWebviewUri(uri);
+        void webviewPanel.webview.postMessage({
+          type: 'drawioFileUpdated', documentId, generation: drawioGeneration, relativePath,
+          newWebviewUri: `${webviewUri.toString()}?t=${Date.now()}`,
+        });
+      }, 150));
     };
 
     drawioWatcher.onDidChange(notifyDrawioUpdated);
@@ -443,6 +448,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       changeDocumentSubscription.dispose();
       willSaveSubscription.dispose();
       drawioWatcher.dispose();
+      pendingDrawioEvents.forEach((timer) => clearTimeout(timer));
       settingsSubscription.dispose();
       this.pendingAppliedTexts.delete(document.uri.toString());
       for (const [requestId, pending] of this.pendingFlushResolvers) {

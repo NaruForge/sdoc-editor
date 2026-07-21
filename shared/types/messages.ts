@@ -140,6 +140,8 @@ export interface ImageReplacedMessage {
 
 export interface DrawioFileUpdatedMessage {
   type: 'drawioFileUpdated';
+  documentId: string;
+  generation: number;
   relativePath: string;
   newWebviewUri: string;
 }

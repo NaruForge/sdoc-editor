@@ -91,7 +91,8 @@ export function isHostToEditorMessage(value: unknown): value is HostToEditorMess
     case 'imageReplaced':
       return hasNumber(value, 'pos') && hasString(value, 'imagePath') && hasString(value, 'webviewUri') && hasString(value, 'fileName');
     case 'drawioFileUpdated':
-      return hasString(value, 'relativePath') && hasString(value, 'newWebviewUri');
+      return hasString(value, 'documentId') && hasNumber(value, 'generation')
+        && hasString(value, 'relativePath') && hasString(value, 'newWebviewUri');
     case 'exportStarted':
       return ['html', 'adoc', 'markdown', 'pdf', 'slides'].includes(String(value.format));
     case 'sdocFileBrowseResult':

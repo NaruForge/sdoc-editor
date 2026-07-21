@@ -184,6 +184,7 @@ const AppContent: React.FC = () => {
       const docSettings = validateDocumentSettings(result.meta.settings) ? result.meta.settings : null;
       dispatch({ type: 'SET_DOC_SETTINGS', payload: docSettings });
       dispatch({ type: 'SET_SETTINGS', payload: resolveTauriEditorSettings(nativeSettings, docSettings) });
+      await invoke('start_file_watcher');
       await loadWorkspace(result.filePath.split(/[\\/]/).slice(0, -1).join('/')).catch((error: unknown) => {
         console.warn('Failed to refresh workspace', error);
       });
@@ -203,6 +204,7 @@ const AppContent: React.FC = () => {
 
   const handleExit = useCallback(async () => {
     await adapter.flushAndWait();
+    await invoke('stop_file_watcher');
     const { exit } = await import('@tauri-apps/plugin-process');
     await exit(0);
   }, [adapter]);
@@ -264,6 +266,7 @@ const AppContent: React.FC = () => {
     const docSettings = validateDocumentSettings(result.meta.settings) ? result.meta.settings : null;
     dispatch({ type: 'SET_DOC_SETTINGS', payload: docSettings });
     dispatch({ type: 'SET_SETTINGS', payload: resolveTauriEditorSettings(nativeSettings, docSettings) });
+    await invoke('start_file_watcher');
     await loadWorkspace(workspaceFolder ?? folder);
   }, [adapter, dispatch, handleSelectFolder, loadWorkspace, workspaceFolder]);
 

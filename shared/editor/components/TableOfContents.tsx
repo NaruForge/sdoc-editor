@@ -1,9 +1,10 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { ChevronRight, ChevronDown, BookOpen } from 'lucide-react';
 import { Editor as TiptapEditor } from '@tiptap/react';
 import { PanelEmptyState } from './PanelEmptyState';
 import { buildNumberingIndex } from '../../document/numbering';
 import type { ResolvedEditorSettings, TiptapNode } from '../../types';
+import { findActivePosition } from '../structureIndex';
 
 interface TocEntry {
   level: number;
@@ -55,6 +56,7 @@ export const TableOfContents: React.FC<TableOfContentsProps> = ({ editor, showNu
   const [entries, setEntries] = useState<TocEntry[]>([]);
   const [activePos, setActivePos] = useState<number>(-1);
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
+  const entryPositions = useMemo(() => entries.map((entry) => entry.pos), [entries]);
 
   const toggleCollapse = (pos: number) => {
     setCollapsed(prev => {
@@ -100,22 +102,13 @@ export const TableOfContents: React.FC<TableOfContentsProps> = ({ editor, showNu
     const handler = () => {
       const cursorPos = editor.state.selection.anchor;
       // Find the heading whose pos range contains the cursor
-      const doc = editor.state.doc;
-      let bestPos = -1;
-      doc.forEach((node, pos) => {
-        if (node.type.name === 'heading') {
-          if (pos <= cursorPos) bestPos = pos;
-        }
-      });
-      setActivePos(bestPos);
+      setActivePos(findActivePosition(entryPositions, cursorPos));
     };
     editor.on('selectionUpdate', handler);
-    editor.on('transaction', handler);
     return () => {
       editor.off('selectionUpdate', handler);
-      editor.off('transaction', handler);
     };
-  }, [editor]);
+  }, [editor, entryPositions]);
 
   const handleClick = (entry: TocEntry) => {
     if (!editor) return;

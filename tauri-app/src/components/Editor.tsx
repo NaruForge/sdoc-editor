@@ -3,6 +3,9 @@ import { invoke } from '@tauri-apps/api/core';
 import { useEditorDomEvents } from '@shared/editor/hooks/useEditorDomEvents';
 import { EditorContent } from '@tiptap/react';
 import { useTiptapEditor } from '@shared/editor/hooks/useTiptapEditor';
+import { applyEditorSettingsCss } from '@shared/editor/applyEditorSettingsCss';
+import { isUpdatedDrawioAsset } from '@shared/editor/drawioUpdates';
+import { useDialogState } from '@shared/editor/hooks/useDialogState';
 import { useEditorContext } from '@shared/editor/context/EditorContext';
 import { useTauriMessaging } from '../hooks/useTauriMessaging';
 import { type TauriAdapter, resolveAssetUrl } from '../adapters/tauriMessaging';
@@ -125,17 +128,25 @@ export const Editor: React.FC<EditorProps> = ({
   });
   const zoomRef = useRef(zoom);
   useEffect(() => { zoomRef.current = zoom; }, [zoom]);
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
-  const [showTableProperties, setShowTableProperties] = useState(false);
-  const [pendingImage, setPendingImage] = useState<{ blob: Blob; dataUrl: string } | null>(null);
-  const [showDrawioActionDialog, setShowDrawioActionDialog] = useState(false);
-  const [showDrawioDialog, setShowDrawioDialog] = useState(false);
+  const { dialogs, dialogDispatch } = useDialogState();
+  const {
+    contextMenu, editorContextMenu, showTableProperties, pendingImage,
+    showDrawioActionDialog, showDrawioDialog, showLinkDialog, imageProperties,
+    imageContextMenu, mathDialog, diagramDialog, showCrossRefDialog,
+  } = dialogs;
+  const setContextMenu = (payload: typeof contextMenu) => dialogDispatch({ type: payload ? 'OPEN_TABLE_CONTEXT_MENU' : 'CLOSE_TABLE_CONTEXT_MENU', ...(payload ? { payload } : {}) } as Parameters<typeof dialogDispatch>[0]);
+  const setEditorContextMenu = (payload: typeof editorContextMenu) => dialogDispatch({ type: payload ? 'OPEN_EDITOR_CONTEXT_MENU' : 'CLOSE_EDITOR_CONTEXT_MENU', ...(payload ? { payload } : {}) } as Parameters<typeof dialogDispatch>[0]);
+  const setShowTableProperties = (open: boolean) => dialogDispatch({ type: open ? 'OPEN_TABLE_PROPERTIES' : 'CLOSE_TABLE_PROPERTIES' });
+  const setPendingImage = useCallback((payload: typeof pendingImage) => dialogDispatch({ type: 'SET_PENDING_IMAGE', payload }), [dialogDispatch]);
+  const setShowDrawioActionDialog = (open: boolean) => dialogDispatch({ type: open ? 'OPEN_DRAWIO_ACTION_DIALOG' : 'CLOSE_DRAWIO_ACTION_DIALOG' });
+  const setShowDrawioDialog = (open: boolean) => dialogDispatch({ type: open ? 'OPEN_DRAWIO_DIALOG' : 'CLOSE_DRAWIO_DIALOG' });
+  const setShowLinkDialog = (open: boolean) => dialogDispatch({ type: open ? 'OPEN_LINK_DIALOG' : 'CLOSE_LINK_DIALOG' });
+  const setImageProperties = (payload: typeof imageProperties) => dialogDispatch({ type: 'SET_IMAGE_PROPERTIES', payload });
+  const setImageContextMenu = useCallback((payload: typeof imageContextMenu) => dialogDispatch({ type: 'SET_IMAGE_CONTEXT_MENU', payload }), [dialogDispatch]);
+  const setMathDialog = useCallback((payload: typeof mathDialog) => dialogDispatch({ type: 'SET_MATH_DIALOG', payload }), [dialogDispatch]);
+  const setDiagramDialog = useCallback((payload: typeof diagramDialog) => dialogDispatch({ type: 'SET_DIAGRAM_DIALOG', payload }), [dialogDispatch]);
+  const setShowCrossRefDialog = (open: boolean) => dialogDispatch({ type: open ? 'OPEN_CROSSREF_DIALOG' : 'CLOSE_CROSSREF_DIALOG' });
   const [showDrawioInstallGuide, setShowDrawioInstallGuide] = useState(false);
-  const [showLinkDialog, setShowLinkDialog] = useState(false);
-  const [imageProperties, setImageProperties] = useState<{ pos: number; src: string; alt: string; align: string; isDrawio: boolean; path?: string } | null>(null);
-  const [imageContextMenu, setImageContextMenu] = useState<{ x: number; y: number; pos: number; src: string; isDrawio: boolean } | null>(null);
-  const [mathDialog, setMathDialog] = useState<{ latex: string; isBlock: boolean; pos: number | null } | null>(null);
-  const [diagramDialog, setDiagramDialog] = useState<{ code: string; language: string; pos: number | null } | null>(null);
   const [meta, setMeta] = useState<{ title: string; author: string; version: string; created: string; modified: string }>(
     {
       title: initialMeta?.title ?? '',
@@ -145,8 +156,6 @@ export const Editor: React.FC<EditorProps> = ({
       modified: initialMeta?.modified ?? '',
     }
   );
-  const [editorContextMenu, setEditorContextMenu] = useState<{ x: number; y: number } | null>(null);
-  const [showCrossRefDialog, setShowCrossRefDialog] = useState(false);
   const initDoneRef = useRef(false);
   const postMessageRef = useRef<(msg: EditorToHostMessage) => Promise<void>>(() => Promise.resolve());
   const settings = state.settings;
@@ -172,7 +181,7 @@ export const Editor: React.FC<EditorProps> = ({
     },
     openMathDialog: (latex: string, isBlock: boolean, pos: number) => setMathDialog({ latex, isBlock, pos }),
     openDiagramDialog: (code: string, language: string, pos: number) => setDiagramDialog({ code, language, pos }),
-  }), []);
+  }), [setDiagramDialog, setImageContextMenu, setMathDialog]);
 
   const trackSave = useCallback((savePromise: Promise<void>) => {
     setSaveStatus('saving');
@@ -215,16 +224,7 @@ export const Editor: React.FC<EditorProps> = ({
 
   useEffect(() => {
     const proseMirrorEl = document.querySelector('.ProseMirror') as HTMLElement;
-    if (proseMirrorEl) {
-      proseMirrorEl.style.setProperty('--image-caption-prefix', `'${settings.imageCaptionPrefix}'`);
-      proseMirrorEl.style.setProperty('--table-caption-prefix', `'${settings.tableCaptionPrefix}'`);
-      proseMirrorEl.style.setProperty('--caption-separator', `'${settings.captionSeparator}'`);
-      proseMirrorEl.dataset.tableNumberStyle = settings.tableNumberStyle;
-      proseMirrorEl.style.setProperty('--heading-h1-color', settings.headingH1Color);
-      proseMirrorEl.style.setProperty('--heading-h2-color', settings.headingH2Color);
-      proseMirrorEl.style.setProperty('--heading-h3-color', settings.headingH3Color);
-    }
-    document.documentElement.style.setProperty('--font-weight-h1', '700');
+    applyEditorSettingsCss(proseMirrorEl, document.documentElement, settings);
     setShowNumbering(settings.headingNumbering);
   }, [settings]);
 
@@ -286,10 +286,9 @@ export const Editor: React.FC<EditorProps> = ({
         break;
       case 'drawioFileUpdated':
         if (editor && message.relativePath) {
-          const fileName = message.relativePath.split('/').pop()!;
           editor.chain().command(({ tr }) => {
             tr.doc.descendants((node, pos) => {
-              if (node.type.name === 'image' && node.attrs.src?.includes(fileName)) {
+              if (node.type.name === 'image' && isUpdatedDrawioAsset(node.attrs.relativePath, message.relativePath)) {
                 tr.setNodeMarkup(pos, undefined, { ...node.attrs, src: message.newWebviewUri });
               }
             });
@@ -394,7 +393,7 @@ export const Editor: React.FC<EditorProps> = ({
         break;
       }
     }
-  }, []);
+  }, [setPendingImage]);
   const handleImageNameConfirm = async (name: string) => {
     if (!pendingImage) return;
     const reader = new FileReader();

@@ -3,6 +3,7 @@ import { Editor as TiptapEditor, type JSONContent } from '@tiptap/react';
 import { useEditorContext, resolveFontWeight } from '@shared/editor/context/EditorContext';
 import { useVSCodeMessaging } from './useVSCodeMessaging';
 import { preprocessImportedHtml } from '@shared/editor/utils/preprocessImportedHtml';
+import { isUpdatedDrawioAsset } from '@shared/editor/drawioUpdates';
 
 export interface MetaState {
   title: string;
@@ -153,14 +154,10 @@ export function useEditorMessages({
         break;
       case 'drawioFileUpdated':
         if (ed && message.relativePath && message.newWebviewUri) {
-          const fileName = (message.relativePath as string).split('/').pop()!;
           ed.chain().command(({ tr }) => {
             tr.doc.descendants((node, pos) => {
-              if (node.type.name === 'image' && node.attrs.src) {
-                const src: string = node.attrs.src;
-                if (src.includes(fileName)) {
-                  tr.setNodeMarkup(pos, undefined, { ...node.attrs, src: message.newWebviewUri });
-                }
+              if (node.type.name === 'image' && isUpdatedDrawioAsset(node.attrs.relativePath, message.relativePath)) {
+                tr.setNodeMarkup(pos, undefined, { ...node.attrs, src: message.newWebviewUri });
               }
             });
             return true;

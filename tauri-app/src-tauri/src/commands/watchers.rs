@@ -3,54 +3,207 @@ use std::path::PathBuf;
 use tauri::{AppHandle, Emitter, Manager};
 
 #[tauri::command]
+pub fn stop_file_watcher(state: tauri::State<DocState>) -> Result<(), String> {
+    state
+        .drawio_watch_generation
+        .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    Ok(())
+}
+
+#[tauri::command]
 pub fn start_file_watcher(state: tauri::State<DocState>, app: AppHandle) -> Result<(), String> {
     let file_path = state.file_path.lock().unwrap().clone();
     let doc_path = file_path.ok_or("No file open")?;
     let doc_dir = doc_path.parent().ok_or("Invalid path")?.to_path_buf();
-    let drawio_dir = doc_dir.join("drawio");
-
-    if !drawio_dir.exists() {
-        return Ok(()); // No drawio directory, nothing to watch
-    }
+    let document_id = state
+        .document_id
+        .lock()
+        .unwrap()
+        .clone()
+        .ok_or("No document identity")?;
+    let generation = state
+        .drawio_watch_generation
+        .fetch_add(1, std::sync::atomic::Ordering::SeqCst)
+        + 1;
 
     std::thread::spawn(move || {
         use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
-        use std::sync::mpsc;
+        use std::collections::HashMap;
+        use std::sync::atomic::Ordering;
+        use std::sync::mpsc::{self, RecvTimeoutError};
+        use std::time::{Duration, Instant};
 
         let (tx, rx) = mpsc::channel::<notify::Result<Event>>();
-        let mut watcher = RecommendedWatcher::new(tx, Config::default()).unwrap();
-        watcher.watch(&drawio_dir, RecursiveMode::Recursive).ok();
-
-        for event in rx.into_iter().flatten() {
-            match event.kind {
-                EventKind::Modify(_) | EventKind::Create(_) => {
-                    for path in &event.paths {
-                        if path.extension().and_then(|e| e.to_str()) == Some("svg") {
-                            let filename = path
-                                .file_name()
-                                .unwrap_or_default()
-                                .to_string_lossy()
-                                .to_string();
-                            let relative_path = format!("./drawio/{}", filename);
-                            let abs_path = path.to_string_lossy().to_string();
-                            app.emit(
-                                "drawio-file-updated",
-                                serde_json::json!({
-                                    "relativePath": relative_path,
-                                    "filePath": abs_path,
-                                    "timestamp": chrono::Utc::now().timestamp_millis(),
-                                }),
-                            )
-                            .ok();
+        let mut watcher = match RecommendedWatcher::new(tx, Config::default()) {
+            Ok(watcher) => watcher,
+            Err(error) => {
+                eprintln!("Failed to create Draw.io watcher: {error}");
+                return;
+            }
+        };
+        // Watch the document root cheaply so a drawio folder created later is observed.
+        if watcher
+            .watch(&doc_dir, RecursiveMode::NonRecursive)
+            .is_err()
+        {
+            return;
+        }
+        let drawio_dir = doc_dir.join("drawio");
+        if let Some(canonical_drawio) = canonical_drawio_directory(&doc_dir, &drawio_dir) {
+            watcher
+                .watch(&canonical_drawio, RecursiveMode::Recursive)
+                .ok();
+        }
+        let mut pending = HashMap::<String, (PathBuf, Instant)>::new();
+        loop {
+            match rx.recv_timeout(Duration::from_millis(75)) {
+                Ok(Ok(event))
+                    if matches!(event.kind, EventKind::Modify(_) | EventKind::Create(_)) =>
+                {
+                    for event_path in event.paths {
+                        if event_path.is_dir()
+                            && event_path.file_name().is_some_and(|name| {
+                                name.to_string_lossy().eq_ignore_ascii_case("drawio")
+                            })
+                        {
+                            if let Some(canonical_drawio) =
+                                canonical_drawio_directory(&doc_dir, &event_path)
+                            {
+                                watcher
+                                    .watch(&canonical_drawio, RecursiveMode::Recursive)
+                                    .ok();
+                            }
+                            continue;
+                        }
+                        if let Some(relative_path) =
+                            canonical_drawio_relative_path(&doc_dir, &event_path)
+                        {
+                            pending.insert(
+                                relative_path.to_ascii_lowercase(),
+                                (event_path, Instant::now()),
+                            );
                         }
                     }
                 }
-                _ => {}
+                Ok(Ok(_)) => {}
+                Ok(Err(error)) => eprintln!("Draw.io watcher error: {error}"),
+                Err(RecvTimeoutError::Disconnected) => break,
+                Err(RecvTimeoutError::Timeout) => {}
+            }
+            if app
+                .state::<DocState>()
+                .drawio_watch_generation
+                .load(Ordering::SeqCst)
+                != generation
+            {
+                break;
+            }
+            let ready: Vec<String> = pending
+                .iter()
+                .filter(|(_, (_, changed))| changed.elapsed() >= Duration::from_millis(150))
+                .map(|(key, _)| key.clone())
+                .collect();
+            for key in ready {
+                if let Some((event_path, _)) = pending.remove(&key) {
+                    if let Some(relative_path) =
+                        canonical_drawio_relative_path(&doc_dir, &event_path)
+                    {
+                        app.emit(
+                            "drawio-file-updated",
+                            serde_json::json!({
+                                "documentId": document_id,
+                                "generation": generation,
+                                "relativePath": relative_path,
+                                "timestamp": chrono::Utc::now().timestamp_millis(),
+                            }),
+                        )
+                        .ok();
+                    }
+                }
             }
         }
     });
 
     Ok(())
+}
+
+fn canonical_drawio_relative_path(
+    document_dir: &std::path::Path,
+    candidate: &std::path::Path,
+) -> Option<String> {
+    let canonical_root = document_dir.canonicalize().ok()?;
+    let canonical_candidate = candidate.canonicalize().ok()?;
+    drawio_relative_path(&canonical_root, &canonical_candidate)
+}
+
+fn canonical_drawio_directory(
+    document_dir: &std::path::Path,
+    candidate: &std::path::Path,
+) -> Option<PathBuf> {
+    let canonical_root = document_dir.canonicalize().ok()?;
+    let canonical_candidate = candidate.canonicalize().ok()?;
+    let relative = canonical_candidate.strip_prefix(&canonical_root).ok()?;
+    if relative.components().count() == 1
+        && relative
+            .file_name()
+            .is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case("drawio"))
+    {
+        Some(canonical_candidate)
+    } else {
+        None
+    }
+}
+
+fn drawio_relative_path(
+    document_dir: &std::path::Path,
+    candidate: &std::path::Path,
+) -> Option<String> {
+    let relative = candidate.strip_prefix(document_dir).ok()?;
+    let mut components = relative.components();
+    if components
+        .next()?
+        .as_os_str()
+        .to_string_lossy()
+        .to_ascii_lowercase()
+        != "drawio"
+    {
+        return None;
+    }
+    if !candidate
+        .file_name()?
+        .to_string_lossy()
+        .to_ascii_lowercase()
+        .ends_with(".drawio.svg")
+    {
+        return None;
+    }
+    Some(format!(
+        "./{}",
+        relative.to_string_lossy().replace('\\', "/")
+    ))
+}
+
+#[cfg(test)]
+mod drawio_watcher_tests {
+    use super::drawio_relative_path;
+    use std::path::Path;
+
+    #[test]
+    fn preserves_canonical_nested_relative_path_and_rejects_other_files() {
+        let root = Path::new("C:/docs");
+        assert_eq!(
+            drawio_relative_path(root, Path::new("C:/docs/drawio/nested/system.drawio.svg")),
+            Some("./drawio/nested/system.drawio.svg".to_string())
+        );
+        assert_eq!(
+            drawio_relative_path(root, Path::new("C:/docs/images/system.drawio.svg")),
+            None
+        );
+        assert_eq!(
+            drawio_relative_path(root, Path::new("C:/docs/drawio/system.svg")),
+            None
+        );
+    }
 }
 
 /// Watch `folder` recursively and emit a debounced `workspace-changed` event whenever files or

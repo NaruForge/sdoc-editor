@@ -6,6 +6,7 @@ export interface ImagePropertiesState {
   alt: string;
   align: string;
   isDrawio: boolean;
+  path?: string;
 }
 
 export interface ImageContextMenuState {
