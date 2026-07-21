@@ -10,7 +10,7 @@ import {
   wrapSdoc as sharedWrapSdoc,
   normalizeDocument,
 } from '../shared/document/sdocUtils';
-import { resolveSettings, getCaptionPreset } from '../shared/settingsResolver';
+import { resolveEditorSettings, resolveSettings, getCaptionPreset } from '../shared/settingsResolver';
 import type { DocumentSettings, CaptionStyleName, SdocMeta, TiptapNode } from '../shared/types';
 import { isEditorToHostMessage } from '../shared/types/messageGuards';
 import { VsCodeAssetService } from './services/VsCodeAssetService';
@@ -87,6 +87,12 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         captionNumbering: config.get<'sequential' | 'hierarchical'>('caption.numbering', 'sequential'),
         equationNumbering: config.get<'sequential' | 'hierarchical'>('equation.numbering', 'sequential'),
         crossRefIncludeCaption: config.get<boolean>('caption.crossRefIncludeCaption', false),
+        pdfScale: config.get<number>('export.pdfScale', 70),
+        selfContained: config.get<'none' | 'images-only' | 'full'>('export.selfContained', 'images-only'),
+        slideBreakLevel: config.get<'h1-only' | 'h1-h2-vertical'>('slide.breakLevel', 'h1-only'),
+        slideTransition: config.get<'none' | 'fade' | 'slide' | 'convex' | 'concave' | 'zoom'>('slide.transition', 'none'),
+        showTitleSlide: config.get<boolean>('slide.showTitleSlide', true),
+        outputDir: config.get<string>('export.outputDir', ''),
       };
     };
 
@@ -104,7 +110,10 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       const config = vscode.workspace.getConfiguration('structuredDocEditor');
       const vscodeDefaults = readVscodeDocDefaults();
       const docSettings = readDocSettings();
-      const resolved = resolveSettings(docSettings, vscodeDefaults);
+      const resolved = resolveEditorSettings(docSettings, vscodeDefaults, {
+        defaultImageAlignment: config.get<'left' | 'center' | 'right'>('image.defaultAlignment', 'center'),
+        exportImagePath: config.get<'relative' | 'absolute'>('export.imagePath', 'relative'),
+      });
       const preset = getCaptionPreset(resolved.captionStyle);
       webviewPanel.webview.postMessage({
         type: 'settingsChanged',
@@ -124,14 +133,14 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
           headingH1Color: resolved.headingH1Color,
           headingH2Color: resolved.headingH2Color,
           headingH3Color: resolved.headingH3Color,
-          defaultImageAlignment: config.get<string>('image.defaultAlignment', 'center'),
-          exportImagePath: config.get<string>('export.imagePath', 'relative'),
-          pdfScale: config.get<number>('export.pdfScale', 70),
-          selfContained: config.get<'none' | 'images-only' | 'full'>('export.selfContained', 'images-only'),
-          slideBreakLevel: config.get<'h1-only' | 'h1-h2-vertical'>('slide.breakLevel', 'h1-only'),
-          slideTransition: config.get<'none' | 'fade' | 'slide' | 'convex' | 'concave' | 'zoom'>('slide.transition', 'none'),
-          showTitleSlide: config.get<boolean>('slide.showTitleSlide', true),
-          outputDir: config.get<string>('export.outputDir', ''),
+          defaultImageAlignment: resolved.defaultImageAlignment,
+          exportImagePath: resolved.exportImagePath,
+          pdfScale: resolved.pdfScale,
+          selfContained: resolved.selfContained,
+          slideBreakLevel: resolved.slideBreakLevel,
+          slideTransition: resolved.slideTransition,
+          showTitleSlide: resolved.showTitleSlide,
+          outputDir: resolved.outputDir,
           fontWeightBody: config.get<string>('font.body', 'Regular'),
           fontWeightBold: config.get<string>('font.bold', 'Bold'),
           fontWeightH1: config.get<string>('font.h1', 'Bold'),
@@ -451,16 +460,20 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
 
     // Resolve settings from doc settings > VS Code > default
     const config = vscode.workspace.getConfiguration('structuredDocEditor');
-    const docEqNumbering = existingMeta.settings?.equationNumbering;
-    const eqNumbering = (docEqNumbering || config.get<string>('equation.numbering', 'sequential')) as 'sequential' | 'hierarchical';
-    const docCaptionStyle = existingMeta.settings?.captionStyle;
-    const captionStyle = (docCaptionStyle || config.get<string>('caption.style', 'modern')) as CaptionStyleName;
-    const crossRefIncludeCaption = existingMeta.settings?.crossRefIncludeCaption ?? config.get<boolean>('caption.crossRefIncludeCaption', false);
+    const resolved = resolveSettings(existingMeta.settings, {
+      equationNumbering: config.get<'sequential' | 'hierarchical'>('equation.numbering', 'sequential'),
+      captionStyle: config.get<CaptionStyleName>('caption.style', 'modern'),
+      crossRefIncludeCaption: config.get<boolean>('caption.crossRefIncludeCaption', false),
+      captionNumbering: config.get<'sequential' | 'hierarchical'>('caption.numbering', 'sequential'),
+      headingNumbering: config.get<boolean>('heading.numbering', true),
+    });
 
     const synced = normalizeDocument(convertedContent, {
-      equationNumbering: eqNumbering,
-      captionStyle,
-      crossRefIncludeCaption,
+      equationNumbering: resolved.equationNumbering,
+      captionStyle: resolved.captionStyle,
+      crossRefIncludeCaption: resolved.crossRefIncludeCaption,
+      captionNumbering: resolved.captionNumbering,
+      headingNumbering: resolved.headingNumbering,
     });
 
     // Wrap in sdoc envelope, preserving settings

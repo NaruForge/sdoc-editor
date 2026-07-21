@@ -213,8 +213,10 @@ export async function composeBook(
 
   const includedPaths = new Set(book.documents.map((entry) => entry.path));
   const mergedContent: TiptapNode[] = [];
+  const counterResetPaths: string[] = [];
   for (const document of documents) {
     if (!document.doc?.content) continue;
+    if (book.counterPolicy === 'reset') counterResetPaths.push(String(mergedContent.length));
     const context: TransformContext = {
       sourcePath: document.path,
       includedPaths,
@@ -234,5 +236,6 @@ export async function composeBook(
     meta,
     documents,
     diagnostics,
+    counterResetPaths,
   };
 }

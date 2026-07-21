@@ -23,6 +23,12 @@
       "type": "string",
       "description": "Project version string."
     },
+    "counterPolicy": {
+      "type": "string",
+      "enum": ["continue", "reset"],
+      "default": "continue",
+      "description": "Continue counters across chapters or reset them at each chapter boundary."
+    },
     "documents": {
       "type": "array",
       "description": "Ordered list of .sdoc documents in this project.",

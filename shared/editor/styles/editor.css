@@ -97,7 +97,7 @@ body {
 }
 
 .show-numbering .ProseMirror h1::before {
-  content: counter(h1-counter) ". ";
+  content: attr(data-number-label) ". ";
   color: var(--heading-h1-color, #A50034);
   margin-right: 0.3em;
 }
@@ -113,7 +113,7 @@ body {
 
 
 .show-numbering .ProseMirror h2::before {
-  content: counter(h1-counter) "." counter(h2-counter) ". ";
+  content: attr(data-number-label) ". ";
   color: var(--heading-h2-color, #A50034);
   margin-right: 0.3em;
 }
@@ -129,7 +129,7 @@ body {
 
 
 .show-numbering .ProseMirror h3::before {
-  content: counter(h1-counter) "." counter(h2-counter) "." counter(h3-counter) ". ";
+  content: attr(data-number-label) ". ";
   color: var(--heading-h3-color, #A50034);
   margin-right: 0.3em;
 }
@@ -143,7 +143,7 @@ body {
 }
 
 .show-numbering .ProseMirror h4::before {
-  content: counter(h1-counter) "." counter(h2-counter) "." counter(h3-counter) "." counter(h4-counter) ". ";
+  content: attr(data-number-label) ". ";
   color: var(--heading-h3-color, #A50034);
   margin-right: 0.3em;
 }
@@ -157,7 +157,7 @@ body {
 }
 
 .show-numbering .ProseMirror h5::before {
-  content: counter(h1-counter) "." counter(h2-counter) "." counter(h3-counter) "." counter(h4-counter) "." counter(h5-counter) ". ";
+  content: attr(data-number-label) ". ";
   color: var(--heading-h3-color, #A50034);
   margin-right: 0.3em;
 }
@@ -170,7 +170,7 @@ body {
 }
 
 .show-numbering .ProseMirror h6::before {
-  content: counter(h1-counter) "." counter(h2-counter) "." counter(h3-counter) "." counter(h4-counter) "." counter(h5-counter) "." counter(h6-counter) ". ";
+  content: attr(data-number-label) ". ";
   color: var(--heading-h3-color, #A50034);
   margin-right: 0.3em;
 }
@@ -537,14 +537,14 @@ body {
 
 /* Simple numbering (default) */
 .sequential-numbering .image-caption-display .caption-label::after {
-  content: var(--image-caption-prefix) counter(image-counter) var(--caption-separator);
+  content: attr(data-number-label);
   font-weight: bold;
   font-size: 0.95em;
 }
 
 /* Hierarchical numbering: uses h1-counter prefix */
 .hierarchical-numbering .image-caption-display .caption-label::after {
-  content: var(--image-caption-prefix) counter(h1-counter) "." counter(image-counter) var(--caption-separator);
+  content: attr(data-number-label);
   font-weight: bold;
   font-size: 0.95em;
 }
@@ -607,28 +607,28 @@ body {
 
 /* Simple numbering (default) — arabic */
 .sequential-numbering .table-caption-display .caption-label::after {
-  content: var(--table-caption-prefix) counter(table-counter) var(--caption-separator);
+  content: attr(data-number-label);
   font-weight: bold;
   font-size: 0.95em;
 }
 
 /* Simple numbering — roman (IEEE) */
 .sequential-numbering[data-table-number-style="roman"] .table-caption-display .caption-label::after {
-  content: var(--table-caption-prefix) counter(table-counter, upper-roman) var(--caption-separator);
+  content: attr(data-number-label);
   font-weight: bold;
   font-size: 0.95em;
 }
 
 /* Hierarchical numbering — arabic */
 .hierarchical-numbering .table-caption-display .caption-label::after {
-  content: var(--table-caption-prefix) counter(h1-counter) "." counter(table-counter) var(--caption-separator);
+  content: attr(data-number-label);
   font-weight: bold;
   font-size: 0.95em;
 }
 
 /* Hierarchical numbering — roman (IEEE) */
 .hierarchical-numbering[data-table-number-style="roman"] .table-caption-display .caption-label::after {
-  content: var(--table-caption-prefix) counter(h1-counter) "." counter(table-counter, upper-roman) var(--caption-separator);
+  content: attr(data-number-label);
   font-weight: bold;
   font-size: 0.95em;
 }

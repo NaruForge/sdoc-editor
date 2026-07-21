@@ -5,12 +5,12 @@ import { open, save } from '@tauri-apps/plugin-dialog';
 import { EditorProvider, useEditorContext } from '@shared/editor/context/EditorContext';
 import { Editor } from './components/Editor';
 import { createTauriAdapter } from './adapters/tauriMessaging';
-import type { DocumentSettings, SdocMeta, TiptapNode } from '@shared/types';
+import type { SdocMeta, TiptapNode } from '@shared/types';
 import { migrateAttributes } from '@shared/document/sdocUtils';
 import { parseDocumentContract, validateDocumentSettings } from '@shared/document/documentContract';
-import type { EditorSettings } from '@shared/editor/context/EditorContext';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { UndoToast } from './components/UndoToast';
+import { resolveTauriEditorSettings } from './settingsAdapter';
 
 type AppView = 'welcome' | 'editor' | 'json';
 
@@ -30,38 +30,6 @@ interface OpenDocumentResult {
   filePath: string;
   documentId: string;
   revision: number;
-}
-
-const DOC_SETTING_KEYS: (keyof EditorSettings & keyof DocumentSettings)[] = [
-  'headingNumbering',
-  'headingDecoration',
-  'headingH1Color',
-  'headingH2Color',
-  'headingH3Color',
-  'captionStyle',
-  'captionNumbering',
-  'equationNumbering',
-  'crossRefIncludeCaption',
-  'pdfScale',
-  'selfContained',
-  'slideBreakLevel',
-  'slideTransition',
-  'showTitleSlide',
-  'outputDir',
-];
-
-function toEditorSettingsPatch(settings: Partial<DocumentSettings> | null | undefined): Partial<EditorSettings> {
-  const patch: Partial<EditorSettings> = {};
-  if (!settings) {
-    return patch;
-  }
-  for (const key of DOC_SETTING_KEYS) {
-    const value = settings[key];
-    if (value !== undefined) {
-      patch[key] = value as never;
-    }
-  }
-  return patch;
 }
 
 function getDialogPath(selected: string | string[] | null): string | null {
@@ -164,11 +132,11 @@ const AppContent: React.FC = () => {
       setCurrentPath(result.filePath);
       setView('editor');
 
-      const editorSettings = await invoke<Partial<EditorSettings>>('get_editor_settings');
+      const nativeSettings: unknown = await invoke('get_editor_settings');
       const docSettings = validateDocumentSettings(contract.envelope.meta.settings)
         ? contract.envelope.meta.settings : null;
       dispatch({ type: 'SET_DOC_SETTINGS', payload: docSettings });
-      dispatch({ type: 'SET_SETTINGS', payload: { ...editorSettings, ...toEditorSettingsPatch(docSettings) } });
+      dispatch({ type: 'SET_SETTINGS', payload: resolveTauriEditorSettings(nativeSettings, docSettings) });
 
       // Start watching drawio directory
       await invoke('start_file_watcher').catch((error: unknown) => {
@@ -212,10 +180,10 @@ const AppContent: React.FC = () => {
       setCurrentPath(result.filePath);
       setView('editor');
 
-      const editorSettings = await invoke<Partial<EditorSettings>>('get_editor_settings');
+      const nativeSettings: unknown = await invoke('get_editor_settings');
       const docSettings = validateDocumentSettings(result.meta.settings) ? result.meta.settings : null;
       dispatch({ type: 'SET_DOC_SETTINGS', payload: docSettings });
-      dispatch({ type: 'SET_SETTINGS', payload: editorSettings });
+      dispatch({ type: 'SET_SETTINGS', payload: resolveTauriEditorSettings(nativeSettings, docSettings) });
       await loadWorkspace(result.filePath.split(/[\\/]/).slice(0, -1).join('/')).catch((error: unknown) => {
         console.warn('Failed to refresh workspace', error);
       });
@@ -292,10 +260,10 @@ const AppContent: React.FC = () => {
     setMeta(result.meta);
     setCurrentPath(result.filePath);
     setView('editor');
-    const editorSettings = await invoke<Partial<EditorSettings>>('get_editor_settings');
+    const nativeSettings: unknown = await invoke('get_editor_settings');
     const docSettings = validateDocumentSettings(result.meta.settings) ? result.meta.settings : null;
     dispatch({ type: 'SET_DOC_SETTINGS', payload: docSettings });
-    dispatch({ type: 'SET_SETTINGS', payload: editorSettings });
+    dispatch({ type: 'SET_SETTINGS', payload: resolveTauriEditorSettings(nativeSettings, docSettings) });
     await loadWorkspace(workspaceFolder ?? folder);
   }, [adapter, dispatch, handleSelectFolder, loadWorkspace, workspaceFolder]);
 

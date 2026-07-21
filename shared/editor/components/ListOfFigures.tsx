@@ -2,37 +2,40 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { Editor as TiptapEditor } from '@tiptap/react';
 import { Image as ImageIcon } from 'lucide-react';
 import { PanelEmptyState } from './PanelEmptyState';
+import { buildNumberingIndex } from '../../document/numbering';
+import type { ResolvedEditorSettings, TiptapNode } from '../../types';
 
 interface LofEntry {
   pos: number;
   caption: string;
-  index: number; // 1-based figure number
+  label: string;
 }
 
 interface ListOfFiguresProps {
   editor: TiptapEditor | null;
+  settings: ResolvedEditorSettings;
 }
 
-export const ListOfFigures: React.FC<ListOfFiguresProps> = ({ editor }) => {
+export const ListOfFigures: React.FC<ListOfFiguresProps> = ({ editor, settings }) => {
   const [entries, setEntries] = useState<LofEntry[]>([]);
   const [activePos, setActivePos] = useState<number>(-1);
 
   const buildEntries = useCallback(() => {
     if (!editor) return;
     const result: LofEntry[] = [];
-    let idx = 0;
+    const numbering = buildNumberingIndex(editor.getJSON() as TiptapNode, settings);
     editor.state.doc.descendants((node, pos) => {
       if (node.type.name === 'image') {
-        idx++;
+        const entry = numbering.byId.get(String(node.attrs.id ?? ''));
         result.push({
           pos,
           caption: (node.attrs.caption as string) || '',
-          index: idx,
+          label: entry?.baseLabel ?? '',
         });
       }
     });
     setEntries(result);
-  }, [editor]);
+  }, [editor, settings]);
 
   useEffect(() => {
     if (!editor) return;
@@ -95,9 +98,9 @@ export const ListOfFigures: React.FC<ListOfFiguresProps> = ({ editor }) => {
             key={entry.pos}
             className={`toc-entry toc-level-1 lof-entry ${activePos === entry.pos ? 'toc-active' : ''}`}
             onClick={() => handleClick(entry)}
-            title={entry.caption || `Figure ${entry.index}`}
+            title={entry.caption || entry.label}
           >
-            <span className="toc-number">그림 {entry.index}.</span>
+            <span className="toc-number">{entry.label}</span>
             <span className="toc-text">
               {entry.caption || <em className="toc-empty-caption">캡션 없음</em>}
             </span>

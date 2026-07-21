@@ -20,6 +20,8 @@ export async function exportDocument(
   meta: SdocMeta,
 ): Promise<void> {
   const exportSettings = {
+    captionStyle: settings.captionStyle,
+    headingNumbering: settings.headingNumbering,
     imageCaptionPrefix: settings.imageCaptionPrefix,
     tableCaptionPrefix: settings.tableCaptionPrefix,
     equationCaptionPrefix: settings.equationCaptionPrefix,

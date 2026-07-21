@@ -10,6 +10,7 @@ export interface SdocBook {
   title?: string;
   author?: string;
   version?: string;
+  counterPolicy?: 'continue' | 'reset';
   documents: SdocBookDocumentEntry[];
 }
 
@@ -62,6 +63,7 @@ export interface BookCompositionResult {
   meta: SdocMeta;
   documents: ResolvedBookDocument[];
   diagnostics: BookDiagnostic[];
+  counterResetPaths: string[];
 }
 
 export type BookDocumentLoadFailure = 'not-found' | 'read-failed';

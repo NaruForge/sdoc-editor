@@ -5,7 +5,7 @@ import { ListOfFigures } from '@shared/editor/components/ListOfFigures';
 import { ListOfTables } from '@shared/editor/components/ListOfTables';
 import { DocumentSettingsPanel } from '@shared/editor/components/DocumentSettingsPanel';
 import { PanelEmptyState } from '@shared/editor/components/PanelEmptyState';
-import type { DocumentSettings } from '@shared/types';
+import type { DocumentSettings, ResolvedEditorSettings } from '@shared/types';
 import type { EditorToHostMessage } from '@shared/types/messages';
 import { FileJson, Download, Upload, Loader2, FolderOpen } from 'lucide-react';
 import type { ActivityTab } from '@shared/editor/components/ActivityBar';
@@ -16,6 +16,7 @@ export type SidePanelTab = ActivityTab;
 interface SidePanelProps {
   activeTab: ActivityTab;
   editor: TiptapEditor | null;
+  settings: ResolvedEditorSettings;
   showNumbering: boolean;
   onToggleNumbering: () => void;
   showDecoration: boolean;
@@ -31,6 +32,7 @@ interface SidePanelProps {
 export const SidePanel: React.FC<SidePanelProps> = ({
   activeTab,
   editor,
+  settings,
   showNumbering,
   onToggleNumbering,
   showDecoration,
@@ -54,13 +56,13 @@ export const SidePanel: React.FC<SidePanelProps> = ({
           />
         )}
         {activeTab === 'toc' && (
-          <TableOfContents editor={editor} showNumbering={showNumbering} />
+          <TableOfContents editor={editor} showNumbering={showNumbering} settings={settings} />
         )}
         {activeTab === 'lof' && (
-          <ListOfFigures editor={editor} />
+          <ListOfFigures editor={editor} settings={settings} />
         )}
         {activeTab === 'lot' && (
-          <ListOfTables editor={editor} />
+          <ListOfTables editor={editor} settings={settings} />
         )}
         {activeTab === 'settings' && (
           <DocumentSettingsPanel

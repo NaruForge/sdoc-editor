@@ -92,6 +92,9 @@ export interface SdocEnvelope {
 // ─── Export Settings ────────────────────────────────────────────
 
 export interface ExportSettings {
+  captionStyle?: CaptionStyleName;
+  headingNumbering?: boolean;
+  counterResetPaths?: string[];
   imageCaptionPrefix?: string;
   tableCaptionPrefix?: string;
   equationCaptionPrefix?: string;
@@ -145,11 +148,15 @@ export interface SlideTheme {
 }
 
 export interface SlideSettings {
+  captionStyle?: CaptionStyleName;
+  headingNumbering?: boolean;
+  counterResetPaths?: string[];
   imageCaptionPrefix?: string;
   tableCaptionPrefix?: string;
   equationCaptionPrefix?: string;
   captionSeparator?: string;
   captionNumbering?: 'sequential' | 'hierarchical';
+  equationNumbering?: 'sequential' | 'hierarchical';
   tableNumberStyle?: 'arabic' | 'roman';
   equationParens?: boolean;
   slideBreak?: SlideBreakLevel;

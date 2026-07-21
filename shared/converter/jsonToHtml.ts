@@ -1,6 +1,6 @@
 import hljs from 'highlight.js';
-import { escapeHtml, formatDate, formatCaptionLabel } from './utils';
-import { toRoman } from '../settingsResolver';
+import { escapeHtml, formatDate } from './utils';
+import { buildNumberingIndex, type NumberingIndex } from '../document/numbering';
 import type {
   HtmlExportSettings as ExportSettings,
   HtmlTheme,
@@ -11,24 +11,24 @@ import type {
 
 interface ConvertContext {
   settings: ExportSettings;
-  imageCounter: number;
-  tableCounter: number;
-  h1Counter: number;
-  eqGlobal: number;
-  eqInSection: number;
+  numbering: NumberingIndex;
 }
 
 /**
  * Converts Tiptap JSON to HTML format
  */
 export function convertJsonToHtml(json: TiptapNode, theme?: HtmlTheme, settings?: ExportSettings, meta?: SdocMeta): string {
+  const resolved = settings || {};
   const ctx: ConvertContext = {
-    settings: settings || {},
-    imageCounter: 0,
-    tableCounter: 0,
-    h1Counter: 0,
-    eqGlobal: 0,
-    eqInSection: 0,
+    settings: resolved,
+    numbering: buildNumberingIndex(json, {
+      headingNumbering: resolved.headingNumbering ?? true,
+      captionNumbering: resolved.captionNumbering ?? 'sequential',
+      equationNumbering: resolved.equationNumbering ?? 'sequential',
+      captionStyle: resolved.captionStyle ?? 'modern',
+      crossRefIncludeCaption: false,
+      counterResetPaths: resolved.counterResetPaths,
+    }),
   };
   const bodyContent = convertNode(json, ctx);
   return generateHtmlDocument(bodyContent, theme, meta, ctx);
@@ -41,12 +41,13 @@ function convertNode(node: TiptapNode, ctx: ConvertContext): string {
 
     case 'heading': {
       const level = node.attrs?.level || 1;
-      const numbered = node.attrs?.numbered !== false;
+      const entry = ctx.numbering.byNode.get(node);
       const headingText = node.content ? convertInlineContent(node.content, ctx) : '';
-      if (level === 1) { ctx.imageCounter = 0; ctx.tableCounter = 0; ctx.eqInSection = 0; if (numbered) ctx.h1Counter++; }
       const hId = node.attrs?.id ? ` id="${escapeHtml(node.attrs.id as string)}"` : '';
       const hAlign = node.attrs?.textAlign ? ` style="text-align:${node.attrs.textAlign}"` : '';
-      const hNumbered = numbered ? '' : ' data-numbered="false"';
+      const hNumbered = entry?.numbered
+        ? ` data-number-label="${escapeHtml(entry.number)}"`
+        : ' data-numbered="false"';
       return `<h${level}${hId}${hAlign}${hNumbered}>${headingText}</h${level}>`;
     }
 
@@ -112,17 +113,10 @@ function convertNode(node: TiptapNode, ctx: ConvertContext): string {
       return `<span class="math-inline" data-latex="${escapeHtml((node.attrs?.latex as string) || '')}">\\(${escapeHtml((node.attrs?.latex as string) || '')}\\)</span>`;
 
     case 'mathBlock': {
-      ctx.eqGlobal++;
-      ctx.eqInSection++;
-      const eqMode = ctx.settings.equationNumbering ?? 'sequential';
-      const eqLabel = eqMode === 'hierarchical' ? `${ctx.h1Counter}.${ctx.eqInSection}` : `${ctx.eqGlobal}`;
-      const eqPrefix = ctx.settings.equationCaptionPrefix ?? '';
+      const entry = ctx.numbering.byNode.get(node);
       const latex = (node.attrs?.latex as string) || '';
       const eqId = node.attrs?.id ? ` id="${escapeHtml(node.attrs.id as string)}"` : '';
-      const parens = ctx.settings.equationParens ?? true;
-      const tagContent = eqPrefix
-        ? (parens ? `${eqPrefix}(${eqLabel})` : `${eqPrefix}${eqLabel}`)
-        : (parens ? `(${eqLabel})` : `${eqLabel}`);
+      const tagContent = entry?.displayLabel ?? '';
       const taggedLatex = `${latex}\\tag*{${tagContent}}`;
       return `<div class="math-block"${eqId} data-latex="${escapeHtml(taggedLatex)}">\\[${escapeHtml(taggedLatex)}\\]</div>`;
     }
@@ -183,17 +177,12 @@ function convertTable(table: TiptapNode, ctx: ConvertContext): string {
     return '';
   }
 
-  ctx.tableCounter++;
   let html = '';
 
   const caption = table.attrs?.caption;
   const align = table.attrs?.align || 'left';
   const width = table.attrs?.width || '100%';
-  const prefix = ctx.settings.tableCaptionPrefix ?? '';
-  const tblNum = ctx.settings.tableNumberStyle === 'roman' ? toRoman(ctx.tableCounter) : `${ctx.tableCounter}`;
-  const numbering = ctx.settings.captionNumbering === 'hierarchical'
-    ? `${ctx.h1Counter}.${tblNum}`
-    : tblNum;
+  const label = ctx.numbering.byNode.get(table)?.displayLabel;
 
   const hasHeader = table.content[0]?.content?.some(
     (cell: TiptapNode) => cell.type === 'tableHeader'
@@ -203,7 +192,7 @@ function convertTable(table: TiptapNode, ctx: ConvertContext): string {
   html += `<table${tId} style="width: ${width}; text-align: ${align};" class="doc-table">`;
 
   if (caption) {
-    html += `\n  <caption>${formatCaptionLabel(prefix, numbering, escapeHtml(caption as string), ctx.settings.captionSeparator ?? ' ')}</caption>`;
+    html += `\n  <caption>${escapeHtml(label ?? String(caption))}</caption>`;
   }
 
   if (hasHeader && table.content[0]) {
@@ -273,11 +262,7 @@ function convertImage(node: TiptapNode, ctx: ConvertContext): string {
   const title = (node.attrs?.title as string) || '';
   const caption = (node.attrs?.caption as string) || '';
   const align = (node.attrs?.align as string) || 'center';
-  ctx.imageCounter++;
-  const prefix = ctx.settings.imageCaptionPrefix ?? '';
-  const numbering = ctx.settings.captionNumbering === 'hierarchical'
-    ? `${ctx.h1Counter}.${ctx.imageCounter}`
-    : `${ctx.imageCounter}`;
+  const label = ctx.numbering.byNode.get(node)?.displayLabel;
 
   const alignStyle = align === 'left'
     ? ' style="display:block; margin-right:auto; margin-left:0;"'
@@ -296,7 +281,7 @@ function convertImage(node: TiptapNode, ctx: ConvertContext): string {
   }
 
   if (caption) {
-    html += `\n  <figcaption>${formatCaptionLabel(prefix, numbering, escapeHtml(caption), ctx.settings.captionSeparator ?? ' ')}</figcaption>`;
+    html += `\n  <figcaption>${escapeHtml(label ?? caption)}</figcaption>`;
   }
 
   html += '\n</figure>';
@@ -522,7 +507,7 @@ function generateHtmlDocument(bodyContent: string, theme?: HtmlTheme, meta?: Sdo
     }
 
     h1::before {
-      content: counter(h1) ". ";
+      content: attr(data-number-label) ". ";
     }
 
     h2 {
@@ -536,7 +521,7 @@ function generateHtmlDocument(bodyContent: string, theme?: HtmlTheme, meta?: Sdo
     }
 
     h2::before {
-      content: counter(h1) "." counter(h2) ". ";
+      content: attr(data-number-label) ". ";
     }
 
     h3 {
@@ -550,7 +535,7 @@ function generateHtmlDocument(bodyContent: string, theme?: HtmlTheme, meta?: Sdo
     }
 
     h3::before {
-      content: counter(h1) "." counter(h2) "." counter(h3) ". ";
+      content: attr(data-number-label) ". ";
     }
 
     h4 {
@@ -561,22 +546,28 @@ function generateHtmlDocument(bodyContent: string, theme?: HtmlTheme, meta?: Sdo
       color: #6b6b6b;
     }
 
-    h4::before {
-      content: counter(h1) "." counter(h2) "." counter(h3) "." counter(h4) ". ";
+    h4::before,
+    h5::before,
+    h6::before {
+      content: attr(data-number-label) ". ";
     }
 
     /* Headings explicitly excluded from numbering (e.g. Introduction, Glossary, References) */
     h1[data-numbered="false"],
     h2[data-numbered="false"],
     h3[data-numbered="false"],
-    h4[data-numbered="false"] {
+    h4[data-numbered="false"],
+    h5[data-numbered="false"],
+    h6[data-numbered="false"] {
       counter-increment: none;
     }
 
     h1[data-numbered="false"]::before,
     h2[data-numbered="false"]::before,
     h3[data-numbered="false"]::before,
-    h4[data-numbered="false"]::before {
+    h4[data-numbered="false"]::before,
+    h5[data-numbered="false"]::before,
+    h6[data-numbered="false"]::before {
       content: none;
     }
 

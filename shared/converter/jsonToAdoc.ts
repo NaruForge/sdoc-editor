@@ -1,30 +1,30 @@
-import { formatDate, formatCaptionLabel } from './utils';
-import { toRoman } from '../settingsResolver';
+import { formatDate } from './utils';
+import { buildNumberingIndex, type NumberingIndex } from '../document/numbering';
 import type { ExportSettings, SdocMeta, TiptapMark, TiptapNode } from '../types';
 
 interface ConvertContext {
   settings: ExportSettings;
-  imageCounter: number;
-  tableCounter: number;
-  h1Counter: number;
-  eqGlobal: number;
-  eqInSection: number;
+  numbering: NumberingIndex;
 }
 
 /**
  * Converts Tiptap JSON to AsciiDoc format
  */
 export function convertJsonToAdoc(json: TiptapNode, settings?: ExportSettings, meta?: SdocMeta): string {
+  const resolved = settings || {};
   const ctx: ConvertContext = {
-    settings: settings || {},
-    imageCounter: 0,
-    tableCounter: 0,
-    h1Counter: 0,
-    eqGlobal: 0,
-    eqInSection: 0,
+    settings: resolved,
+    numbering: buildNumberingIndex(json, {
+      headingNumbering: resolved.headingNumbering ?? true,
+      captionNumbering: resolved.captionNumbering ?? 'sequential',
+      equationNumbering: resolved.equationNumbering ?? 'sequential',
+      captionStyle: resolved.captionStyle ?? 'modern',
+      crossRefIncludeCaption: false,
+      counterResetPaths: resolved.counterResetPaths,
+    }),
   };
   // Add AsciiDoc document attributes
-  let docAttributes = ':sectnums:\n:sectnumlevels: 4\n';
+  let docAttributes = '';
   if (meta?.title) { docAttributes += `= ${meta.title}\n`; }
   if (meta?.author) { docAttributes += `:author: ${meta.author}\n`; }
   if (meta?.version) { docAttributes += `:revnumber: ${meta.version}\n`; }
@@ -43,14 +43,11 @@ function convertNode(node: TiptapNode, ctx: ConvertContext): string {
       const level = typeof node.attrs?.level === 'number' ? node.attrs.level : 1;
       const headingPrefix = '='.repeat(level + 1);
       const headingText = node.content ? convertInlineContent(node.content, ctx) : '';
-      if (level === 1) {
-        ctx.imageCounter = 0;
-        ctx.tableCounter = 0;
-        ctx.eqInSection = 0;
-        if (node.attrs?.numbered !== false) ctx.h1Counter++;
-      }
+      const entry = ctx.numbering.byNode.get(node);
+      const displayedHeading = entry?.numbered ? `${entry.number} ${headingText}` : headingText;
       const hAnchor = node.attrs?.id ? `[[${node.attrs.id}]]\n` : '';
-      return `${hAnchor}${headingPrefix} ${headingText}\n`;
+      const discrete = node.attrs?.numbered === false ? '[discrete]\n' : '';
+      return `${hAnchor}${discrete}${headingPrefix} ${displayedHeading}\n`;
     }
 
     case 'paragraph': {
@@ -116,17 +113,10 @@ function convertNode(node: TiptapNode, ctx: ConvertContext): string {
       return `stem:[${(node.attrs?.latex as string) || ''}]`;
 
     case 'mathBlock': {
-      ctx.eqGlobal++;
-      ctx.eqInSection++;
-      const eqMode = ctx.settings.equationNumbering ?? 'sequential';
-      const eqLabel = eqMode === 'hierarchical' ? `${ctx.h1Counter}.${ctx.eqInSection}` : `${ctx.eqGlobal}`;
-      const eqPrefix = ctx.settings.equationCaptionPrefix ?? '';
+      const entry = ctx.numbering.byNode.get(node);
       const latex = (node.attrs?.latex as string) || '';
       const idAttr = node.attrs?.id ? `id="${node.attrs.id}", ` : '';
-      const parens = ctx.settings.equationParens ?? true;
-      const tagContent = eqPrefix
-        ? (parens ? `${eqPrefix}(${eqLabel})` : `${eqPrefix}${eqLabel}`)
-        : (parens ? `(${eqLabel})` : `${eqLabel}`);
+      const tagContent = entry?.displayLabel ?? '';
       const taggedLatex = `${latex}\\tag*{${tagContent}}`;
       return `[${idAttr}stem, options="nowrap"]\n++++\n${taggedLatex}\n++++\n`;
     }
@@ -192,13 +182,7 @@ function convertTable(table: TiptapNode, ctx: ConvertContext): string {
 
   const caption = table.attrs?.caption;
   if (caption) {
-    ctx.tableCounter++;
-    const prefix = ctx.settings.tableCaptionPrefix ?? '';
-    const tblNum = ctx.settings.tableNumberStyle === 'roman' ? toRoman(ctx.tableCounter) : `${ctx.tableCounter}`;
-    const numbering = ctx.settings.captionNumbering === 'hierarchical'
-      ? `${ctx.h1Counter}.${tblNum}`
-      : tblNum;
-    adoc += `.${formatCaptionLabel(prefix, numbering, caption as string, ctx.settings.captionSeparator ?? ' ')}\n`;
+    adoc += `.${ctx.numbering.byNode.get(table)?.displayLabel ?? String(caption)}\n`;
   }
 
   const hasHeader = table.content[0]?.content?.some(
@@ -256,12 +240,7 @@ function convertImage(node: TiptapNode, ctx: ConvertContext): string {
   let adoc = '';
 
   if (caption) {
-    ctx.imageCounter++;
-    const prefix = ctx.settings.imageCaptionPrefix ?? '';
-    const numbering = ctx.settings.captionNumbering === 'hierarchical'
-      ? `${ctx.h1Counter}.${ctx.imageCounter}`
-      : `${ctx.imageCounter}`;
-    adoc += `.${formatCaptionLabel(prefix, numbering, caption as string, ctx.settings.captionSeparator ?? ' ')}\n`;
+    adoc += `.${ctx.numbering.byNode.get(node)?.displayLabel ?? String(caption)}\n`;
   }
 
   adoc += `image::${src}[`;

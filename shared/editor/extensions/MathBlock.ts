@@ -136,7 +136,7 @@ export const MathBlock = Node.create<EditorExtensionOptions>({
         if (label == null) {
           eqNumber.style.display = 'none';
         } else {
-          eqNumber.textContent = `(${label})`;
+          eqNumber.textContent = label;
           eqNumber.style.display = '';
         }
       };

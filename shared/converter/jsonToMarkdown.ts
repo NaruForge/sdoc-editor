@@ -1,27 +1,27 @@
-import { formatDate, formatCaptionLabel } from './utils';
-import { toRoman } from '../settingsResolver';
+import { formatDate } from './utils';
+import { buildNumberingIndex, type NumberingIndex } from '../document/numbering';
 import type { ExportSettings, SdocMeta, TiptapMark, TiptapNode } from '../types';
 
 interface ConvertContext {
   settings: ExportSettings;
-  imageCounter: number;
-  tableCounter: number;
-  h1Counter: number;
-  eqGlobal: number;
-  eqInSection: number;
+  numbering: NumberingIndex;
 }
 
 /**
  * Converts Tiptap JSON to Markdown format
  */
 export function convertJsonToMarkdown(json: TiptapNode, settings?: ExportSettings, meta?: SdocMeta): string {
+  const resolved = settings || {};
   const ctx: ConvertContext = {
-    settings: settings || {},
-    imageCounter: 0,
-    tableCounter: 0,
-    h1Counter: 0,
-    eqGlobal: 0,
-    eqInSection: 0,
+    settings: resolved,
+    numbering: buildNumberingIndex(json, {
+      headingNumbering: resolved.headingNumbering ?? true,
+      captionNumbering: resolved.captionNumbering ?? 'sequential',
+      equationNumbering: resolved.equationNumbering ?? 'sequential',
+      captionStyle: resolved.captionStyle ?? 'modern',
+      crossRefIncludeCaption: false,
+      counterResetPaths: resolved.counterResetPaths,
+    }),
   };
   let frontMatter = '';
   if (meta && (meta.title || meta.author || meta.version || meta.created || meta.modified)) {
@@ -45,14 +45,10 @@ function convertNode(node: TiptapNode, ctx: ConvertContext): string {
       const level = node.attrs?.level || 1;
       const headingPrefix = '#'.repeat(level as number);
       const headingText = node.content ? convertInlineContent(node.content, ctx) : '';
-      if (level === 1) {
-        ctx.imageCounter = 0;
-        ctx.tableCounter = 0;
-        ctx.eqInSection = 0;
-        if (node.attrs?.numbered !== false) ctx.h1Counter++;
-      }
+      const entry = ctx.numbering.byNode.get(node);
+      const displayedHeading = entry?.numbered ? `${entry.number} ${headingText}` : headingText;
       const anchor = node.attrs?.id ? ` {#${node.attrs.id}}` : '';
-      return `${headingPrefix} ${headingText}${anchor}\n`;
+      return `${headingPrefix} ${displayedHeading}${anchor}\n`;
     }
 
     case 'paragraph': {
@@ -98,17 +94,10 @@ function convertNode(node: TiptapNode, ctx: ConvertContext): string {
       return `$${node.attrs?.latex || ''}$`;
 
     case 'mathBlock': {
-      ctx.eqGlobal++;
-      ctx.eqInSection++;
-      const eqMode = ctx.settings.equationNumbering ?? 'sequential';
-      const eqLabel = eqMode === 'hierarchical' ? `${ctx.h1Counter}.${ctx.eqInSection}` : `${ctx.eqGlobal}`;
-      const eqPrefix = ctx.settings.equationCaptionPrefix ?? '';
+      const entry = ctx.numbering.byNode.get(node);
       const latex = node.attrs?.latex || '';
       const eqId = node.attrs?.id ? `\n<a id="${node.attrs.id}"></a>` : '';
-      const parens = ctx.settings.equationParens ?? true;
-      const tagContent = eqPrefix
-        ? (parens ? `${eqPrefix}(${eqLabel})` : `${eqPrefix}${eqLabel}`)
-        : (parens ? `(${eqLabel})` : `${eqLabel}`);
+      const tagContent = entry?.displayLabel ?? '';
       const taggedLatex = `${latex}\\tag*{${tagContent}}`;
       return `${eqId}\n$$\n${taggedLatex}\n$$\n`;
     }
@@ -220,13 +209,7 @@ function convertTable(table: TiptapNode, ctx: ConvertContext): string {
   let captionMd = '';
   const caption = table.attrs?.caption;
   if (caption) {
-    ctx.tableCounter++;
-    const prefix = ctx.settings.tableCaptionPrefix ?? '';
-    const tblNum = ctx.settings.tableNumberStyle === 'roman' ? toRoman(ctx.tableCounter) : `${ctx.tableCounter}`;
-    const numbering = ctx.settings.captionNumbering === 'hierarchical'
-      ? `${ctx.h1Counter}.${tblNum}`
-      : tblNum;
-    captionMd = `**${formatCaptionLabel(prefix, numbering, caption as string, ctx.settings.captionSeparator ?? ' ')}**\n\n`;
+    captionMd = `**${ctx.numbering.byNode.get(table)?.displayLabel ?? String(caption)}**\n\n`;
   }
 
   if (isComplexTable(table)) {
@@ -368,12 +351,7 @@ function convertImage(node: TiptapNode, ctx: ConvertContext): string {
   let md = `![${alt}](${src})`;
 
   if (caption) {
-    ctx.imageCounter++;
-    const prefix = ctx.settings.imageCaptionPrefix ?? '';
-    const numbering = ctx.settings.captionNumbering === 'hierarchical'
-      ? `${ctx.h1Counter}.${ctx.imageCounter}`
-      : `${ctx.imageCounter}`;
-    md += `\n\n*${formatCaptionLabel(prefix, numbering, caption as string, ctx.settings.captionSeparator ?? ' ')}*`;
+    md += `\n\n*${ctx.numbering.byNode.get(node)?.displayLabel ?? String(caption)}*`;
   }
 
   return md + '\n';

@@ -1,10 +1,11 @@
 /** Host-neutral `.sdoc` document processing. */
 
-import { getCaptionPreset, toRoman, type CaptionStyleName } from '../settingsResolver';
+import type { CaptionStyleName } from '../settingsResolver';
 import type { SdocEnvelope, SdocMeta, TiptapMark, TiptapNode } from '../types';
 import { preserveMeta } from './documentContract';
 import { mapDocument, walkDocument } from './walker';
 import { migrateAttributes } from './migrations';
+import { buildNumberingIndex } from './numbering';
 
 export { migrateAttributes } from './migrations';
 
@@ -192,66 +193,18 @@ export function syncCrossReferences(
   equationNumbering: 'sequential' | 'hierarchical' = 'sequential',
   captionStyle: CaptionStyleName = 'modern',
   crossRefIncludeCaption = false,
+  captionNumbering: 'sequential' | 'hierarchical' = 'sequential',
+  headingNumbering = true,
 ): TiptapNode {
   if (!doc.content) return doc;
-
-  const preset = getCaptionPreset(captionStyle);
-  const labels = new Map<string, string>();
-  let h1 = 0;
-  let imageCount = 0;
-  let tableCount = 0;
-  let equationGlobal = 0;
-  let equationInSection = 0;
-  const headings = [0, 0, 0, 0, 0, 0];
-
-  for (const { node } of walkDocument(doc)) {
-    if (node.type === 'heading') {
-      const level = numberValue(node.attrs?.level, 1);
-      const numbered = node.attrs?.numbered !== false;
-      if (numbered) headings[level - 1]++;
-      for (let index = level; index < headings.length; index++) headings[index] = 0;
-      if (level === 1) {
-        if (numbered) h1++;
-        imageCount = 0;
-        tableCount = 0;
-        equationInSection = 0;
-      }
-      const id = attrString(node, 'id');
-      if (id) {
-        const text = getNodeText(node);
-        labels.set(id, numbered ? `${headings.slice(0, level).join('.')}. ${text}` : text);
-      }
-    }
-    if (node.type === 'image') {
-      const number = `${preset.figurePrefix}${++imageCount}`;
-      const caption = attrString(node, 'caption');
-      const id = attrString(node, 'id');
-      if (id) labels.set(id, crossRefIncludeCaption && caption ? `${number}${preset.separator}${caption}` : number);
-    }
-    if (node.type === 'table') {
-      tableCount++;
-      const tableNumber = preset.tableNumberStyle === 'roman' ? toRoman(tableCount) : `${tableCount}`;
-      const number = `${preset.tablePrefix}${tableNumber}`;
-      const caption = attrString(node, 'caption');
-      const id = attrString(node, 'id');
-      if (id) labels.set(id, crossRefIncludeCaption && caption ? `${number}${preset.separator}${caption}` : number);
-    }
-    if (node.type === 'mathBlock') {
-      equationGlobal++;
-      equationInSection++;
-      const value = equationNumbering === 'hierarchical' ? `${h1}.${equationInSection}` : `${equationGlobal}`;
-      const label = preset.equationParens
-        ? `${preset.equationPrefix}(${value})`
-        : `${preset.equationPrefix}${value}`;
-      const id = attrString(node, 'id');
-      if (id) labels.set(id, label);
-    }
-  }
+  const numbering = buildNumberingIndex(doc, {
+    headingNumbering, captionNumbering, equationNumbering, captionStyle, crossRefIncludeCaption,
+  });
 
   return mapDocument(doc, (node): TiptapNode => {
     const link = node.marks?.find(isInternalLink);
     const href = stringValue(link?.attrs?.href);
-    const label = href ? labels.get(href.slice(1)) : undefined;
+    const label = href ? numbering.byId.get(href.slice(1))?.referenceLabel : undefined;
     return {
       ...node,
       ...(label && node.type === 'text' ? { text: label } : {}),
@@ -263,6 +216,8 @@ export interface DocumentNormalizationOptions {
   equationNumbering?: 'sequential' | 'hierarchical';
   captionStyle?: CaptionStyleName;
   crossRefIncludeCaption?: boolean;
+  captionNumbering?: 'sequential' | 'hierarchical';
+  headingNumbering?: boolean;
 }
 
 /** The single semantic persistence pipeline used by every host. */
@@ -277,6 +232,8 @@ export function normalizeDocument(
     options.equationNumbering,
     options.captionStyle,
     options.crossRefIncludeCaption,
+    options.captionNumbering,
+    options.headingNumbering,
   );
 }
 
@@ -301,34 +258,31 @@ export function queryDocumentStructure(doc: TiptapNode): QueryResult {
   };
   if (!doc.content) return result;
 
-  const headingNumbers = [0, 0, 0, 0, 0, 0];
+  const numbering = buildNumberingIndex(doc, {
+    headingNumbering: true,
+    captionNumbering: 'sequential',
+    equationNumbering: 'sequential',
+    captionStyle: 'modern',
+    crossRefIncludeCaption: false,
+  });
   const allIds = new Set<string>();
-  let imageCount = 0;
-  let tableCount = 0;
-  let equationCount = 0;
 
-  for (const { node } of walkDocument(doc)) {
+  for (const { node, path } of walkDocument(doc)) {
     const id = attrString(node, 'id');
     if (id) allIds.add(id);
+    const entry = numbering.byPath.get(path.join('.'));
     if (node.type === 'heading') {
       const level = numberValue(node.attrs?.level, 1);
-      const numbered = node.attrs?.numbered !== false;
-      if (numbered) headingNumbers[level - 1]++;
-      for (let index = level; index < headingNumbers.length; index++) headingNumbers[index] = 0;
-      if (level === 1) {
-        imageCount = 0;
-        tableCount = 0;
-      }
       result.headings.push({
         id,
         level,
         text: getNodeText(node),
-        numbering: numbered ? headingNumbers.slice(0, level).join('.') : '',
+        numbering: entry?.number ?? '',
       });
     }
-    if (node.type === 'image') result.figures.push({ id, caption: attrString(node, 'caption'), number: ++imageCount });
-    if (node.type === 'table') result.tables.push({ id, caption: attrString(node, 'caption'), number: ++tableCount });
-    if (node.type === 'mathBlock') result.equations.push({ id, number: ++equationCount });
+    if (node.type === 'image') result.figures.push({ id, caption: attrString(node, 'caption'), number: Number(entry?.number) });
+    if (node.type === 'table') result.tables.push({ id, caption: attrString(node, 'caption'), number: Number(entry?.number) });
+    if (node.type === 'mathBlock') result.equations.push({ id, number: Number(entry?.number) });
   }
 
   for (const { node } of walkDocument(doc)) {

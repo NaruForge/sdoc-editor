@@ -137,11 +137,31 @@ export function resolveSettings(
   };
 }
 
-function stripUndefined(obj?: Partial<DocumentSettings>): Partial<DocumentSettings> {
+export function resolveEditorSettings(
+  docSettings?: Partial<DocumentSettings>,
+  externalDefaults?: Partial<DocumentSettings>,
+  hostDefaults?: Partial<Pick<ResolvedEditorSettings, 'defaultImageAlignment' | 'exportImagePath'>>,
+): ResolvedEditorSettings {
+  const settings = resolveSettings(docSettings, externalDefaults);
+  const preset = getCaptionPreset(settings.captionStyle);
+  return {
+    ...EDITOR_SETTINGS_DEFAULTS,
+    ...settings,
+    imageCaptionPrefix: preset.figurePrefix,
+    tableCaptionPrefix: preset.tablePrefix,
+    equationCaptionPrefix: preset.equationPrefix,
+    captionSeparator: preset.separator,
+    tableNumberStyle: preset.tableNumberStyle,
+    equationParens: preset.equationParens,
+    ...stripUndefined(hostDefaults),
+  };
+}
+
+function stripUndefined<T extends object>(obj?: Partial<T>): Partial<T> {
   if (!obj) return {};
   const result: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(obj)) {
     if (v !== undefined) result[k] = v;
   }
-  return result as Partial<DocumentSettings>;
+  return result as Partial<T>;
 }

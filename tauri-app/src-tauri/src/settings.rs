@@ -7,14 +7,6 @@ const SETTINGS_FILE: &str = "settings.json";
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppSettings {
-    #[serde(default = "default_image_caption_prefix")]
-    pub image_caption_prefix: String,
-    #[serde(default = "default_table_caption_prefix")]
-    pub table_caption_prefix: String,
-    #[serde(default = "default_caption_numbering")]
-    pub caption_numbering: String,
-    #[serde(default = "default_true")]
-    pub heading_numbering: bool,
     #[serde(default = "default_true")]
     pub heading_decoration: bool,
     #[serde(default = "default_lg_red")]
@@ -46,15 +38,6 @@ pub struct AppSettings {
     pub recent_folders: Vec<String>,
 }
 
-fn default_image_caption_prefix() -> String {
-    "Image".to_string()
-}
-fn default_table_caption_prefix() -> String {
-    "Table".to_string()
-}
-fn default_caption_numbering() -> String {
-    "sequential".to_string()
-}
 fn default_true() -> bool {
     true
 }
@@ -110,10 +93,6 @@ pub fn save_settings(settings: &AppSettings) -> Result<(), String> {
 /// Convert settings to the format expected by the webview editor.
 pub fn to_editor_settings(settings: &AppSettings) -> serde_json::Value {
     serde_json::json!({
-        "imageCaptionPrefix": settings.image_caption_prefix,
-        "tableCaptionPrefix": settings.table_caption_prefix,
-        "captionNumbering": settings.caption_numbering,
-        "headingNumbering": settings.heading_numbering,
         "headingDecoration": settings.heading_decoration,
         "headingH1Color": settings.heading_h1_color,
         "headingH2Color": settings.heading_h2_color,

@@ -9,6 +9,7 @@ import {
   type SdocBook,
 } from '../shared/book';
 import type { TiptapNode } from '../shared/types';
+import { buildNumberingIndex } from '../shared/document/numbering';
 
 const text = (value: string, href?: string): TiptapNode => ({
   type: 'text',
@@ -79,6 +80,13 @@ describe('sdocbook parsing', () => {
     expect(isBookWebviewMessage({ type: 'updateMeta', key: 'title', value: 'Guide' })).toBe(true);
     expect(isBookWebviewMessage({ type: 'openDocument', path: './chapter.sdoc' })).toBe(false);
     expect(isBookWebviewMessage({ type: 'exportProject', format: 'docx' })).toBe(false);
+  });
+
+  it('validates the chapter counter policy', () => {
+    expect(parseBook({ sdocBook: '1.0', counterPolicy: 'reset', documents: [{ path: 'one.sdoc' }] }).book)
+      .toMatchObject({ counterPolicy: 'reset' });
+    expect(parseBook({ sdocBook: '1.0', counterPolicy: 'sometimes', documents: [{ path: 'one.sdoc' }] })
+      .diagnostics.map((item) => item.code)).toContain('BOOK_INVALID');
   });
 });
 
@@ -200,5 +208,23 @@ describe('sdocbook composition', () => {
 
     expect(result.documents[0].status).toBe('invalid');
     expect(result.diagnostics[0].code).toBe('DOCUMENT_INVALID');
+  });
+
+  it('provides deterministic reset boundaries for chapter numbering', async () => {
+    const result = await composeBook({
+      sdocBook: '1.0', counterPolicy: 'reset',
+      documents: [{ path: './one.sdoc' }, { path: './two.sdoc' }],
+    }, memoryLoader({
+      './one.sdoc': { type: 'doc', content: [{ type: 'image', attrs: { id: 'one', src: './images/one.png' } }] },
+      './two.sdoc': { type: 'doc', content: [{ type: 'image', attrs: { id: 'two', src: './images/two.png' } }] },
+    }));
+    const numbering = buildNumberingIndex(result.doc, {
+      headingNumbering: true, captionNumbering: 'sequential', equationNumbering: 'sequential',
+      captionStyle: 'modern', crossRefIncludeCaption: false,
+      counterResetPaths: result.counterResetPaths,
+    });
+    expect(result.counterResetPaths).toEqual(['0', '1']);
+    expect(numbering.byId.get('one')?.number).toBe('1');
+    expect(numbering.byId.get('two')?.number).toBe('1');
   });
 });

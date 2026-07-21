@@ -26,8 +26,10 @@ import { Subscript } from '@tiptap/extension-subscript';
 import { Superscript } from '@tiptap/extension-superscript';
 import { Callout } from './Callout';
 import { CursorHistory } from './CursorHistory';
-import type { ResolvedEditorSettings } from '@shared/types';
+import type { ResolvedEditorSettings, TiptapNode } from '@shared/types';
 import { assignAutoIds } from '../../document/sdocUtils';
+import { buildNumberingIndex } from '../../document/numbering';
+import { getCaptionPreset } from '../../settingsResolver';
 import {
   NOOP_EDITOR_EXTENSION_RUNTIME,
   type EditorExtensionOptions,
@@ -249,24 +251,13 @@ function buildEqNumberMap(
   doc: import('@tiptap/pm/model').Node,
   settings: ResolvedEditorSettings,
 ): Map<number, string> {
-  const mode = settings.equationNumbering;
   const map = new Map<number, string>();
-  let h1 = 0;
-  let eqGlobal = 0;
-  let eqInSection = 0;
-
-  doc.forEach((node, offset) => {
-    if (node.type.name === 'heading' && node.attrs.level === 1) {
-      h1++;
-      eqInSection = 0;
-    }
+  const numbering = buildNumberingIndex(doc.toJSON() as TiptapNode, settings);
+  doc.descendants((node, offset) => {
     if (node.type.name === 'mathBlock') {
-      eqGlobal++;
-      eqInSection++;
-      const label = mode === 'hierarchical'
-        ? `${h1}.${eqInSection}`
-        : `${eqGlobal}`;
-      map.set(offset, label);
+      const id = String(node.attrs.id ?? '');
+      const label = numbering.byId.get(id)?.displayLabel;
+      if (label) map.set(offset, label);
     }
   });
   return map;
@@ -286,7 +277,7 @@ const EquationNumbering = Extension.create<EditorExtensionOptions>({
           return {
             update(view: EditorView) {
               const map = buildEqNumberMap(view.state.doc, runtime.getSettings());
-              view.state.doc.forEach((node, offset) => {
+              view.state.doc.descendants((node, offset) => {
                 if (node.type.name !== 'mathBlock') return;
                 // nodeDOM(offset) directly returns the NodeView's outer DOM element.
                 // domAtPos() is unreliable for atom nodes because they have no inner positions.
@@ -304,6 +295,47 @@ const EquationNumbering = Extension.create<EditorExtensionOptions>({
         },
       }),
     ];
+  },
+});
+
+const SemanticNumbering = Extension.create<EditorExtensionOptions>({
+  name: 'semanticNumbering',
+  addOptions() {
+    return { runtime: NOOP_EDITOR_EXTENSION_RUNTIME };
+  },
+  addProseMirrorPlugins() {
+    const runtime = this.options.runtime;
+    return [new Plugin({
+      view() {
+        let previousDoc: import('@tiptap/pm/model').Node | undefined;
+        let previousSettings = '';
+        return {
+          update(view) {
+            const settings = runtime.getSettings();
+            const settingsKey = [settings.headingNumbering, settings.captionNumbering,
+              settings.equationNumbering, settings.captionStyle].join('|');
+            if (previousDoc?.eq(view.state.doc) && previousSettings === settingsKey) return;
+            previousDoc = view.state.doc;
+            previousSettings = settingsKey;
+            const numbering = buildNumberingIndex(view.state.doc.toJSON() as TiptapNode, settings);
+            const preset = getCaptionPreset(settings.captionStyle);
+            view.state.doc.descendants((node, pos) => {
+              const id = String(node.attrs.id ?? '');
+              const entry = numbering.byId.get(id);
+              if (!entry) return;
+              const dom = view.nodeDOM(pos) as HTMLElement | null;
+              if (!dom) return;
+              if (entry.kind === 'heading') {
+                dom.dataset.numberLabel = entry.number;
+              } else if (entry.kind === 'figure' || entry.kind === 'table') {
+                const label = dom.querySelector<HTMLElement>('.caption-label');
+                if (label) label.dataset.numberLabel = `${entry.baseLabel}${preset.separator}`;
+              }
+            });
+          },
+        };
+      },
+    })];
   },
 });
 
@@ -458,6 +490,7 @@ export function createTiptapExtensions(runtime: EditorExtensionRuntime) {
   CrossReference.configure({ runtime }),
   SectionFold,
   EquationNumbering.configure({ runtime }),
+  SemanticNumbering.configure({ runtime }),
   CursorHistory,
   Extension.create({
     name: 'internalLinkClick',

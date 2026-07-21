@@ -115,13 +115,14 @@ export const Editor: React.FC = () => {
   flushUpdateRef.current = flushUpdate;
 
   // Trigger CrossRef label re-sync when caption settings change
-  const prevPrefixRef = useRef({ style: '', eqMode: '', capMode: '', includeCaption: false });
+  const prevPrefixRef = useRef({ style: '', eqMode: '', capMode: '', includeCaption: false, heading: true });
   useEffect(() => {
-    const { captionStyle, equationNumbering, captionNumbering, crossRefIncludeCaption } = state.settings;
+    const { captionStyle, equationNumbering, captionNumbering, crossRefIncludeCaption, headingNumbering } = state.settings;
     const prev = prevPrefixRef.current;
     const changed = prev.style !== captionStyle || prev.eqMode !== equationNumbering
-      || prev.capMode !== captionNumbering || prev.includeCaption !== crossRefIncludeCaption;
-    prevPrefixRef.current = { style: captionStyle, eqMode: equationNumbering, capMode: captionNumbering, includeCaption: crossRefIncludeCaption };
+      || prev.capMode !== captionNumbering || prev.includeCaption !== crossRefIncludeCaption
+      || prev.heading !== headingNumbering;
+    prevPrefixRef.current = { style: captionStyle, eqMode: equationNumbering, capMode: captionNumbering, includeCaption: crossRefIncludeCaption, heading: headingNumbering };
     if (changed && editor) {
       const { tr } = editor.state;
       tr.setMeta(CROSSREF_RESYNC_META, true);
@@ -475,6 +476,7 @@ export const Editor: React.FC = () => {
           <SidePanel
             activeTab={sidePanelTab}
             editor={editor}
+            settings={state.settings}
             showNumbering={showNumbering}
             onToggleNumbering={handleToggleNumbering}
             showDecoration={state.settings.headingDecoration}

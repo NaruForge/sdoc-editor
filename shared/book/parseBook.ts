@@ -5,7 +5,7 @@ import type {
   SdocBookDocumentEntry,
 } from './types';
 
-const BOOK_PROPERTIES = new Set(['sdocBook', 'title', 'author', 'version', 'documents']);
+const BOOK_PROPERTIES = new Set(['sdocBook', 'title', 'author', 'version', 'counterPolicy', 'documents']);
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -86,6 +86,9 @@ export function parseBook(input: unknown): BookParseResult {
         message: `${property} must be a string.`,
       });
     }
+  }
+  if (value.counterPolicy !== undefined && value.counterPolicy !== 'continue' && value.counterPolicy !== 'reset') {
+    diagnostics.push({ severity: 'error', code: 'BOOK_INVALID', message: 'counterPolicy must be continue or reset.' });
   }
 
   const documents: SdocBookDocumentEntry[] = [];
@@ -171,6 +174,7 @@ export function parseBook(input: unknown): BookParseResult {
   if (typeof value.title === 'string') book.title = value.title;
   if (typeof value.author === 'string') book.author = value.author;
   if (typeof value.version === 'string') book.version = value.version;
+  if (value.counterPolicy === 'continue' || value.counterPolicy === 'reset') book.counterPolicy = value.counterPolicy;
 
   return { book, diagnostics };
 }

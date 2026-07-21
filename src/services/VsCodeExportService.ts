@@ -109,6 +109,7 @@ export class VsCodeExportService {
       const config = vscode.workspace.getConfiguration('structuredDocEditor');
       const vscodeDefaults: Partial<DocumentSettings> = {
         captionStyle: config.get<CaptionStyleName>('caption.style', 'modern'),
+        headingNumbering: config.get<boolean>('heading.numbering', true),
         captionNumbering: config.get<'sequential' | 'hierarchical'>('caption.numbering', 'sequential'),
         equationNumbering: config.get<'sequential' | 'hierarchical'>('equation.numbering', 'sequential'),
         selfContained: config.get<'none' | 'images-only' | 'full'>('export.selfContained', 'images-only'),
@@ -121,6 +122,8 @@ export class VsCodeExportService {
       const resolved = resolveSettings(meta.settings as Partial<DocumentSettings> | undefined, vscodeDefaults);
       const preset = getCaptionPreset(resolved.captionStyle);
       const exportSettings: Record<string, unknown> = {
+        captionStyle: resolved.captionStyle,
+        headingNumbering: resolved.headingNumbering,
         imageCaptionPrefix: preset.figurePrefix,
         tableCaptionPrefix: preset.tablePrefix,
         equationCaptionPrefix: preset.equationPrefix,

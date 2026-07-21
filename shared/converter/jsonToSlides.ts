@@ -1,24 +1,28 @@
 import hljs from 'highlight.js';
-import { escapeHtml, formatCaptionLabel } from './utils';
-import { toRoman } from '../settingsResolver';
+import { escapeHtml } from './utils';
+import { buildNumberingIndex, type NumberingIndex } from '../document/numbering';
 import type { SdocMeta, SlideSettings, SlideTheme, TiptapMark, TiptapNode } from '../types';
 
 interface ConvertContext {
   settings: SlideSettings;
-  imageCounter: number;
-  tableCounter: number;
-  h1Counter: number;
+  numbering: NumberingIndex;
 }
 
 /**
  * Converts Tiptap JSON to reveal.js slide HTML
  */
 export function convertJsonToSlides(json: TiptapNode, theme?: SlideTheme, settings?: SlideSettings, meta?: SdocMeta): string {
+  const resolved = settings || {};
   const ctx: ConvertContext = {
-    settings: settings || {},
-    imageCounter: 0,
-    tableCounter: 0,
-    h1Counter: 0,
+    settings: resolved,
+    numbering: buildNumberingIndex(json, {
+      headingNumbering: resolved.headingNumbering ?? true,
+      captionNumbering: resolved.captionNumbering ?? 'sequential',
+      equationNumbering: resolved.equationNumbering ?? 'sequential',
+      captionStyle: resolved.captionStyle ?? 'modern',
+      crossRefIncludeCaption: false,
+      counterResetPaths: resolved.counterResetPaths,
+    }),
   };
 
   const slides = splitIntoSlides(json, ctx);
@@ -82,9 +86,6 @@ function buildSlideSection(group: SlideGroup, ctx: ConvertContext): string {
 
     let firstContent = '';
     if (group.h1Node) {
-      if (group.h1Node.attrs?.numbered !== false) ctx.h1Counter++;
-      ctx.imageCounter = 0;
-      ctx.tableCounter = 0;
       firstContent += convertSlideNode(group.h1Node, ctx);
     }
     if (group.content.length > 0) {
@@ -110,9 +111,6 @@ function buildSlideSection(group: SlideGroup, ctx: ConvertContext): string {
 
   let content = '';
   if (group.h1Node) {
-    if (group.h1Node.attrs?.numbered !== false) ctx.h1Counter++;
-    ctx.imageCounter = 0;
-    ctx.tableCounter = 0;
     content += convertSlideNode(group.h1Node, ctx);
   }
   if (group.content.length > 0) {
@@ -130,9 +128,11 @@ function convertSlideNode(node: TiptapNode, ctx: ConvertContext): string {
     case 'heading': {
       const level = node.attrs?.level || 1;
       const text = node.content ? convertInlineContent(node.content, ctx) : '';
+      const entry = ctx.numbering.byNode.get(node);
+      const displayedHeading = entry?.numbered ? `${entry.number} ${text}` : text;
       const hId = node.attrs?.id ? ` id="${escapeHtml(node.attrs.id as string)}"` : '';
       const hAlign = node.attrs?.textAlign ? ` style="text-align:${node.attrs.textAlign}"` : '';
-      return `        <h${level}${hId}${hAlign}>${text}</h${level}>`;
+      return `        <h${level}${hId}${hAlign}>${displayedHeading}</h${level}>`;
     }
 
     case 'paragraph': {
@@ -190,8 +190,12 @@ function convertSlideNode(node: TiptapNode, ctx: ConvertContext): string {
     case 'mathInline':
       return `<span class="math-inline">\\(${escapeHtml((node.attrs?.latex as string) || '')}\\)</span>`;
 
-    case 'mathBlock':
-      return `        <div class="math-block">\\[${escapeHtml((node.attrs?.latex as string) || '')}\\]</div>`;
+    case 'mathBlock': {
+      const latex = (node.attrs?.latex as string) || '';
+      const label = ctx.numbering.byNode.get(node)?.displayLabel ?? '';
+      const id = node.attrs?.id ? ` id="${escapeHtml(node.attrs.id as string)}"` : '';
+      return `        <div class="math-block"${id}>\\[${escapeHtml(`${latex}\\tag*{${label}}`)}\\]</div>`;
+    }
 
     case 'diagram':
       return `        <pre class="mermaid">${escapeHtml((node.attrs?.code as string) || '')}</pre>`;
@@ -242,12 +246,8 @@ function convertTableCellContent(content: TiptapNode[], ctx: ConvertContext): st
 function convertTable(table: TiptapNode, ctx: ConvertContext): string {
   if (!table.content || table.content.length === 0) return '';
 
-  ctx.tableCounter++;
   const caption = table.attrs?.caption;
-  const prefix = ctx.settings.tableCaptionPrefix ?? '';
-  const tblNum = ctx.settings.tableNumberStyle === 'roman' ? toRoman(ctx.tableCounter) : `${ctx.tableCounter}`;
-  const numbering = ctx.settings.captionNumbering === 'hierarchical'
-    ? `${ctx.h1Counter}.${tblNum}` : tblNum;
+  const label = ctx.numbering.byNode.get(table)?.displayLabel;
 
   const hasHeader = table.content[0]?.content?.some((cell: TiptapNode) => cell.type === 'tableHeader');
   const tId = table.attrs?.id ? ` id="${escapeHtml(table.attrs.id as string)}"` : '';
@@ -255,7 +255,7 @@ function convertTable(table: TiptapNode, ctx: ConvertContext): string {
   let html = `        <table${tId} class="slide-table">`;
 
   if (caption) {
-    html += `\n          <caption>${formatCaptionLabel(prefix, numbering, escapeHtml(caption as string), ctx.settings.captionSeparator ?? ' ')}</caption>`;
+    html += `\n          <caption>${escapeHtml(label ?? String(caption))}</caption>`;
   }
 
   if (hasHeader && table.content[0]) {
@@ -303,16 +303,13 @@ function convertImage(node: TiptapNode, ctx: ConvertContext): string {
   const src = (node.attrs?.src as string) || '';
   const alt = (node.attrs?.alt as string) || '';
   const caption = (node.attrs?.caption as string) || '';
-  ctx.imageCounter++;
-  const prefix = ctx.settings.imageCaptionPrefix ?? '';
-  const numbering = ctx.settings.captionNumbering === 'hierarchical'
-    ? `${ctx.h1Counter}.${ctx.imageCounter}` : `${ctx.imageCounter}`;
+  const label = ctx.numbering.byNode.get(node)?.displayLabel;
 
   const figId = node.attrs?.id ? ` id="${escapeHtml(node.attrs.id as string)}"` : '';
   let html = `        <figure class="slide-image"${figId}>`;
   html += `\n          <img src="${escapeHtml(src)}" alt="${escapeHtml(alt)}">`;
   if (caption) {
-    html += `\n          <figcaption>${formatCaptionLabel(prefix, numbering, escapeHtml(caption), ctx.settings.captionSeparator ?? ' ')}</figcaption>`;
+    html += `\n          <figcaption>${escapeHtml(label ?? caption)}</figcaption>`;
   }
   html += '\n        </figure>';
   return html;

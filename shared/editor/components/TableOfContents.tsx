@@ -2,6 +2,8 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { ChevronRight, ChevronDown, BookOpen } from 'lucide-react';
 import { Editor as TiptapEditor } from '@tiptap/react';
 import { PanelEmptyState } from './PanelEmptyState';
+import { buildNumberingIndex } from '../../document/numbering';
+import type { ResolvedEditorSettings, TiptapNode } from '../../types';
 
 interface TocEntry {
   level: number;
@@ -9,30 +11,13 @@ interface TocEntry {
   id: string;
   pos: number;  // document position of the heading node
   numbered: boolean;
+  number: string;
 }
 
 interface TableOfContentsProps {
   editor: TiptapEditor | null;
   showNumbering: boolean;
-}
-
-/** Compute hierarchical number prefix for each entry, e.g. "1.2.3. ". Headings marked numbered:false get no prefix. */
-function computeNumbering(entries: TocEntry[]): string[] {
-  const counters = [0, 0, 0, 0, 0, 0]; // index 0 = h1, ..., 5 = h6
-  return entries.map((entry) => {
-    const idx = entry.level - 1;
-    if (!entry.numbered) {
-      // Skip own increment but still reset deeper counters (treat as a normal section boundary)
-      for (let i = idx + 1; i < counters.length; i++) counters[i] = 0;
-      return '';
-    }
-    counters[idx]++;
-    // Reset all deeper counters
-    for (let i = idx + 1; i < counters.length; i++) counters[i] = 0;
-    // Build prefix like "1.", "1.2.", "1.2.3."
-    const parts = counters.slice(0, idx + 1);
-    return parts.join('.') + '. ';
-  });
+  settings: ResolvedEditorSettings;
 }
 
 /** Returns true if the entry at idx has at least one subordinate entry */
@@ -66,7 +51,7 @@ function computeVisibility(entries: TocEntry[], collapsed: Set<number>): boolean
   return visible;
 }
 
-export const TableOfContents: React.FC<TableOfContentsProps> = ({ editor, showNumbering }) => {
+export const TableOfContents: React.FC<TableOfContentsProps> = ({ editor, showNumbering, settings }) => {
   const [entries, setEntries] = useState<TocEntry[]>([]);
   const [activePos, setActivePos] = useState<number>(-1);
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
@@ -83,6 +68,7 @@ export const TableOfContents: React.FC<TableOfContentsProps> = ({ editor, showNu
   const buildEntries = useCallback(() => {
     if (!editor) return;
     const doc = editor.state.doc;
+    const numbering = buildNumberingIndex(editor.getJSON() as TiptapNode, settings);
     const result: TocEntry[] = [];
     doc.forEach((node, pos) => {
       if (node.type.name === 'heading') {
@@ -90,13 +76,14 @@ export const TableOfContents: React.FC<TableOfContentsProps> = ({ editor, showNu
         const id = (node.attrs.id as string) || '';
         const text = node.textContent;
         const numbered = node.attrs.numbered !== false;
+        const number = numbering.byId.get(id)?.number ?? '';
         if (text) {
-          result.push({ level, text, id, pos, numbered });
+          result.push({ level, text, id, pos, numbered, number });
         }
       }
     });
     setEntries(result);
-  }, [editor]);
+  }, [editor, settings]);
 
   // Rebuild TOC whenever the editor content changes
   useEffect(() => {
@@ -143,7 +130,6 @@ export const TableOfContents: React.FC<TableOfContentsProps> = ({ editor, showNu
     }
   };
 
-  const numbering = showNumbering ? computeNumbering(entries) : null;
   const visibility = computeVisibility(entries, collapsed);
 
   if (entries.length === 0) {
@@ -188,8 +174,8 @@ export const TableOfContents: React.FC<TableOfContentsProps> = ({ editor, showNu
                 onClick={() => handleClick(entry)}
                 title={entry.text}
               >
-                {numbering && (
-                  <span className="toc-number">{numbering[idx]}</span>
+                {showNumbering && entry.number && (
+                  <span className="toc-number">{entry.number}. </span>
                 )}
                 <span className="toc-text">{entry.text}</span>
               </button>

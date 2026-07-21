@@ -290,6 +290,7 @@ export class SdocBookProvider implements vscode.CustomTextEditorProvider {
     const exportSettings: Record<string, unknown> = {
       ...readExportSettings(config),
       selfContained,
+      counterResetPaths: result.composition.counterResetPaths,
     };
 
     let htmlContent = convertJsonToHtml(finalDoc, theme, exportSettings, result.composition.meta);
