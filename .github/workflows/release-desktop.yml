@@ -1,7 +1,7 @@
 name: Release Desktop
 
 # Build the Windows Tauri app and attach installers to a GitHub Release.
-# Trigger: push a version tag (v0.4.13) that matches package.json, or run manually
+# Trigger: push a version tag (v*) that matches package.json, or run manually
 # (manual runs only upload workflow artifacts; they do not create a Release).
 
 on:

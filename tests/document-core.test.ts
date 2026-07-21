@@ -68,6 +68,40 @@ const text = (value: string, href?: string): TiptapNode => ({
 });
 
 describe('sdoc envelope', () => {
+  it('uses precompiled validators that are compatible with the Tauri CSP', () => {
+    const source = readFileSync(
+      new URL('../shared/document/documentContract.ts', import.meta.url),
+      'utf8',
+    );
+    const generated = readFileSync(
+      new URL('../shared/document/generated/documentValidators.js', import.meta.url),
+      'utf8',
+    );
+    expect(source).not.toMatch(/import\s+(?!type\b)[^;]+from ['"]ajv['"]/);
+    expect(source).toContain("from './generated/documentValidators.js'");
+    expect(generated).not.toMatch(/\b(?:eval|Function)\s*\(/);
+  });
+
+  it('keeps executable scripts strict while allowing bundled data fonts', () => {
+    const config = JSON.parse(readFileSync(
+      new URL('../tauri-app/src-tauri/tauri.conf.json', import.meta.url),
+      'utf8',
+    )) as { app: { security: { csp: string } } };
+    expect(config.app.security.csp).toContain("script-src 'self'");
+    expect(config.app.security.csp).not.toContain("'unsafe-eval'");
+    expect(config.app.security.csp).toContain("font-src 'self' data:");
+  });
+
+  it('deduplicates React when shared editor modules are bundled by either host', () => {
+    for (const configPath of [
+      '../tauri-app/vite.config.ts',
+      '../webview-ui/vite.config.ts',
+    ]) {
+      const config = readFileSync(new URL(configPath, import.meta.url), 'utf8');
+      expect(config).toContain("dedupe: ['react', 'react-dom']");
+    }
+  });
+
   it('fails closed for malformed and unsupported future documents', () => {
     expect(parseDocumentContract({ unexpected: true })).toMatchObject({ ok: false, kind: 'malformed' });
     expect(parseDocumentContract({

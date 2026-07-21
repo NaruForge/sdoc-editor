@@ -6,6 +6,7 @@ export default defineConfig({
   plugins: [react()],
   base: '',
   resolve: {
+    dedupe: ['react', 'react-dom'],
     alias: {
       '@shared': resolve(__dirname, '../shared'),
     },

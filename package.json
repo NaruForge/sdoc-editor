@@ -2,7 +2,7 @@
   "name": "structured-doc-editor",
   "displayName": "Structured Doc Editor",
   "description": "WYSIWYG editor for .tiptap.json/.sdoc files with Markdown/AsciiDoc/HTML export",
-  "version": "0.4.13",
+  "version": "0.4.14",
   "publisher": "swbaek",
   "license": "MIT",
   "repository": {
@@ -390,7 +390,7 @@
     "tauri-app"
   ],
   "scripts": {
-    "build": "npm run build:ext && npm run build:webview",
+    "build": "npm run validators:generate && npm run build:ext && npm run build:webview",
     "build:all": "npm run build && npm run build:desktop",
     "build:ext": "node esbuild.mjs",
     "build:webview": "npm run build --workspace=webview-ui",
@@ -403,7 +403,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "version:check": "node scripts/check-versions.mjs",
-    "check": "npm run version:check && npm run typecheck && npm run lint && npm test",
+    "check": "npm run version:check && npm run validators:check && npm run typecheck && npm run lint && npm test",
+    "validators:generate": "node scripts/generate-document-validators.mjs",
+    "validators:check": "node scripts/generate-document-validators.mjs --check",
     "watch:ext": "node esbuild.mjs --watch",
     "watch:webview": "npm run build --workspace=webview-ui -- --watch",
     "watch": "npm-run-all --parallel watch:ext watch:webview",

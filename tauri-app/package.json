@@ -1,11 +1,11 @@
 {
   "name": "sdoc-editor-tauri",
   "private": true,
-  "version": "0.4.13",
+  "version": "0.4.14",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "node ../scripts/generate-document-validators.mjs && tsc && vite build",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
     "preview": "vite preview",

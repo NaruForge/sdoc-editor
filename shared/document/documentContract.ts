@@ -1,16 +1,11 @@
-import Ajv, { type ErrorObject } from 'ajv';
-import addFormats from 'ajv-formats';
-import schema from '../../sdoc.schema.json';
+import type { ErrorObject } from 'ajv';
 import type { DocumentSettings, SdocEnvelope, SdocMeta, TiptapNode } from '../types';
 import { migrateAttributes } from './migrations';
-
-const ajv = new Ajv({ allErrors: true, strict: false });
-addFormats(ajv);
-const validateEnvelope = ajv.compile<SdocEnvelope>(schema);
-const validateDoc = ajv.compile<TiptapNode>({ $ref: `${schema.$id}#/definitions/docNode` });
-const validateSettingsSchema = ajv.compile<Partial<DocumentSettings>>({
-  $ref: `${schema.$id}#/definitions/documentSettings`,
-});
+import {
+  validateDoc,
+  validateEnvelope,
+  validateSettingsSchema,
+} from './generated/documentValidators.js';
 
 export interface ContractDiagnostic {
   path: string;

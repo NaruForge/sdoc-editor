@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.14] - 2026-07-21
+
+### Fixed
+- Tauri no longer opens to a blank window: document schema validators are precompiled at build time instead of requiring CSP-blocked runtime evaluation
+- Shared editor bundles now resolve a single React instance, preventing startup hook failures after workspace dependency upgrades
+- Bundled data fonts are permitted by the desktop CSP without weakening the `script-src` policy
+
 ### Added
 - Host-neutral `.sdocbook` parsing, composition, path normalization, and structured diagnostics in `shared/book/`
 - Book validation status for missing or invalid documents, duplicate IDs, and broken references
