@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.17] - 2026-07-22
+
 ### Changed
 - Expanded per-document heading color controls from H1–H3 to H1–H6 with visible preset swatches and a separate RGB color picker
 - Consolidated the H1, H2, and H3 toolbar buttons into one Heading menu supporting paragraph text and H1–H6
