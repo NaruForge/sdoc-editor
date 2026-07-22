@@ -55,8 +55,8 @@ export const TemplateDialog: React.FC<TemplateDialogProps> = ({
       <div className="modal-content modal-content--lg template-dialog" onClick={(event) => event.stopPropagation()}>
         <div className="modal-header">
           <div>
-            <h3>새 SDOC 문서</h3>
-            <p>문서 구조에 맞는 템플릿을 선택하세요.</p>
+            <h3>새 SDOC 문서 · 실험적 템플릿</h3>
+            <p>템플릿 기능은 실험적입니다. 문서 구조에 맞는 템플릿을 선택하세요.</p>
           </div>
           <button type="button" className="modal-close" aria-label="닫기" onClick={onCancel}>×</button>
         </div>
