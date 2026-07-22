@@ -28,6 +28,10 @@ export function isEditorToHostMessage(value: unknown): value is EditorToHostMess
         && (value.documentId === undefined || hasString(value, 'documentId'))
         && (value.editId === undefined || hasString(value, 'editId'))
         && (value.baseRevision === undefined || hasNumber(value, 'baseRevision'));
+    case 'initializeEmptyDocument':
+      return (value.mode === 'blank' || value.mode === 'template')
+        && hasString(value, 'sessionId') && hasString(value, 'documentId')
+        && hasNumber(value, 'baseRevision');
     case 'saveImage':
       return hasString(value, 'imageName') && hasString(value, 'imageData') && hasString(value, 'extension');
     case 'createDrawio':
@@ -66,6 +70,8 @@ export function isHostToEditorMessage(value: unknown): value is HostToEditorMess
       return hasString(value, 'sessionId') && hasString(value, 'documentId')
         && hasNumber(value, 'revision')
         && (value.readOnlyReason === undefined || hasString(value, 'readOnlyReason'))
+        && (value.type !== 'init' || value.initializationRequired === undefined
+          || typeof value.initializationRequired === 'boolean')
         && isRecord(value.content) && value.content.type === 'doc';
     case 'editAcknowledged':
       return hasString(value, 'sessionId') && hasString(value, 'editId') && hasNumber(value, 'revision');

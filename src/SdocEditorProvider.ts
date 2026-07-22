@@ -24,7 +24,18 @@ import { RecoverableSerialQueue } from '../shared/persistence/RecoverableSerialQ
 import { assertPersistedDocument, parseDocumentContract, readDocumentSettings, validateDocumentSettings } from '../shared/document/documentContract';
 import { dehydrateDocumentAssets } from '../shared/document/runtimeAssets';
 import { runExportAfterFlush } from '../shared/export/runExportAfterFlush';
-import { isWorkspaceTemplatePath } from './services/VsCodeTemplateService';
+import {
+  canInitializeEmptyDocument,
+  commitEmptyDocumentInitialization,
+  isFilesystemBackedScheme,
+  isUninitializedSdocText,
+  isWorkspaceTemplatePath,
+  prepareEmptyDocumentInitialization,
+  validateDocumentTitle,
+  VsCodeTemplateService,
+  type EmptyDocumentIdentity,
+  type WorkspaceTemplateRoot,
+} from './services/VsCodeTemplateService';
 
 export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
   private static readonly SDOC_VERSION = '1.0';
@@ -101,6 +112,8 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     this.editorSessions.set(documentId, { document, panel: webviewPanel, sessionId });
     let writeBlockedReason: string | undefined;
     let readOnlyWarningShown = false;
+    let initializationRequired = isUninitializedSdocText(document.getText());
+    let initializationRequestPending = false;
 
     // Read and send editor settings to webview
     const readVscodeDocDefaults = (): Partial<DocumentSettings> => {
@@ -193,7 +206,10 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     const sendUpdate = () => {
       try {
         const text = document.getText();
-        const parsed: unknown = text.trim() ? JSON.parse(text) : { sdoc: SdocEditorProvider.SDOC_VERSION, meta: {}, doc: { type: 'doc', content: [] } };
+        initializationRequired = isUninitializedSdocText(text);
+        const parsed: unknown = initializationRequired
+          ? { sdoc: SdocEditorProvider.SDOC_VERSION, meta: {}, doc: { type: 'doc', content: [] } }
+          : JSON.parse(text);
         const contract = parseDocumentContract(parsed);
         writeBlockedReason = contract.ok
           ? undefined
@@ -214,6 +230,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
           documentId,
           revision: document.version,
           ...(writeBlockedReason ? { readOnlyReason: writeBlockedReason } : {}),
+          ...(initializationRequired ? { initializationRequired: true } : {}),
           content: convertedJson,
         });
         // Send metadata and settings
@@ -233,6 +250,109 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         type: 'update', sessionId, documentId, revision: document.version,
         content: convertImagePathsToWebviewUris(doc, documentDir, webviewPanel.webview),
       });
+    };
+
+    const currentInitializationIdentity = (): EmptyDocumentIdentity => ({
+      sessionId,
+      documentId,
+      revision: document.version,
+    });
+
+    const initializeEmptyDocument = async (
+      mode: 'blank' | 'template',
+      expected: EmptyDocumentIdentity,
+    ): Promise<void> => {
+      if (!canInitializeEmptyDocument(
+        document.getText(),
+        expected,
+        currentInitializationIdentity(),
+      )) {
+        await vscode.window.showWarningMessage(
+          'The document changed before it could be initialized. Review the current content and try again.',
+        );
+        sendUpdate();
+        return;
+      }
+
+      const workspaceRoots: WorkspaceTemplateRoot[] = (vscode.workspace.workspaceFolders ?? [])
+        .filter((folder) => isFilesystemBackedScheme(folder.uri.scheme))
+        .map((folder) => ({
+          identity: folder.uri.toString(),
+          name: folder.name,
+          rootPath: folder.uri.fsPath,
+        }));
+      const defaultTitle = path.basename(document.uri.fsPath, path.extname(document.uri.fsPath))
+        || 'Untitled';
+      let templates;
+      if (mode === 'template') {
+        const discovery = await new VsCodeTemplateService().discover(workspaceRoots);
+        templates = discovery.catalog.templates;
+        const diagnosticCount = discovery.hostDiagnostics.length + discovery.catalog.diagnostics.length;
+        if (diagnosticCount > 0) {
+          console.warn('Structured Doc template discovery diagnostics', {
+            host: discovery.hostDiagnostics,
+            contract: discovery.catalog.diagnostics,
+          });
+          void vscode.window.showWarningMessage(
+            `${diagnosticCount} template(s) could not be loaded. See the extension host log for details.`,
+          );
+        }
+      }
+
+      const nextText = await prepareEmptyDocumentInitialization({
+        mode,
+        currentText: document.getText(),
+        defaultTitle,
+        ...(templates ? { templates } : {}),
+        selectTemplate: async (candidates) => {
+          const selected = await vscode.window.showQuickPick(
+            candidates.map((template) => ({
+              label: template.descriptor.name,
+              description: `Experimental · ${template.descriptor.sourceLabel}`,
+              detail: template.descriptor.description,
+              template,
+            })),
+            {
+              title: 'Choose Experimental Structured Doc Template',
+              placeHolder: 'Select a template for this empty document',
+              matchOnDescription: true,
+              matchOnDetail: true,
+            },
+          );
+          return selected?.template;
+        },
+        requestTitle: async (value) => vscode.window.showInputBox({
+          title: 'Initialize Structured Doc',
+          prompt: 'Enter the document title',
+          value,
+          validateInput: validateDocumentTitle,
+        }),
+      });
+      if (nextText === undefined) return;
+
+      const committed = await commitEmptyDocumentInitialization({
+        currentText: document.getText(),
+        expected,
+        current: currentInitializationIdentity(),
+        preparedText: nextText,
+        apply: async (text) => {
+          const edit = new vscode.WorkspaceEdit();
+          edit.replace(
+            document.uri,
+            new vscode.Range(document.positionAt(0), document.positionAt(document.getText().length)),
+            text,
+          );
+          await this.applyExpectedEdit(document, edit, text);
+        },
+      });
+      if (!committed) {
+        await vscode.window.showWarningMessage(
+          'The document changed while the template was being selected. No content was replaced.',
+        );
+        sendUpdate();
+        return;
+      }
+      sendUpdate();
     };
 
     // Handle messages from webview (sequential queue to preserve order)
@@ -268,10 +388,25 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         if (message.sessionId === sessionId && message.requestId) this.resolveFlush(message.requestId);
         return;
       }
+      if (message.type === 'initializeEmptyDocument') {
+        if (initializationRequestPending) return;
+        initializationRequestPending = true;
+      }
       messageQueue.enqueue(async () => {
         switch (message.type) {
           case 'ready':
             sendUpdate();
+            break;
+          case 'initializeEmptyDocument':
+            try {
+              await initializeEmptyDocument(message.mode, {
+                sessionId: message.sessionId,
+                documentId: message.documentId,
+                revision: message.baseRevision,
+              });
+            } finally {
+              initializationRequestPending = false;
+            }
             break;
           case 'edit':
             if (message.sessionId !== sessionId || message.documentId !== documentId
@@ -392,6 +527,11 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       if (e.document.uri.toString() === document.uri.toString()) {
         // Don't send update if we caused the change
         if (this.consumePendingEdit(document)) {
+          return;
+        }
+
+        if (initializationRequired || isUninitializedSdocText(document.getText())) {
+          sendUpdate();
           return;
         }
 

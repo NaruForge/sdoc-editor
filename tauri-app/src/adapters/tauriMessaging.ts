@@ -327,6 +327,10 @@ export function createTauriAdapter(): TauriAdapter {
           console.warn('Cross-document browsing is not available through the Tauri adapter yet.');
           break;
 
+        case 'initializeEmptyDocument':
+          console.warn('Empty document initialization is currently available only in the VS Code host.');
+          break;
+
         case 'export':
           console.warn('Tauri exports are handled by the editor export service.');
           break;

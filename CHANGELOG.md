@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.19] - 2026-07-22
+
+### Added
+- Non-modal initialization choices for zero-byte or whitespace-only `.sdoc` files opened from the VS Code Explorer
+- Explicit blank-document and experimental-template actions that preserve malformed and future-version documents as read-only failures
+
+### Changed
+- Simplified each H1-H6 color control to blue, LG heritage red, black, and a rainbow custom-color button
+- Removed visible HEX values from the heading settings panel while preserving the native color picker and persisted settings format
+
+### Fixed
+- Guarded empty-document initialization with document identity, session, revision, and single-flight checks so external changes, stale requests, or repeated clicks cannot overwrite content
+- Preserved the original empty file when template selection is cancelled or VS Code rejects the initialization edit
+
 ## [0.4.18] - 2026-07-22
 
 ### Added

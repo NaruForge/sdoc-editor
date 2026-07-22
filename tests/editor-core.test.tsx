@@ -37,7 +37,7 @@ function createRuntime(): EditorExtensionRuntime {
 }
 
 describe('shared editor core', () => {
-  it('exposes exactly three LG-aware heading colors with separate custom pickers', () => {
+  it('renders exactly four circular heading color controls with a rainbow custom picker', () => {
     const markup = renderToStaticMarkup(
       <EditorProvider>
         <DocumentSettingsPanel onUpdateSettings={vi.fn()} />
@@ -49,8 +49,12 @@ describe('shared editor core', () => {
       { label: 'LG 헤리티지 레드', value: '#A50034' },
       { label: '검정색', value: '#000000' },
     ]);
-    expect(markup.match(/class="settings-heading-color-preset(?: is-active)?"/g))
-      .toHaveLength(HEADING_LEVELS.length * 3);
+    expect(markup.match(/class="settings-heading-color-swatch[^"]*"/g))
+      .toHaveLength(HEADING_LEVELS.length * 4);
+    expect(markup.match(/class="settings-heading-color-swatch settings-heading-color-custom-button/g))
+      .toHaveLength(HEADING_LEVELS.length);
+    expect(markup.match(/type="color"/g)).toHaveLength(HEADING_LEVELS.length);
+    expect(markup).not.toContain('settings-color-value');
 
     for (const level of HEADING_LEVELS) {
       expect(markup).toContain(`H${level} 색상`);
@@ -58,7 +62,13 @@ describe('shared editor core', () => {
       expect(markup).toContain(`aria-label="H${level} LG 헤리티지 레드"`);
       expect(markup).toContain(`aria-label="H${level} 검정색"`);
       expect(markup).toContain(`aria-label="H${level} 사용자 지정 색상"`);
+      expect(markup).toContain(`aria-label="H${level} RGB Color Picker"`);
     }
+
+    const cssPath = fileURLToPath(new URL('../shared/editor/styles/editor.css', import.meta.url));
+    const css = readFileSync(cssPath, 'utf8');
+    expect(css).toMatch(/\.settings-heading-color-swatch\s*\{[^}]*border-radius:\s*50%/s);
+    expect(css).toMatch(/\.settings-heading-color-custom-button\s*\{[^}]*conic-gradient/s);
   });
 
   it('preserves earlier document overrides across rapid setting changes', () => {
