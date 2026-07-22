@@ -3,9 +3,17 @@ import { fileURLToPath } from 'node:url';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { getSchema } from '@tiptap/core';
+import type { Editor as TiptapEditor } from '@tiptap/react';
 import { EditorState } from '@tiptap/pm/state';
 import type { DecorationSet } from '@tiptap/pm/view';
 import { PanelEmptyState } from '../shared/editor/components/PanelEmptyState';
+import {
+  DocumentSettingsPanel,
+  mergeDocumentSetting,
+} from '../shared/editor/components/DocumentSettingsPanel';
+import { Toolbar } from '../shared/editor/components/Toolbar';
+import { HEADING_LEVELS, nextHeadingMenuIndex } from '../shared/editor/constants/headings';
+import { EditorProvider } from '../shared/editor/context/EditorContext';
 import { createTiptapExtensions } from '../shared/editor/extensions/tiptapExtensions';
 import {
   NOOP_EDITOR_EXTENSION_RUNTIME,
@@ -28,6 +36,64 @@ function createRuntime(): EditorExtensionRuntime {
 }
 
 describe('shared editor core', () => {
+  it('exposes H1 through H6 colors with visible presets and separate custom pickers', () => {
+    const markup = renderToStaticMarkup(
+      <EditorProvider>
+        <DocumentSettingsPanel onUpdateSettings={vi.fn()} />
+      </EditorProvider>,
+    );
+
+    for (const level of HEADING_LEVELS) {
+      expect(markup).toContain(`H${level} 색상`);
+      expect(markup).toContain(`aria-label="H${level} 파랑 (기본)"`);
+      expect(markup).toContain(`aria-label="H${level} 사용자 지정 색상"`);
+    }
+  });
+
+  it('preserves earlier document overrides across rapid setting changes', () => {
+    const h4 = mergeDocumentSetting(null, 'headingH4Color', '#ef4444');
+    const h4AndH5 = mergeDocumentSetting(h4, 'headingH5Color', '#22c55e');
+
+    expect(h4AndH5).toMatchObject({
+      headingH4Color: '#ef4444',
+      headingH5Color: '#22c55e',
+    });
+  });
+
+  it('uses one Heading toolbar trigger for all six heading levels', () => {
+    const editor = {
+      isActive: vi.fn(() => false),
+      getAttributes: vi.fn(() => ({})),
+      on: vi.fn(),
+      off: vi.fn(),
+    } as unknown as TiptapEditor;
+    const markup = renderToStaticMarkup(<Toolbar editor={editor} />);
+
+    expect(HEADING_LEVELS).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(markup).toContain('aria-label="Heading"');
+    expect(markup).toContain('aria-haspopup="menu"');
+    expect(markup).not.toContain('title="제목 1 (H1)"');
+  });
+
+  it('wraps keyboard navigation across every Heading menu item', () => {
+    const itemCount = HEADING_LEVELS.length + 1;
+    expect(nextHeadingMenuIndex(-1, 'ArrowDown', itemCount)).toBe(0);
+    expect(nextHeadingMenuIndex(0, 'ArrowUp', itemCount)).toBe(itemCount - 1);
+    expect(nextHeadingMenuIndex(itemCount - 1, 'ArrowDown', itemCount)).toBe(0);
+    expect(nextHeadingMenuIndex(3, 'Home', itemCount)).toBe(0);
+    expect(nextHeadingMenuIndex(3, 'End', itemCount)).toBe(itemCount - 1);
+  });
+
+  it('maps every heading level to its own runtime color variable', () => {
+    const cssPath = fileURLToPath(new URL('../shared/editor/styles/editor.css', import.meta.url));
+    const css = readFileSync(cssPath, 'utf8');
+
+    for (const level of HEADING_LEVELS) {
+      const selector = new RegExp(`h${level}::before\\s*\\{([^}]+)\\}`);
+      expect(css.match(selector)?.[1]).toContain(`var(--heading-h${level}-color`);
+    }
+  });
+
   it('builds one host-neutral extension set with the injected runtime', () => {
     const runtime = createRuntime();
     const extensions = createTiptapExtensions(runtime);

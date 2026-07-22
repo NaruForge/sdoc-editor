@@ -110,9 +110,19 @@ describe('sdoc envelope', () => {
   });
 
   it('rejects malformed external document settings without casting', () => {
-    expect(validateDocumentSettings({ captionStyle: 'korean', pdfScale: 80 })).toBe(true);
+    expect(validateDocumentSettings({
+      captionStyle: 'korean',
+      pdfScale: 80,
+      headingH1Color: '#111111',
+      headingH2Color: '#222222',
+      headingH3Color: '#333333',
+      headingH4Color: '#444444',
+      headingH5Color: '#555555',
+      headingH6Color: '#666666',
+    })).toBe(true);
     expect(validateDocumentSettings({ captionStyle: 'unknown' })).toBe(false);
     expect(validateDocumentSettings({ headingNumbering: 'yes' })).toBe(false);
+    expect(validateDocumentSettings({ headingH4Color: 'not-a-color' })).toBe(false);
     expect(parseDocumentContract({
       sdoc: '1.0',
       meta: { title: 123, settings: { captionStyle: 'unknown' }, review: { status: 'draft' } },

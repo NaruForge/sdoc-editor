@@ -32,6 +32,9 @@ export interface DocumentSettings {
   headingH1Color?: string;
   headingH2Color?: string;
   headingH3Color?: string;
+  headingH4Color?: string;
+  headingH5Color?: string;
+  headingH6Color?: string;
   captionStyle?: CaptionStyleName;
   captionNumbering?: 'sequential' | 'hierarchical';
   equationNumbering?: 'sequential' | 'hierarchical';
@@ -63,6 +66,9 @@ export interface ResolvedEditorSettings {
   headingH1Color: string;
   headingH2Color: string;
   headingH3Color: string;
+  headingH4Color: string;
+  headingH5Color: string;
+  headingH6Color: string;
   defaultImageAlignment: 'left' | 'center' | 'right';
   exportImagePath: 'relative' | 'absolute';
   pdfScale: number;

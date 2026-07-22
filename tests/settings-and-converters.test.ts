@@ -6,13 +6,19 @@ import { resolveEditorSettings, resolveSettings, SETTINGS_DEFAULTS, toRoman } fr
 import { assertPersistedDocument } from '../shared/document/documentContract';
 import { normalizeDocument, wrapSdoc } from '../shared/document/sdocUtils';
 import type { ExportSettings, SlideSettings, TiptapNode } from '../shared/types';
-import { resolveTauriEditorSettings } from '../tauri-app/src/settingsAdapter';
+import {
+  dispatchTauriSettingsMessage,
+  resolveTauriEditorSettings,
+} from '../tauri-app/src/settingsAdapter';
 
 describe('settings', () => {
   it('uses host-neutral visual defaults', () => {
     expect(SETTINGS_DEFAULTS.headingH1Color).toBe('#2563EB');
     expect(SETTINGS_DEFAULTS.headingH2Color).toBe('#2563EB');
     expect(SETTINGS_DEFAULTS.headingH3Color).toBe('#2563EB');
+    expect(SETTINGS_DEFAULTS.headingH4Color).toBe('#2563EB');
+    expect(SETTINGS_DEFAULTS.headingH5Color).toBe('#2563EB');
+    expect(SETTINGS_DEFAULTS.headingH6Color).toBe('#2563EB');
   });
 
   it('merges document settings over external settings and defaults', () => {
@@ -28,6 +34,20 @@ describe('settings', () => {
   it('formats roman table numbers', () => {
     expect(toRoman(4)).toBe('IV');
     expect(toRoman(19)).toBe('XIX');
+  });
+
+  it('acknowledges persisted Tauri document settings from the host echo', () => {
+    const actions: unknown[] = [];
+    const handled = dispatchTauriSettingsMessage({
+      type: 'docSettingsChanged',
+      docSettings: { headingH4Color: '#ff0000' },
+    }, (action) => actions.push(action));
+
+    expect(handled).toBe(true);
+    expect(actions).toEqual([{
+      type: 'SET_DOC_SETTINGS',
+      payload: { headingH4Color: '#ff0000' },
+    }]);
   });
 });
 
@@ -101,14 +121,36 @@ describe('cross-format numbering', () => {
   });
 
   it('resolves identical host semantics from the shared settings resolver', () => {
-    const documentSettings = { captionStyle: 'ieee' as const, equationNumbering: 'hierarchical' as const, headingNumbering: false };
+    const documentSettings = {
+      captionStyle: 'ieee' as const,
+      equationNumbering: 'hierarchical' as const,
+      headingNumbering: false,
+      headingH4Color: '#445566',
+      headingH5Color: '#556677',
+      headingH6Color: '#667788',
+    };
     const shared = resolveEditorSettings(documentSettings);
     const tauri = resolveTauriEditorSettings({
       headingNumbering: false,
+      headingH4Color: '#000000',
+      headingH5Color: '#111111',
+      headingH6Color: '#222222',
       imageCaptionPrefix: 'legacy value must not override the preset',
     }, documentSettings);
     expect(tauri).toMatchObject(shared);
+    expect(tauri).toMatchObject({
+      headingH4Color: '#445566',
+      headingH5Color: '#556677',
+      headingH6Color: '#667788',
+    });
     expect(tauri.tableNumberStyle).toBe('roman');
     expect(tauri.equationParens).toBe(true);
+
+    const reset = resolveTauriEditorSettings({ headingH4Color: 'invalid' }, null);
+    expect(reset).toMatchObject({
+      headingH4Color: SETTINGS_DEFAULTS.headingH4Color,
+      headingH5Color: SETTINGS_DEFAULTS.headingH5Color,
+      headingH6Color: SETTINGS_DEFAULTS.headingH6Color,
+    });
   });
 });

@@ -41,8 +41,11 @@ import { preprocessImportedHtml } from '@shared/editor/utils/preprocessImportedH
 import type { DocumentSettings, TiptapNode } from '@shared/types';
 import type { EditorToHostMessage } from '@shared/types/messages';
 import type { ExplorerEntry } from '../App';
-import type { EditorSettings } from '@shared/editor/context/EditorContext';
 import { exportDocument, type ExportFormat } from '../services/exportService';
+import {
+  dispatchTauriSettingsMessage,
+  resolveTauriEditorSettings,
+} from '../settingsAdapter';
 
 /**
  * `setImage`'s TipTap-generated type only knows about `src`/`alt`/`title`. `relativePath` is a
@@ -245,10 +248,8 @@ export const Editor: React.FC<EditorProps> = ({
   }, [state.settings, editor]);
 
   const { postMessage } = useTauriMessaging(adapter, (message) => {
+    if (dispatchTauriSettingsMessage(message, dispatch)) return;
     switch (message.type) {
-      case 'settingsChanged':
-        dispatch({ type: 'SET_SETTINGS', payload: message.settings });
-        break;
       case 'importMarkdownText':
         if (editor) {
           const converted = convertMarkdownToJson(message.text);
@@ -351,12 +352,14 @@ export const Editor: React.FC<EditorProps> = ({
   }, []);
 
   const handleUpdateDocSettings = useCallback((settings: Partial<DocumentSettings> | null) => {
-    dispatch({ type: 'SET_DOC_SETTINGS', payload: settings });
     if (settings) {
-      dispatch({ type: 'SET_SETTINGS', payload: settings as Partial<EditorSettings> });
+      dispatch({ type: 'SET_SETTINGS', payload: settings });
     } else {
-      invoke<Partial<EditorSettings>>('get_editor_settings')
-        .then((editorSettings) => dispatch({ type: 'SET_SETTINGS', payload: editorSettings }))
+      invoke<unknown>('get_editor_settings')
+        .then((nativeSettings) => dispatch({
+          type: 'SET_SETTINGS',
+          payload: resolveTauriEditorSettings(nativeSettings, null),
+        }))
         .catch((error: unknown) => console.warn('Failed to reload editor settings', error));
     }
     if (editor) {

@@ -163,10 +163,7 @@ body {
   --image-caption-prefix: '';
   --table-caption-prefix: '';
   --caption-separator: ' ';
-  /* Heading colors. H4~H6은 전용 설정이 없어 H3 색상을 재사용한다. */
-  --heading-h1-color: #2563EB;
-  --heading-h2-color: #2563EB;
-  --heading-h3-color: #2563EB;
+  /* Heading colors are defined and applied by the shared editor settings layer. */
   /* Heading size scale: H6 = 본문 크기(1em), 레벨이 하나 올라갈 때마다 2pt씩 증가 (H1~H6 단일 소스) */
   --heading-size-h6: 1em;
   --heading-size-h5: calc(1em + 2pt);

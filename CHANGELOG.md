@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Expanded per-document heading color controls from H1–H3 to H1–H6 with visible preset swatches and a separate RGB color picker
+- Consolidated the H1, H2, and H3 toolbar buttons into one Heading menu supporting paragraph text and H1–H6
+
 ### Fixed
 - Cross-reference links inserted with `@` now satisfy the persisted document schema instead of failing VS Code saves on Tiptap's link title attribute
 - Hierarchical heading numbers now preserve skipped levels as zero segments, such as `1.1.0.1` for an H4 following H1 and H2

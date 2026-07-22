@@ -166,6 +166,24 @@
           "pattern": "^#[0-9a-fA-F]{3,8}$",
           "markdownDescription": "H3 heading numbering 색상 (hex 형식). 예: `#2563EB` (Blue), `#6b6b6b` (Gray)"
         },
+        "structuredDocEditor.heading.h4Color": {
+          "type": "string",
+          "default": "#2563EB",
+          "pattern": "^#[0-9a-fA-F]{3,8}$",
+          "markdownDescription": "H4 heading numbering 색상 (hex 형식). 예: `#2563EB` (Blue), `#6b6b6b` (Gray)"
+        },
+        "structuredDocEditor.heading.h5Color": {
+          "type": "string",
+          "default": "#2563EB",
+          "pattern": "^#[0-9a-fA-F]{3,8}$",
+          "markdownDescription": "H5 heading numbering 색상 (hex 형식). 예: `#2563EB` (Blue), `#6b6b6b` (Gray)"
+        },
+        "structuredDocEditor.heading.h6Color": {
+          "type": "string",
+          "default": "#2563EB",
+          "pattern": "^#[0-9a-fA-F]{3,8}$",
+          "markdownDescription": "H6 heading numbering 색상 (hex 형식). 예: `#2563EB` (Blue), `#6b6b6b` (Gray)"
+        },
         "structuredDocEditor.image.defaultAlignment": {
           "type": "string",
           "default": "center",

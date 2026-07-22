@@ -29,6 +29,9 @@ export interface EditorSettings {
   headingH1Color: string;
   headingH2Color: string;
   headingH3Color: string;
+  headingH4Color: string;
+  headingH5Color: string;
+  headingH6Color: string;
   captionStyle?: DocumentSettings['captionStyle'];
   tableNumberStyle?: 'arabic' | 'roman';
   equationParens?: boolean;

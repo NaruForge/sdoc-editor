@@ -10,7 +10,12 @@ import {
   wrapSdoc as sharedWrapSdoc,
   normalizeDocument,
 } from '../shared/document/sdocUtils';
-import { resolveEditorSettings, resolveSettings, getCaptionPreset } from '../shared/settingsResolver';
+import {
+  getCaptionPreset,
+  resolveEditorSettings,
+  resolveSettings,
+  SETTINGS_DEFAULTS,
+} from '../shared/settingsResolver';
 import type { DocumentSettings, CaptionStyleName, SdocMeta, TiptapNode } from '../shared/types';
 import { isEditorToHostMessage } from '../shared/types/messageGuards';
 import { VsCodeAssetService } from './services/VsCodeAssetService';
@@ -96,9 +101,12 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       return {
         headingNumbering: config.get<boolean>('heading.numbering', true),
         headingDecoration: config.get<boolean>('heading.decoration', true),
-        headingH1Color: config.get<string>('heading.h1Color', '#2563EB'),
-        headingH2Color: config.get<string>('heading.h2Color', '#2563EB'),
-        headingH3Color: config.get<string>('heading.h3Color', '#2563EB'),
+        headingH1Color: config.get<string>('heading.h1Color', SETTINGS_DEFAULTS.headingH1Color),
+        headingH2Color: config.get<string>('heading.h2Color', SETTINGS_DEFAULTS.headingH2Color),
+        headingH3Color: config.get<string>('heading.h3Color', SETTINGS_DEFAULTS.headingH3Color),
+        headingH4Color: config.get<string>('heading.h4Color', SETTINGS_DEFAULTS.headingH4Color),
+        headingH5Color: config.get<string>('heading.h5Color', SETTINGS_DEFAULTS.headingH5Color),
+        headingH6Color: config.get<string>('heading.h6Color', SETTINGS_DEFAULTS.headingH6Color),
         captionStyle: config.get<CaptionStyleName>('caption.style', 'modern'),
         captionNumbering: config.get<'sequential' | 'hierarchical'>('caption.numbering', 'sequential'),
         equationNumbering: config.get<'sequential' | 'hierarchical'>('equation.numbering', 'sequential'),
@@ -149,6 +157,9 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
           headingH1Color: resolved.headingH1Color,
           headingH2Color: resolved.headingH2Color,
           headingH3Color: resolved.headingH3Color,
+          headingH4Color: resolved.headingH4Color,
+          headingH5Color: resolved.headingH5Color,
+          headingH6Color: resolved.headingH6Color,
           defaultImageAlignment: resolved.defaultImageAlignment,
           exportImagePath: resolved.exportImagePath,
           pdfScale: resolved.pdfScale,
@@ -759,9 +770,12 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     const vscodeDefaults: Partial<DocumentSettings> = {
       headingNumbering: config.get<boolean>('heading.numbering', true),
       headingDecoration: config.get<boolean>('heading.decoration', true),
-      headingH1Color: config.get<string>('heading.h1Color', '#2563EB'),
-      headingH2Color: config.get<string>('heading.h2Color', '#2563EB'),
-      headingH3Color: config.get<string>('heading.h3Color', '#2563EB'),
+      headingH1Color: config.get<string>('heading.h1Color', SETTINGS_DEFAULTS.headingH1Color),
+      headingH2Color: config.get<string>('heading.h2Color', SETTINGS_DEFAULTS.headingH2Color),
+      headingH3Color: config.get<string>('heading.h3Color', SETTINGS_DEFAULTS.headingH3Color),
+      headingH4Color: config.get<string>('heading.h4Color', SETTINGS_DEFAULTS.headingH4Color),
+      headingH5Color: config.get<string>('heading.h5Color', SETTINGS_DEFAULTS.headingH5Color),
+      headingH6Color: config.get<string>('heading.h6Color', SETTINGS_DEFAULTS.headingH6Color),
       captionStyle: config.get<CaptionStyleName>('caption.style', 'modern'),
       captionNumbering: config.get<'sequential' | 'hierarchical'>('caption.numbering', 'sequential'),
       equationNumbering: config.get<'sequential' | 'hierarchical'>('equation.numbering', 'sequential'),
@@ -787,6 +801,9 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         headingH1Color: resolved.headingH1Color,
         headingH2Color: resolved.headingH2Color,
         headingH3Color: resolved.headingH3Color,
+        headingH4Color: resolved.headingH4Color,
+        headingH5Color: resolved.headingH5Color,
+        headingH6Color: resolved.headingH6Color,
         defaultImageAlignment: config.get<string>('image.defaultAlignment', 'center'),
         exportImagePath: config.get<string>('export.imagePath', 'relative'),
         pdfScale: config.get<number>('export.pdfScale', 70),

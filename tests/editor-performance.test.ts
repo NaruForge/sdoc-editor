@@ -34,10 +34,14 @@ describe('shared host editor styling', () => {
     const rootTarget = { style: { setProperty: (name: string, value: string) => { rootValues.set(name, value); } } };
     const settings = {
       ...resolveEditorSettings(),
+      headingH1Color: '#111111', headingH2Color: '#222222', headingH3Color: '#333333',
+      headingH4Color: '#444444', headingH5Color: '#555555', headingH6Color: '#666666',
       fontWeightBody: 450, fontWeightBold: 750, fontWeightH1: 800, fontWeightH2: 650, fontWeightH3: 550,
     };
     applyEditorSettingsCss(editorTarget, rootTarget, settings);
     expect(Object.fromEntries(values)).toMatchObject({
+      '--heading-h1-color': '#111111', '--heading-h2-color': '#222222', '--heading-h3-color': '#333333',
+      '--heading-h4-color': '#444444', '--heading-h5-color': '#555555', '--heading-h6-color': '#666666',
       '--font-weight-body': '450', '--font-weight-bold': '750', '--font-weight-h1': '800',
       '--font-weight-h2': '650', '--font-weight-h3': '550',
     });
