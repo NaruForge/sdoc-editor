@@ -21,6 +21,29 @@ const fixture: TiptapNode = {
 };
 
 describe('shared document numbering', () => {
+  it('preserves skipped heading levels as zero-valued hierarchy segments', () => {
+    const doc: TiptapNode = {
+      type: 'doc',
+      content: [
+        { type: 'heading', attrs: { id: 'h1', level: 1 }, content: [{ type: 'text', text: 'Level 1' }] },
+        { type: 'heading', attrs: { id: 'h2', level: 2 }, content: [{ type: 'text', text: 'Level 2' }] },
+        { type: 'heading', attrs: { id: 'h4', level: 4 }, content: [{ type: 'text', text: 'Level 4' }] },
+      ],
+    };
+
+    const index = buildNumberingIndex(doc, {
+      headingNumbering: true,
+      captionNumbering: 'sequential',
+      equationNumbering: 'sequential',
+      captionStyle: 'modern',
+      crossRefIncludeCaption: false,
+    });
+
+    expect(index.byId.get('h1')?.number).toBe('1');
+    expect(index.byId.get('h2')?.number).toBe('1.1');
+    expect(index.byId.get('h4')?.number).toBe('1.1.0.1');
+  });
+
   it('uses global sequential counters and includes captionless and nested objects', () => {
     const index = buildNumberingIndex(fixture, {
       headingNumbering: true,

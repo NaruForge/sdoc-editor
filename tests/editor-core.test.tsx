@@ -117,7 +117,7 @@ describe('shared editor core', () => {
     expect(() => assertPersistedDocument(wrapSdoc(roundTripped, {}))).not.toThrow();
   });
 
-  it('provides semantic heading numbers as initial node decorations', () => {
+  it('provides skipped-level semantic heading numbers as initial node decorations', () => {
     const runtime = createRuntime();
     const extensions = createTiptapExtensions(runtime);
     const schema = getSchema(extensions);
@@ -128,18 +128,31 @@ describe('shared editor core', () => {
       plugins,
       doc: schema.nodeFromJSON({
         type: 'doc',
-        content: [{
-          type: 'heading',
-          attrs: { level: 1, id: 'first-heading' },
-          content: [{ type: 'text', text: 'First heading' }],
-        }],
+        content: [
+          {
+            type: 'heading',
+            attrs: { level: 1, id: 'first-heading' },
+            content: [{ type: 'text', text: 'First heading' }],
+          },
+          {
+            type: 'heading',
+            attrs: { level: 2, id: 'second-heading' },
+            content: [{ type: 'text', text: 'Second heading' }],
+          },
+          {
+            type: 'heading',
+            attrs: { level: 4, id: 'fourth-heading' },
+            content: [{ type: 'text', text: 'Fourth heading' }],
+          },
+        ],
       }),
     });
     const decorations = plugins[0].props.decorations?.(state) as DecorationSet | undefined;
-    const headingDecoration = decorations?.find()[0];
-    const attrs = (headingDecoration?.type as { attrs?: Record<string, string> } | undefined)?.attrs;
+    const numberLabels = decorations?.find().map((decoration) =>
+      (decoration.type as { attrs?: Record<string, string> }).attrs?.['data-number-label'],
+    );
 
-    expect(attrs?.['data-number-label']).toBe('1');
+    expect(numberLabels).toEqual(['1', '1.1', '1.1.0.1']);
   });
 
   it('renders the shared panel empty state without a host environment', () => {

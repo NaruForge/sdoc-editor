@@ -46,6 +46,26 @@ describe('markdown conversion', () => {
 });
 
 describe('cross-format numbering', () => {
+  it('preserves skipped heading levels in every export format', () => {
+    const doc: TiptapNode = { type: 'doc', content: [
+      { type: 'heading', attrs: { level: 1, id: 'one' }, content: [{ type: 'text', text: 'One' }] },
+      { type: 'heading', attrs: { level: 2, id: 'one-one' }, content: [{ type: 'text', text: 'One One' }] },
+      { type: 'heading', attrs: { level: 4, id: 'one-one-zero-one' }, content: [{ type: 'text', text: 'Skipped Level' }] },
+    ] };
+    const settings: ExportSettings = { headingNumbering: true };
+    const outputs = [
+      convertJsonToHtml(doc, undefined, settings),
+      convertJsonToMarkdown(doc, settings),
+      convertJsonToAdoc(doc, settings),
+      convertJsonToSlides(doc, undefined, settings as SlideSettings),
+    ];
+
+    for (const output of outputs) {
+      expect(output).toContain('1.1.0.1');
+      expect(output).toContain('Skipped Level');
+    }
+  });
+
   it('uses the same shared numbering for HTML, Markdown, AsciiDoc, and Slides', () => {
     const table = (id: string, caption?: string): TiptapNode => ({
       type: 'table', attrs: { id, ...(caption ? { caption } : {}) },

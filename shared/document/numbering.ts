@@ -100,7 +100,7 @@ export function buildNumberingIndex(doc: TiptapNode, policy: NumberingPolicy): N
       }
       for (let index = level; index < headings.length; index += 1) headings[index] = 0;
       const number = numbered
-        ? headings.slice(0, level).filter((value) => value > 0).join('.')
+        ? headings.slice(0, level).join('.')
         : '';
       const title = textOf(node);
       add(node, {
