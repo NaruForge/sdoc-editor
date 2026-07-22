@@ -1,5 +1,4 @@
 import React, { useCallback } from 'react';
-import { Palette } from 'lucide-react';
 import { useEditorContext } from '@shared/editor/context/EditorContext';
 import { HEADING_COLOR_PRESETS } from '@shared/editor/constants/colors';
 import {
@@ -96,6 +95,10 @@ const toNativeColorValue = (value: string): string => {
 
 const HeadingColorControl: React.FC<HeadingColorControlProps> = ({ level, value, onChange }) => {
   const nativePickerRef = React.useRef<HTMLInputElement>(null);
+  const normalizedValue = value.toLowerCase();
+  const isPresetValue = HEADING_COLOR_PRESETS.some(
+    ({ value: preset }) => preset.toLowerCase() === normalizedValue,
+  );
 
   return (
     <div className="settings-heading-color-control">
@@ -104,37 +107,32 @@ const HeadingColorControl: React.FC<HeadingColorControlProps> = ({ level, value,
           <button
             key={preset}
             type="button"
-            className={`settings-heading-color-preset${value.toLowerCase() === preset.toLowerCase() ? ' is-active' : ''}`}
+            className={`settings-heading-color-swatch settings-heading-color-preset${normalizedValue === preset.toLowerCase() ? ' is-active' : ''}`}
             style={{ backgroundColor: preset }}
             aria-label={`H${level} ${label}`}
-            aria-pressed={value.toLowerCase() === preset.toLowerCase()}
+            aria-pressed={normalizedValue === preset.toLowerCase()}
             title={label}
             onClick={() => onChange(preset)}
           />
         ))}
-      </div>
-      <div className="settings-heading-color-custom">
         <button
           type="button"
-          className="settings-heading-color-custom-button"
+          className={`settings-heading-color-swatch settings-heading-color-custom-button${isPresetValue ? '' : ' is-active'}`}
           aria-label={`H${level} 사용자 지정 색상`}
-          title="RGB Color Picker 열기"
+          aria-pressed={!isPresetValue}
+          title="사용자 지정 색상 선택"
           onClick={() => nativePickerRef.current?.click()}
-        >
-          <Palette size={14} aria-hidden="true" />
-          <span className="settings-heading-color-preview" style={{ backgroundColor: value }} />
-        </button>
-        <input
-          ref={nativePickerRef}
-          type="color"
-          className="settings-heading-color-native-picker"
-          value={toNativeColorValue(value)}
-          aria-label={`H${level} RGB Color Picker`}
-          tabIndex={-1}
-          onChange={(event) => onChange(event.target.value)}
         />
-        <span className="settings-color-value">{value}</span>
       </div>
+      <input
+        ref={nativePickerRef}
+        type="color"
+        className="settings-heading-color-native-picker"
+        value={toNativeColorValue(value)}
+        aria-label={`H${level} RGB Color Picker`}
+        tabIndex={-1}
+        onChange={(event) => onChange(event.target.value)}
+      />
     </div>
   );
 };
