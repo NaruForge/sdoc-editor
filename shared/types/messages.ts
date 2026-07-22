@@ -60,6 +60,7 @@ export interface InitMessage {
   documentId: string;
   revision: number;
   readOnlyReason?: string;
+  initializationRequired?: boolean;
   content: TiptapNode;
 }
 
@@ -208,6 +209,14 @@ export interface ReadyMessage {
   type: 'ready';
 }
 
+export interface InitializeEmptyDocumentMessage {
+  type: 'initializeEmptyDocument';
+  mode: 'blank' | 'template';
+  sessionId: string;
+  documentId: string;
+  baseRevision: number;
+}
+
 export interface EditMessage {
   type: 'edit';
   sessionId?: string;
@@ -304,6 +313,7 @@ export interface ClearCssFileMessage {
 
 export type WebviewToExtensionMessage =
   | ReadyMessage
+  | InitializeEmptyDocumentMessage
   | EditMessage
   | ViewJsonMessage
   | SaveImageMessage

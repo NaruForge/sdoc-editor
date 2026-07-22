@@ -19,6 +19,7 @@ interface UseEditorMessagesOptions {
   setContentRef: MutableRefObject<((content: JSONContent) => void) | null>;
   initDoneRef: MutableRefObject<boolean>;
   setMeta: React.Dispatch<React.SetStateAction<MetaState>>;
+  setInitializationRequired: React.Dispatch<React.SetStateAction<boolean>>;
   persistenceSessionRef: MutableRefObject<{
     sessionId: string;
     documentId: string;
@@ -33,6 +34,7 @@ export function useEditorMessages({
   setContentRef,
   initDoneRef,
   setMeta,
+  setInitializationRequired,
   persistenceSessionRef,
 }: UseEditorMessagesOptions) {
   const { dispatch } = useEditorContext();
@@ -55,7 +57,8 @@ export function useEditorMessages({
           documentId: message.documentId,
           revision: message.revision,
         };
-        ed?.setEditable(!message.readOnlyReason);
+        setInitializationRequired(message.initializationRequired === true);
+        ed?.setEditable(!message.readOnlyReason && message.initializationRequired !== true);
         if (setContentRef.current) {
           setContentRef.current(message.content);
           if (!initDoneRef.current) {
@@ -205,12 +208,25 @@ export function useEditorMessages({
     postMessage({ type: 'updateMeta', meta: { [field]: value } });
   };
 
+  const handleInitializeEmptyDocument = (mode: 'blank' | 'template') => {
+    const session = persistenceSessionRef.current;
+    if (!session) return;
+    postMessage({
+      type: 'initializeEmptyDocument',
+      mode,
+      sessionId: session.sessionId,
+      documentId: session.documentId,
+      baseRevision: session.revision,
+    });
+  };
+
   return {
     postMessage,
     handleViewJson,
     handleExport,
     handleImport,
     handleMetaChange,
+    handleInitializeEmptyDocument,
     isExporting,
   };
 }

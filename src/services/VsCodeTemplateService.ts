@@ -55,6 +55,32 @@ export interface NewSdocWorkflowOptions {
   now?: () => Date;
 }
 
+export type EmptyDocumentInitializationMode = 'blank' | 'template';
+
+export interface EmptyDocumentIdentity {
+  sessionId: string;
+  documentId: string;
+  revision: number;
+}
+
+export interface PrepareEmptyDocumentInitializationOptions {
+  mode: EmptyDocumentInitializationMode;
+  currentText: string;
+  defaultTitle: string;
+  templates?: readonly SdocTemplate[];
+  selectTemplate?: (templates: readonly SdocTemplate[]) => Promise<SdocTemplate | undefined>;
+  requestTitle?: (defaultTitle: string) => Promise<string | undefined>;
+  now?: () => Date;
+}
+
+export interface CommitEmptyDocumentInitializationOptions {
+  currentText: string;
+  expected: EmptyDocumentIdentity;
+  current: EmptyDocumentIdentity;
+  preparedText: string;
+  apply: (text: string) => Promise<void>;
+}
+
 const isContainedPath = (root: string, candidate: string): boolean => {
   const relative = path.relative(root, candidate);
   return relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative));
@@ -75,6 +101,65 @@ export function isWorkspaceTemplatePath(value: string): boolean {
   const portablePath = value.replace(/\\/g, '/').toLocaleLowerCase('en-US');
   return portablePath.startsWith('.sdoc/templates/')
     || portablePath.includes('/.sdoc/templates/');
+}
+
+export function isUninitializedSdocText(value: string): boolean {
+  return value.trim().length === 0;
+}
+
+export function canInitializeEmptyDocument(
+  currentText: string,
+  expected: EmptyDocumentIdentity,
+  current: EmptyDocumentIdentity,
+): boolean {
+  return isUninitializedSdocText(currentText)
+    && expected.sessionId === current.sessionId
+    && expected.documentId === current.documentId
+    && expected.revision === current.revision;
+}
+
+export async function commitEmptyDocumentInitialization(
+  options: CommitEmptyDocumentInitializationOptions,
+): Promise<boolean> {
+  if (!canInitializeEmptyDocument(options.currentText, options.expected, options.current)) {
+    return false;
+  }
+  await options.apply(options.preparedText);
+  return true;
+}
+
+export async function prepareEmptyDocumentInitialization(
+  options: PrepareEmptyDocumentInitializationOptions,
+): Promise<string | undefined> {
+  if (!isUninitializedSdocText(options.currentText)) {
+    throw new Error('The document is no longer empty and cannot be initialized.');
+  }
+
+  const builtIns = getBuiltInTemplates();
+  let template: SdocTemplate | undefined;
+  let title = options.defaultTitle.trim() || 'Untitled';
+  if (options.mode === 'blank') {
+    template = builtIns.find((candidate) => candidate.descriptor.id === 'builtin:blank');
+  } else {
+    const candidates = (options.templates ?? builtIns)
+      .filter((candidate) => candidate.descriptor.id !== 'builtin:blank');
+    if (!options.selectTemplate) throw new Error('Template selection is unavailable.');
+    template = await options.selectTemplate(candidates);
+    if (!template) return undefined;
+    if (!options.requestTitle) throw new Error('Document title input is unavailable.');
+    const selectedTitle = await options.requestTitle(title);
+    if (selectedTitle === undefined) return undefined;
+    const titleError = validateDocumentTitle(selectedTitle);
+    if (titleError) throw new Error(titleError);
+    title = selectedTitle.trim();
+  }
+  if (!template) throw new Error('The blank document template is unavailable.');
+
+  const envelope = instantiateTemplate(template, {
+    title,
+    ...(options.now ? { now: options.now } : {}),
+  });
+  return `${JSON.stringify(envelope, null, 2)}\n`;
 }
 
 export function validateDocumentTitle(value: string): string | undefined {

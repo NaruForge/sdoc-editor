@@ -28,6 +28,7 @@ import { collectTargets, CROSSREF_RESYNC_META } from '@shared/editor/extensions/
 import type { RefTarget } from '@shared/editor/extensions/CrossReference';
 import type { DocumentSettings, TiptapNode } from '@shared/types';
 import type { EditorToHostMessage } from '@shared/types/messages';
+import { EmptyDocumentState } from './EmptyDocumentState';
 
 export const Editor: React.FC = () => {
   const { state, dispatch } = useEditorContext();
@@ -39,6 +40,7 @@ export const Editor: React.FC = () => {
     return saved ? parseInt(saved, 10) : 100;
   });
   const [meta, setMeta] = useState<MetaState>({ title: '', author: '', version: '', created: '', modified: '' });
+  const [initializationRequired, setInitializationRequired] = useState(false);
   const { dialogs, dialogDispatch, openTableContextMenu, openEditorContextMenu } = useDialogState();
   const setContentRef = useRef<((content: JSONContent) => void) | null>(null);
   const persistenceSessionRef = useRef<{
@@ -118,12 +120,21 @@ export const Editor: React.FC = () => {
     }
   }, [state.settings, editor]);
 
-  const { postMessage, handleViewJson, handleExport, handleImport, handleMetaChange, isExporting } = useEditorMessages({
+  const {
+    postMessage,
+    handleViewJson,
+    handleExport,
+    handleImport,
+    handleMetaChange,
+    handleInitializeEmptyDocument,
+    isExporting,
+  } = useEditorMessages({
     editor,
     flushUpdate,
     setContentRef,
     initDoneRef,
     setMeta,
+    setInitializationRequired,
     persistenceSessionRef,
   });
   postMessageRef.current = postMessage;
@@ -433,6 +444,15 @@ export const Editor: React.FC = () => {
       <div style={{ padding: '20px', textAlign: 'center' }}>
         Loading editor...
       </div>
+    );
+  }
+
+  if (initializationRequired) {
+    return (
+      <EmptyDocumentState
+        onStartBlank={() => handleInitializeEmptyDocument('blank')}
+        onChooseTemplate={() => handleInitializeEmptyDocument('template')}
+      />
     );
   }
 
