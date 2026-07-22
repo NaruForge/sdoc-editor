@@ -1,0 +1,27 @@
+{
+  "sdoc": "1.0",
+  "meta": {
+    "title": "빈 문서",
+    "author": "",
+    "version": "0.1",
+    "created": "2026-01-01T00:00:00.000Z",
+    "modified": "2026-01-01T00:00:00.000Z",
+    "template": {
+      "name": "빈 문서",
+      "description": "제목과 빈 본문으로 시작합니다.",
+      "category": "blank",
+      "titleNodeId": "document-title"
+    }
+  },
+  "doc": {
+    "type": "doc",
+    "content": [
+      {
+        "type": "heading",
+        "attrs": { "level": 1, "id": "document-title", "numbered": false },
+        "content": [{ "type": "text", "text": "빈 문서" }]
+      },
+      { "type": "paragraph" }
+    ]
+  }
+}

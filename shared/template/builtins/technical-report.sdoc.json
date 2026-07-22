@@ -1,0 +1,34 @@
+{
+  "sdoc": "1.0",
+  "meta": {
+    "title": "기술 보고서",
+    "author": "",
+    "version": "0.1",
+    "created": "2026-01-01T00:00:00.000Z",
+    "modified": "2026-01-01T00:00:00.000Z",
+    "template": {
+      "name": "기술 보고서",
+      "description": "기술 검토 과정과 분석 결과를 기록하는 범용 보고서입니다.",
+      "category": "report",
+      "titleNodeId": "document-title"
+    }
+  },
+  "doc": {
+    "type": "doc",
+    "content": [
+      { "type": "heading", "attrs": { "level": 1, "id": "document-title", "numbered": false }, "content": [{ "type": "text", "text": "기술 보고서" }] },
+      { "type": "heading", "attrs": { "level": 1, "id": "overview" }, "content": [{ "type": "text", "text": "개요" }] },
+      { "type": "paragraph" },
+      { "type": "heading", "attrs": { "level": 1, "id": "background-requirements" }, "content": [{ "type": "text", "text": "배경·요구사항" }] },
+      { "type": "paragraph" },
+      { "type": "heading", "attrs": { "level": 1, "id": "technical-content" }, "content": [{ "type": "text", "text": "기술 내용" }] },
+      { "type": "paragraph" },
+      { "type": "heading", "attrs": { "level": 1, "id": "analysis-results" }, "content": [{ "type": "text", "text": "분석·결과" }] },
+      { "type": "paragraph" },
+      { "type": "heading", "attrs": { "level": 1, "id": "conclusion" }, "content": [{ "type": "text", "text": "결론" }] },
+      { "type": "paragraph" },
+      { "type": "heading", "attrs": { "level": 1, "id": "references" }, "content": [{ "type": "text", "text": "참고자료" }] },
+      { "type": "paragraph" }
+    ]
+  }
+}

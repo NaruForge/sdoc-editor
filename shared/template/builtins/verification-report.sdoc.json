@@ -1,0 +1,55 @@
+{
+  "sdoc": "1.0",
+  "meta": {
+    "title": "시험·검증 보고서",
+    "author": "",
+    "version": "0.1",
+    "created": "2026-01-01T00:00:00.000Z",
+    "modified": "2026-01-01T00:00:00.000Z",
+    "template": {
+      "name": "시험·검증 보고서",
+      "description": "시험 조건, 합격 기준, 결과와 편차를 추적합니다.",
+      "category": "verification",
+      "titleNodeId": "document-title"
+    }
+  },
+  "doc": {
+    "type": "doc",
+    "content": [
+      { "type": "heading", "attrs": { "level": 1, "id": "document-title", "numbered": false }, "content": [{ "type": "text", "text": "시험·검증 보고서" }] },
+      { "type": "heading", "attrs": { "level": 1, "id": "test-overview" }, "content": [{ "type": "text", "text": "시험 개요" }] },
+      { "type": "paragraph" },
+      { "type": "heading", "attrs": { "level": 1, "id": "environment-conditions" }, "content": [{ "type": "text", "text": "환경·조건" }] },
+      { "type": "paragraph" },
+      { "type": "heading", "attrs": { "level": 1, "id": "acceptance-criteria" }, "content": [{ "type": "text", "text": "합격 기준" }] },
+      { "type": "paragraph" },
+      { "type": "heading", "attrs": { "level": 1, "id": "test-items" }, "content": [{ "type": "text", "text": "시험 항목" }] },
+      {
+        "type": "table",
+        "attrs": { "id": "test-results", "caption": "시험 항목 및 결과", "align": "center", "width": "100%" },
+        "content": [
+          {
+            "type": "tableRow",
+            "content": [
+              { "type": "tableHeader", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "항목" }] }] },
+              { "type": "tableHeader", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "기준" }] }] },
+              { "type": "tableHeader", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "결과" }] }] }
+            ]
+          },
+          {
+            "type": "tableRow",
+            "content": [
+              { "type": "tableCell", "content": [{ "type": "paragraph" }] },
+              { "type": "tableCell", "content": [{ "type": "paragraph" }] },
+              { "type": "tableCell", "content": [{ "type": "paragraph" }] }
+            ]
+          }
+        ]
+      },
+      { "type": "heading", "attrs": { "level": 1, "id": "defects-deviations" }, "content": [{ "type": "text", "text": "결함·편차" }] },
+      { "type": "paragraph" },
+      { "type": "heading", "attrs": { "level": 1, "id": "final-conclusion" }, "content": [{ "type": "text", "text": "종합 결론" }] },
+      { "type": "paragraph" }
+    ]
+  }
+}

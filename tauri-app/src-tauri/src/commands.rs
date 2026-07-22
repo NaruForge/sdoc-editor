@@ -1,4 +1,4 @@
-use crate::atomic_write::atomic_write;
+use crate::atomic_write::{atomic_create_new, atomic_write};
 use crate::document::*;
 use crate::settings::*;
 use chrono::Utc;
@@ -121,6 +121,12 @@ fn validate_unchanged_source(expected: Option<&str>, current: &str) -> Result<()
     Ok(())
 }
 
+fn current_workspace_contains(current_folder: Option<&Path>, canonical_target: &Path) -> bool {
+    current_folder
+        .and_then(|folder| folder.canonicalize().ok())
+        .is_some_and(|folder| canonical_target.starts_with(folder))
+}
+
 fn validate_persisted_document(value: &serde_json::Value) -> Result<(), String> {
     fn migrate_legacy_attrs(value: &mut serde_json::Value) {
         match value {
@@ -205,9 +211,13 @@ pub fn open_document(
     *state.document_id.lock().unwrap() = Some(document_id.clone());
     *state.document_revision.lock().unwrap() = 0;
     *state.document_source_text.lock().unwrap() = Some(text);
-    if let Some(parent) = path.parent() {
-        *state.current_folder.lock().unwrap() = Some(parent.to_path_buf());
-        remember_recent_folder(&state, parent);
+    if let Some(parent) = canonical_path.parent() {
+        let mut current_folder = state.current_folder.lock().unwrap();
+        let keep_workspace = current_workspace_contains(current_folder.as_deref(), &canonical_path);
+        if !keep_workspace {
+            *current_folder = Some(parent.to_path_buf());
+            remember_recent_folder(&state, parent);
+        }
     }
 
     // Add to recent files
@@ -309,32 +319,28 @@ pub fn save_document(
 #[tauri::command]
 pub fn new_document(
     path: String,
+    envelope: serde_json::Value,
     state: tauri::State<DocState>,
 ) -> Result<serde_json::Value, String> {
-    let path = PathBuf::from(&path);
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    create_document_at(&PathBuf::from(path), &envelope, &state)
+}
+
+pub(super) fn create_document_at(
+    path: &Path,
+    envelope: &serde_json::Value,
+    state: &DocState,
+) -> Result<serde_json::Value, String> {
+    validate_new_document_target(path)?;
+    if envelope.get("sdoc").and_then(|value| value.as_str()) != Some("1.0")
+        || envelope.get("meta").is_none()
+        || envelope.get("doc").is_none()
+    {
+        return Err("New document creation requires a complete SDOC 1.0 envelope".to_string());
     }
-    let now = Utc::now().format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string();
-    let meta = SdocMeta {
-        title: String::new(),
-        author: String::new(),
-        version: "0.1".to_string(),
-        created: now.clone(),
-        modified: now,
-        settings: None,
-        extensions: serde_json::Map::new(),
-    };
-    let doc = serde_json::json!({
-        "type": "doc",
-        "content": [
-            { "type": "heading", "attrs": { "level": 1 }, "content": [{ "type": "text", "text": "Untitled" }] },
-            { "type": "paragraph" }
-        ]
-    });
-    let envelope = wrap_sdoc(&meta, &doc);
-    let json_str = serde_json::to_string_pretty(&envelope).map_err(|e| e.to_string())?;
-    atomic_write(&path, json_str.as_bytes())?;
+    validate_persisted_document(envelope)?;
+    let (meta, doc) = unwrap_sdoc(envelope);
+    let json_str = serde_json::to_string_pretty(envelope).map_err(|e| e.to_string())?;
+    atomic_create_new(path, json_str.as_bytes())?;
 
     let canonical_path = path.canonicalize().map_err(|e| e.to_string())?;
     let document_id = canonical_path.to_string_lossy().to_string();
@@ -342,9 +348,13 @@ pub fn new_document(
     *state.document_id.lock().unwrap() = Some(document_id.clone());
     *state.document_revision.lock().unwrap() = 0;
     *state.document_source_text.lock().unwrap() = Some(json_str);
-    if let Some(parent) = path.parent() {
-        *state.current_folder.lock().unwrap() = Some(parent.to_path_buf());
-        remember_recent_folder(&state, parent);
+    if let Some(parent) = canonical_path.parent() {
+        let mut current_folder = state.current_folder.lock().unwrap();
+        let keep_workspace = current_workspace_contains(current_folder.as_deref(), &canonical_path);
+        if !keep_workspace {
+            *current_folder = Some(parent.to_path_buf());
+            remember_recent_folder(state, parent);
+        }
     }
 
     {
@@ -367,6 +377,43 @@ pub fn new_document(
     }))
 }
 
+fn validate_new_document_target(path: &Path) -> Result<(), String> {
+    if path.exists() {
+        return Err(format!("A file already exists at {}", path.display()));
+    }
+    let parent = path
+        .parent()
+        .ok_or_else(|| "The document path has no parent folder".to_string())?;
+    if !parent.is_dir() {
+        return Err(format!(
+            "The parent folder does not exist: {}",
+            parent.display()
+        ));
+    }
+    let extension_is_sdoc = path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("sdoc"));
+    if !extension_is_sdoc {
+        return Err("New documents must use the .sdoc extension".to_string());
+    }
+    let canonical_parent = parent.canonicalize().map_err(|error| error.to_string())?;
+    let canonical_target = canonical_parent.join(
+        path.file_name()
+            .ok_or_else(|| "The document path has no filename".to_string())?,
+    );
+    let components = canonical_target
+        .components()
+        .filter_map(|component| component.as_os_str().to_str())
+        .collect::<Vec<_>>();
+    if components.windows(2).any(|pair| {
+        pair[0].eq_ignore_ascii_case(".sdoc") && pair[1].eq_ignore_ascii_case("templates")
+    }) {
+        return Err("Documents cannot be created inside .sdoc/templates".to_string());
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub fn get_current_file_path(state: tauri::State<DocState>) -> Option<String> {
     state
@@ -379,7 +426,10 @@ pub fn get_current_file_path(state: tauri::State<DocState>) -> Option<String> {
 
 #[cfg(test)]
 mod persistence_tests {
-    use super::{validate_persisted_document, validate_save_request, validate_unchanged_source};
+    use super::{
+        current_workspace_contains, validate_new_document_target, validate_persisted_document,
+        validate_save_request, validate_unchanged_source,
+    };
 
     #[test]
     fn rejects_a_delayed_save_for_another_document() {
@@ -440,5 +490,44 @@ mod persistence_tests {
             }]
         }))
         .is_ok());
+    }
+
+    #[test]
+    fn rejects_existing_and_template_folder_targets() {
+        let root = std::env::temp_dir().join(format!("sdoc-new-target-{}", std::process::id()));
+        let template_root = root.join(".sdoc").join("templates");
+        std::fs::create_dir_all(&template_root).unwrap();
+        let existing = root.join("existing.sdoc");
+        std::fs::write(&existing, b"existing").unwrap();
+
+        assert!(validate_new_document_target(&existing).is_err());
+        assert!(validate_new_document_target(&template_root.join("new.sdoc")).is_err());
+        assert!(validate_new_document_target(&root.join("new.txt")).is_err());
+        assert!(validate_new_document_target(&root.join("new.sdoc")).is_ok());
+
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn keeps_the_workspace_root_when_a_document_is_created_in_a_subfolder() {
+        let root = std::env::temp_dir().join(format!("sdoc-workspace-root-{}", std::process::id()));
+        let workspace = root.join("workspace");
+        let chapter = workspace.join("chapters");
+        let sibling = root.join("outside");
+        std::fs::create_dir_all(&chapter).unwrap();
+        std::fs::create_dir_all(&sibling).unwrap();
+        let canonical_chapter = chapter.canonicalize().unwrap();
+        let canonical_sibling = sibling.canonicalize().unwrap();
+
+        assert!(current_workspace_contains(
+            Some(&workspace),
+            &canonical_chapter.join("new.sdoc")
+        ));
+        assert!(!current_workspace_contains(
+            Some(&workspace),
+            &canonical_sibling.join("new.sdoc")
+        ));
+
+        std::fs::remove_dir_all(root).unwrap();
     }
 }

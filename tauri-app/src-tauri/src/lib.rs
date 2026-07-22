@@ -61,6 +61,7 @@ pub fn run() {
             commands::set_current_folder,
             commands::get_current_folder,
             commands::list_folder_documents,
+            commands::list_workspace_template_candidates,
             commands::create_document_in_folder,
             commands::rename_entry,
             commands::delete_entry,

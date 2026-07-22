@@ -353,6 +353,7 @@ body {
 .btn-primary, .btn-secondary { padding: 6px 14px; border: none; border-radius: 4px; font-size: 13px; cursor: pointer; font-family: var(--font-family); }
 .btn-primary { background-color: var(--button-bg); color: var(--button-fg); }
 .btn-primary:hover { background-color: var(--button-hover-bg); }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn-secondary { background-color: var(--button-secondary-bg); color: var(--button-secondary-fg); }
 .btn-secondary:hover { background-color: var(--button-secondary-hover-bg); }
 .btn-danger {
@@ -361,6 +362,35 @@ body {
 }
 .btn-danger:hover { filter: brightness(1.1); }
 .btn-danger:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* New-document template picker */
+.template-dialog { width: min(760px, calc(100vw - 32px)); max-width: 760px; }
+.template-dialog .modal-header h3 { margin: 0; font-size: 16px; }
+.template-dialog .modal-header p { margin: 4px 0 0; color: var(--description-fg); font-size: 12px; }
+.template-dialog-body { display: grid; grid-template-columns: minmax(220px, 0.9fr) minmax(280px, 1.1fr); min-height: 340px; max-height: min(520px, calc(100vh - 180px)); }
+.template-dialog-list { padding: 12px; overflow-y: auto; border-right: 1px solid var(--panel-border); }
+.template-dialog-item { display: flex; flex-direction: column; gap: 3px; width: 100%; margin-bottom: 6px; padding: 10px; border: 1px solid transparent; border-radius: 5px; background: transparent; color: var(--editor-fg); text-align: left; cursor: pointer; }
+.template-dialog-item:hover { background: var(--toolbar-hover-bg); }
+.template-dialog-item:focus-visible { outline: 1px solid var(--focus-border); outline-offset: 1px; }
+.template-dialog-item.is-selected { border-color: var(--focus-border); background: var(--list-active-bg, var(--toolbar-hover-bg)); }
+.template-dialog-item span { color: var(--description-fg); font-size: 11px; }
+.template-dialog-item small { color: var(--description-fg); font-size: 12px; line-height: 1.4; }
+.template-dialog-fields { padding: 16px; overflow-y: auto; }
+.template-dialog-fields label { display: flex; flex-direction: column; gap: 6px; margin-top: 14px; color: var(--description-fg); font-size: 12px; }
+.template-dialog-fields input { box-sizing: border-box; width: 100%; padding: 7px 9px; border: 1px solid var(--input-border); border-radius: 4px; background: var(--input-bg); color: var(--input-fg); font-family: var(--font-family); }
+.template-dialog-fields input:focus { outline: 1px solid var(--focus-border); }
+.template-dialog-summary strong, .template-dialog-summary span { display: block; }
+.template-dialog-summary span { margin-top: 3px; color: var(--description-fg); font-size: 11px; }
+.template-dialog-summary p { margin: 10px 0 0; color: var(--description-fg); font-size: 12px; line-height: 1.5; }
+.template-dialog-status { color: var(--description-fg); font-size: 12px; }
+.template-dialog-error { color: var(--error-fg); font-size: 12px; line-height: 1.4; }
+.template-dialog-diagnostics { margin-top: 16px; color: var(--description-fg); font-size: 11px; }
+.template-dialog-diagnostics ul { max-height: 100px; margin: 8px 0 0; padding-left: 20px; overflow-y: auto; }
+.template-dialog-diagnostics li { margin-bottom: 4px; word-break: break-word; }
+@media (max-width: 640px) {
+  .template-dialog-body { grid-template-columns: 1fr; max-height: calc(100vh - 170px); }
+  .template-dialog-list { max-height: 190px; border-right: 0; border-bottom: 1px solid var(--panel-border); }
+}
 
 /* Dialog title */
 
