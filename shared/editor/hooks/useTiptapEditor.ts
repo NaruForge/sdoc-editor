@@ -4,11 +4,29 @@ import { createTiptapExtensions } from '../extensions/tiptapExtensions';
 import type { EditorExtensionRuntime } from '../extensionRuntime';
 
 interface UseTiptapEditorOptions {
-  onUpdate: (content: JSONContent, saveRequested?: boolean) => void;
+  onUpdate: (content: JSONContent) => void;
   runtime: EditorExtensionRuntime;
+  handleSaveShortcut?: boolean;
 }
 
-export const useTiptapEditor = ({ onUpdate, runtime }: UseTiptapEditorOptions) => {
+interface SaveShortcutEvent {
+  ctrlKey: boolean;
+  metaKey: boolean;
+  key: string;
+}
+
+export function shouldFlushOnSaveShortcut(
+  event: SaveShortcutEvent,
+  enabled: boolean,
+): boolean {
+  return enabled && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's';
+}
+
+export const useTiptapEditor = ({
+  onUpdate,
+  runtime,
+  handleSaveShortcut = true,
+}: UseTiptapEditorOptions) => {
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const onUpdateRef = useRef(onUpdate);
   useEffect(() => { onUpdateRef.current = onUpdate; }, [onUpdate]);
@@ -49,7 +67,7 @@ export const useTiptapEditor = ({ onUpdate, runtime }: UseTiptapEditorOptions) =
     }
   };
 
-  const flushUpdate = useCallback((saveRequested = false) => {
+  const flushUpdate = useCallback(() => {
     if (!editor) return;
 
     // Clear any pending debounce
@@ -60,21 +78,21 @@ export const useTiptapEditor = ({ onUpdate, runtime }: UseTiptapEditorOptions) =
 
     // Immediately send current state
     const json = editor.getJSON();
-    onUpdateRef.current(json, saveRequested);
+    onUpdateRef.current(json);
   }, [editor]);
 
-  // Flush pending edits on Ctrl+S so save always captures the latest state
+  // Standalone hosts flush Ctrl+S directly. VS Code delegates it to onWillSave.
   useEffect(() => {
     if (!editor) return;
     const dom = editor.view.dom;
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-        flushUpdate(true);
+      if (shouldFlushOnSaveShortcut(e, handleSaveShortcut)) {
+        flushUpdate();
       }
     };
     dom.addEventListener('keydown', handleKeyDown);
     return () => dom.removeEventListener('keydown', handleKeyDown);
-  }, [editor, flushUpdate]);
+  }, [editor, flushUpdate, handleSaveShortcut]);
 
   // Cleanup debounce timer
   useEffect(() => {

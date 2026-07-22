@@ -82,7 +82,7 @@ export const Editor: React.FC = () => {
   }), [dialogDispatch]);
 
   const { editor, setContent, flushUpdate } = useTiptapEditor({
-    onUpdate: (content, saveRequested) => {
+    onUpdate: (content) => {
       const session = persistenceSessionRef.current;
       if (!session) return;
       const editId = crypto.randomUUID();
@@ -91,12 +91,14 @@ export const Editor: React.FC = () => {
       const flushRequestId = session.pendingFlushRequestId;
       delete session.pendingFlushRequestId;
       postMessageRef.current({
-        type: 'edit', content: content as TiptapNode, saveRequested,
+        type: 'edit', content: content as TiptapNode,
         sessionId: session.sessionId, documentId: session.documentId,
         editId, baseRevision, flushRequestId,
       });
     },
     runtime: extensionRuntime,
+    // VS Code owns Ctrl+S. Its onWillSave participant requests exactly one flush.
+    handleSaveShortcut: false,
   });
   flushUpdateRef.current = flushUpdate;
 
