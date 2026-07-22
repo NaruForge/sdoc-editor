@@ -1,12 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 import { assertPersistedDocument } from '../shared/document/documentContract';
 import { getBuiltInTemplates } from '../shared/template';
-import { isEditorToHostMessage } from '../shared/types/messageGuards';
+import { isEditorToHostMessage, isHostToEditorMessage } from '../shared/types/messageGuards';
 import {
-  canInitializeEmptyDocument,
-  commitEmptyDocumentInitialization,
+  canApplyTemplateToCurrentDocument,
+  commitCurrentDocumentTemplateApplication,
+  isBlankSdocDocument,
   isUninitializedSdocText,
-  prepareEmptyDocumentInitialization,
+  prepareCurrentDocumentTemplateApplication,
 } from '../src/services/VsCodeTemplateService';
 
 const identity = {
@@ -24,16 +25,17 @@ describe('Explorer-created empty SDOC initialization', () => {
     expect(isUninitializedSdocText('{')).toBe(false);
   });
 
-  it('requires exact document identity, session, revision, and empty content', () => {
-    expect(canInitializeEmptyDocument('  ', identity, identity)).toBe(true);
-    expect(canInitializeEmptyDocument('', identity, { ...identity, revision: 2 })).toBe(false);
-    expect(canInitializeEmptyDocument('', identity, { ...identity, documentId: 'other' })).toBe(false);
-    expect(canInitializeEmptyDocument('{}', identity, identity)).toBe(false);
+  it('requires exact document identity, session, revision, and source snapshot', () => {
+    expect(canApplyTemplateToCurrentDocument('same', 'same', identity, identity)).toBe(true);
+    expect(canApplyTemplateToCurrentDocument('same', 'same', identity, { ...identity, revision: 2 })).toBe(false);
+    expect(canApplyTemplateToCurrentDocument('same', 'same', identity, { ...identity, documentId: 'other' })).toBe(false);
+    expect(canApplyTemplateToCurrentDocument('before', 'after', identity, identity)).toBe(false);
   });
 
   it('does not apply a prepared document after an external revision change', async () => {
     const apply = vi.fn(async () => undefined);
-    await expect(commitEmptyDocumentInitialization({
+    await expect(commitCurrentDocumentTemplateApplication({
+      expectedText: '',
       currentText: '',
       expected: identity,
       current: { ...identity, revision: identity.revision + 1 },
@@ -43,9 +45,10 @@ describe('Explorer-created empty SDOC initialization', () => {
     expect(apply).not.toHaveBeenCalled();
   });
 
-  it('propagates edit failures without treating the empty document as initialized', async () => {
+  it('propagates edit failures without replacing the source document', async () => {
     let currentText = '';
-    await expect(commitEmptyDocumentInitialization({
+    await expect(commitCurrentDocumentTemplateApplication({
+      expectedText: currentText,
       currentText,
       expected: identity,
       current: identity,
@@ -56,73 +59,152 @@ describe('Explorer-created empty SDOC initialization', () => {
     expect(isUninitializedSdocText(currentText)).toBe(true);
   });
 
-  it('prepares a schema-valid blank envelope without touching initialized content', async () => {
-    const text = await prepareEmptyDocumentInitialization({
-      mode: 'blank',
-      currentText: '\n',
-      defaultTitle: 'Explorer document',
+  it('prepares a schema-valid replacement while preserving the current title', () => {
+    const blankText = JSON.stringify({
+      sdoc: '1.0',
+      meta: { title: 'Current title' },
+      doc: {
+        type: 'doc',
+        content: [
+          { type: 'heading', attrs: { level: 1, id: 'document-title', numbered: false }, content: [{ type: 'text', text: 'Current title' }] },
+          { type: 'paragraph' },
+        ],
+      },
+    });
+    const template = getBuiltInTemplates().find((candidate) => candidate.descriptor.id === 'builtin:technical-report');
+    expect(template).toBeDefined();
+    if (!template) return;
+
+    const prepared = prepareCurrentDocumentTemplateApplication({
+      currentText: blankText,
+      template,
+      defaultTitle: 'Fallback',
       now: () => new Date('2026-07-22T00:00:00.000Z'),
     });
-
-    expect(text).toBeDefined();
-    const persisted: unknown = JSON.parse(text ?? '');
+    const persisted: unknown = JSON.parse(prepared.text);
     expect(() => assertPersistedDocument(persisted)).not.toThrow();
-    expect(persisted).toMatchObject({
-      meta: { title: 'Explorer document', created: '2026-07-22T00:00:00.000Z' },
+    expect(persisted).toMatchObject({ meta: { title: 'Current title' } });
+    expect(prepared.hasReplaceableContent).toBe(false);
+    expect(isBlankSdocDocument(JSON.parse(blankText))).toBe(true);
+  });
+
+  it('treats body content and document settings as destructive replacement', () => {
+    const template = getBuiltInTemplates().find((candidate) => candidate.descriptor.id === 'builtin:technical-report');
+    expect(template).toBeDefined();
+    if (!template) return;
+    const contentText = JSON.stringify({
+      sdoc: '1.0',
+      meta: { title: 'Existing', settings: { headingNumbering: false } },
+      doc: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Keep me' }] }] },
     });
-    expect(isUninitializedSdocText(text ?? '')).toBe(false);
 
-    await expect(prepareEmptyDocumentInitialization({
-      mode: 'blank',
-      currentText: '{"sdoc":"2.0"}',
-      defaultTitle: 'Future document',
-    })).rejects.toThrow('no longer empty');
-    await expect(prepareEmptyDocumentInitialization({
-      mode: 'blank',
-      currentText: text ?? '',
-      defaultTitle: 'Already initialized',
-    })).rejects.toThrow('no longer empty');
+    const prepared = prepareCurrentDocumentTemplateApplication({
+      currentText: contentText,
+      template,
+      defaultTitle: 'Fallback',
+    });
+    expect(prepared.hasReplaceableContent).toBe(true);
+    expect(isBlankSdocDocument(JSON.parse(contentText))).toBe(false);
   });
 
-  it('returns no edit when experimental template or title selection is cancelled', async () => {
-    const selectTemplate = vi.fn(async () => undefined);
-    await expect(prepareEmptyDocumentInitialization({
-      mode: 'template',
-      currentText: '',
-      defaultTitle: 'Cancelled',
-      templates: [],
-      selectTemplate,
-      requestTitle: vi.fn(async () => 'Cancelled'),
-    })).resolves.toBeUndefined();
-    expect(selectTemplate).toHaveBeenCalledOnce();
+  it('preserves document identity metadata while replacing template settings', () => {
+    const template = getBuiltInTemplates()[1];
+    expect(template).toBeDefined();
+    if (!template) return;
+    template.envelope.meta.settings = { headingNumbering: false };
+    const currentText = JSON.stringify({
+      sdoc: '1.0',
+      meta: {
+        title: 'Existing title',
+        author: 'Existing author',
+        version: '7.2',
+        created: '2025-01-01T00:00:00.000Z',
+        modified: '2025-01-02T00:00:00.000Z',
+        settings: { headingDecoration: false },
+        reviewStatus: 'approved',
+      },
+      doc: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Old body' }] }] },
+    });
 
-    const builtIns = getBuiltInTemplates().filter((template) =>
-      template.descriptor.id !== 'builtin:blank');
-    await expect(prepareEmptyDocumentInitialization({
-      mode: 'template',
-      currentText: '',
-      defaultTitle: 'Cancelled title',
-      templates: builtIns,
-      selectTemplate: vi.fn(async (templates) => templates[0]),
-      requestTitle: vi.fn(async () => undefined),
-    })).resolves.toBeUndefined();
+    const prepared = prepareCurrentDocumentTemplateApplication({
+      currentText,
+      template,
+      defaultTitle: 'Fallback',
+      now: () => new Date('2026-07-22T00:00:00.000Z'),
+    });
+    const result = JSON.parse(prepared.text);
+    expect(result.meta).toMatchObject({
+      title: 'Existing title',
+      author: 'Existing author',
+      version: '7.2',
+      created: '2025-01-01T00:00:00.000Z',
+      modified: '2026-07-22T00:00:00.000Z',
+      reviewStatus: 'approved',
+      settings: { headingNumbering: false },
+    });
+    expect(result.meta.settings).not.toHaveProperty('headingDecoration');
   });
 
-  it('accepts only fully identified initialization messages', () => {
+  it('applies a template directly to whitespace without a preliminary blank write', () => {
+    const template = getBuiltInTemplates()[1];
+    expect(template).toBeDefined();
+    if (!template) return;
+
+    const prepared = prepareCurrentDocumentTemplateApplication({
+      currentText: ' \r\n\t',
+      template,
+      defaultTitle: 'Explorer file',
+      now: () => new Date('2026-07-22T00:00:00.000Z'),
+    });
+    const persisted: unknown = JSON.parse(prepared.text);
+    expect(() => assertPersistedDocument(persisted)).not.toThrow();
+    expect(persisted).toMatchObject({ meta: { title: 'Explorer file' } });
+    expect(prepared.hasReplaceableContent).toBe(false);
+  });
+
+  it('rejects malformed and future-version documents as replacement targets', () => {
+    const template = getBuiltInTemplates()[1];
+    expect(template).toBeDefined();
+    if (!template) return;
+    expect(() => prepareCurrentDocumentTemplateApplication({
+      currentText: '{', template, defaultTitle: 'Broken',
+    })).toThrow('valid SDOC');
+    expect(() => prepareCurrentDocumentTemplateApplication({
+      currentText: '{"sdoc":"2.0","doc":{"type":"doc"}}', template, defaultTitle: 'Future',
+    })).toThrow('valid SDOC');
+  });
+
+  it('accepts only fully identified template application messages', () => {
     expect(isEditorToHostMessage({
-      type: 'initializeEmptyDocument',
-      mode: 'blank',
+      type: 'applyTemplate',
+      templateId: 'builtin:technical-report',
       sessionId: identity.sessionId,
       documentId: identity.documentId,
       baseRevision: identity.revision,
     })).toBe(true);
-    expect(isEditorToHostMessage({ type: 'initializeEmptyDocument', mode: 'blank' })).toBe(false);
+    expect(isEditorToHostMessage({ type: 'applyTemplate', templateId: 'builtin:technical-report' })).toBe(false);
     expect(isEditorToHostMessage({
-      type: 'initializeEmptyDocument',
-      mode: 'overwrite',
+      type: 'applyTemplate',
+      templateId: '',
       sessionId: identity.sessionId,
       documentId: identity.documentId,
       baseRevision: identity.revision,
+    })).toBe(false);
+    expect(isEditorToHostMessage({ type: 'requestTemplateCatalog' })).toBe(true);
+    expect(isHostToEditorMessage({
+      type: 'templateCatalog',
+      diagnosticCount: 0,
+      templates: [{
+        id: 'builtin:technical-report',
+        name: 'Technical report',
+        source: 'builtin',
+        sourceLabel: 'Structured Doc Editor',
+      }],
+    })).toBe(true);
+    expect(isHostToEditorMessage({
+      type: 'templateCatalog',
+      diagnosticCount: 0,
+      templates: [{ id: 42, name: 'Broken', source: 'builtin', sourceLabel: 'Built-in' }],
     })).toBe(false);
   });
 });

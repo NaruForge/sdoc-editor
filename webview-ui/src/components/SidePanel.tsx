@@ -5,6 +5,8 @@ import { ListOfFigures } from '@shared/editor/components/ListOfFigures';
 import { ListOfTables } from '@shared/editor/components/ListOfTables';
 import { DocumentSettingsPanel } from '@shared/editor/components/DocumentSettingsPanel';
 import { PanelEmptyState } from '@shared/editor/components/PanelEmptyState';
+import { TemplatePanel } from '@shared/editor/components/TemplatePanel';
+import type { TemplateDescriptor } from '@shared/template';
 import type { DocumentSettings, ResolvedEditorSettings } from '@shared/types';
 import type { EditorToHostMessage } from '@shared/types/messages';
 import { FileJson, Download, Upload, Loader2, FolderOpen } from 'lucide-react';
@@ -27,6 +29,12 @@ interface SidePanelProps {
   onExport?: (format: 'html' | 'adoc' | 'markdown' | 'pdf' | 'slides') => void;
   onImport?: (format: 'markdown' | 'html') => void;
   isExporting?: boolean;
+  templates?: readonly TemplateDescriptor[];
+  templateDiagnosticCount?: number;
+  isTemplateCatalogLoading?: boolean;
+  isApplyingTemplate?: boolean;
+  onRefreshTemplates?: () => void;
+  onApplyTemplate?: (templateId: string) => void;
 }
 
 export const SidePanel: React.FC<SidePanelProps> = ({
@@ -43,6 +51,12 @@ export const SidePanel: React.FC<SidePanelProps> = ({
   onExport,
   onImport,
   isExporting = false,
+  templates = [],
+  templateDiagnosticCount = 0,
+  isTemplateCatalogLoading = false,
+  isApplyingTemplate = false,
+  onRefreshTemplates,
+  onApplyTemplate,
 }) => {
   return (
     <div className="side-panel">
@@ -77,6 +91,16 @@ export const SidePanel: React.FC<SidePanelProps> = ({
             onExport={onExport}
             onImport={onImport}
             isExporting={isExporting}
+          />
+        )}
+        {activeTab === 'template' && onRefreshTemplates && onApplyTemplate && (
+          <TemplatePanel
+            templates={templates}
+            diagnosticCount={templateDiagnosticCount}
+            isLoading={isTemplateCatalogLoading}
+            isApplying={isApplyingTemplate}
+            onRefresh={onRefreshTemplates}
+            onApply={onApplyTemplate}
           />
         )}
       </div>

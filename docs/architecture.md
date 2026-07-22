@@ -35,7 +35,7 @@ Rust reads and writes the envelope but deliberately does not reproduce document 
 
 `shared/template/` owns built-in template data, untrusted template metadata narrowing, catalog diagnostics, and immutable template instantiation. A template is a schema-valid `.sdoc` envelope; creating a document removes template-only metadata, refreshes document metadata, optionally updates an explicitly identified title heading, and preserves settings, IDs, and links.
 
-Hosts discover workspace templates only from the non-recursive `.sdoc/templates/*.sdoc` boundary. They enforce canonical containment, symlink containment, size and count limits, present host-native selection UI, flush the active editor, and create a new file without overwriting an existing target. Rust validates and stores the envelope produced by the shared TypeScript core but does not create template document semantics.
+Hosts discover workspace templates only from the non-recursive `.sdoc/templates/*.sdoc` boundary. They enforce canonical containment, symlink containment, size and count limits, present host-native selection UI, flush the active editor, and create a new file without overwriting an existing target. In VS Code, zero-byte documents are represented as an editable in-memory blank document without writing on open; the capability-gated shared template panel applies a selected catalog snapshot to the current document only after confirmation, exact identity/revision/text revalidation, and one full-document `WorkspaceEdit`. Rust validates and stores the envelope produced by the shared TypeScript core but does not create template document semantics.
 
 ### Book composition
 
@@ -70,7 +70,7 @@ The host-neutral `EditorHostBridge` and the discriminated unions in `shared/type
 - `src/SdocBookProvider.ts`: Book webview orchestration, open-buffer loader, file watching, and export destination handling
 - `src/services/VsCodeAssetService.ts`: image and Draw.io operations
 - `src/services/VsCodeExportService.ts`: export orchestration
-- `src/services/VsCodeTemplateService.ts`: workspace template discovery and create-new orchestration
+- `src/services/VsCodeTemplateService.ts`: workspace template discovery, create-new orchestration, and guarded current-document template application
 - `webview-ui/src/`: VS Code bridge, message handling, and VS Code-specific shell composition
 
 ### Tauri
