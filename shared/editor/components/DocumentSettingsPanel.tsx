@@ -1,7 +1,7 @@
 import React, { useCallback } from 'react';
 import { Palette } from 'lucide-react';
 import { useEditorContext } from '@shared/editor/context/EditorContext';
-import { TEXT_COLORS } from '@shared/editor/constants/colors';
+import { HEADING_COLOR_PRESETS } from '@shared/editor/constants/colors';
 import {
   HEADING_LEVELS,
   headingColorKey,
@@ -81,8 +81,6 @@ const SLIDE_TRANSITION_OPTIONS: { value: SlideTransition; label: string }[] = [
   { value: 'concave', label: 'Concave' },
   { value: 'zoom', label: 'Zoom' },
 ];
-
-const HEADING_COLOR_PRESETS = TEXT_COLORS.filter(({ value }) => value.length > 0);
 
 interface HeadingColorControlProps {
   level: HeadingLevel;
