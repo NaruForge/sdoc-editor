@@ -10,6 +10,12 @@ export const TEXT_COLORS = [
   { label: '회색', value: '#6b7280' },
 ] as const;
 
+export const HEADING_COLOR_PRESETS = [
+  { label: '파란 계열', value: '#2563EB' },
+  { label: 'LG 헤리티지 레드', value: '#A50034' },
+  { label: '검정색', value: '#000000' },
+] as const;
+
 export const HIGHLIGHT_COLORS = [
   { label: '없음', value: '' },
   { label: '노랑', value: '#fef08a' },

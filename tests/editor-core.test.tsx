@@ -12,6 +12,7 @@ import {
   mergeDocumentSetting,
 } from '../shared/editor/components/DocumentSettingsPanel';
 import { Toolbar } from '../shared/editor/components/Toolbar';
+import { HEADING_COLOR_PRESETS } from '../shared/editor/constants/colors';
 import { HEADING_LEVELS, nextHeadingMenuIndex } from '../shared/editor/constants/headings';
 import { EditorProvider } from '../shared/editor/context/EditorContext';
 import { createTiptapExtensions } from '../shared/editor/extensions/tiptapExtensions';
@@ -36,16 +37,26 @@ function createRuntime(): EditorExtensionRuntime {
 }
 
 describe('shared editor core', () => {
-  it('exposes H1 through H6 colors with visible presets and separate custom pickers', () => {
+  it('exposes exactly three LG-aware heading colors with separate custom pickers', () => {
     const markup = renderToStaticMarkup(
       <EditorProvider>
         <DocumentSettingsPanel onUpdateSettings={vi.fn()} />
       </EditorProvider>,
     );
 
+    expect(HEADING_COLOR_PRESETS).toEqual([
+      { label: '파란 계열', value: '#2563EB' },
+      { label: 'LG 헤리티지 레드', value: '#A50034' },
+      { label: '검정색', value: '#000000' },
+    ]);
+    expect(markup.match(/class="settings-heading-color-preset(?: is-active)?"/g))
+      .toHaveLength(HEADING_LEVELS.length * 3);
+
     for (const level of HEADING_LEVELS) {
       expect(markup).toContain(`H${level} 색상`);
-      expect(markup).toContain(`aria-label="H${level} 파랑 (기본)"`);
+      expect(markup).toContain(`aria-label="H${level} 파란 계열"`);
+      expect(markup).toContain(`aria-label="H${level} LG 헤리티지 레드"`);
+      expect(markup).toContain(`aria-label="H${level} 검정색"`);
       expect(markup).toContain(`aria-label="H${level} 사용자 지정 색상"`);
     }
   });
