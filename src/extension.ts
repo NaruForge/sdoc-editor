@@ -4,11 +4,16 @@ import * as path from 'path';
 import { SdocEditorProvider } from './SdocEditorProvider';
 import { SdocBookProvider } from './SdocBookProvider';
 import type { ExportFormat } from './services/VsCodeExportService';
-import { createEmptySdoc } from '../shared/document/sdocUtils';
+import {
+  runNewSdocWorkflow,
+  isFilesystemBackedScheme,
+  validateDocumentTitle,
+  VsCodeTemplateService,
+  type NewSdocDiagnostic,
+  type WorkspaceTemplateRoot,
+} from './services/VsCodeTemplateService';
 
-/**
- * Show What's New (CHANGELOG) when extension is updated to a new version
- */
+/** Show What's New (CHANGELOG) when extension is updated to a new version. */
 async function showWhatsNewIfNeeded(context: vscode.ExtensionContext): Promise<void> {
   try {
     const packageJsonPath = path.join(context.extensionPath, 'package.json');
@@ -20,74 +25,60 @@ async function showWhatsNewIfNeeded(context: vscode.ExtensionContext): Promise<v
 
     if (previousVersion !== currentVersion) {
       await context.globalState.update('sdocEditor.version', currentVersion);
-
-      // Show CHANGELOG only on update (not first install)
       if (previousVersion) {
         const changelogUri = vscode.Uri.joinPath(context.extensionUri, 'CHANGELOG.md');
         await vscode.commands.executeCommand('markdown.showPreview', changelogUri);
       }
     }
   } catch (error) {
-    // Fail silently to not interrupt extension activation
     console.error('Failed to check version for What\'s New:', error);
   }
 }
 
-export function activate(context: vscode.ExtensionContext) {
-  // Show What's New on version update
-  showWhatsNewIfNeeded(context);
+export function activate(context: vscode.ExtensionContext): void {
+  void showWhatsNewIfNeeded(context);
 
-  // Register the custom editor providers
   context.subscriptions.push(SdocEditorProvider.register(context));
   context.subscriptions.push(SdocBookProvider.register(context));
+  const templateOutputChannel = vscode.window.createOutputChannel('Structured Doc Templates');
+  context.subscriptions.push(templateOutputChannel);
 
-  // Register export to HTML command
   context.subscriptions.push(
     vscode.commands.registerCommand(
       'structuredDocEditor.newSdoc',
-      () => createNewSdoc()
-    )
+      () => createNewSdoc(templateOutputChannel),
+    ),
   );
-
   context.subscriptions.push(
     vscode.commands.registerCommand(
       'structuredDocEditor.exportToHtml',
-      () => dispatchExport('html')
-    )
+      () => dispatchExport('html'),
+    ),
   );
-
-  // Register export to AsciiDoc command
   context.subscriptions.push(
     vscode.commands.registerCommand(
       'structuredDocEditor.exportToAdoc',
-      () => dispatchExport('adoc')
-    )
+      () => dispatchExport('adoc'),
+    ),
   );
-
-  // Register export to Markdown command
   context.subscriptions.push(
     vscode.commands.registerCommand(
       'structuredDocEditor.exportToMarkdown',
-      () => dispatchExport('markdown')
-    )
+      () => dispatchExport('markdown'),
+    ),
   );
-
-  // Register export to PDF command
   context.subscriptions.push(
     vscode.commands.registerCommand(
       'structuredDocEditor.exportToPdf',
-      () => dispatchExport('pdf')
-    )
+      () => dispatchExport('pdf'),
+    ),
   );
-
-  // Register export to Slides command
   context.subscriptions.push(
     vscode.commands.registerCommand(
       'structuredDocEditor.exportToSlides',
-      () => dispatchExport('slides')
-    )
+      () => dispatchExport('slides'),
+    ),
   );
-
 }
 
 async function dispatchExport(format: ExportFormat): Promise<void> {
@@ -100,32 +91,94 @@ async function dispatchExport(format: ExportFormat): Promise<void> {
   }
 }
 
-async function createNewSdoc(): Promise<void> {
-  const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-  const defaultUri = workspaceFolder
-    ? vscode.Uri.joinPath(workspaceFolder.uri, 'Untitled.sdoc')
-    : vscode.Uri.file('Untitled.sdoc');
+const describeDiagnostic = (diagnostic: NewSdocDiagnostic): string =>
+  `[${diagnostic.code}] ${diagnostic.targetPath}${'path' in diagnostic && diagnostic.path ? ` ${diagnostic.path}` : ''}: ${diagnostic.message}`;
 
-  const targetUri = await vscode.window.showSaveDialog({
-    defaultUri,
-    filters: { 'Structured Doc': ['sdoc'] },
-    saveLabel: 'Create .sdoc Document',
-    title: '새 .sdoc 문서 만들기',
-  });
+async function createNewSdoc(outputChannel: vscode.OutputChannel): Promise<void> {
+  const allWorkspaceFolders = vscode.workspace.workspaceFolders ?? [];
+  const workspaceRoots: WorkspaceTemplateRoot[] = allWorkspaceFolders
+    .filter((folder) => isFilesystemBackedScheme(folder.uri.scheme))
+    .map((folder) => ({
+      identity: folder.uri.toString(),
+      name: folder.name,
+      rootPath: folder.uri.fsPath,
+    }));
+  const unsupportedWorkspaces = allWorkspaceFolders
+    .filter((folder) => !isFilesystemBackedScheme(folder.uri.scheme));
+  if (unsupportedWorkspaces.length > 0) {
+    outputChannel.appendLine(
+      `Workspace templates are unavailable for non-file workspaces: ${unsupportedWorkspaces.map((folder) => folder.name).join(', ')}`,
+    );
+  }
 
-  if (!targetUri) return;
-
-  const envelope = createEmptySdoc({ title: '' });
-  await vscode.workspace.fs.writeFile(
-    targetUri,
-    new TextEncoder().encode(JSON.stringify(envelope, null, 2) + '\n')
-  );
-  await vscode.commands.executeCommand(
-    'vscode.openWith',
-    targetUri,
-    'structuredDocEditor.sdoc',
-    { preview: false }
-  );
+  const templateService = new VsCodeTemplateService();
+  let selectedTargetUri: vscode.Uri | undefined;
+  try {
+    await runNewSdocWorkflow(templateService, workspaceRoots, {
+      selectTemplate: async (templates) => {
+        const selected = await vscode.window.showQuickPick(
+          templates.map((template) => ({
+            label: template.descriptor.name,
+            description: template.descriptor.sourceLabel,
+            detail: template.descriptor.description,
+            template,
+          })),
+          {
+            title: 'Create Structured Doc',
+            placeHolder: 'Select a document template',
+            matchOnDescription: true,
+            matchOnDetail: true,
+          },
+        );
+        return selected?.template;
+      },
+      requestTitle: async () => vscode.window.showInputBox({
+        title: 'Create Structured Doc',
+        prompt: 'Enter the document title',
+        placeHolder: 'Document title',
+        validateInput: validateDocumentTitle,
+      }),
+      selectTarget: async (defaultFileName) => {
+        const defaultWorkspace = allWorkspaceFolders
+          .find((folder) => isFilesystemBackedScheme(folder.uri.scheme));
+        const defaultUri = defaultWorkspace
+          ? vscode.Uri.joinPath(defaultWorkspace.uri, defaultFileName)
+          : vscode.Uri.file(path.resolve(defaultFileName));
+        const targetUri = await vscode.window.showSaveDialog({
+          defaultUri,
+          filters: { 'Structured Doc': ['sdoc'] },
+          saveLabel: 'Create .sdoc Document',
+          title: 'Create .sdoc Document',
+        });
+        if (!targetUri) return undefined;
+        if (!isFilesystemBackedScheme(targetUri.scheme)) {
+          throw new Error('New documents require a filesystem-backed destination.');
+        }
+        selectedTargetUri = targetUri;
+        return targetUri.fsPath;
+      },
+      flushActiveDocument: () => SdocEditorProvider.flushActiveDocument(),
+      openDocument: async (targetPath) => {
+        await vscode.commands.executeCommand(
+          'vscode.openWith',
+          selectedTargetUri ?? vscode.Uri.file(targetPath),
+          'structuredDocEditor.sdoc',
+          { preview: false },
+        );
+      },
+      reportDiagnostics: (diagnostics) => {
+        outputChannel.appendLine(`Template discovery reported ${diagnostics.length} issue(s):`);
+        diagnostics.forEach((diagnostic) => outputChannel.appendLine(describeDiagnostic(diagnostic)));
+        void vscode.window.showWarningMessage(
+          `${diagnostics.length} template(s) could not be loaded. See "Structured Doc Templates" output for details.`,
+        );
+      },
+    });
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    outputChannel.appendLine(`Document creation failed: ${detail}`);
+    await vscode.window.showErrorMessage(`Failed to create Structured Doc: ${detail}`);
+  }
 }
 
-export function deactivate() {}
+export function deactivate(): void {}

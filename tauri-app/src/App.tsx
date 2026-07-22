@@ -6,12 +6,19 @@ import { EditorProvider, useEditorContext } from '@shared/editor/context/EditorC
 import { Editor } from './components/Editor';
 import { createTauriAdapter } from './adapters/tauriMessaging';
 import type { SdocMeta, TiptapNode } from '@shared/types';
-import { migrateAttributes } from '@shared/document/sdocUtils';
+import type { SdocTemplate } from '@shared/template';
 import { parseDocumentContract, validateDocumentSettings } from '@shared/document/documentContract';
 import { ConfirmDialog } from './components/ConfirmDialog';
+import { TemplateDialog } from './components/TemplateDialog';
 import { UndoToast } from './components/UndoToast';
 import { resolveTauriEditorSettings } from './settingsAdapter';
 import { closeTauriApplication, createCloseRequestHandler } from './applicationLifecycle';
+import {
+  createTauriTemplateDocument,
+  loadTauriTemplateCatalog,
+  suggestTemplateFileName,
+  type WorkspaceTemplateDiscovery,
+} from './templateService';
 
 type AppView = 'welcome' | 'editor' | 'json';
 
@@ -31,6 +38,15 @@ interface OpenDocumentResult {
   filePath: string;
   documentId: string;
   revision: number;
+}
+
+interface TemplateDialogState {
+  mode: 'save-dialog' | 'workspace';
+  folder?: string;
+  templates: SdocTemplate[];
+  diagnostics: string[];
+  loading: boolean;
+  error?: string;
 }
 
 function getDialogPath(selected: string | string[] | null): string | null {
@@ -68,6 +84,7 @@ const AppContent: React.FC = () => {
   const [pendingDelete, setPendingDelete] = useState<ExplorerEntry | null>(null);
   const [undoInfo, setUndoInfo] = useState<{ message: string } | null>(null);
   const [hasDeletionHistory, setHasDeletionHistory] = useState(false);
+  const [templateDialog, setTemplateDialog] = useState<TemplateDialogState | null>(null);
 
   // loadDocument 내부에서 최신 workspaceFolder 값을 참조하기 위한 ref.
   // loadDocument의 useCallback deps에 workspaceFolder를 직접 넣으면 폴더 전환마다
@@ -173,29 +190,69 @@ const AppContent: React.FC = () => {
     }
   }, [adapter, dispatch, loadWorkspace]);
 
-  const handleNew = useCallback(async () => {
-    await adapter.flushAndWait();
-    const path = await save({
-      filters: [{ name: 'Structured Document', extensions: ['sdoc'] }],
-    });
-    if (path) {
-      const result = await invoke<OpenDocumentResult>('new_document', { path });
-      adapter.setDocumentSession(result.documentId, result.revision);
-      setDoc(migrateAttributes(result.doc));
-      setMeta(result.meta);
-      setCurrentPath(result.filePath);
-      setView('editor');
-
-      const nativeSettings: unknown = await invoke('get_editor_settings');
-      const docSettings = validateDocumentSettings(result.meta.settings) ? result.meta.settings : null;
-      dispatch({ type: 'SET_DOC_SETTINGS', payload: docSettings });
-      dispatch({ type: 'SET_SETTINGS', payload: resolveTauriEditorSettings(nativeSettings, docSettings) });
-      await invoke('start_file_watcher');
-      await loadWorkspace(result.filePath.split(/[\\/]/).slice(0, -1).join('/')).catch((error: unknown) => {
-        console.warn('Failed to refresh workspace', error);
-      });
+  const activateCreatedDocument = useCallback(async (result: OpenDocumentResult) => {
+    const contract = parseDocumentContract({ sdoc: '1.0', meta: result.meta, doc: result.doc });
+    if (!contract.ok) {
+      throw new Error(contract.diagnostics.map((item) => `${item.path}: ${item.message}`).join('; '));
     }
+    adapter.setDocumentSession(result.documentId, result.revision);
+    setDoc(contract.envelope.doc);
+    setMeta(contract.envelope.meta);
+    setCurrentPath(result.filePath);
+    setView('editor');
+    const nativeSettings: unknown = await invoke('get_editor_settings');
+    const docSettings = validateDocumentSettings(contract.envelope.meta.settings)
+      ? contract.envelope.meta.settings
+      : null;
+    dispatch({ type: 'SET_DOC_SETTINGS', payload: docSettings });
+    dispatch({ type: 'SET_SETTINGS', payload: resolveTauriEditorSettings(nativeSettings, docSettings) });
+    await invoke('start_file_watcher');
+    const parentFolder = result.filePath.split(/[\\/]/).slice(0, -1).join('/');
+    const currentWorkspace = workspaceFolderRef.current;
+    const targetWorkspace = currentWorkspace && isPathInsideFolder(result.filePath, currentWorkspace)
+      ? currentWorkspace
+      : parentFolder;
+    if (targetWorkspace !== currentWorkspace) setWorkspaceFolder(targetWorkspace);
+    await loadWorkspace(targetWorkspace);
   }, [adapter, dispatch, loadWorkspace]);
+
+  const showTemplateDialog = useCallback(async (
+    mode: TemplateDialogState['mode'],
+    folder?: string,
+  ) => {
+    setTemplateDialog({ mode, folder, templates: [], diagnostics: [], loading: true });
+    try {
+      const result = await loadTauriTemplateCatalog(
+        workspaceFolderRef.current,
+        async () => invoke<WorkspaceTemplateDiscovery>('list_workspace_template_candidates'),
+      );
+      const diagnostics = [
+        ...result.catalog.diagnostics.map((item) => `${item.targetPath}: ${item.message}`),
+        ...result.nativeDiagnostics.map((item) => `${item.path}: ${item.message}`),
+      ];
+      setTemplateDialog((current) => current && current.mode === mode && current.folder === folder
+        ? { ...current, templates: result.catalog.templates, diagnostics, loading: false }
+        : current);
+    } catch (error: unknown) {
+      const fallback = await loadTauriTemplateCatalog(
+        null,
+        async () => ({ candidates: [], diagnostics: [] }),
+      );
+      setTemplateDialog((current) => current && current.mode === mode && current.folder === folder
+        ? {
+          ...current,
+          templates: fallback.catalog.templates,
+          diagnostics: [],
+          loading: false,
+          error: `워크스페이스 템플릿을 불러오지 못했습니다: ${String(error)}`,
+        }
+        : current);
+    }
+  }, []);
+
+  const handleNew = useCallback(() => {
+    void showTemplateDialog('save-dialog');
+  }, [showTemplateDialog]);
 
   const handleOpen = useCallback(async () => {
     const selected = await open({
@@ -251,27 +308,44 @@ const AppContent: React.FC = () => {
       await handleSelectFolder();
       return;
     }
-    const fileName = window.prompt('새 문서 파일 이름', 'untitled.sdoc');
-    if (!fileName) {
-      return;
+    await showTemplateDialog('workspace', folder);
+  }, [handleSelectFolder, showTemplateDialog, workspaceFolder]);
+
+  const handleCreateFromTemplate = useCallback(async (
+    template: SdocTemplate,
+    title: string,
+    fileName?: string,
+  ) => {
+    const pending = templateDialog;
+    if (!pending) return;
+    try {
+      let selectedPath: string | null = null;
+      if (pending.mode === 'save-dialog') {
+        selectedPath = await save({
+          defaultPath: suggestTemplateFileName(title),
+          filters: [{ name: 'Structured Document', extensions: ['sdoc'] }],
+        });
+        if (!selectedPath) {
+          setTemplateDialog(null);
+          return;
+        }
+      }
+      const result = await createTauriTemplateDocument({ template, title }, {
+        flush: () => adapter.flushAndWait(),
+        create: (envelope) => pending.mode === 'save-dialog'
+          ? invoke<OpenDocumentResult>('new_document', { path: selectedPath, envelope })
+          : invoke<OpenDocumentResult>('create_document_in_folder', {
+            folder: pending.folder,
+            fileName,
+            envelope,
+          }),
+      });
+      await activateCreatedDocument(result);
+      setTemplateDialog(null);
+    } catch (error: unknown) {
+      setTemplateDialog((current) => current ? { ...current, error: String(error) } : current);
     }
-    await adapter.flushAndWait();
-    const result = await invoke<OpenDocumentResult>('create_document_in_folder', {
-      folder,
-      fileName,
-    });
-    adapter.setDocumentSession(result.documentId, result.revision);
-    setDoc(result.doc);
-    setMeta(result.meta);
-    setCurrentPath(result.filePath);
-    setView('editor');
-    const nativeSettings: unknown = await invoke('get_editor_settings');
-    const docSettings = validateDocumentSettings(result.meta.settings) ? result.meta.settings : null;
-    dispatch({ type: 'SET_DOC_SETTINGS', payload: docSettings });
-    dispatch({ type: 'SET_SETTINGS', payload: resolveTauriEditorSettings(nativeSettings, docSettings) });
-    await invoke('start_file_watcher');
-    await loadWorkspace(workspaceFolder ?? folder);
-  }, [adapter, dispatch, handleSelectFolder, loadWorkspace, workspaceFolder]);
+  }, [activateCreatedDocument, adapter, templateDialog]);
 
   const handleRenameEntry = useCallback(async (path: string, newName: string) => {
     try {
@@ -436,6 +510,19 @@ const AppContent: React.FC = () => {
 
   const overlays = (
     <>
+      {templateDialog && (
+        <TemplateDialog
+          templates={templateDialog.templates}
+          diagnostics={templateDialog.diagnostics}
+          loading={templateDialog.loading}
+          error={templateDialog.error}
+          workspaceMode={templateDialog.mode === 'workspace'}
+          onConfirm={(template, title, fileName) => {
+            void handleCreateFromTemplate(template, title, fileName);
+          }}
+          onCancel={() => setTemplateDialog(null)}
+        />
+      )}
       {pendingDelete && (
         <ConfirmDialog
           title="삭제 확인"

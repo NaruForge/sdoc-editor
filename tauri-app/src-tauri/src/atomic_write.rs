@@ -73,6 +73,36 @@ pub fn atomic_write(target: &Path, bytes: &[u8]) -> Result<(), String> {
     atomic_write_with(target, bytes, replace)
 }
 
+/// Atomically creates a new file without replacing an existing target.
+///
+/// The fully flushed temporary file is hard-linked into place. Creating the link is an
+/// atomic, no-clobber operation on every supported desktop platform because the temporary
+/// file lives in the target directory (and therefore on the same filesystem).
+pub fn atomic_create_new(target: &Path, bytes: &[u8]) -> Result<(), String> {
+    let temp = temporary_path(target)?;
+    let result = (|| {
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temp)
+            .map_err(|error| error.to_string())?;
+        file.write_all(bytes).map_err(|error| error.to_string())?;
+        file.flush().map_err(|error| error.to_string())?;
+        file.sync_all().map_err(|error| error.to_string())?;
+        drop(file);
+        fs::hard_link(&temp, target).map_err(|error| error.to_string())?;
+        // The target is complete and durable once the hard link succeeds. Failure to remove
+        // the temporary link must not report creation failure after the document now exists.
+        let _ = fs::remove_file(&temp);
+        Ok(())
+    })();
+
+    if result.is_err() {
+        let _ = fs::remove_file(&temp);
+    }
+    result
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -112,6 +142,25 @@ mod tests {
 
         assert!(result.is_err());
         assert_eq!(fs::read(&target).unwrap(), b"original");
+        assert_eq!(fs::read_dir(&root).unwrap().count(), 1);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn creates_a_new_file_without_replacing_an_existing_target() {
+        let root = std::env::temp_dir().join(format!(
+            "sdoc-atomic-create-{}-{}",
+            std::process::id(),
+            TEMP_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+        ));
+        fs::create_dir_all(&root).unwrap();
+        let target = root.join("document.sdoc");
+
+        atomic_create_new(&target, b"first").unwrap();
+        assert_eq!(fs::read(&target).unwrap(), b"first");
+
+        assert!(atomic_create_new(&target, b"second").is_err());
+        assert_eq!(fs::read(&target).unwrap(), b"first");
         assert_eq!(fs::read_dir(&root).unwrap().count(), 1);
         fs::remove_dir_all(root).unwrap();
     }

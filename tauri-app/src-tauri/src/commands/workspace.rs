@@ -1,11 +1,39 @@
 use super::{
-    new_document, remember_recent_folder, DocState, ExplorerEntry, EXCLUDED_DIRS,
+    create_document_at, remember_recent_folder, DocState, ExplorerEntry, EXCLUDED_DIRS,
     MAX_EXPLORER_DEPTH, MAX_RECENT_DELETIONS,
 };
 use crate::settings::save_settings;
 use chrono::Utc;
 use std::fs;
 use std::path::{Path, PathBuf};
+
+const MAX_WORKSPACE_TEMPLATES: usize = 100;
+const MAX_TEMPLATE_BYTES: u64 = 2 * 1024 * 1024;
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceTemplateCandidate {
+    pub id: String,
+    pub source_label: String,
+    pub file_name: String,
+    pub path: String,
+    pub raw_source: String,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceTemplateDiagnostic {
+    pub code: String,
+    pub path: String,
+    pub message: String,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceTemplateDiscovery {
+    pub candidates: Vec<WorkspaceTemplateCandidate>,
+    pub diagnostics: Vec<WorkspaceTemplateDiagnostic>,
+}
 
 #[tauri::command]
 pub fn set_current_folder(path: String, state: tauri::State<DocState>) -> Result<(), String> {
@@ -69,11 +97,226 @@ pub fn list_folder_documents(
 pub fn create_document_in_folder(
     folder: String,
     file_name: String,
+    envelope: serde_json::Value,
     state: tauri::State<DocState>,
 ) -> Result<serde_json::Value, String> {
     let safe_name = sanitize_document_file_name(&file_name)?;
-    let path = deduplicate_path(&PathBuf::from(folder), &safe_name);
-    new_document(path.to_string_lossy().to_string(), state)
+    let workspace = state
+        .current_folder
+        .lock()
+        .unwrap()
+        .clone()
+        .ok_or_else(|| "No workspace folder is open".to_string())?
+        .canonicalize()
+        .map_err(|error| error.to_string())?;
+    let target_folder = PathBuf::from(folder)
+        .canonicalize()
+        .map_err(|error| error.to_string())?;
+    if !target_folder.starts_with(&workspace) {
+        return Err("The target folder is outside the current workspace".to_string());
+    }
+    create_document_at(&target_folder.join(safe_name), &envelope, &state)
+}
+
+#[tauri::command]
+pub fn list_workspace_template_candidates(
+    state: tauri::State<DocState>,
+) -> Result<WorkspaceTemplateDiscovery, String> {
+    let workspace = state
+        .current_folder
+        .lock()
+        .unwrap()
+        .clone()
+        .ok_or_else(|| "No workspace folder is open".to_string())?;
+    discover_workspace_template_candidates(&workspace)
+}
+
+fn template_diagnostic(
+    code: &str,
+    path: &Path,
+    message: impl Into<String>,
+) -> WorkspaceTemplateDiagnostic {
+    WorkspaceTemplateDiagnostic {
+        code: code.to_string(),
+        path: path.to_string_lossy().to_string(),
+        message: message.into(),
+    }
+}
+
+fn discover_workspace_template_candidates(
+    workspace_folder: &Path,
+) -> Result<WorkspaceTemplateDiscovery, String> {
+    let workspace = workspace_folder
+        .canonicalize()
+        .map_err(|error| error.to_string())?;
+    if !workspace.is_dir() {
+        return Err("The workspace path is not a folder".to_string());
+    }
+    let source_label = workspace
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("workspace")
+        .to_string();
+    let template_path = workspace.join(".sdoc").join("templates");
+    if !template_path.exists() {
+        return Ok(WorkspaceTemplateDiscovery {
+            candidates: Vec::new(),
+            diagnostics: Vec::new(),
+        });
+    }
+
+    let mut diagnostics = Vec::new();
+    let template_root = match template_path.canonicalize() {
+        Ok(path) if path.starts_with(&workspace) && path.is_dir() => path,
+        Ok(path) => {
+            diagnostics.push(template_diagnostic(
+                "template-root-outside-workspace",
+                &template_path,
+                format!(
+                    "Template root resolves outside the workspace: {}",
+                    path.display()
+                ),
+            ));
+            return Ok(WorkspaceTemplateDiscovery {
+                candidates: Vec::new(),
+                diagnostics,
+            });
+        }
+        Err(error) => {
+            diagnostics.push(template_diagnostic(
+                "template-root-unreadable",
+                &template_path,
+                error.to_string(),
+            ));
+            return Ok(WorkspaceTemplateDiscovery {
+                candidates: Vec::new(),
+                diagnostics,
+            });
+        }
+    };
+
+    let mut entries = Vec::new();
+    for entry_result in fs::read_dir(&template_root).map_err(|error| error.to_string())? {
+        let entry = match entry_result {
+            Ok(entry) => entry,
+            Err(error) => {
+                diagnostics.push(template_diagnostic(
+                    "template-unreadable",
+                    &template_root,
+                    error.to_string(),
+                ));
+                continue;
+            }
+        };
+        if entry
+            .path()
+            .extension()
+            .and_then(|extension| extension.to_str())
+            .is_some_and(|extension| extension.eq_ignore_ascii_case("sdoc"))
+        {
+            entries.push(entry);
+        }
+    }
+    entries.sort_by_key(|entry| entry.file_name().to_string_lossy().to_lowercase());
+
+    let mut candidates = Vec::new();
+    for (index, entry) in entries.into_iter().enumerate() {
+        let path = entry.path();
+        if index >= MAX_WORKSPACE_TEMPLATES {
+            diagnostics.push(template_diagnostic(
+                "template-limit-exceeded",
+                &path,
+                format!("Only the first {MAX_WORKSPACE_TEMPLATES} templates are loaded"),
+            ));
+            break;
+        }
+        let canonical = match path.canonicalize() {
+            Ok(path) if path.starts_with(&template_root) && path.starts_with(&workspace) => path,
+            Ok(path) => {
+                diagnostics.push(template_diagnostic(
+                    "template-outside-workspace",
+                    &entry.path(),
+                    format!(
+                        "Template resolves outside the workspace: {}",
+                        path.display()
+                    ),
+                ));
+                continue;
+            }
+            Err(error) => {
+                diagnostics.push(template_diagnostic(
+                    "template-unreadable",
+                    &path,
+                    error.to_string(),
+                ));
+                continue;
+            }
+        };
+        let metadata = match canonical.metadata() {
+            Ok(metadata) if metadata.is_file() => metadata,
+            Ok(_) => {
+                diagnostics.push(template_diagnostic(
+                    "template-not-file",
+                    &path,
+                    "Template candidate is not a regular file",
+                ));
+                continue;
+            }
+            Err(error) => {
+                diagnostics.push(template_diagnostic(
+                    "template-unreadable",
+                    &path,
+                    error.to_string(),
+                ));
+                continue;
+            }
+        };
+        if metadata.len() > MAX_TEMPLATE_BYTES {
+            diagnostics.push(template_diagnostic(
+                "template-too-large",
+                &path,
+                format!("Template exceeds the {MAX_TEMPLATE_BYTES} byte limit"),
+            ));
+            continue;
+        }
+        let raw_source = match fs::read_to_string(&canonical) {
+            Ok(source) => source,
+            Err(error) => {
+                diagnostics.push(template_diagnostic(
+                    "template-unreadable",
+                    &path,
+                    error.to_string(),
+                ));
+                continue;
+            }
+        };
+        let relative_path = canonical
+            .strip_prefix(&workspace)
+            .expect("validated workspace containment")
+            .to_string_lossy()
+            .replace('\\', "/");
+        let file_name = canonical
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or_default()
+            .to_string();
+        candidates.push(WorkspaceTemplateCandidate {
+            id: format!(
+                "workspace:{}:{}",
+                workspace.to_string_lossy(),
+                relative_path
+            ),
+            source_label: source_label.clone(),
+            file_name,
+            path: canonical.to_string_lossy().to_string(),
+            raw_source,
+        });
+    }
+
+    Ok(WorkspaceTemplateDiscovery {
+        candidates,
+        diagnostics,
+    })
 }
 
 /// 탐색기의 파일/폴더 이름을 변경한다. 현재 열려 있는 문서를 이름 변경 대상으로
@@ -458,33 +701,86 @@ fn sanitize_document_file_name(file_name: &str) -> Result<String, String> {
     if trimmed.contains('/') || trimmed.contains('\\') || trimmed.contains("..") {
         return Err("파일 이름에 경로 구분자를 사용할 수 없습니다.".to_string());
     }
-    if trimmed.ends_with(".sdoc") || trimmed.ends_with(".tiptap.json") {
+    if trimmed.to_lowercase().ends_with(".sdoc") {
         Ok(trimmed.to_string())
     } else {
         Ok(format!("{}.sdoc", trimmed))
     }
 }
 
-pub(super) fn deduplicate_path(dir: &Path, filename: &str) -> PathBuf {
-    let target = dir.join(filename);
-    if !target.exists() {
-        return target;
+#[cfg(test)]
+mod template_tests {
+    use super::*;
+
+    fn temp_workspace(name: &str) -> PathBuf {
+        let root = std::env::temp_dir().join(format!(
+            "sdoc-template-{name}-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(root.join(".sdoc").join("templates")).unwrap();
+        root
     }
-    let stem = Path::new(filename)
-        .file_stem()
-        .unwrap_or_default()
-        .to_string_lossy()
-        .to_string();
-    let ext = Path::new(filename)
-        .extension()
-        .map(|e| format!(".{}", e.to_string_lossy()))
-        .unwrap_or_default();
-    let mut n = 2;
-    loop {
-        let candidate = dir.join(format!("{}-{}{}", stem, n, ext));
-        if !candidate.exists() {
-            return candidate;
+
+    #[test]
+    fn discovers_only_direct_regular_sdoc_files_in_stable_order() {
+        let root = temp_workspace("discovery");
+        let templates = root.join(".sdoc").join("templates");
+        fs::write(templates.join("B.sdoc"), "{\"b\":true}").unwrap();
+        fs::write(templates.join("a.sdoc"), "{\"a\":true}").unwrap();
+        fs::write(templates.join("ignored.json"), "{}").unwrap();
+        fs::create_dir(templates.join("nested")).unwrap();
+        fs::write(templates.join("nested").join("hidden.sdoc"), "{}").unwrap();
+
+        let result = discover_workspace_template_candidates(&root).unwrap();
+
+        assert_eq!(
+            result
+                .candidates
+                .iter()
+                .map(|candidate| candidate.file_name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["a.sdoc", "B.sdoc"]
+        );
+        assert!(result.diagnostics.is_empty());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn rejects_oversized_templates_without_hiding_valid_candidates() {
+        let root = temp_workspace("oversize");
+        let templates = root.join(".sdoc").join("templates");
+        fs::write(templates.join("valid.sdoc"), "{}").unwrap();
+        let oversized = fs::File::create(templates.join("oversized.sdoc")).unwrap();
+        oversized.set_len(MAX_TEMPLATE_BYTES + 1).unwrap();
+
+        let result = discover_workspace_template_candidates(&root).unwrap();
+
+        assert_eq!(result.candidates.len(), 1);
+        assert_eq!(result.diagnostics.len(), 1);
+        assert_eq!(result.diagnostics[0].code, "template-too-large");
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn rejects_a_template_symlink_that_escapes_the_workspace_when_supported() {
+        let root = temp_workspace("symlink");
+        let outside = root.with_extension("outside.sdoc");
+        fs::write(&outside, "{}").unwrap();
+        let link = root.join(".sdoc").join("templates").join("escape.sdoc");
+
+        #[cfg(unix)]
+        let linked = std::os::unix::fs::symlink(&outside, &link).is_ok();
+        #[cfg(windows)]
+        let linked = std::os::windows::fs::symlink_file(&outside, &link).is_ok();
+
+        if linked {
+            let result = discover_workspace_template_candidates(&root).unwrap();
+            assert!(result.candidates.is_empty());
+            assert_eq!(result.diagnostics[0].code, "template-outside-workspace");
         }
-        n += 1;
+        fs::remove_dir_all(root).unwrap();
+        fs::remove_file(outside).unwrap();
     }
 }

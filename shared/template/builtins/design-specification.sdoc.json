@@ -1,0 +1,40 @@
+{
+  "sdoc": "1.0",
+  "meta": {
+    "title": "설계 명세서",
+    "author": "",
+    "version": "0.1",
+    "created": "2026-01-01T00:00:00.000Z",
+    "modified": "2026-01-01T00:00:00.000Z",
+    "template": {
+      "name": "설계 명세서",
+      "description": "시스템의 목표, 구조, 인터페이스와 검증 전략을 정의합니다.",
+      "category": "design",
+      "titleNodeId": "document-title"
+    }
+  },
+  "doc": {
+    "type": "doc",
+    "content": [
+      { "type": "heading", "attrs": { "level": 1, "id": "document-title", "numbered": false }, "content": [{ "type": "text", "text": "설계 명세서" }] },
+      { "type": "heading", "attrs": { "level": 1, "id": "overview" }, "content": [{ "type": "text", "text": "개요" }] },
+      { "type": "paragraph" },
+      { "type": "heading", "attrs": { "level": 1, "id": "goals" }, "content": [{ "type": "text", "text": "목표·비목표" }] },
+      { "type": "paragraph" },
+      { "type": "heading", "attrs": { "level": 1, "id": "requirements" }, "content": [{ "type": "text", "text": "요구사항" }] },
+      { "type": "paragraph" },
+      { "type": "heading", "attrs": { "level": 1, "id": "system-architecture" }, "content": [{ "type": "text", "text": "시스템 구조" }] },
+      { "type": "paragraph" },
+      { "type": "heading", "attrs": { "level": 1, "id": "interfaces-data" }, "content": [{ "type": "text", "text": "인터페이스·데이터" }] },
+      { "type": "paragraph" },
+      { "type": "heading", "attrs": { "level": 1, "id": "errors-security" }, "content": [{ "type": "text", "text": "오류·보안" }] },
+      { "type": "paragraph" },
+      { "type": "heading", "attrs": { "level": 1, "id": "test-strategy" }, "content": [{ "type": "text", "text": "시험 전략" }] },
+      { "type": "paragraph" },
+      { "type": "heading", "attrs": { "level": 1, "id": "deployment-operations" }, "content": [{ "type": "text", "text": "배포·운영" }] },
+      { "type": "paragraph" },
+      { "type": "heading", "attrs": { "level": 1, "id": "open-items" }, "content": [{ "type": "text", "text": "미결 사항" }] },
+      { "type": "paragraph" }
+    ]
+  }
+}

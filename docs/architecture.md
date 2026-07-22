@@ -9,6 +9,7 @@ VS Code extension ─┐
                    ├─ typed host bridge ─ shared/editor
 Tauri desktop ─────┘                       │
                                            ├─ shared/document
+                                           ├─ shared/template
                                            ├─ shared/book
                                            ├─ shared/settingsResolver
                                            └─ shared/converter
@@ -29,6 +30,12 @@ Tauri desktop ─────┘                       │
 - Save protocols carry document identity, base revision, edit identity, and acknowledgement; hosts reject stale or cross-document writes.
 
 Rust reads and writes the envelope but deliberately does not reproduce document semantics. The Tauri frontend runs the same TypeScript migration and normalization used by the VS Code host.
+
+### Document templates
+
+`shared/template/` owns built-in template data, untrusted template metadata narrowing, catalog diagnostics, and immutable template instantiation. A template is a schema-valid `.sdoc` envelope; creating a document removes template-only metadata, refreshes document metadata, optionally updates an explicitly identified title heading, and preserves settings, IDs, and links.
+
+Hosts discover workspace templates only from the non-recursive `.sdoc/templates/*.sdoc` boundary. They enforce canonical containment, symlink containment, size and count limits, present host-native selection UI, flush the active editor, and create a new file without overwriting an existing target. Rust validates and stores the envelope produced by the shared TypeScript core but does not create template document semantics.
 
 ### Book composition
 
@@ -63,6 +70,7 @@ The host-neutral `EditorHostBridge` and the discriminated unions in `shared/type
 - `src/SdocBookProvider.ts`: Book webview orchestration, open-buffer loader, file watching, and export destination handling
 - `src/services/VsCodeAssetService.ts`: image and Draw.io operations
 - `src/services/VsCodeExportService.ts`: export orchestration
+- `src/services/VsCodeTemplateService.ts`: workspace template discovery and create-new orchestration
 - `webview-ui/src/`: VS Code bridge, message handling, and VS Code-specific shell composition
 
 ### Tauri
@@ -76,9 +84,10 @@ The host-neutral `EditorHostBridge` and the discriminated unions in `shared/type
 
 1. Hosts may depend on `shared/`; `shared/` must not import `vscode` or `@tauri-apps/*`.
 2. Persisted semantics live once in the TypeScript document core.
-3. Host differences cross typed adapters or component props, never ambient globals.
-4. Common UI and structural CSS live in `shared/editor/`; host styles only override theme or shell behavior.
-5. External JSON is accepted as `unknown` and narrowed at its boundary.
+3. Template discovery and file creation belong to hosts; template parsing and instantiation belong to `shared/template/`.
+4. Host differences cross typed adapters or component props, never ambient globals.
+5. Common UI and structural CSS live in `shared/editor/`; host styles only override theme or shell behavior.
+6. External JSON is accepted as `unknown` and narrowed at its boundary.
 
 ## Verification
 

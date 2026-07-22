@@ -24,6 +24,7 @@ import { RecoverableSerialQueue } from '../shared/persistence/RecoverableSerialQ
 import { assertPersistedDocument, parseDocumentContract, readDocumentSettings, validateDocumentSettings } from '../shared/document/documentContract';
 import { dehydrateDocumentAssets } from '../shared/document/runtimeAssets';
 import { runExportAfterFlush } from '../shared/export/runExportAfterFlush';
+import { isWorkspaceTemplatePath } from './services/VsCodeTemplateService';
 
 export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
   private static readonly SDOC_VERSION = '1.0';
@@ -52,6 +53,12 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     const provider = SdocEditorProvider.instance;
     if (!provider) throw new Error('Structured Doc Editor is not active.');
     await provider.exportActive(format);
+  }
+
+  public static async flushActiveDocument(): Promise<void> {
+    const provider = SdocEditorProvider.instance;
+    if (!provider) return;
+    await provider.flushActive();
   }
 
   /** Exact snapshots expected from our own WorkspaceEdit, never a blind event counter. */
@@ -585,6 +592,17 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     );
   }
 
+  private async flushActive(): Promise<void> {
+    const activeTab = vscode.window.tabGroups.activeTabGroup.activeTab;
+    const input = activeTab?.input;
+    const uri = input instanceof vscode.TabInputCustom || input instanceof vscode.TabInputText
+      ? input.uri
+      : undefined;
+    if (!uri) return;
+    const session = this.editorSessions.get(uri.toString());
+    if (session) await this.flushEditor(session.panel.webview, session.sessionId);
+  }
+
   private flushEditor(webview: vscode.Webview, sessionId: string, timeoutMs = 5000): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       const requestId = randomUUID();
@@ -846,11 +864,18 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     const currentDir = path.dirname(document.uri.fsPath);
 
     // Find all .sdoc files in workspace
-    const files = await vscode.workspace.findFiles('**/*.sdoc', '**/node_modules/**', 100);
+    const files = await vscode.workspace.findFiles(
+      '**/*.sdoc',
+      '{**/node_modules/**,**/.sdoc/templates/**}',
+      100,
+    );
     const currentPath = document.uri.fsPath;
 
     const items = files
-      .filter(f => f.fsPath !== currentPath)
+      .filter((file) => {
+        if (file.fsPath === currentPath) return false;
+        return !isWorkspaceTemplatePath(file.path);
+      })
       .map(f => {
         const rel = path.relative(currentDir, f.fsPath).replace(/\\/g, '/');
         const label = path.basename(f.fsPath);
