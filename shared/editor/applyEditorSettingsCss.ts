@@ -18,6 +18,9 @@ export function applyEditorSettingsCss(
     editorElement.style.setProperty('--heading-h1-color', settings.headingH1Color);
     editorElement.style.setProperty('--heading-h2-color', settings.headingH2Color);
     editorElement.style.setProperty('--heading-h3-color', settings.headingH3Color);
+    editorElement.style.setProperty('--heading-h4-color', settings.headingH4Color);
+    editorElement.style.setProperty('--heading-h5-color', settings.headingH5Color);
+    editorElement.style.setProperty('--heading-h6-color', settings.headingH6Color);
     editorElement.style.setProperty('--font-weight-body', String(settings.fontWeightBody));
     editorElement.style.setProperty('--font-weight-bold', String(settings.fontWeightBold));
     editorElement.style.setProperty('--font-weight-h1', String(settings.fontWeightH1));

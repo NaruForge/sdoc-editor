@@ -69,10 +69,13 @@ samp {
   --image-caption-prefix: '';
   --table-caption-prefix: '';
   --caption-separator: ' ';
-  /* Heading colors (set via JS from VS Code settings). H4~H6은 전용 설정이 없어 H3 색상을 재사용한다. */
+  /* Heading colors (set via the shared settings controller). */
   --heading-h1-color: #2563EB;
   --heading-h2-color: #2563EB;
   --heading-h3-color: #2563EB;
+  --heading-h4-color: #2563EB;
+  --heading-h5-color: #2563EB;
+  --heading-h6-color: #2563EB;
   /* Font weight custom properties (set via JS from VS Code settings) */
   --font-weight-body: 400;
   --font-weight-bold: 700;
@@ -161,7 +164,7 @@ samp {
 
 .show-numbering .ProseMirror h4::before {
   content: attr(data-number-label) ". ";
-  color: var(--heading-h3-color, #2563EB);
+  color: var(--heading-h4-color, #2563EB);
   margin-right: 0.3em;
 }
 
@@ -175,7 +178,7 @@ samp {
 
 .show-numbering .ProseMirror h5::before {
   content: attr(data-number-label) ". ";
-  color: var(--heading-h3-color, #2563EB);
+  color: var(--heading-h5-color, #2563EB);
   margin-right: 0.3em;
 }
 
@@ -188,7 +191,7 @@ samp {
 
 .show-numbering .ProseMirror h6::before {
   content: attr(data-number-label) ". ";
-  color: var(--heading-h3-color, #2563EB);
+  color: var(--heading-h6-color, #2563EB);
   margin-right: 0.3em;
 }
 
@@ -789,6 +792,14 @@ samp {
   width: 1px;
   background-color: var(--vscode-panel-border);
   margin: 0 4px;
+}
+
+.heading-menu-level {
+  width: 24px;
+  flex: none;
+  font-family: var(--sdoc-font-mono);
+  font-size: 11px;
+  font-weight: 700;
 }
 
 /* Insert Menu & Dropdown Panels */
@@ -2331,6 +2342,87 @@ samp {
   font-size: 11px;
   font-family: var(--sdoc-font-mono);
   color: var(--vscode-descriptionForeground);
+}
+
+.settings-heading-color-row {
+  align-items: flex-start;
+}
+
+.settings-heading-color-control {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+}
+
+.settings-heading-color-presets {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.settings-heading-color-preset {
+  width: 19px;
+  height: 19px;
+  padding: 0;
+  border: 1px solid var(--vscode-panel-border, var(--panel-border, rgba(128, 128, 128, 0.45)));
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.15);
+}
+
+.settings-heading-color-preset:hover,
+.settings-heading-color-preset:focus-visible {
+  outline: 2px solid var(--vscode-focusBorder, var(--focus-border, #007acc));
+  outline-offset: 1px;
+}
+
+.settings-heading-color-preset.is-active {
+  outline: 2px solid var(--vscode-focusBorder, var(--focus-border, #007acc));
+  outline-offset: 1px;
+}
+
+.settings-heading-color-custom {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.settings-heading-color-custom-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 24px;
+  padding: 3px 6px;
+  color: var(--vscode-button-secondaryForeground, var(--button-secondary-fg));
+  background: var(--vscode-button-secondaryBackground, var(--button-secondary-bg));
+  border: 1px solid var(--vscode-panel-border, var(--panel-border, transparent));
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.settings-heading-color-custom-button:hover,
+.settings-heading-color-custom-button:focus-visible {
+  background: var(--vscode-button-secondaryHoverBackground, var(--button-secondary-hover-bg));
+  outline: 1px solid var(--vscode-focusBorder, var(--focus-border, #007acc));
+}
+
+.settings-heading-color-preview {
+  width: 12px;
+  height: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 2px;
+}
+
+.settings-heading-color-native-picker {
+  position: fixed;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .settings-text-input {

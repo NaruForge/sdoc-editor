@@ -8,9 +8,7 @@ import {
   ListOrdered,
   ListChecks,
   Code,
-  Heading1,
-  Heading2,
-  Heading3,
+  Heading,
   Table2,
   Trash2,
   PenTool,
@@ -36,6 +34,11 @@ import {
 } from 'lucide-react';
 import { CALLOUT_ICONS, CALLOUT_LABELS, type CalloutVariant } from '@shared/editor/extensions/Callout';
 import { TEXT_COLORS, HIGHLIGHT_COLORS } from '../constants/colors';
+import {
+  HEADING_LEVELS,
+  nextHeadingMenuIndex,
+  type HeadingMenuNavigationKey,
+} from '../constants/headings';
 
 interface ToolbarProps {
   editor: TiptapEditor | null;
@@ -64,6 +67,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showHighlightPicker, setShowHighlightPicker] = useState(false);
   const [showAlignMenu, setShowAlignMenu] = useState(false);
+  const [showHeadingMenu, setShowHeadingMenu] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const colorPickerRef = useRef<HTMLDivElement>(null);
   const highlightPickerRef = useRef<HTMLDivElement>(null);
@@ -71,6 +75,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   const [customCols, setCustomCols] = useState('3');
   const insertMenuRef = useRef<HTMLDivElement>(null);
   const alignMenuRef = useRef<HTMLDivElement>(null);
+  const headingMenuRef = useRef<HTMLDivElement>(null);
+  const headingTriggerRef = useRef<HTMLButtonElement>(null);
   const moreMenuRef = useRef<HTMLDivElement>(null);
 
   const [, forceToolbarUpdate] = useState(0);
@@ -86,6 +92,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     const targets: { open: boolean; ref: React.RefObject<HTMLDivElement | null>; close: () => void }[] = [
       { open: showInsertMenu, ref: insertMenuRef, close: closeInsertMenu },
       { open: showAlignMenu, ref: alignMenuRef, close: () => setShowAlignMenu(false) },
+      { open: showHeadingMenu, ref: headingMenuRef, close: () => setShowHeadingMenu(false) },
       { open: showMoreMenu, ref: moreMenuRef, close: () => setShowMoreMenu(false) },
     ];
     const active = targets.filter(t => t.open);
@@ -97,7 +104,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     };
     const id = requestAnimationFrame(() => document.addEventListener('mousedown', handleClick));
     return () => { cancelAnimationFrame(id); document.removeEventListener('mousedown', handleClick); };
-  }, [showInsertMenu, showAlignMenu, showMoreMenu]);
+  }, [showInsertMenu, showAlignMenu, showHeadingMenu, showMoreMenu]);
 
   if (!editor) return null;
 
@@ -159,6 +166,36 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     : editor.isActive({ textAlign: 'right' }) ? <AlignRight size={16} />
     : editor.isActive({ textAlign: 'justify' }) ? <AlignJustify size={16} />
     : <AlignLeft size={16} />;
+
+  const headingMenuButtons = (): HTMLButtonElement[] =>
+    Array.from(headingMenuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]') ?? []);
+
+  const focusHeadingMenuItem = (index: number): void => {
+    requestAnimationFrame(() => headingMenuButtons()[index]?.focus());
+  };
+
+  const activeHeadingMenuIndex = (): number => {
+    const activeLevel = HEADING_LEVELS.findIndex((level) => editor.isActive('heading', { level }));
+    return activeLevel >= 0 ? activeLevel + 1 : 0;
+  };
+
+  const handleHeadingMenuKeyDown = (event: React.KeyboardEvent<HTMLDivElement>): void => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      setShowHeadingMenu(false);
+      headingTriggerRef.current?.focus();
+      return;
+    }
+    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault();
+    const buttons = headingMenuButtons();
+    const currentIndex = buttons.indexOf(document.activeElement as HTMLButtonElement);
+    buttons[nextHeadingMenuIndex(
+      currentIndex,
+      event.key as HeadingMenuNavigationKey,
+      buttons.length,
+    )]?.focus();
+  };
 
   return (
     <div className="toolbar">
@@ -255,15 +292,78 @@ export const Toolbar: React.FC<ToolbarProps> = ({
       <div className="toolbar-separator" />
 
       {/* ── 헤딩 ─────────────────────────────────────────── */}
-      <Btn onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} isActive={editor.isActive('heading', { level: 1 })} title="제목 1 (H1)">
-        <Heading1 size={16} />
-      </Btn>
-      <Btn onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} isActive={editor.isActive('heading', { level: 2 })} title="제목 2 (H2)">
-        <Heading2 size={16} />
-      </Btn>
-      <Btn onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} isActive={editor.isActive('heading', { level: 3 })} title="제목 3 (H3)">
-        <Heading3 size={16} />
-      </Btn>
+      <div ref={headingMenuRef} className="toolbar-dropdown">
+        <button
+          ref={headingTriggerRef}
+          type="button"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={(event) => {
+            const opening = !showHeadingMenu;
+            setShowHeadingMenu(opening);
+            if (opening && event.detail === 0) focusHeadingMenuItem(activeHeadingMenuIndex());
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') {
+              setShowHeadingMenu(false);
+              return;
+            }
+            if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+            event.preventDefault();
+            setShowHeadingMenu(true);
+            focusHeadingMenuItem(event.key === 'ArrowUp' ? HEADING_LEVELS.length : 0);
+          }}
+          title="제목 수준 선택"
+          aria-label="Heading"
+          aria-haspopup="menu"
+          aria-expanded={showHeadingMenu}
+          className={`toolbar-button${editor.isActive('heading') ? ' is-active' : ''}`}
+        >
+          <Heading size={16} />
+          <span>Heading</span>
+          <ChevronRight size={10} style={{ transform: 'rotate(90deg)', marginLeft: 2 }} />
+        </button>
+        {showHeadingMenu && (
+          <div
+            className="insert-menu"
+            role="menu"
+            aria-label="Heading 수준"
+            onMouseDown={(event) => event.preventDefault()}
+            onKeyDown={handleHeadingMenuKeyDown}
+          >
+            <button
+              type="button"
+              role="menuitemradio"
+              aria-checked={!editor.isActive('heading')}
+              className={`insert-menu-item${!editor.isActive('heading') ? ' is-active' : ''}`}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => {
+                editor.chain().focus().setParagraph().run();
+                setShowHeadingMenu(false);
+                headingTriggerRef.current?.focus();
+              }}
+            >
+              <span className="heading-menu-level">P</span><span>본문</span>
+            </button>
+            {HEADING_LEVELS.map((level) => (
+              <button
+                key={level}
+                type="button"
+                role="menuitemradio"
+                aria-checked={editor.isActive('heading', { level })}
+                className={`insert-menu-item${editor.isActive('heading', { level }) ? ' is-active' : ''}`}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => {
+                  editor.chain().focus().setHeading({ level }).run();
+                  setShowHeadingMenu(false);
+                  headingTriggerRef.current?.focus();
+                }}
+              >
+                <span className="heading-menu-level">H{level}</span><span>제목 {level}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
       <Btn
         onClick={() => {
           const isUnnumbered = editor.getAttributes('heading').numbered === false;

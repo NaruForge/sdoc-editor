@@ -1,5 +1,12 @@
 import React, { useCallback } from 'react';
+import { Palette } from 'lucide-react';
 import { useEditorContext } from '@shared/editor/context/EditorContext';
+import { TEXT_COLORS } from '@shared/editor/constants/colors';
+import {
+  HEADING_LEVELS,
+  headingColorKey,
+  type HeadingLevel,
+} from '@shared/editor/constants/headings';
 import type {
   CaptionStyleName,
   DocumentSettings,
@@ -75,6 +82,85 @@ const SLIDE_TRANSITION_OPTIONS: { value: SlideTransition; label: string }[] = [
   { value: 'zoom', label: 'Zoom' },
 ];
 
+const HEADING_COLOR_PRESETS = TEXT_COLORS.filter(({ value }) => value.length > 0);
+
+interface HeadingColorControlProps {
+  level: HeadingLevel;
+  value: string;
+  onChange: (value: string) => void;
+}
+
+const toNativeColorValue = (value: string): string => {
+  if (/^#[0-9a-f]{6}$/i.test(value)) return value;
+  const short = /^#([0-9a-f])([0-9a-f])([0-9a-f])$/i.exec(value);
+  return short ? `#${short[1]}${short[1]}${short[2]}${short[2]}${short[3]}${short[3]}` : '#2563EB';
+};
+
+const HeadingColorControl: React.FC<HeadingColorControlProps> = ({ level, value, onChange }) => {
+  const nativePickerRef = React.useRef<HTMLInputElement>(null);
+
+  return (
+    <div className="settings-heading-color-control">
+      <div className="settings-heading-color-presets" role="group" aria-label={`H${level} 대표 색상`}>
+        {HEADING_COLOR_PRESETS.map(({ label, value: preset }) => (
+          <button
+            key={preset}
+            type="button"
+            className={`settings-heading-color-preset${value.toLowerCase() === preset.toLowerCase() ? ' is-active' : ''}`}
+            style={{ backgroundColor: preset }}
+            aria-label={`H${level} ${label}`}
+            aria-pressed={value.toLowerCase() === preset.toLowerCase()}
+            title={label}
+            onClick={() => onChange(preset)}
+          />
+        ))}
+      </div>
+      <div className="settings-heading-color-custom">
+        <button
+          type="button"
+          className="settings-heading-color-custom-button"
+          aria-label={`H${level} 사용자 지정 색상`}
+          title="RGB Color Picker 열기"
+          onClick={() => nativePickerRef.current?.click()}
+        >
+          <Palette size={14} aria-hidden="true" />
+          <span className="settings-heading-color-preview" style={{ backgroundColor: value }} />
+        </button>
+        <input
+          ref={nativePickerRef}
+          type="color"
+          className="settings-heading-color-native-picker"
+          value={toNativeColorValue(value)}
+          aria-label={`H${level} RGB Color Picker`}
+          tabIndex={-1}
+          onChange={(event) => onChange(event.target.value)}
+        />
+        <span className="settings-color-value">{value}</span>
+      </div>
+    </div>
+  );
+};
+
+export function mergeDocumentSetting<K extends keyof DocumentSettings>(
+  settings: Partial<DocumentSettings> | null,
+  key: K,
+  value: DocumentSettings[K],
+): Partial<DocumentSettings> {
+  return { ...(settings ?? {}), [key]: value };
+}
+
+const documentSettingsEqual = (
+  left: Partial<DocumentSettings> | null,
+  right: Partial<DocumentSettings> | null,
+): boolean => {
+  const leftRecord = left ?? {};
+  const rightRecord = right ?? {};
+  const leftKeys = Object.keys(leftRecord) as Array<keyof DocumentSettings>;
+  const rightKeys = Object.keys(rightRecord);
+  return leftKeys.length === rightKeys.length
+    && leftKeys.every((key) => leftRecord[key] === rightRecord[key]);
+};
+
 interface DeferredTextInputProps {
   value: string;
   placeholder: string;
@@ -135,34 +221,52 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
   const { state } = useEditorContext();
   const docSettings = state.docSettings;
   const mergedSettings = state.settings;
+  const latestDocSettingsRef = React.useRef<Partial<DocumentSettings> | null>(docSettings);
+  const pendingDocSettingsRef = React.useRef<Partial<DocumentSettings> | null | undefined>(undefined);
+  const [draftDocSettings, setDraftDocSettings] = React.useState<Partial<DocumentSettings> | null>(docSettings);
+  const displaySettings = { ...mergedSettings, ...(draftDocSettings ?? {}) };
+
+  React.useEffect(() => {
+    const pending = pendingDocSettingsRef.current;
+    if (pending !== undefined && !documentSettingsEqual(pending, docSettings)) return;
+    latestDocSettingsRef.current = docSettings;
+    setDraftDocSettings(docSettings);
+    pendingDocSettingsRef.current = undefined;
+  }, [docSettings]);
+
+  const emitSettings = useCallback((settings: Partial<DocumentSettings> | null) => {
+    latestDocSettingsRef.current = settings;
+    pendingDocSettingsRef.current = settings;
+    setDraftDocSettings(settings);
+    onUpdateSettings(settings);
+  }, [onUpdateSettings]);
 
   const updateField = useCallback(<K extends keyof DocumentSettings>(key: K, value: DocumentSettings[K]) => {
-    const next = { ...docSettings, [key]: value };
-    onUpdateSettings(next);
-  }, [docSettings, onUpdateSettings]);
+    emitSettings(mergeDocumentSetting(latestDocSettingsRef.current, key, value));
+  }, [emitSettings]);
 
   const handleNumberingModeChange = useCallback((mode: 'sequential' | 'hierarchical') => {
-    onUpdateSettings({
-      ...docSettings,
+    emitSettings({
+      ...(latestDocSettingsRef.current ?? {}),
       captionNumbering: mode === 'hierarchical' ? 'hierarchical' : 'sequential',
       equationNumbering: mode,
     });
-  }, [docSettings, onUpdateSettings]);
+  }, [emitSettings]);
 
   const handleResetAll = useCallback(() => {
-    onUpdateSettings(null);
-  }, [onUpdateSettings]);
+    emitSettings(null);
+  }, [emitSettings]);
 
   const handleTextFieldCommit = useCallback((key: CssFileTargetOption['pathKey'] | 'outputDir', value: string) => {
     const trimmedValue = value.trim();
-    const nextSettings: Partial<DocumentSettings> = { ...(docSettings ?? {}) };
+    const nextSettings: Partial<DocumentSettings> = { ...(latestDocSettingsRef.current ?? {}) };
     if (trimmedValue.length > 0) {
       nextSettings[key] = trimmedValue;
     } else {
       delete nextSettings[key];
     }
-    onUpdateSettings(Object.keys(nextSettings).length > 0 ? nextSettings : null);
-  }, [docSettings, onUpdateSettings]);
+    emitSettings(Object.keys(nextSettings).length > 0 ? nextSettings : null);
+  }, [emitSettings]);
 
   return (
     <div className="settings-panel">
@@ -174,7 +278,7 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
           <input
             type="checkbox"
             className="settings-toggle"
-            checked={mergedSettings.headingNumbering}
+            checked={displaySettings.headingNumbering}
             onChange={(e) => updateField('headingNumbering', e.target.checked)}
           />
         </div>
@@ -183,46 +287,23 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
           <input
             type="checkbox"
             className="settings-toggle"
-            checked={mergedSettings.headingDecoration}
+            checked={displaySettings.headingDecoration}
             onChange={(e) => updateField('headingDecoration', e.target.checked)}
           />
         </div>
-        <div className="settings-row">
-          <label className="settings-label">H1 색상</label>
-          <div className="settings-color-wrapper">
-            <input
-              type="color"
-              className="settings-color"
-              value={mergedSettings.headingH1Color}
-              onChange={(e) => updateField('headingH1Color', e.target.value)}
-            />
-            <span className="settings-color-value">{mergedSettings.headingH1Color}</span>
-          </div>
-        </div>
-        <div className="settings-row">
-          <label className="settings-label">H2 색상</label>
-          <div className="settings-color-wrapper">
-            <input
-              type="color"
-              className="settings-color"
-              value={mergedSettings.headingH2Color}
-              onChange={(e) => updateField('headingH2Color', e.target.value)}
-            />
-            <span className="settings-color-value">{mergedSettings.headingH2Color}</span>
-          </div>
-        </div>
-        <div className="settings-row">
-          <label className="settings-label">H3 색상</label>
-          <div className="settings-color-wrapper">
-            <input
-              type="color"
-              className="settings-color"
-              value={mergedSettings.headingH3Color}
-              onChange={(e) => updateField('headingH3Color', e.target.value)}
-            />
-            <span className="settings-color-value">{mergedSettings.headingH3Color}</span>
-          </div>
-        </div>
+        {HEADING_LEVELS.map((level) => {
+          const key = headingColorKey(level);
+          return (
+            <div className="settings-row settings-heading-color-row" key={key}>
+              <label className="settings-label">H{level} 색상</label>
+              <HeadingColorControl
+                level={level}
+                value={displaySettings[key]}
+                onChange={(value) => updateField(key, value)}
+              />
+            </div>
+          );
+        })}
       </CollapsibleSection>
 
       <CollapsibleSection title="캡션 / 번호">
@@ -230,7 +311,7 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
           <label className="settings-label">캡션 스타일</label>
           <select
             className="settings-select"
-            value={mergedSettings.captionStyle}
+            value={displaySettings.captionStyle}
             onChange={(e) => updateField('captionStyle', e.target.value as CaptionStyleName)}
           >
             {CAPTION_STYLE_OPTIONS.map(opt => (
@@ -239,7 +320,7 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
           </select>
         </div>
         <div className="settings-hint">
-          {CAPTION_STYLE_OPTIONS.find(o => o.value === mergedSettings.captionStyle)?.description}
+          {CAPTION_STYLE_OPTIONS.find(o => o.value === displaySettings.captionStyle)?.description}
         </div>
         <div className="settings-row">
           <label className="settings-label">번호 방식</label>
@@ -249,7 +330,7 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
                 type="radio"
                 name="numberingMode"
                 value="sequential"
-                checked={mergedSettings.captionNumbering !== 'hierarchical'}
+                checked={displaySettings.captionNumbering !== 'hierarchical'}
                 onChange={() => handleNumberingModeChange('sequential')}
               />
               Sequential
@@ -259,7 +340,7 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
                 type="radio"
                 name="numberingMode"
                 value="hierarchical"
-                checked={mergedSettings.captionNumbering === 'hierarchical'}
+                checked={displaySettings.captionNumbering === 'hierarchical'}
                 onChange={() => handleNumberingModeChange('hierarchical')}
               />
               Hierarchical
@@ -271,7 +352,7 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
           <input
             type="checkbox"
             className="settings-toggle"
-            checked={mergedSettings.crossRefIncludeCaption}
+            checked={displaySettings.crossRefIncludeCaption}
             onChange={(e) => updateField('crossRefIncludeCaption', e.target.checked)}
           />
         </div>
@@ -279,7 +360,7 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
 
       <CollapsibleSection title="스타일 (Export CSS)">
         {CSS_FILE_TARGET_OPTIONS.map(({ target, label, pathKey, placeholder }) => {
-          const cssPath = docSettings?.[pathKey];
+          const cssPath = draftDocSettings?.[pathKey];
           const hasPath = typeof cssPath === 'string' && cssPath.length > 0;
 
           return (
@@ -326,7 +407,7 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
             min={10}
             max={200}
             step={5}
-            value={docSettings?.pdfScale ?? mergedSettings.pdfScale}
+            value={draftDocSettings?.pdfScale ?? displaySettings.pdfScale}
             onChange={(e) => updateField('pdfScale', Math.min(200, Math.max(10, Number(e.target.value) || 70)))}
           />
         </div>
@@ -334,7 +415,7 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
           <label className="settings-label">HTML 포함 수준</label>
           <select
             className="settings-select"
-            value={docSettings?.selfContained ?? mergedSettings.selfContained}
+            value={draftDocSettings?.selfContained ?? displaySettings.selfContained}
             onChange={(e) => updateField('selfContained', e.target.value as SelfContainedMode)}
           >
             {SELF_CONTAINED_OPTIONS.map(opt => (
@@ -345,7 +426,7 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
         <div className="settings-row">
           <label className="settings-label">출력 폴더</label>
           <DeferredTextInput
-            value={docSettings?.outputDir ?? mergedSettings.outputDir}
+            value={draftDocSettings?.outputDir ?? displaySettings.outputDir}
             placeholder="./export"
             onCommit={(value) => handleTextFieldCommit('outputDir', value)}
           />
@@ -357,7 +438,7 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
           <label className="settings-label">슬라이드 분리</label>
           <select
             className="settings-select"
-            value={docSettings?.slideBreakLevel ?? mergedSettings.slideBreakLevel}
+            value={draftDocSettings?.slideBreakLevel ?? displaySettings.slideBreakLevel}
             onChange={(e) => updateField('slideBreakLevel', e.target.value as SlideBreakLevel)}
           >
             {SLIDE_BREAK_OPTIONS.map(opt => (
@@ -370,7 +451,7 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
           <input
             type="checkbox"
             className="settings-toggle"
-            checked={docSettings?.showTitleSlide ?? mergedSettings.showTitleSlide}
+            checked={draftDocSettings?.showTitleSlide ?? displaySettings.showTitleSlide}
             onChange={(e) => updateField('showTitleSlide', e.target.checked)}
           />
         </div>
@@ -378,7 +459,7 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
           <label className="settings-label">전환 효과</label>
           <select
             className="settings-select"
-            value={docSettings?.slideTransition ?? mergedSettings.slideTransition}
+            value={draftDocSettings?.slideTransition ?? displaySettings.slideTransition}
             onChange={(e) => updateField('slideTransition', e.target.value as SlideTransition)}
           >
             {SLIDE_TRANSITION_OPTIONS.map(opt => (

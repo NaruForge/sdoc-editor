@@ -132,8 +132,8 @@ export const TableOfContents: React.FC<TableOfContentsProps> = ({ editor, showNu
         <PanelEmptyState
           icon={<BookOpen size={22} />}
           title="아직 목차가 없습니다"
-          message="본문에 제목(H1~H3)을 추가하면 목차가 자동으로 만들어집니다."
-          hint="툴바의 H1·H2·H3 버튼을 누르거나 줄 시작에서 # 뒤에 공백을 입력하세요."
+          message="본문에 제목(H1~H6)을 추가하면 목차가 자동으로 만들어집니다."
+          hint="툴바의 Heading 버튼을 누르거나 줄 시작에서 # 뒤에 공백을 입력하세요."
         />
       </div>
     );

@@ -150,8 +150,9 @@ export const Editor: React.FC = () => {
   }, []);
 
   const handleUpdateDocSettings = useCallback((settings: Partial<DocumentSettings> | null) => {
+    if (settings) dispatch({ type: 'SET_SETTINGS', payload: settings });
     postMessage({ type: 'updateDocSettings', settings });
-  }, [postMessage]);
+  }, [dispatch, postMessage]);
 
   const handleContextMenu = (event: React.MouseEvent) => {
     event.preventDefault();
