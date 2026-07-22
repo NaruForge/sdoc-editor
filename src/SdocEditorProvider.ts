@@ -301,18 +301,6 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
               }
               throw error;
             }
-            // If the webview requested a save (Ctrl+S while debounce pending), trigger save now
-            if (message.saveRequested && document.isDirty) {
-              setTimeout(() => {
-                void (async () => {
-                  try {
-                    await document.save();
-                  } catch (error: unknown) {
-                    vscode.window.showErrorMessage(`Failed to save document: ${String(error)}`);
-                  }
-                })();
-              }, 0);
-            }
             break;
           case 'viewJson':
             await this.openJsonView(document);

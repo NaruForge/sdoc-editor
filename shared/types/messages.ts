@@ -217,7 +217,6 @@ export interface EditMessage {
   flushRequestId?: string;
   content: TiptapNode;
   meta?: Partial<SdocMeta>;
-  saveRequested?: boolean;
 }
 
 export interface ViewJsonMessage {
