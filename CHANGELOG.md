@@ -7,9 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.18] - 2026-07-22
+
 ### Added
 - Built-in Korean templates for blank documents, technical reports, design specifications, and verification reports
 - Git-shareable workspace templates discovered from `.sdoc/templates/*.sdoc` in VS Code and the Windows desktop app
+
+### Changed
+- Marked the template workflow as experimental in the VS Code command, both host dialogs, and user documentation
 
 ### Security
 - Template discovery validates the document contract, canonical containment, symlink boundaries, file size, and candidate count before creating a new document without overwriting existing files
