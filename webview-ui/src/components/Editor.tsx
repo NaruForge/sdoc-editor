@@ -28,7 +28,6 @@ import { collectTargets, CROSSREF_RESYNC_META } from '@shared/editor/extensions/
 import type { RefTarget } from '@shared/editor/extensions/CrossReference';
 import type { DocumentSettings, TiptapNode } from '@shared/types';
 import type { EditorToHostMessage } from '@shared/types/messages';
-import { EmptyDocumentState } from './EmptyDocumentState';
 
 export const Editor: React.FC = () => {
   const { state, dispatch } = useEditorContext();
@@ -40,7 +39,6 @@ export const Editor: React.FC = () => {
     return saved ? parseInt(saved, 10) : 100;
   });
   const [meta, setMeta] = useState<MetaState>({ title: '', author: '', version: '', created: '', modified: '' });
-  const [initializationRequired, setInitializationRequired] = useState(false);
   const { dialogs, dialogDispatch, openTableContextMenu, openEditorContextMenu } = useDialogState();
   const setContentRef = useRef<((content: JSONContent) => void) | null>(null);
   const persistenceSessionRef = useRef<{
@@ -66,7 +64,7 @@ export const Editor: React.FC = () => {
   const postMessageRef = useRef<(msg: EditorToHostMessage) => void>(() => {});
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
-  const flushUpdateRef = useRef<() => void>(() => {});
+  const flushUpdateRef = useRef<() => boolean>(() => false);
   const extensionRuntime = useMemo(() => ({
     getSettings: () => settingsRef.current,
     flush: () => flushUpdateRef.current(),
@@ -83,7 +81,7 @@ export const Editor: React.FC = () => {
       dialogDispatch({ type: 'SET_DIAGRAM_DIALOG', payload: { code, language, pos } }),
   }), [dialogDispatch]);
 
-  const { editor, setContent, flushUpdate } = useTiptapEditor({
+  const { editor, setContent, flushUpdate, flushPendingUpdate } = useTiptapEditor({
     onUpdate: (content) => {
       const session = persistenceSessionRef.current;
       if (!session) return;
@@ -105,10 +103,20 @@ export const Editor: React.FC = () => {
   flushUpdateRef.current = flushUpdate;
 
   // Trigger CrossRef label re-sync when caption settings change
-  const prevPrefixRef = useRef({ style: '', eqMode: '', capMode: '', includeCaption: false, heading: true });
+  const prevPrefixRef = useRef<{
+    style: string;
+    eqMode: string;
+    capMode: string;
+    includeCaption: boolean;
+    heading: boolean;
+  } | null>(null);
   useEffect(() => {
     const { captionStyle, equationNumbering, captionNumbering, crossRefIncludeCaption, headingNumbering } = state.settings;
     const prev = prevPrefixRef.current;
+    if (!prev) {
+      prevPrefixRef.current = { style: captionStyle, eqMode: equationNumbering, capMode: captionNumbering, includeCaption: crossRefIncludeCaption, heading: headingNumbering };
+      return;
+    }
     const changed = prev.style !== captionStyle || prev.eqMode !== equationNumbering
       || prev.capMode !== captionNumbering || prev.includeCaption !== crossRefIncludeCaption
       || prev.heading !== headingNumbering;
@@ -126,15 +134,20 @@ export const Editor: React.FC = () => {
     handleExport,
     handleImport,
     handleMetaChange,
-    handleInitializeEmptyDocument,
+    handleRequestTemplateCatalog,
+    handleApplyTemplate,
+    templates,
+    templateDiagnosticCount,
+    isTemplateCatalogLoading,
+    isApplyingTemplate,
     isExporting,
   } = useEditorMessages({
     editor,
     flushUpdate,
+    flushPendingUpdate,
     setContentRef,
     initDoneRef,
     setMeta,
-    setInitializationRequired,
     persistenceSessionRef,
   });
   postMessageRef.current = postMessage;
@@ -447,15 +460,6 @@ export const Editor: React.FC = () => {
     );
   }
 
-  if (initializationRequired) {
-    return (
-      <EmptyDocumentState
-        onStartBlank={() => handleInitializeEmptyDocument('blank')}
-        onChooseTemplate={() => handleInitializeEmptyDocument('template')}
-      />
-    );
-  }
-
   return (
     <div className="editor-shell">
       <DocumentHeader
@@ -480,6 +484,7 @@ export const Editor: React.FC = () => {
         <ActivityBar
           activeTab={showSidePanel ? sidePanelTab : null}
           onTabClick={handleActivityTabClick}
+          showTemplates
         />
         {showSidePanel && (
           <SidePanel
@@ -496,6 +501,12 @@ export const Editor: React.FC = () => {
             onExport={handleExport}
             onImport={handleImport}
             isExporting={isExporting}
+            templates={templates}
+            templateDiagnosticCount={templateDiagnosticCount}
+            isTemplateCatalogLoading={isTemplateCatalogLoading}
+            isApplyingTemplate={isApplyingTemplate}
+            onRefreshTemplates={handleRequestTemplateCatalog}
+            onApplyTemplate={handleApplyTemplate}
           />
         )}
         <div className="editor-content-area" onContextMenu={handleContextMenu}>

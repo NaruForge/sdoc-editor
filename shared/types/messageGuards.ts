@@ -9,11 +9,23 @@ const hasString = (value: Record<string, unknown>, key: string): boolean =>
 const hasNumber = (value: Record<string, unknown>, key: string): boolean =>
   typeof value[key] === 'number' && Number.isFinite(value[key]);
 
+const isTemplateDescriptor = (value: unknown): boolean => {
+  if (!isRecord(value)) return false;
+  return hasString(value, 'id')
+    && hasString(value, 'name')
+    && hasString(value, 'sourceLabel')
+    && ['builtin', 'workspace', 'user'].includes(String(value.source))
+    && (value.description === undefined || typeof value.description === 'string')
+    && (value.category === undefined || typeof value.category === 'string')
+    && (value.titleNodeId === undefined || typeof value.titleNodeId === 'string');
+};
+
 export function isEditorToHostMessage(value: unknown): value is EditorToHostMessage {
   if (!isRecord(value) || typeof value.type !== 'string') return false;
 
   switch (value.type) {
     case 'ready':
+    case 'requestTemplateCatalog':
     case 'viewJson':
     case 'importDrawio':
     case 'insertExistingImage':
@@ -28,8 +40,8 @@ export function isEditorToHostMessage(value: unknown): value is EditorToHostMess
         && (value.documentId === undefined || hasString(value, 'documentId'))
         && (value.editId === undefined || hasString(value, 'editId'))
         && (value.baseRevision === undefined || hasNumber(value, 'baseRevision'));
-    case 'initializeEmptyDocument':
-      return (value.mode === 'blank' || value.mode === 'template')
+    case 'applyTemplate':
+      return typeof value.templateId === 'string' && value.templateId.length > 0
         && hasString(value, 'sessionId') && hasString(value, 'documentId')
         && hasNumber(value, 'baseRevision');
     case 'saveImage':
@@ -63,6 +75,8 @@ export function isHostToEditorMessage(value: unknown): value is HostToEditorMess
     case 'exportDone':
     case 'showJsonViewer':
       return true;
+    case 'templateApplicationFinished':
+      return typeof value.applied === 'boolean';
     case 'requestFlush':
       return hasString(value, 'sessionId') && hasString(value, 'requestId');
     case 'init':
@@ -70,9 +84,11 @@ export function isHostToEditorMessage(value: unknown): value is HostToEditorMess
       return hasString(value, 'sessionId') && hasString(value, 'documentId')
         && hasNumber(value, 'revision')
         && (value.readOnlyReason === undefined || hasString(value, 'readOnlyReason'))
-        && (value.type !== 'init' || value.initializationRequired === undefined
-          || typeof value.initializationRequired === 'boolean')
         && isRecord(value.content) && value.content.type === 'doc';
+    case 'templateCatalog':
+      return Array.isArray(value.templates) && value.templates.every(isTemplateDescriptor)
+        && typeof value.diagnosticCount === 'number'
+        && Number.isFinite(value.diagnosticCount) && value.diagnosticCount >= 0;
     case 'editAcknowledged':
       return hasString(value, 'sessionId') && hasString(value, 'editId') && hasNumber(value, 'revision');
     case 'editRejected':

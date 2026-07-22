@@ -15,6 +15,30 @@ interface SaveShortcutEvent {
   key: string;
 }
 
+export class PendingEditorUpdateGate {
+  private pending = false;
+
+  public markPending(): void {
+    this.pending = true;
+  }
+
+  public clear(): void {
+    this.pending = false;
+  }
+
+  public consume(): boolean {
+    if (!this.pending) return false;
+    this.pending = false;
+    return true;
+  }
+}
+
+export type EditorFlushMode = 'barrier' | 'pending-only';
+
+export function shouldEmitEditorFlush(mode: EditorFlushMode, hadPendingUpdate: boolean): boolean {
+  return mode === 'barrier' || hadPendingUpdate;
+}
+
 export function shouldFlushOnSaveShortcut(
   event: SaveShortcutEvent,
   enabled: boolean,
@@ -28,6 +52,7 @@ export const useTiptapEditor = ({
   handleSaveShortcut = true,
 }: UseTiptapEditorOptions) => {
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const updateGateRef = useRef(new PendingEditorUpdateGate());
   const onUpdateRef = useRef(onUpdate);
   useEffect(() => { onUpdateRef.current = onUpdate; }, [onUpdate]);
 
@@ -36,12 +61,15 @@ export const useTiptapEditor = ({
     extensions,
     content: '',
     onUpdate: ({ editor }) => {
+      updateGateRef.current.markPending();
       // Debounce updates to avoid too many messages
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
       }
 
       debounceTimerRef.current = setTimeout(() => {
+        debounceTimerRef.current = null;
+        updateGateRef.current.clear();
         const json = editor.getJSON();
         onUpdateRef.current(json);
       }, 300);
@@ -50,6 +78,12 @@ export const useTiptapEditor = ({
 
   const setContent = (content: JSONContent) => {
     if (!editor) return;
+
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+    updateGateRef.current.clear();
 
     // Save cursor position before replacing content
     const { from, to } = editor.state.selection;
@@ -67,19 +101,26 @@ export const useTiptapEditor = ({
     }
   };
 
-  const flushUpdate = useCallback(() => {
-    if (!editor) return;
+  const emitUpdate = useCallback((mode: EditorFlushMode) => {
+    const hadPendingUpdate = updateGateRef.current.consume();
+    if (!editor || !shouldEmitEditorFlush(mode, hadPendingUpdate)) return false;
 
     // Clear any pending debounce
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
       debounceTimerRef.current = null;
     }
-
     // Immediately send current state
     const json = editor.getJSON();
     onUpdateRef.current(json);
+    return true;
   }, [editor]);
+
+  // Save/close callers require an acknowledgement barrier even when the debounce
+  // already emitted an edit that may still be waiting in the host queue.
+  const flushUpdate = useCallback(() => emitUpdate('barrier'), [emitUpdate]);
+  // Template confirmation must not dirty an untouched document when cancelled.
+  const flushPendingUpdate = useCallback(() => emitUpdate('pending-only'), [emitUpdate]);
 
   // Standalone hosts flush Ctrl+S directly. VS Code delegates it to onWillSave.
   useEffect(() => {
@@ -107,5 +148,6 @@ export const useTiptapEditor = ({
     editor,
     setContent,
     flushUpdate,
+    flushPendingUpdate,
   };
 };

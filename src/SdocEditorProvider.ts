@@ -25,17 +25,17 @@ import { assertPersistedDocument, parseDocumentContract, readDocumentSettings, v
 import { dehydrateDocumentAssets } from '../shared/document/runtimeAssets';
 import { runExportAfterFlush } from '../shared/export/runExportAfterFlush';
 import {
-  canInitializeEmptyDocument,
-  commitEmptyDocumentInitialization,
+  canApplyTemplateToCurrentDocument,
+  commitCurrentDocumentTemplateApplication,
   isFilesystemBackedScheme,
   isUninitializedSdocText,
   isWorkspaceTemplatePath,
-  prepareEmptyDocumentInitialization,
-  validateDocumentTitle,
+  prepareCurrentDocumentTemplateApplication,
   VsCodeTemplateService,
-  type EmptyDocumentIdentity,
+  type CurrentDocumentIdentity,
   type WorkspaceTemplateRoot,
 } from './services/VsCodeTemplateService';
+import type { SdocTemplate } from '../shared/template';
 
 export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
   private static readonly SDOC_VERSION = '1.0';
@@ -112,8 +112,8 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     this.editorSessions.set(documentId, { document, panel: webviewPanel, sessionId });
     let writeBlockedReason: string | undefined;
     let readOnlyWarningShown = false;
-    let initializationRequired = isUninitializedSdocText(document.getText());
-    let initializationRequestPending = false;
+    let templateApplicationPending = false;
+    let availableTemplates = new Map<string, SdocTemplate>();
 
     // Read and send editor settings to webview
     const readVscodeDocDefaults = (): Partial<DocumentSettings> => {
@@ -206,8 +206,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     const sendUpdate = () => {
       try {
         const text = document.getText();
-        initializationRequired = isUninitializedSdocText(text);
-        const parsed: unknown = initializationRequired
+        const parsed: unknown = isUninitializedSdocText(text)
           ? { sdoc: SdocEditorProvider.SDOC_VERSION, meta: {}, doc: { type: 'doc', content: [] } }
           : JSON.parse(text);
         const contract = parseDocumentContract(parsed);
@@ -230,7 +229,6 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
           documentId,
           revision: document.version,
           ...(writeBlockedReason ? { readOnlyReason: writeBlockedReason } : {}),
-          ...(initializationRequired ? { initializationRequired: true } : {}),
           content: convertedJson,
         });
         // Send metadata and settings
@@ -243,8 +241,15 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       }
     };
 
+    const readCurrentDocumentValue = (): unknown => {
+      const text = document.getText();
+      return isUninitializedSdocText(text)
+        ? { sdoc: SdocEditorProvider.SDOC_VERSION, meta: {}, doc: { type: 'doc', content: [] } }
+        : JSON.parse(text);
+    };
+
     const postAuthoritativeUpdate = (): void => {
-      const parsed: unknown = JSON.parse(document.getText());
+      const parsed = readCurrentDocumentValue();
       const { doc } = sharedUnwrapSdoc(parsed);
       webviewPanel.webview.postMessage({
         type: 'update', sessionId, documentId, revision: document.version,
@@ -252,89 +257,87 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       });
     };
 
-    const currentInitializationIdentity = (): EmptyDocumentIdentity => ({
+    const currentDocumentIdentity = (): CurrentDocumentIdentity => ({
       sessionId,
       documentId,
       revision: document.version,
     });
 
-    const initializeEmptyDocument = async (
-      mode: 'blank' | 'template',
-      expected: EmptyDocumentIdentity,
-    ): Promise<void> => {
-      if (!canInitializeEmptyDocument(
-        document.getText(),
-        expected,
-        currentInitializationIdentity(),
-      )) {
-        await vscode.window.showWarningMessage(
-          'The document changed before it could be initialized. Review the current content and try again.',
-        );
-        sendUpdate();
-        return;
-      }
-
-      const workspaceRoots: WorkspaceTemplateRoot[] = (vscode.workspace.workspaceFolders ?? [])
+    const workspaceTemplateRoots = (): WorkspaceTemplateRoot[] =>
+      (vscode.workspace.workspaceFolders ?? [])
         .filter((folder) => isFilesystemBackedScheme(folder.uri.scheme))
         .map((folder) => ({
           identity: folder.uri.toString(),
           name: folder.name,
           rootPath: folder.uri.fsPath,
         }));
-      const defaultTitle = path.basename(document.uri.fsPath, path.extname(document.uri.fsPath))
-        || 'Untitled';
-      let templates;
-      if (mode === 'template') {
-        const discovery = await new VsCodeTemplateService().discover(workspaceRoots);
-        templates = discovery.catalog.templates;
-        const diagnosticCount = discovery.hostDiagnostics.length + discovery.catalog.diagnostics.length;
-        if (diagnosticCount > 0) {
-          console.warn('Structured Doc template discovery diagnostics', {
-            host: discovery.hostDiagnostics,
-            contract: discovery.catalog.diagnostics,
-          });
-          void vscode.window.showWarningMessage(
-            `${diagnosticCount} template(s) could not be loaded. See the extension host log for details.`,
-          );
-        }
+
+    const sendTemplateCatalog = async (): Promise<void> => {
+      const discovery = await new VsCodeTemplateService().discover(workspaceTemplateRoots());
+      availableTemplates = new Map(
+        discovery.catalog.templates.map((template) => [template.descriptor.id, template]),
+      );
+      const diagnosticCount = discovery.hostDiagnostics.length + discovery.catalog.diagnostics.length;
+      if (diagnosticCount > 0) {
+        console.warn('Structured Doc template discovery diagnostics', {
+          host: discovery.hostDiagnostics,
+          contract: discovery.catalog.diagnostics,
+        });
+      }
+      webviewPanel.webview.postMessage({
+        type: 'templateCatalog',
+        templates: discovery.catalog.templates.map((template) => template.descriptor),
+        diagnosticCount,
+      });
+    };
+
+    const applyTemplateToCurrentDocument = async (
+      templateId: string,
+      expected: CurrentDocumentIdentity,
+    ): Promise<boolean> => {
+      if (!canApplyTemplateToCurrentDocument(
+        document.getText(), document.getText(), expected, currentDocumentIdentity(),
+      )) {
+        await vscode.window.showWarningMessage(
+          '템플릿을 적용하기 전에 문서가 변경되었습니다. 현재 내용을 확인한 뒤 다시 시도하세요.',
+        );
+        sendUpdate();
+        return false;
       }
 
-      const nextText = await prepareEmptyDocumentInitialization({
-        mode,
-        currentText: document.getText(),
+      const template = availableTemplates.get(templateId);
+      if (!template) {
+        await vscode.window.showWarningMessage('선택한 템플릿이 더 이상 없습니다. 목록을 새로 고친 뒤 다시 시도하세요.');
+        await sendTemplateCatalog();
+        return false;
+      }
+      const defaultTitle = path.basename(document.uri.fsPath, path.extname(document.uri.fsPath))
+        || 'Untitled';
+      const baselineText = document.getText();
+      const prepared = prepareCurrentDocumentTemplateApplication({
+        currentText: baselineText,
+        template,
         defaultTitle,
-        ...(templates ? { templates } : {}),
-        selectTemplate: async (candidates) => {
-          const selected = await vscode.window.showQuickPick(
-            candidates.map((template) => ({
-              label: template.descriptor.name,
-              description: `Experimental · ${template.descriptor.sourceLabel}`,
-              detail: template.descriptor.description,
-              template,
-            })),
-            {
-              title: 'Choose Experimental Structured Doc Template',
-              placeHolder: 'Select a template for this empty document',
-              matchOnDescription: true,
-              matchOnDetail: true,
-            },
-          );
-          return selected?.template;
-        },
-        requestTitle: async (value) => vscode.window.showInputBox({
-          title: 'Initialize Structured Doc',
-          prompt: 'Enter the document title',
-          value,
-          validateInput: validateDocumentTitle,
-        }),
       });
-      if (nextText === undefined) return;
+      const message = prepared.hasReplaceableContent
+        ? '이 템플릿을 적용하면 현재 문서의 기존 내용과 문서 설정이 대체됩니다. 계속하시겠습니까?'
+        : '이 템플릿을 현재 문서에 적용하시겠습니까?';
+      const selected = await vscode.window.showWarningMessage(
+        message,
+        {
+          modal: true,
+          detail: '현재 제목·작성자·버전·생성일은 유지되며, 본문과 문서 설정은 템플릿 내용으로 교체됩니다. 한 번의 실행 취소로 되돌릴 수 있습니다.',
+        },
+        '템플릿 적용',
+      );
+      if (selected !== '템플릿 적용') return false;
 
-      const committed = await commitEmptyDocumentInitialization({
+      const committed = await commitCurrentDocumentTemplateApplication({
+        expectedText: baselineText,
         currentText: document.getText(),
         expected,
-        current: currentInitializationIdentity(),
-        preparedText: nextText,
+        current: currentDocumentIdentity(),
+        preparedText: prepared.text,
         apply: async (text) => {
           const edit = new vscode.WorkspaceEdit();
           edit.replace(
@@ -347,12 +350,13 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       });
       if (!committed) {
         await vscode.window.showWarningMessage(
-          'The document changed while the template was being selected. No content was replaced.',
+          '확인하는 동안 문서가 변경되어 템플릿을 적용하지 않았습니다. 기존 내용은 보존되었습니다.',
         );
         sendUpdate();
-        return;
+        return false;
       }
       sendUpdate();
+      return true;
     };
 
     // Handle messages from webview (sequential queue to preserve order)
@@ -364,12 +368,16 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       }
       const readOnlySafeMessages = new Set([
         'ready', 'flushComplete', 'viewJson', 'export', 'openDocument', 'browseSdocFiles',
+        'requestTemplateCatalog',
       ]);
       if (writeBlockedReason && !readOnlySafeMessages.has(message.type)) {
         if (message.type === 'edit' && message.flushRequestId) {
           this.rejectFlush(message.flushRequestId, new Error(writeBlockedReason));
         }
         vscode.window.showErrorMessage(`Document is read-only because it is invalid: ${writeBlockedReason}`);
+        if (message.type === 'applyTemplate') {
+          webviewPanel.webview.postMessage({ type: 'templateApplicationFinished', applied: false });
+        }
         return;
       }
       // Export must stay outside the serial message queue: its flush response is itself
@@ -388,30 +396,37 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         if (message.sessionId === sessionId && message.requestId) this.resolveFlush(message.requestId);
         return;
       }
-      if (message.type === 'initializeEmptyDocument') {
-        if (initializationRequestPending) return;
-        initializationRequestPending = true;
+      if (message.type === 'applyTemplate') {
+        if (templateApplicationPending) return;
+        templateApplicationPending = true;
       }
       messageQueue.enqueue(async () => {
         switch (message.type) {
           case 'ready':
             sendUpdate();
+            await sendTemplateCatalog();
             break;
-          case 'initializeEmptyDocument':
+          case 'requestTemplateCatalog':
+            await sendTemplateCatalog();
+            break;
+          case 'applyTemplate': {
+            let applied = false;
             try {
-              await initializeEmptyDocument(message.mode, {
+              applied = await applyTemplateToCurrentDocument(message.templateId, {
                 sessionId: message.sessionId,
                 documentId: message.documentId,
                 revision: message.baseRevision,
               });
             } finally {
-              initializationRequestPending = false;
+              templateApplicationPending = false;
+              webviewPanel.webview.postMessage({ type: 'templateApplicationFinished', applied });
             }
             break;
+          }
           case 'edit':
             if (message.sessionId !== sessionId || message.documentId !== documentId
               || message.baseRevision !== document.version || !message.editId) {
-              const parsed = JSON.parse(document.getText());
+              const parsed = readCurrentDocumentValue();
               const { doc } = sharedUnwrapSdoc(parsed);
               webviewPanel.webview.postMessage({
                 type: 'editRejected', sessionId, editId: message.editId ?? '',
@@ -430,7 +445,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
               });
               if (message.flushRequestId) this.resolveFlush(message.flushRequestId);
             } catch (error) {
-              const parsed: unknown = JSON.parse(document.getText());
+              const parsed = readCurrentDocumentValue();
               const { doc } = sharedUnwrapSdoc(parsed);
               webviewPanel.webview.postMessage({
                 type: 'editRejected', sessionId, editId: message.editId,
@@ -530,7 +545,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
           return;
         }
 
-        if (initializationRequired || isUninitializedSdocText(document.getText())) {
+        if (isUninitializedSdocText(document.getText())) {
           sendUpdate();
           return;
         }
@@ -861,7 +876,11 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     const existingText = document.getText();
     let parsed: unknown;
     try {
-      parsed = existingText.trim() ? JSON.parse(existingText) : {};
+      parsed = existingText.trim() ? JSON.parse(existingText) : {
+        sdoc: SdocEditorProvider.SDOC_VERSION,
+        meta: {},
+        doc: { type: 'doc', content: [] },
+      };
     } catch {
       return;
     }
@@ -894,7 +913,11 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     const existingText = document.getText();
     let parsed: unknown;
     try {
-      parsed = existingText.trim() ? JSON.parse(existingText) : {};
+      parsed = existingText.trim() ? JSON.parse(existingText) : {
+        sdoc: SdocEditorProvider.SDOC_VERSION,
+        meta: {},
+        doc: { type: 'doc', content: [] },
+      };
     } catch {
       return;
     }

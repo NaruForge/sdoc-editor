@@ -9,6 +9,8 @@ import {
   type TemplateCatalogResult,
   type TemplateDiagnostic,
 } from '../../shared/template';
+import { assertPersistedDocument, parseDocumentContract } from '../../shared/document/documentContract';
+import type { SdocEnvelope, TiptapNode } from '../../shared/types';
 
 const TEMPLATE_DIRECTORY_SEGMENTS = ['.sdoc', 'templates'] as const;
 const MAX_TEMPLATE_BYTES = 2 * 1024 * 1024;
@@ -55,28 +57,29 @@ export interface NewSdocWorkflowOptions {
   now?: () => Date;
 }
 
-export type EmptyDocumentInitializationMode = 'blank' | 'template';
-
-export interface EmptyDocumentIdentity {
+export interface CurrentDocumentIdentity {
   sessionId: string;
   documentId: string;
   revision: number;
 }
 
-export interface PrepareEmptyDocumentInitializationOptions {
-  mode: EmptyDocumentInitializationMode;
+export interface PrepareCurrentDocumentTemplateApplicationOptions {
   currentText: string;
+  template: SdocTemplate;
   defaultTitle: string;
-  templates?: readonly SdocTemplate[];
-  selectTemplate?: (templates: readonly SdocTemplate[]) => Promise<SdocTemplate | undefined>;
-  requestTitle?: (defaultTitle: string) => Promise<string | undefined>;
   now?: () => Date;
 }
 
-export interface CommitEmptyDocumentInitializationOptions {
+export interface PreparedTemplateApplication {
+  text: string;
+  hasReplaceableContent: boolean;
+}
+
+export interface CommitCurrentDocumentTemplateApplicationOptions {
+  expectedText: string;
   currentText: string;
-  expected: EmptyDocumentIdentity;
-  current: EmptyDocumentIdentity;
+  expected: CurrentDocumentIdentity;
+  current: CurrentDocumentIdentity;
   preparedText: string;
   apply: (text: string) => Promise<void>;
 }
@@ -107,59 +110,108 @@ export function isUninitializedSdocText(value: string): boolean {
   return value.trim().length === 0;
 }
 
-export function canInitializeEmptyDocument(
+export function canApplyTemplateToCurrentDocument(
+  expectedText: string,
   currentText: string,
-  expected: EmptyDocumentIdentity,
-  current: EmptyDocumentIdentity,
+  expected: CurrentDocumentIdentity,
+  current: CurrentDocumentIdentity,
 ): boolean {
-  return isUninitializedSdocText(currentText)
+  return expectedText === currentText
     && expected.sessionId === current.sessionId
     && expected.documentId === current.documentId
     && expected.revision === current.revision;
 }
 
-export async function commitEmptyDocumentInitialization(
-  options: CommitEmptyDocumentInitializationOptions,
+export async function commitCurrentDocumentTemplateApplication(
+  options: CommitCurrentDocumentTemplateApplicationOptions,
 ): Promise<boolean> {
-  if (!canInitializeEmptyDocument(options.currentText, options.expected, options.current)) {
+  if (!canApplyTemplateToCurrentDocument(
+    options.expectedText,
+    options.currentText,
+    options.expected,
+    options.current,
+  )) {
     return false;
   }
   await options.apply(options.preparedText);
   return true;
 }
 
-export async function prepareEmptyDocumentInitialization(
-  options: PrepareEmptyDocumentInitializationOptions,
-): Promise<string | undefined> {
-  if (!isUninitializedSdocText(options.currentText)) {
-    throw new Error('The document is no longer empty and cannot be initialized.');
-  }
+const nodeText = (node: TiptapNode): string => {
+  if (node.type === 'text') return node.text ?? '';
+  return node.content?.map(nodeText).join('') ?? '';
+};
 
-  const builtIns = getBuiltInTemplates();
-  let template: SdocTemplate | undefined;
-  let title = options.defaultTitle.trim() || 'Untitled';
-  if (options.mode === 'blank') {
-    template = builtIns.find((candidate) => candidate.descriptor.id === 'builtin:blank');
+const hasReplaceableMetadata = (envelope: SdocEnvelope): boolean => {
+  const { title: _title, created: _created, modified: _modified, version, author, settings, ...extra } = envelope.meta;
+  return Boolean(author?.trim())
+    || Boolean(version && version !== '0.1')
+    || Boolean(settings && Object.keys(settings).length > 0)
+    || Object.keys(extra).length > 0;
+};
+
+export function isBlankSdocDocument(value: unknown): boolean {
+  const contract = parseDocumentContract(value);
+  if (!contract.ok || contract.legacy || hasReplaceableMetadata(contract.envelope)) return false;
+
+  const title = contract.envelope.meta.title?.trim() ?? '';
+  let titleHeadingSeen = false;
+  for (const node of contract.envelope.doc.content ?? []) {
+    if (node.type === 'paragraph' && nodeText(node).trim().length === 0) continue;
+    if (!titleHeadingSeen
+      && node.type === 'heading'
+      && node.attrs?.numbered === false
+      && nodeText(node).trim() === title) {
+      titleHeadingSeen = true;
+      continue;
+    }
+    return false;
+  }
+  return true;
+}
+
+export function prepareCurrentDocumentTemplateApplication(
+  options: PrepareCurrentDocumentTemplateApplicationOptions,
+): PreparedTemplateApplication {
+  let value: unknown;
+  if (isUninitializedSdocText(options.currentText)) {
+    value = {
+      sdoc: '1.0',
+      meta: { title: options.defaultTitle.trim() || 'Untitled' },
+      doc: { type: 'doc', content: [] },
+    };
   } else {
-    const candidates = (options.templates ?? builtIns)
-      .filter((candidate) => candidate.descriptor.id !== 'builtin:blank');
-    if (!options.selectTemplate) throw new Error('Template selection is unavailable.');
-    template = await options.selectTemplate(candidates);
-    if (!template) return undefined;
-    if (!options.requestTitle) throw new Error('Document title input is unavailable.');
-    const selectedTitle = await options.requestTitle(title);
-    if (selectedTitle === undefined) return undefined;
-    const titleError = validateDocumentTitle(selectedTitle);
-    if (titleError) throw new Error(titleError);
-    title = selectedTitle.trim();
+    try {
+      value = JSON.parse(options.currentText);
+    } catch {
+      throw new Error('Template application requires a valid SDOC document.');
+    }
   }
-  if (!template) throw new Error('The blank document template is unavailable.');
-
-  const envelope = instantiateTemplate(template, {
+  const contract = parseDocumentContract(value);
+  if (!contract.ok || contract.legacy) {
+    throw new Error('Template application requires a valid SDOC 1.0 document.');
+  }
+  const title = contract.envelope.meta.title?.trim() || options.defaultTitle.trim() || 'Untitled';
+  const instantiated = instantiateTemplate(options.template, {
     title,
     ...(options.now ? { now: options.now } : {}),
   });
-  return `${JSON.stringify(envelope, null, 2)}\n`;
+  const { template: _currentTemplate, settings: _currentSettings, ...preservedMeta } = contract.envelope.meta;
+  const envelope: SdocEnvelope = {
+    ...instantiated,
+    meta: {
+      ...instantiated.meta,
+      ...preservedMeta,
+      title,
+      modified: instantiated.meta.modified,
+      ...(instantiated.meta.settings ? { settings: instantiated.meta.settings } : {}),
+    },
+  };
+  assertPersistedDocument(envelope);
+  return {
+    text: `${JSON.stringify(envelope, null, 2)}\n`,
+    hasReplaceableContent: !isBlankSdocDocument(value),
+  };
 }
 
 export function validateDocumentTitle(value: string): string | undefined {

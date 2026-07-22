@@ -4,6 +4,7 @@ import { useEditorContext, resolveFontWeight } from '@shared/editor/context/Edit
 import { useVSCodeMessaging } from './useVSCodeMessaging';
 import { preprocessImportedHtml } from '@shared/editor/utils/preprocessImportedHtml';
 import { isUpdatedDrawioAsset } from '@shared/editor/drawioUpdates';
+import type { TemplateDescriptor } from '@shared/template';
 
 export interface MetaState {
   title: string;
@@ -15,11 +16,11 @@ export interface MetaState {
 
 interface UseEditorMessagesOptions {
   editor: TiptapEditor | null;
-  flushUpdate: () => void;
+  flushUpdate: () => boolean;
+  flushPendingUpdate: () => boolean;
   setContentRef: MutableRefObject<((content: JSONContent) => void) | null>;
   initDoneRef: MutableRefObject<boolean>;
   setMeta: React.Dispatch<React.SetStateAction<MetaState>>;
-  setInitializationRequired: React.Dispatch<React.SetStateAction<boolean>>;
   persistenceSessionRef: MutableRefObject<{
     sessionId: string;
     documentId: string;
@@ -31,10 +32,10 @@ interface UseEditorMessagesOptions {
 export function useEditorMessages({
   editor,
   flushUpdate,
+  flushPendingUpdate,
   setContentRef,
   initDoneRef,
   setMeta,
-  setInitializationRequired,
   persistenceSessionRef,
 }: UseEditorMessagesOptions) {
   const { dispatch } = useEditorContext();
@@ -43,8 +44,14 @@ export function useEditorMessages({
 
   const flushRef = useRef(flushUpdate);
   flushRef.current = flushUpdate;
+  const flushPendingRef = useRef(flushPendingUpdate);
+  flushPendingRef.current = flushPendingUpdate;
 
   const [isExporting, setIsExporting] = useState(false);
+  const [templates, setTemplates] = useState<TemplateDescriptor[]>([]);
+  const [templateDiagnosticCount, setTemplateDiagnosticCount] = useState(0);
+  const [isTemplateCatalogLoading, setIsTemplateCatalogLoading] = useState(true);
+  const [isApplyingTemplate, setIsApplyingTemplate] = useState(false);
 
   const { postMessage } = useVSCodeMessaging((message) => {
     const ed = editorRef.current;
@@ -57,8 +64,7 @@ export function useEditorMessages({
           documentId: message.documentId,
           revision: message.revision,
         };
-        setInitializationRequired(message.initializationRequired === true);
-        ed?.setEditable(!message.readOnlyReason && message.initializationRequired !== true);
+        ed?.setEditable(!message.readOnlyReason);
         if (setContentRef.current) {
           setContentRef.current(message.content);
           if (!initDoneRef.current) {
@@ -68,6 +74,14 @@ export function useEditorMessages({
         } else {
           dispatch({ type: 'SET_DOC', payload: message.content });
         }
+        break;
+      case 'templateCatalog':
+        setTemplates(message.templates);
+        setTemplateDiagnosticCount(message.diagnosticCount);
+        setIsTemplateCatalogLoading(false);
+        break;
+      case 'templateApplicationFinished':
+        setIsApplyingTemplate(false);
         break;
       case 'update':
         if (persistenceSessionRef.current?.sessionId !== message.sessionId) break;
@@ -208,12 +222,20 @@ export function useEditorMessages({
     postMessage({ type: 'updateMeta', meta: { [field]: value } });
   };
 
-  const handleInitializeEmptyDocument = (mode: 'blank' | 'template') => {
+  const handleRequestTemplateCatalog = () => {
+    setIsTemplateCatalogLoading(true);
+    postMessage({ type: 'requestTemplateCatalog' });
+  };
+
+  const handleApplyTemplate = (templateId: string) => {
+    if (isApplyingTemplate) return;
+    flushPendingRef.current();
     const session = persistenceSessionRef.current;
     if (!session) return;
+    setIsApplyingTemplate(true);
     postMessage({
-      type: 'initializeEmptyDocument',
-      mode,
+      type: 'applyTemplate',
+      templateId,
       sessionId: session.sessionId,
       documentId: session.documentId,
       baseRevision: session.revision,
@@ -226,7 +248,12 @@ export function useEditorMessages({
     handleExport,
     handleImport,
     handleMetaChange,
-    handleInitializeEmptyDocument,
+    handleRequestTemplateCatalog,
+    handleApplyTemplate,
+    templates,
+    templateDiagnosticCount,
+    isTemplateCatalogLoading,
+    isApplyingTemplate,
     isExporting,
   };
 }

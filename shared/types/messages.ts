@@ -11,6 +11,7 @@ import type {
   SlideTransition,
   TiptapNode,
 } from '../types';
+import type { TemplateDescriptor } from '../template';
 
 // ─── Editor Settings (Extension → Webview) ─────────────────────
 
@@ -60,8 +61,18 @@ export interface InitMessage {
   documentId: string;
   revision: number;
   readOnlyReason?: string;
-  initializationRequired?: boolean;
   content: TiptapNode;
+}
+
+export interface TemplateCatalogMessage {
+  type: 'templateCatalog';
+  templates: TemplateDescriptor[];
+  diagnosticCount: number;
+}
+
+export interface TemplateApplicationFinishedMessage {
+  type: 'templateApplicationFinished';
+  applied: boolean;
 }
 
 export interface UpdateMessage {
@@ -183,6 +194,8 @@ export interface SdocFileBrowseResultMessage {
 
 export type ExtensionToWebviewMessage =
   | InitMessage
+  | TemplateCatalogMessage
+  | TemplateApplicationFinishedMessage
   | UpdateMessage
   | EditAcknowledgedMessage
   | EditRejectedMessage
@@ -209,9 +222,13 @@ export interface ReadyMessage {
   type: 'ready';
 }
 
-export interface InitializeEmptyDocumentMessage {
-  type: 'initializeEmptyDocument';
-  mode: 'blank' | 'template';
+export interface RequestTemplateCatalogMessage {
+  type: 'requestTemplateCatalog';
+}
+
+export interface ApplyTemplateMessage {
+  type: 'applyTemplate';
+  templateId: string;
   sessionId: string;
   documentId: string;
   baseRevision: number;
@@ -313,7 +330,8 @@ export interface ClearCssFileMessage {
 
 export type WebviewToExtensionMessage =
   | ReadyMessage
-  | InitializeEmptyDocumentMessage
+  | RequestTemplateCatalogMessage
+  | ApplyTemplateMessage
   | EditMessage
   | ViewJsonMessage
   | SaveImageMessage
