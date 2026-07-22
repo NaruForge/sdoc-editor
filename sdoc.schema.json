@@ -497,10 +497,11 @@
           "type": "object",
           "description": "Mark-specific attributes (e.g., href for link).",
           "properties": {
-            "href": { "type": "string" },
-            "target": { "type": "string" },
-            "rel": { "type": "string" },
-            "class": { "type": "string" },
+            "href": { "type": ["string", "null"] },
+            "target": { "type": ["string", "null"] },
+            "rel": { "type": ["string", "null"] },
+            "class": { "type": ["string", "null"] },
+            "title": { "type": ["string", "null"] },
             "color": { "type": "string" }
           },
           "additionalProperties": false

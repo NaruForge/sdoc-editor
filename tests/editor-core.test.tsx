@@ -96,6 +96,27 @@ describe('shared editor core', () => {
     expect(heading?.attrs?.id).toBe('stable-title');
   });
 
+  it('keeps inserted cross-reference links inside the persisted document contract', () => {
+    const schema = getSchema(createTiptapExtensions(createRuntime()));
+    const roundTripped = schema.nodeFromJSON({
+      type: 'doc',
+      content: [{
+        type: 'paragraph',
+        content: [{
+          type: 'text',
+          text: '1. Target heading',
+          marks: [{ type: 'link', attrs: { href: '#target-heading' } }],
+        }],
+      }],
+    }).toJSON();
+
+    expect(roundTripped.content?.[0].content?.[0].marks?.[0].attrs).toMatchObject({
+      href: '#target-heading',
+      title: null,
+    });
+    expect(() => assertPersistedDocument(wrapSdoc(roundTripped, {}))).not.toThrow();
+  });
+
   it('provides semantic heading numbers as initial node decorations', () => {
     const runtime = createRuntime();
     const extensions = createTiptapExtensions(runtime);

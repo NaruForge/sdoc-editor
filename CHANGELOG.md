@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Cross-reference links inserted with `@` now satisfy the persisted document schema instead of failing VS Code saves on Tiptap's link title attribute
+
 ## [0.4.16] - 2026-07-22
 
 ### Added

@@ -4,11 +4,9 @@ import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import { EditorView } from '@tiptap/pm/view';
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
-import { Underline } from '@tiptap/extension-underline';
 import { TextStyle } from '@tiptap/extension-text-style';
 import { Color } from '@tiptap/extension-color';
 import { Highlight } from '@tiptap/extension-highlight';
-import { Link } from '@tiptap/extension-link';
 import { TextAlign } from '@tiptap/extension-text-align';
 import { TaskList } from '@tiptap/extension-task-list';
 import { TaskItem } from '@tiptap/extension-task-item';
@@ -517,22 +515,21 @@ export function createTiptapExtensions(runtime: EditorExtensionRuntime) {
   return [
   StarterKit.configure({
     codeBlock: false,
+    link: {
+      openOnClick: false,
+      autolink: false,
+      HTMLAttributes: {
+        class: 'editor-link',
+      },
+    },
   }),
   HeadingNumbering,
   PersistentNodeIds,
   Callout,
   CustomCodeBlock,
-  Underline,
   TaskList,
   TaskItem.configure({
     nested: true,
-  }),
-  Link.configure({
-    openOnClick: false,
-    autolink: false,
-    HTMLAttributes: {
-      class: 'editor-link',
-    },
   }),
   CustomImage.configure({ runtime }),
   CustomTable.configure({ runtime }),
