@@ -19,6 +19,24 @@ const templates = [
     source: 'workspace' as const,
     sourceLabel: 'Workspace · .sdoc/templates/team.sdoc',
   },
+  {
+    id: 'user:11111111-1111-4111-8111-111111111111',
+    name: '내 설계서',
+    category: 'design',
+    source: 'user' as const,
+    sourceLabel: '로컬 · C:\\Users\\test\\.sdoc\\templates',
+    revisionToken: 'fingerprint',
+    preview: {
+      templateId: 'user:11111111-1111-4111-8111-111111111111',
+      outline: [{ id: 'h1', level: 1, text: '개요', numbered: true, isTitle: false }],
+      counts: {
+        headings: 1, paragraphs: 2, tables: 1, figures: 0,
+        equations: 0, diagrams: 0, codeBlocks: 0,
+      },
+      settingsKeys: ['captionStyle'],
+      truncated: false,
+    },
+  },
 ];
 
 describe('template side panel UI', () => {
@@ -42,16 +60,31 @@ describe('template side panel UI', () => {
     const markup = renderToStaticMarkup(React.createElement(TemplatePanel, {
       templates,
       isApplying: false,
+      isManaging: false,
+      personalRootPath: 'C:\\Users\\test\\.sdoc\\templates',
+      personalRootScope: 'local',
       onApply: vi.fn(),
       onRefresh: vi.fn(),
+      onSaveCurrent: vi.fn(),
+      onEdit: vi.fn(),
+      onDuplicate: vi.fn(),
+      onDelete: vi.fn(),
+      onOpenPersonalFolder: vi.fn(),
     }));
 
-    expect(markup).toContain('실험적 기능');
     expect(markup).toContain('기술 보고서');
     expect(markup).toContain('팀 설계서');
     expect(markup).toContain('내장');
-    expect(markup).toContain('워크스페이스');
+    expect(markup).toContain('작업공간');
     expect(markup).toContain('템플릿 적용');
+    expect(markup).toContain('현재 문서를 내 템플릿으로 저장');
+    expect(markup).toContain('전체');
+    expect(markup).toContain('내 템플릿');
+    expect(markup).toContain('미리보기');
+    expect(markup).toContain('design');
+    expect(markup).toContain('수정');
+    expect(markup).toContain('복제');
+    expect(markup).toContain('삭제');
     expect(markup).not.toContain('빈 문서로 시작');
   });
 });

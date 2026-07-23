@@ -9,6 +9,25 @@ const hasString = (value: Record<string, unknown>, key: string): boolean =>
 const hasNumber = (value: Record<string, unknown>, key: string): boolean =>
   typeof value[key] === 'number' && Number.isFinite(value[key]);
 
+const hasTemplateRequestIdentity = (value: Record<string, unknown>): boolean =>
+  hasString(value, 'requestId')
+  && hasString(value, 'sessionId')
+  && hasString(value, 'documentId')
+  && hasNumber(value, 'baseRevision');
+
+const isTemplatePreview = (value: unknown): boolean => {
+  if (!isRecord(value) || !hasString(value, 'templateId') || !Array.isArray(value.outline)
+    || !isRecord(value.counts) || !Array.isArray(value.settingsKeys)
+    || typeof value.truncated !== 'boolean') return false;
+  return value.outline.every((item) => isRecord(item)
+    && hasNumber(item, 'level') && hasString(item, 'text')
+    && typeof item.numbered === 'boolean' && typeof item.isTitle === 'boolean'
+    && (item.id === undefined || typeof item.id === 'string'))
+    && ['headings', 'paragraphs', 'tables', 'figures', 'equations', 'diagrams', 'codeBlocks']
+      .every((key) => hasNumber(value.counts as Record<string, unknown>, key))
+    && value.settingsKeys.every((item) => typeof item === 'string');
+};
+
 const isTemplateDescriptor = (value: unknown): boolean => {
   if (!isRecord(value)) return false;
   return hasString(value, 'id')
@@ -17,7 +36,9 @@ const isTemplateDescriptor = (value: unknown): boolean => {
     && ['builtin', 'workspace', 'user'].includes(String(value.source))
     && (value.description === undefined || typeof value.description === 'string')
     && (value.category === undefined || typeof value.category === 'string')
-    && (value.titleNodeId === undefined || typeof value.titleNodeId === 'string');
+    && (value.titleNodeId === undefined || typeof value.titleNodeId === 'string')
+    && (value.revisionToken === undefined || typeof value.revisionToken === 'string')
+    && (value.preview === undefined || isTemplatePreview(value.preview));
 };
 
 export function isEditorToHostMessage(value: unknown): value is EditorToHostMessage {
@@ -44,6 +65,19 @@ export function isEditorToHostMessage(value: unknown): value is EditorToHostMess
       return typeof value.templateId === 'string' && value.templateId.length > 0
         && hasString(value, 'sessionId') && hasString(value, 'documentId')
         && hasNumber(value, 'baseRevision');
+    case 'savePersonalTemplate':
+      return hasTemplateRequestIdentity(value);
+    case 'updatePersonalTemplate':
+    case 'duplicatePersonalTemplate':
+      return hasTemplateRequestIdentity(value)
+        && hasString(value, 'templateId')
+        && hasString(value, 'revisionToken');
+    case 'deletePersonalTemplate':
+      return hasString(value, 'requestId')
+        && hasString(value, 'templateId')
+        && hasString(value, 'revisionToken');
+    case 'openPersonalTemplateFolder':
+      return hasString(value, 'requestId');
     case 'saveImage':
       return hasString(value, 'imageName') && hasString(value, 'imageData') && hasString(value, 'extension');
     case 'createDrawio':
@@ -77,6 +111,12 @@ export function isHostToEditorMessage(value: unknown): value is HostToEditorMess
       return true;
     case 'templateApplicationFinished':
       return typeof value.applied === 'boolean';
+    case 'templateOperationFinished':
+      return hasString(value, 'requestId')
+        && ['save', 'update', 'duplicate', 'delete', 'open-folder'].includes(String(value.operation))
+        && typeof value.succeeded === 'boolean'
+        && (value.templateId === undefined || hasString(value, 'templateId'))
+        && (value.message === undefined || hasString(value, 'message'));
     case 'requestFlush':
       return hasString(value, 'sessionId') && hasString(value, 'requestId');
     case 'init':
@@ -88,7 +128,9 @@ export function isHostToEditorMessage(value: unknown): value is HostToEditorMess
     case 'templateCatalog':
       return Array.isArray(value.templates) && value.templates.every(isTemplateDescriptor)
         && typeof value.diagnosticCount === 'number'
-        && Number.isFinite(value.diagnosticCount) && value.diagnosticCount >= 0;
+        && Number.isFinite(value.diagnosticCount) && value.diagnosticCount >= 0
+        && hasString(value, 'personalRootPath')
+        && (value.personalRootScope === 'local' || value.personalRootScope === 'remote');
     case 'editAcknowledged':
       return hasString(value, 'sessionId') && hasString(value, 'editId') && hasNumber(value, 'revision');
     case 'editRejected':

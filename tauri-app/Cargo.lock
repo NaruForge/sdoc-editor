@@ -3261,6 +3261,7 @@ dependencies = [
  "open",
  "serde",
  "serde_json",
+ "sha2",
  "slug",
  "tauri",
  "tauri-build",
@@ -3269,6 +3270,7 @@ dependencies = [
  "tauri-plugin-process",
  "tauri-plugin-shell",
  "trash",
+ "uuid",
  "windows-sys 0.61.2",
 ]
 

@@ -136,10 +136,18 @@ export const Editor: React.FC = () => {
     handleMetaChange,
     handleRequestTemplateCatalog,
     handleApplyTemplate,
+    handleSavePersonalTemplate,
+    handleUpdatePersonalTemplate,
+    handleDuplicatePersonalTemplate,
+    handleDeletePersonalTemplate,
+    handleOpenPersonalTemplateFolder,
     templates,
     templateDiagnosticCount,
     isTemplateCatalogLoading,
     isApplyingTemplate,
+    isManagingTemplate,
+    personalTemplateRootPath,
+    personalTemplateRootScope,
     isExporting,
   } = useEditorMessages({
     editor,
@@ -505,8 +513,16 @@ export const Editor: React.FC = () => {
             templateDiagnosticCount={templateDiagnosticCount}
             isTemplateCatalogLoading={isTemplateCatalogLoading}
             isApplyingTemplate={isApplyingTemplate}
+            isManagingTemplate={isManagingTemplate}
+            personalTemplateRootPath={personalTemplateRootPath}
+            personalTemplateRootScope={personalTemplateRootScope}
             onRefreshTemplates={handleRequestTemplateCatalog}
             onApplyTemplate={handleApplyTemplate}
+            onSavePersonalTemplate={handleSavePersonalTemplate}
+            onUpdatePersonalTemplate={handleUpdatePersonalTemplate}
+            onDuplicatePersonalTemplate={handleDuplicatePersonalTemplate}
+            onDeletePersonalTemplate={handleDeletePersonalTemplate}
+            onOpenPersonalTemplateFolder={handleOpenPersonalTemplateFolder}
           />
         )}
         <div className="editor-content-area" onContextMenu={handleContextMenu}>

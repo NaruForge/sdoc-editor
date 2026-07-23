@@ -1,9 +1,12 @@
-import { readdir, readFile, realpath, stat, writeFile } from 'node:fs/promises';
+import { createHash, randomUUID } from 'node:crypto';
+import { link, mkdir, open, readdir, readFile, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { homedir } from 'node:os';
 import path from 'node:path';
 import {
   buildTemplateCatalog,
   getBuiltInTemplates,
   instantiateTemplate,
+  isPersonalTemplateId,
   type SdocTemplate,
   type TemplateCandidate,
   type TemplateCatalogResult,
@@ -14,7 +17,8 @@ import type { SdocEnvelope, TiptapNode } from '../../shared/types';
 
 const TEMPLATE_DIRECTORY_SEGMENTS = ['.sdoc', 'templates'] as const;
 const MAX_TEMPLATE_BYTES = 2 * 1024 * 1024;
-const MAX_WORKSPACE_TEMPLATES = 100;
+const MAX_TEMPLATE_CANDIDATES = 100;
+const PERSONAL_MUTATION_LOCK_STALE_MS = 5 * 60 * 1000;
 
 export interface WorkspaceTemplateRoot {
   identity: string;
@@ -40,6 +44,13 @@ export interface HostTemplateDiagnostic {
 export interface VsCodeTemplateCatalog {
   catalog: TemplateCatalogResult;
   hostDiagnostics: HostTemplateDiagnostic[];
+  personalFingerprints: ReadonlyMap<string, string>;
+  personalRootPath: string;
+}
+
+export interface VsCodeTemplateServiceOptions {
+  homeDirectory?: string;
+  personalSourceLabel?: string;
 }
 
 export type NewSdocDiagnostic = TemplateDiagnostic | HostTemplateDiagnostic;
@@ -230,8 +241,26 @@ export function suggestSdocFileName(title: string): string {
 }
 
 export class VsCodeTemplateService {
+  private readonly homeDirectory: string;
+  private readonly personalSourceLabel?: string;
+
+  public constructor(options: VsCodeTemplateServiceOptions = {}) {
+    this.homeDirectory = path.resolve(options.homeDirectory ?? homedir());
+    this.personalSourceLabel = options.personalSourceLabel;
+  }
+
+  public get personalTemplateRootPath(): string {
+    return path.join(this.homeDirectory, ...TEMPLATE_DIRECTORY_SEGMENTS);
+  }
+
+  public async ensurePersonalTemplateRoot(): Promise<string> {
+    return this.ensurePersonalRoot();
+  }
+
   public async discover(workspaces: readonly WorkspaceTemplateRoot[]): Promise<VsCodeTemplateCatalog> {
     const workspaceCandidates: TemplateCandidate[] = [];
+    const userCandidates: TemplateCandidate[] = [];
+    const personalFingerprints = new Map<string, string>();
     const hostDiagnostics: HostTemplateDiagnostic[] = [];
     let limitReported = false;
 
@@ -278,13 +307,13 @@ export class VsCodeTemplateService {
       entries.sort((left, right) => left.name.localeCompare(right.name, 'en'));
       for (const entry of entries) {
         if (!entry.name.toLocaleLowerCase('en-US').endsWith('.sdoc')) continue;
-        if (workspaceCandidates.length >= MAX_WORKSPACE_TEMPLATES) {
+        if (workspaceCandidates.length >= MAX_TEMPLATE_CANDIDATES) {
           if (!limitReported) {
             limitReported = true;
             hostDiagnostics.push({
               code: 'candidate-limit-exceeded',
               targetPath: templateDirectory,
-              message: `Only the first ${MAX_WORKSPACE_TEMPLATES} workspace templates are loaded.`,
+              message: `Only the first ${MAX_TEMPLATE_CANDIDATES} workspace templates are loaded.`,
             });
           }
           break;
@@ -351,13 +380,310 @@ export class VsCodeTemplateService {
       }
     }
 
+    const personalRootPath = this.personalTemplateRootPath;
+    try {
+      const canonicalHome = await realpath(this.homeDirectory);
+      const canonicalPersonalRoot = await realpath(personalRootPath);
+      if (!isContainedPath(canonicalHome, canonicalPersonalRoot)) {
+        hostDiagnostics.push({
+          code: 'template-root-outside-workspace',
+          targetPath: personalRootPath,
+          message: 'The personal template directory resolves outside the extension-host home.',
+        });
+      } else {
+        const entries = await readdir(canonicalPersonalRoot, { withFileTypes: true });
+        const candidates = entries
+          .filter((entry) => entry.name.toLocaleLowerCase('en-US').endsWith('.sdoc'))
+          .sort((left, right) => left.name.localeCompare(right.name, 'en'));
+        if (candidates.length > MAX_TEMPLATE_CANDIDATES) {
+          hostDiagnostics.push({
+            code: 'candidate-limit-exceeded',
+            targetPath: personalRootPath,
+            message: `Only the first ${MAX_TEMPLATE_CANDIDATES} personal templates are loaded.`,
+          });
+        }
+        for (const entry of candidates.slice(0, MAX_TEMPLATE_CANDIDATES)) {
+          const stem = entry.name.slice(0, -5);
+          const requestedPath = path.join(canonicalPersonalRoot, entry.name);
+          if (!isPersonalTemplateId(`user:${stem}`)) {
+            hostDiagnostics.push({
+              code: 'unsupported-file-type',
+              targetPath: requestedPath,
+              message: 'Personal template file names must be UUIDs with the .sdoc extension.',
+            });
+            continue;
+          }
+          try {
+            const canonicalFile = await realpath(requestedPath);
+            if (!isContainedPath(canonicalPersonalRoot, canonicalFile)) {
+              hostDiagnostics.push({
+                code: 'template-file-outside-root',
+                targetPath: requestedPath,
+                message: 'The personal template file resolves outside the personal template directory.',
+              });
+              continue;
+            }
+            const fileStat = await stat(canonicalFile);
+            if (!fileStat.isFile()) {
+              hostDiagnostics.push({
+                code: 'unsupported-file-type',
+                targetPath: requestedPath,
+                message: 'Personal template candidates must be regular files.',
+              });
+              continue;
+            }
+            if (fileStat.size > MAX_TEMPLATE_BYTES) {
+              hostDiagnostics.push({
+                code: 'file-too-large',
+                targetPath: requestedPath,
+                message: `Template file exceeds the ${MAX_TEMPLATE_BYTES} byte limit.`,
+              });
+              continue;
+            }
+            const bytes = await readFile(canonicalFile);
+            const templateKey = `user:${stem.toLocaleLowerCase('en-US')}`;
+            personalFingerprints.set(templateKey, createHash('sha256').update(bytes).digest('hex'));
+            const value: unknown = JSON.parse(bytes.toString('utf8'));
+            userCandidates.push({
+              id: templateKey,
+              source: 'user',
+              sourceLabel: this.personalSourceLabel ?? `Extension host · ${personalRootPath}`,
+              fileName: entry.name,
+              value,
+              targetPath: canonicalFile,
+            });
+          } catch (error) {
+            hostDiagnostics.push({
+              code: error instanceof SyntaxError ? 'invalid-json' : 'read-failed',
+              targetPath: requestedPath,
+              message: error instanceof SyntaxError
+                ? 'Personal template file is not valid JSON.'
+                : `Unable to read personal template file: ${error instanceof Error ? error.message : String(error)}`,
+            });
+          }
+        }
+      }
+    } catch (error) {
+      if (errorCode(error) !== 'ENOENT') {
+        hostDiagnostics.push({
+          code: 'read-failed',
+          targetPath: personalRootPath,
+          message: `Unable to inspect personal template directory: ${error instanceof Error ? error.message : String(error)}`,
+        });
+      }
+    }
+
     return {
       catalog: buildTemplateCatalog({
         builtIn: getBuiltInTemplates(),
         workspaceCandidates,
+        userCandidates,
       }),
       hostDiagnostics,
+      personalFingerprints,
+      personalRootPath,
     };
+  }
+
+  public async createPersonalTemplate(templateId: string, envelope: SdocEnvelope): Promise<void> {
+    const uuid = this.requirePersonalUuid(templateId);
+    const serialized = this.serializePersonalTemplate(uuid, envelope);
+    const canonicalRoot = await this.ensurePersonalRoot();
+    await this.withPersonalMutationLock(canonicalRoot, async () => {
+      const entries = await readdir(canonicalRoot, { withFileTypes: true });
+      const candidateCount = entries.filter((entry) =>
+        path.extname(entry.name).toLocaleLowerCase('en-US') === '.sdoc').length;
+      if (candidateCount >= MAX_TEMPLATE_CANDIDATES) {
+        throw new Error(`Personal template limit of ${MAX_TEMPLATE_CANDIDATES} has been reached.`);
+      }
+      const targetPath = path.join(canonicalRoot, `${uuid}.sdoc`);
+      const temporaryPath = path.join(canonicalRoot, `.${uuid}.${randomUUID()}.tmp`);
+      await writeFile(temporaryPath, serialized, {
+        encoding: 'utf8',
+        flag: 'wx',
+      });
+      try {
+        await link(temporaryPath, targetPath);
+      } finally {
+        await rm(temporaryPath, { force: true });
+      }
+    });
+  }
+
+  public async updatePersonalTemplate(
+    templateId: string,
+    expectedFingerprint: string,
+    envelope: SdocEnvelope,
+  ): Promise<void> {
+    const uuid = this.requirePersonalUuid(templateId);
+    const serialized = this.serializePersonalTemplate(uuid, envelope);
+    const canonicalRoot = await this.ensurePersonalRoot();
+    await this.withPersonalMutationLock(canonicalRoot, async () => {
+      const { canonicalTarget } = await this.verifyPersonalTemplate(uuid, expectedFingerprint);
+      const temporaryPath = path.join(canonicalRoot, `.${uuid}.${randomUUID()}.tmp`);
+      await writeFile(temporaryPath, serialized, {
+        encoding: 'utf8',
+        flag: 'wx',
+      });
+      try {
+        await rename(temporaryPath, canonicalTarget);
+      } finally {
+        await rm(temporaryPath, { force: true });
+      }
+    });
+  }
+
+  public async trashPersonalTemplate(templateId: string, expectedFingerprint: string): Promise<void> {
+    const uuid = this.requirePersonalUuid(templateId);
+    const canonicalRoot = await this.ensurePersonalRoot();
+    await this.withPersonalMutationLock(canonicalRoot, async () => {
+      const { canonicalTarget } = await this.verifyPersonalTemplate(uuid, expectedFingerprint);
+      const trashPath = path.join(canonicalRoot, '.trash');
+      await mkdir(trashPath, { recursive: true });
+      const canonicalTrash = await realpath(trashPath);
+      if (!isContainedPath(canonicalRoot, canonicalTrash)) {
+        throw new Error('The personal template trash directory resolves outside the template root.');
+      }
+      const destination = path.join(canonicalTrash, `${uuid}-${Date.now()}-${randomUUID()}.sdoc`);
+      await rename(canonicalTarget, destination);
+    });
+  }
+
+  private requirePersonalUuid(templateId: string): string {
+    const uuid = templateId.startsWith('user:') ? templateId.slice(5) : templateId;
+    if (!isPersonalTemplateId(`user:${uuid}`)) {
+      throw new Error('A lowercase canonical personal template UUID is required.');
+    }
+    return uuid;
+  }
+
+  private requireMatchingEnvelopeId(uuid: string, envelope: SdocEnvelope): void {
+    const metadata = envelope.meta.template;
+    if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)
+      || !('id' in metadata) || metadata.id !== `user:${uuid}`) {
+      throw new Error('The persisted personal template ID must exactly match the target UUID.');
+    }
+  }
+
+  private serializePersonalTemplate(uuid: string, envelope: SdocEnvelope): string {
+    assertPersistedDocument(envelope);
+    this.requireMatchingEnvelopeId(uuid, envelope);
+    const serialized = `${JSON.stringify(envelope, null, 2)}\n`;
+    if (Buffer.byteLength(serialized, 'utf8') > MAX_TEMPLATE_BYTES) {
+      throw new Error(`Personal template exceeds the ${MAX_TEMPLATE_BYTES} byte size limit.`);
+    }
+    return serialized;
+  }
+
+  private async withPersonalMutationLock<T>(
+    canonicalRoot: string,
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    const lockPath = path.join(canonicalRoot, '.mutation.lock');
+    const owner = randomUUID();
+    await this.acquirePersonalMutationLock(lockPath, owner);
+    try {
+      return await operation();
+    } finally {
+      try {
+        const value: unknown = JSON.parse(await readFile(lockPath, 'utf8'));
+        if (value && typeof value === 'object' && !Array.isArray(value)
+          && 'owner' in value && value.owner === owner) {
+          await rm(lockPath, { force: true });
+        }
+      } catch (error) {
+        if (errorCode(error) !== 'ENOENT') throw error;
+      }
+    }
+  }
+
+  private async acquirePersonalMutationLock(lockPath: string, owner: string): Promise<void> {
+    const payload = `${JSON.stringify({ owner, createdAt: Date.now() })}\n`;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      let handle: Awaited<ReturnType<typeof open>> | undefined;
+      try {
+        handle = await open(lockPath, 'wx');
+        await handle.writeFile(payload, { encoding: 'utf8' });
+        await handle.sync();
+        await handle.close();
+        return;
+      } catch (error) {
+        if (handle) {
+          await handle.close().catch(() => undefined);
+          await rm(lockPath, { force: true }).catch(() => undefined);
+        }
+        if (errorCode(error) !== 'EEXIST') throw error;
+      }
+
+      let existing: unknown;
+      try {
+        existing = JSON.parse(await readFile(lockPath, 'utf8'));
+      } catch {
+        existing = undefined;
+      }
+      let createdAt = existing && typeof existing === 'object' && !Array.isArray(existing)
+        && 'createdAt' in existing && typeof existing.createdAt === 'number'
+        ? existing.createdAt
+        : undefined;
+      if (createdAt === undefined) {
+        try {
+          createdAt = (await stat(lockPath)).mtimeMs;
+        } catch (error) {
+          if (errorCode(error) === 'ENOENT') continue;
+          throw error;
+        }
+      }
+      if (Date.now() - createdAt <= PERSONAL_MUTATION_LOCK_STALE_MS) {
+        throw new Error('Another host is already changing the personal template library.');
+      }
+
+      const stalePath = `${lockPath}.stale.${randomUUID()}`;
+      try {
+        await rename(lockPath, stalePath);
+        await rm(stalePath, { force: true });
+      } catch (error) {
+        if (errorCode(error) !== 'ENOENT') throw error;
+      }
+    }
+    throw new Error('Unable to acquire the personal template library mutation lock.');
+  }
+
+  private async ensurePersonalRoot(): Promise<string> {
+    const managementRoot = path.join(this.homeDirectory, TEMPLATE_DIRECTORY_SEGMENTS[0]);
+    await mkdir(managementRoot, { recursive: true });
+    const [canonicalHome, canonicalManagementRoot] = await Promise.all([
+      realpath(this.homeDirectory),
+      realpath(managementRoot),
+    ]);
+    if (!isContainedPath(canonicalHome, canonicalManagementRoot)) {
+      throw new Error('The personal template directory resolves outside the extension-host home.');
+    }
+    await mkdir(this.personalTemplateRootPath, { recursive: true });
+    const canonicalRoot = await realpath(this.personalTemplateRootPath);
+    if (!isContainedPath(canonicalManagementRoot, canonicalRoot)) {
+      throw new Error('The personal template directory resolves outside the managed .sdoc directory.');
+    }
+    return canonicalRoot;
+  }
+
+  private async verifyPersonalTemplate(
+    uuid: string,
+    expectedFingerprint: string,
+  ): Promise<{ canonicalRoot: string; canonicalTarget: string }> {
+    const canonicalRoot = await this.ensurePersonalRoot();
+    const requestedTarget = path.join(canonicalRoot, `${uuid}.sdoc`);
+    const canonicalTarget = await realpath(requestedTarget);
+    if (!isContainedPath(canonicalRoot, canonicalTarget)) {
+      throw new Error('The personal template file resolves outside the template root.');
+    }
+    const fileStat = await stat(canonicalTarget);
+    if (!fileStat.isFile()) throw new Error('The personal template is not a regular file.');
+    const bytes = await readFile(canonicalTarget);
+    const actualFingerprint = createHash('sha256').update(bytes).digest('hex');
+    if (actualFingerprint !== expectedFingerprint) {
+      throw new Error('The personal template changed outside the editor; refresh and try again.');
+    }
+    return { canonicalRoot, canonicalTarget };
   }
 
   public async createExclusive(

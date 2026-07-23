@@ -17,6 +17,7 @@ import {
   createTauriTemplateDocument,
   loadTauriTemplateCatalog,
   suggestTemplateFileName,
+  type PersonalTemplateDiscovery,
   type WorkspaceTemplateDiscovery,
 } from './templateService';
 
@@ -95,6 +96,9 @@ const AppContent: React.FC = () => {
   }, [workspaceFolder]);
 
   const adapter = useMemo(() => createTauriAdapter(), []);
+  useEffect(() => {
+    adapter.setWorkspaceFolder(workspaceFolder);
+  }, [adapter, workspaceFolder]);
   const closeApplication = useCallback(async () => {
     const { exit } = await import('@tauri-apps/plugin-process');
     await closeTauriApplication({
@@ -225,6 +229,7 @@ const AppContent: React.FC = () => {
       const result = await loadTauriTemplateCatalog(
         workspaceFolderRef.current,
         async () => invoke<WorkspaceTemplateDiscovery>('list_workspace_template_candidates'),
+        async () => invoke<PersonalTemplateDiscovery>('list_personal_template_candidates'),
       );
       const diagnostics = [
         ...result.catalog.diagnostics.map((item) => `${item.targetPath}: ${item.message}`),
@@ -237,6 +242,7 @@ const AppContent: React.FC = () => {
       const fallback = await loadTauriTemplateCatalog(
         null,
         async () => ({ candidates: [], diagnostics: [] }),
+        async () => invoke<PersonalTemplateDiscovery>('list_personal_template_candidates'),
       );
       setTemplateDialog((current) => current && current.mode === mode && current.folder === folder
         ? {

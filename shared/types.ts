@@ -79,6 +79,14 @@ export interface ResolvedEditorSettings {
   outputDir: string;
 }
 
+export interface SdocTemplateMetadata {
+  id?: string;
+  name?: string;
+  description?: string;
+  category?: string;
+  titleNodeId?: string;
+}
+
 export interface SdocMeta {
   [key: string]: unknown;
   title?: string;
@@ -87,6 +95,7 @@ export interface SdocMeta {
   created?: string;
   modified?: string;
   settings?: Partial<DocumentSettings>;
+  template?: SdocTemplateMetadata;
 }
 
 export interface SdocEnvelope {

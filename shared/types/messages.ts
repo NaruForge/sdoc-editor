@@ -11,7 +11,7 @@ import type {
   SlideTransition,
   TiptapNode,
 } from '../types';
-import type { TemplateDescriptor } from '../template';
+import type { TemplateDescriptor, TemplateStructuralPreview } from '../template';
 
 // ─── Editor Settings (Extension → Webview) ─────────────────────
 
@@ -66,8 +66,26 @@ export interface InitMessage {
 
 export interface TemplateCatalogMessage {
   type: 'templateCatalog';
-  templates: TemplateDescriptor[];
+  templates: ManagedTemplateDescriptor[];
   diagnosticCount: number;
+  personalRootPath: string;
+  personalRootScope: 'local' | 'remote';
+}
+
+export interface ManagedTemplateDescriptor extends TemplateDescriptor {
+  revisionToken?: string;
+  preview?: TemplateStructuralPreview;
+}
+
+export type PersonalTemplateOperation = 'save' | 'update' | 'duplicate' | 'delete' | 'open-folder';
+
+export interface TemplateOperationFinishedMessage {
+  type: 'templateOperationFinished';
+  requestId: string;
+  operation: PersonalTemplateOperation;
+  succeeded: boolean;
+  templateId?: string;
+  message?: string;
 }
 
 export interface TemplateApplicationFinishedMessage {
@@ -196,6 +214,7 @@ export type ExtensionToWebviewMessage =
   | InitMessage
   | TemplateCatalogMessage
   | TemplateApplicationFinishedMessage
+  | TemplateOperationFinishedMessage
   | UpdateMessage
   | EditAcknowledgedMessage
   | EditRejectedMessage
@@ -232,6 +251,47 @@ export interface ApplyTemplateMessage {
   sessionId: string;
   documentId: string;
   baseRevision: number;
+}
+
+export interface PersonalTemplateMetadataInput {
+  name: string;
+  description?: string;
+  category?: string;
+}
+
+interface PersonalTemplateRequestIdentity {
+  requestId: string;
+  sessionId: string;
+  documentId: string;
+  baseRevision: number;
+}
+
+export interface SavePersonalTemplateMessage extends PersonalTemplateRequestIdentity {
+  type: 'savePersonalTemplate';
+}
+
+export interface UpdatePersonalTemplateMessage extends PersonalTemplateRequestIdentity {
+  type: 'updatePersonalTemplate';
+  templateId: string;
+  revisionToken: string;
+}
+
+export interface DuplicatePersonalTemplateMessage extends PersonalTemplateRequestIdentity {
+  type: 'duplicatePersonalTemplate';
+  templateId: string;
+  revisionToken: string;
+}
+
+export interface DeletePersonalTemplateMessage {
+  type: 'deletePersonalTemplate';
+  requestId: string;
+  templateId: string;
+  revisionToken: string;
+}
+
+export interface OpenPersonalTemplateFolderMessage {
+  type: 'openPersonalTemplateFolder';
+  requestId: string;
 }
 
 export interface EditMessage {
@@ -332,6 +392,11 @@ export type WebviewToExtensionMessage =
   | ReadyMessage
   | RequestTemplateCatalogMessage
   | ApplyTemplateMessage
+  | SavePersonalTemplateMessage
+  | UpdatePersonalTemplateMessage
+  | DuplicatePersonalTemplateMessage
+  | DeletePersonalTemplateMessage
+  | OpenPersonalTemplateFolderMessage
   | EditMessage
   | ViewJsonMessage
   | SaveImageMessage

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Added a shared personal template library at `~/.sdoc/templates/` for local VS Code and Tauri hosts
+- Added personal template save, structural preview, metadata management, duplication, and recoverable deletion
+
+### Security
+- Personal template mutations use intrinsic UUID identities, canonical containment, content fingerprints, atomic storage, and fail-closed duplicate diagnostics
+- Personal snapshots omit source identity metadata and reject image or Draw.io assets until bundle support is available
+
 ## [0.4.20] - 2026-07-23
 
 ### Changed

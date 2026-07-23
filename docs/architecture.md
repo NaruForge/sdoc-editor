@@ -37,6 +37,16 @@ Rust reads and writes the envelope but deliberately does not reproduce document 
 
 Hosts discover workspace templates only from the non-recursive `.sdoc/templates/*.sdoc` boundary. They enforce canonical containment, symlink containment, size and count limits, present host-native selection UI, flush the active editor, and create a new file without overwriting an existing target. In VS Code, zero-byte documents are represented as an editable in-memory blank document without writing on open; the capability-gated shared template panel applies a selected catalog snapshot to the current document only after confirmation, exact identity/revision/text revalidation, and one full-document `WorkspaceEdit`. Rust validates and stores the envelope produced by the shared TypeScript core but does not create template document semantics.
 
+Personal templates use the shared local library `~/.sdoc/templates/`. Each
+record is a content-only `.sdoc` snapshot with an intrinsic `user:<uuid>` ID,
+while its name and description remain editable metadata. `shared/template/`
+creates immutable snapshots, rejects unsupported assets, isolates duplicate
+IDs, and builds bounded structural previews. Host adapters derive managed paths
+from UUIDs, enforce canonical containment, use content fingerprints for
+optimistic updates, store atomically, and move deleted records to `.trash/`.
+Local VS Code and Tauri resolve the same home library; a remote VS Code
+extension host resolves the remote user's separate home library.
+
 ### Book composition
 
 `shared/book/` is the host-neutral `.sdocbook` boundary. It parses untrusted manifests, normalizes project-relative paths, loads chapters through an injected `BookDocumentLoader`, composes one document tree, and returns structured diagnostics. Preview and export consumers must use this result instead of independently merging files. The VS Code provider supplies open-buffer and filesystem access; a future Tauri host can supply its own loader without copying composition rules.
@@ -70,14 +80,14 @@ The host-neutral `EditorHostBridge` and the discriminated unions in `shared/type
 - `src/SdocBookProvider.ts`: Book webview orchestration, open-buffer loader, file watching, and export destination handling
 - `src/services/VsCodeAssetService.ts`: image and Draw.io operations
 - `src/services/VsCodeExportService.ts`: export orchestration
-- `src/services/VsCodeTemplateService.ts`: workspace template discovery, create-new orchestration, and guarded current-document template application
+- `src/services/VsCodeTemplateService.ts`: workspace and personal template discovery, managed personal-template storage, create-new orchestration, and guarded current-document template application
 - `webview-ui/src/`: VS Code bridge, message handling, and VS Code-specific shell composition
 
 ### Tauri
 
 - `tauri-app/src/`: desktop shell, workspace explorer, Tauri bridge, and desktop export service
 - `tauri-app/src-tauri/src/commands.rs`: document command state and module exports
-- `tauri-app/src-tauri/src/commands/`: asset, workspace, watcher, settings, and file-I/O command modules
+- `tauri-app/src-tauri/src/commands/`: asset, workspace, personal-template, watcher, settings, and file-I/O command modules
 - `tauri-app/src-tauri/src/document.rs`: envelope transport and contract-fixture tests
 
 ## Dependency rules

@@ -6,7 +6,7 @@ import { ListOfTables } from '@shared/editor/components/ListOfTables';
 import { DocumentSettingsPanel } from '@shared/editor/components/DocumentSettingsPanel';
 import { PanelEmptyState } from '@shared/editor/components/PanelEmptyState';
 import { TemplatePanel } from '@shared/editor/components/TemplatePanel';
-import type { TemplateDescriptor } from '@shared/template';
+import type { ManagedTemplateDescriptor } from '@shared/types/messages';
 import type { DocumentSettings, ResolvedEditorSettings } from '@shared/types';
 import type { EditorToHostMessage } from '@shared/types/messages';
 import { FileJson, Download, Upload, Loader2, FolderOpen } from 'lucide-react';
@@ -29,12 +29,20 @@ interface SidePanelProps {
   onExport?: (format: 'html' | 'adoc' | 'markdown' | 'pdf' | 'slides') => void;
   onImport?: (format: 'markdown' | 'html') => void;
   isExporting?: boolean;
-  templates?: readonly TemplateDescriptor[];
+  templates?: readonly ManagedTemplateDescriptor[];
   templateDiagnosticCount?: number;
   isTemplateCatalogLoading?: boolean;
   isApplyingTemplate?: boolean;
+  isManagingTemplate?: boolean;
+  personalTemplateRootPath?: string;
+  personalTemplateRootScope?: 'local' | 'remote';
   onRefreshTemplates?: () => void;
   onApplyTemplate?: (templateId: string) => void;
+  onSavePersonalTemplate?: () => void;
+  onUpdatePersonalTemplate?: (template: ManagedTemplateDescriptor) => void;
+  onDuplicatePersonalTemplate?: (template: ManagedTemplateDescriptor) => void;
+  onDeletePersonalTemplate?: (template: ManagedTemplateDescriptor) => void;
+  onOpenPersonalTemplateFolder?: () => void;
 }
 
 export const SidePanel: React.FC<SidePanelProps> = ({
@@ -55,8 +63,16 @@ export const SidePanel: React.FC<SidePanelProps> = ({
   templateDiagnosticCount = 0,
   isTemplateCatalogLoading = false,
   isApplyingTemplate = false,
+  isManagingTemplate = false,
+  personalTemplateRootPath = '',
+  personalTemplateRootScope = 'local',
   onRefreshTemplates,
   onApplyTemplate,
+  onSavePersonalTemplate,
+  onUpdatePersonalTemplate,
+  onDuplicatePersonalTemplate,
+  onDeletePersonalTemplate,
+  onOpenPersonalTemplateFolder,
 }) => {
   return (
     <div className="side-panel">
@@ -93,14 +109,24 @@ export const SidePanel: React.FC<SidePanelProps> = ({
             isExporting={isExporting}
           />
         )}
-        {activeTab === 'template' && onRefreshTemplates && onApplyTemplate && (
+        {activeTab === 'template' && onRefreshTemplates && onApplyTemplate
+          && onSavePersonalTemplate && onUpdatePersonalTemplate && onDuplicatePersonalTemplate
+          && onDeletePersonalTemplate && onOpenPersonalTemplateFolder && (
           <TemplatePanel
             templates={templates}
             diagnosticCount={templateDiagnosticCount}
             isLoading={isTemplateCatalogLoading}
             isApplying={isApplyingTemplate}
+            isManaging={isManagingTemplate}
+            personalRootPath={personalTemplateRootPath}
+            personalRootScope={personalTemplateRootScope}
             onRefresh={onRefreshTemplates}
             onApply={onApplyTemplate}
+            onSaveCurrent={onSavePersonalTemplate}
+            onEdit={onUpdatePersonalTemplate}
+            onDuplicate={onDuplicatePersonalTemplate}
+            onDelete={onDeletePersonalTemplate}
+            onOpenPersonalFolder={onOpenPersonalTemplateFolder}
           />
         )}
       </div>

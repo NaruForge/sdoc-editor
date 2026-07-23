@@ -39,7 +39,7 @@ import type { RefTarget } from '@shared/editor/extensions/CrossReference';
 import { extractRelativePathFromSrc } from '@shared/editor/extensions/CustomImage';
 import { preprocessImportedHtml } from '@shared/editor/utils/preprocessImportedHtml';
 import type { DocumentSettings, TiptapNode } from '@shared/types';
-import type { EditorToHostMessage } from '@shared/types/messages';
+import type { EditorToHostMessage, ManagedTemplateDescriptor } from '@shared/types/messages';
 import type { ExplorerEntry } from '../App';
 import { exportDocument, type ExportFormat } from '../services/exportService';
 import {
@@ -117,6 +117,12 @@ export const Editor: React.FC<EditorProps> = ({
   const [sidePanelTab, setSidePanelTab] = useState<ActivityTab>('explorer');
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved');
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
+  const [templates, setTemplates] = useState<ManagedTemplateDescriptor[]>([]);
+  const [templateDiagnosticCount, setTemplateDiagnosticCount] = useState(0);
+  const [isTemplateCatalogLoading, setIsTemplateCatalogLoading] = useState(true);
+  const [isApplyingTemplate, setIsApplyingTemplate] = useState(false);
+  const [isManagingTemplate, setIsManagingTemplate] = useState(false);
+  const [personalTemplateRootPath, setPersonalTemplateRootPath] = useState('');
   const [hoveredExplorerPath, setHoveredExplorerPath] = useState<string | null>(null);
   const [appVersion, setAppVersion] = useState('');
   useEffect(() => {
@@ -312,9 +318,31 @@ export const Editor: React.FC<EditorProps> = ({
       case 'showJsonViewer':
         onJsonView?.();
         break;
+      case 'templateCatalog':
+        setTemplates(message.templates);
+        setTemplateDiagnosticCount(message.diagnosticCount);
+        setPersonalTemplateRootPath(message.personalRootPath);
+        setIsTemplateCatalogLoading(false);
+        break;
+      case 'templateApplicationFinished':
+        setIsApplyingTemplate(false);
+        break;
+      case 'templateOperationFinished':
+        setIsManagingTemplate(false);
+        if (!message.succeeded && message.message) {
+          window.alert(`템플릿 작업을 완료하지 못했습니다: ${message.message}`);
+        }
+        break;
+      case 'update':
+        setContent(message.content);
+        break;
     }
   });
   postMessageRef.current = postMessage;
+
+  useEffect(() => {
+    void postMessage({ type: 'requestTemplateCatalog' });
+  }, [postMessage]);
 
   const handleViewJson = () => { postMessage({ type: 'viewJson' }); };
   const handleExport = async (format: ExportFormat) => {
@@ -335,6 +363,62 @@ export const Editor: React.FC<EditorProps> = ({
   const handleToggleDecoration = () => {
     dispatch({ type: 'SET_SETTINGS', payload: { headingDecoration: !state.settings.headingDecoration } });
   };
+
+  const handleRefreshTemplates = useCallback(() => {
+    setIsTemplateCatalogLoading(true);
+    void postMessage({ type: 'requestTemplateCatalog' });
+  }, [postMessage]);
+
+  const currentTemplateIdentity = useCallback(() => adapter.getDocumentSession(), [adapter]);
+  const handleApplyTemplate = useCallback((templateId: string) => {
+    const session = currentTemplateIdentity();
+    if (!session || isApplyingTemplate) return;
+    setIsApplyingTemplate(true);
+    void postMessage({
+      type: 'applyTemplate',
+      templateId,
+      sessionId: session.sessionId,
+      documentId: session.documentId,
+      baseRevision: session.revision,
+    });
+  }, [currentTemplateIdentity, isApplyingTemplate, postMessage]);
+
+  const handleManagedTemplate = useCallback((
+    type: 'savePersonalTemplate' | 'updatePersonalTemplate' | 'duplicatePersonalTemplate',
+    template?: ManagedTemplateDescriptor,
+  ) => {
+    const session = currentTemplateIdentity();
+    if (!session || isManagingTemplate || (template && !template.revisionToken)) return;
+    setIsManagingTemplate(true);
+    void postMessage({
+      type,
+      requestId: crypto.randomUUID(),
+      sessionId: session.sessionId,
+      documentId: session.documentId,
+      baseRevision: session.revision,
+      ...(template ? {
+        templateId: template.id,
+        revisionToken: template.revisionToken as string,
+      } : {}),
+    } as EditorToHostMessage);
+  }, [currentTemplateIdentity, isManagingTemplate, postMessage]);
+
+  const handleDeletePersonalTemplate = useCallback((template: ManagedTemplateDescriptor) => {
+    if (isManagingTemplate || !template.revisionToken) return;
+    setIsManagingTemplate(true);
+    void postMessage({
+      type: 'deletePersonalTemplate',
+      requestId: crypto.randomUUID(),
+      templateId: template.id,
+      revisionToken: template.revisionToken,
+    });
+  }, [isManagingTemplate, postMessage]);
+
+  const handleOpenPersonalTemplateFolder = useCallback(() => {
+    if (isManagingTemplate) return;
+    setIsManagingTemplate(true);
+    void postMessage({ type: 'openPersonalTemplateFolder', requestId: crypto.randomUUID() });
+  }, [isManagingTemplate, postMessage]);
 
   const handleActivityTabClick = useCallback((tab: ActivityTab) => {
     if (showSidePanel && sidePanelTab === tab) {
@@ -654,6 +738,7 @@ export const Editor: React.FC<EditorProps> = ({
           activeTab={showSidePanel ? sidePanelTab : null}
           onTabClick={handleActivityTabClick}
           showExplorer
+          showTemplates
         />
         {showSidePanel && (
           <SidePanel
@@ -681,6 +766,19 @@ export const Editor: React.FC<EditorProps> = ({
             onUndoDelete={onUndoDelete}
             hasDeletionHistory={hasDeletionHistory}
             onHoverPath={setHoveredExplorerPath}
+            templates={templates}
+            templateDiagnosticCount={templateDiagnosticCount}
+            isTemplateCatalogLoading={isTemplateCatalogLoading}
+            isApplyingTemplate={isApplyingTemplate}
+            isManagingTemplate={isManagingTemplate}
+            personalTemplateRootPath={personalTemplateRootPath}
+            onRefreshTemplates={handleRefreshTemplates}
+            onApplyTemplate={handleApplyTemplate}
+            onSavePersonalTemplate={() => handleManagedTemplate('savePersonalTemplate')}
+            onUpdatePersonalTemplate={(template) => handleManagedTemplate('updatePersonalTemplate', template)}
+            onDuplicatePersonalTemplate={(template) => handleManagedTemplate('duplicatePersonalTemplate', template)}
+            onDeletePersonalTemplate={handleDeletePersonalTemplate}
+            onOpenPersonalTemplateFolder={handleOpenPersonalTemplateFolder}
           />
         )}
         <div className="editor-content-area" onContextMenu={handleContextMenu}>
