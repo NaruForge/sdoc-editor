@@ -2820,6 +2820,60 @@ samp {
   font-size: 11px;
 }
 
+.template-personal-actions {
+  display: grid;
+  gap: 6px;
+  padding: 0 8px;
+}
+
+.template-personal-actions button,
+.template-filter button,
+.template-card-more button {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 3px;
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+  cursor: pointer;
+}
+
+.template-personal-actions button:first-child {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+}
+
+.template-personal-location {
+  overflow: hidden;
+  margin: 7px 10px;
+  color: var(--vscode-descriptionForeground);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.template-filter {
+  display: flex;
+  gap: 4px;
+  padding: 2px 8px 0;
+}
+
+.template-filter button {
+  flex: 1;
+  padding-inline: 3px;
+  background: transparent;
+  color: var(--vscode-descriptionForeground);
+  font-size: 10px;
+}
+
+.template-filter button[aria-pressed='true'] {
+  background: var(--vscode-list-activeSelectionBackground);
+  color: var(--vscode-list-activeSelectionForeground);
+}
+
 .template-list {
   display: grid;
   gap: 8px;
@@ -2882,6 +2936,58 @@ samp {
 .template-card button:disabled {
   cursor: default;
   opacity: 0.6;
+}
+
+.template-card-primary-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.template-card-category {
+  display: inline-block;
+  margin-bottom: 4px;
+  color: var(--sdoc-muted-foreground, var(--vscode-descriptionForeground, #8b949e));
+  font-size: 0.75rem;
+}
+
+.template-card-more {
+  margin-top: 8px;
+  color: var(--vscode-descriptionForeground);
+  font-size: 11px;
+}
+
+.template-card-more summary {
+  cursor: pointer;
+}
+
+.template-card-more > div {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+}
+
+.template-card-more button {
+  width: auto;
+  margin-top: 6px;
+}
+
+.template-structural-preview {
+  margin-top: 8px;
+  padding: 8px;
+  border-left: 2px solid var(--vscode-focusBorder);
+  background: var(--vscode-textBlockQuote-background);
+  font-size: 10px;
+}
+
+.template-structural-preview ol {
+  margin: 6px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.template-structural-preview p {
+  margin: 4px 0 0;
 }
 
 @keyframes spin {

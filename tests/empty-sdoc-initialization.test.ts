@@ -191,9 +191,32 @@ describe('Explorer-created empty SDOC initialization', () => {
       baseRevision: identity.revision,
     })).toBe(false);
     expect(isEditorToHostMessage({ type: 'requestTemplateCatalog' })).toBe(true);
+    expect(isEditorToHostMessage({
+      type: 'savePersonalTemplate',
+      requestId: 'request-1',
+      sessionId: identity.sessionId,
+      documentId: identity.documentId,
+      baseRevision: identity.revision,
+    })).toBe(true);
+    expect(isEditorToHostMessage({
+      type: 'updatePersonalTemplate',
+      requestId: 'request-2',
+      sessionId: identity.sessionId,
+      documentId: identity.documentId,
+      baseRevision: identity.revision,
+      templateId: 'user:11111111-1111-4111-8111-111111111111',
+      revisionToken: 'fingerprint',
+    })).toBe(true);
+    expect(isEditorToHostMessage({
+      type: 'deletePersonalTemplate',
+      requestId: 'request-3',
+      templateId: 'user:11111111-1111-4111-8111-111111111111',
+    })).toBe(false);
     expect(isHostToEditorMessage({
       type: 'templateCatalog',
       diagnosticCount: 0,
+      personalRootPath: 'C:\\Users\\test\\.sdoc\\templates',
+      personalRootScope: 'local',
       templates: [{
         id: 'builtin:technical-report',
         name: 'Technical report',
@@ -204,6 +227,8 @@ describe('Explorer-created empty SDOC initialization', () => {
     expect(isHostToEditorMessage({
       type: 'templateCatalog',
       diagnosticCount: 0,
+      personalRootPath: '/home/test/.sdoc/templates',
+      personalRootScope: 'remote',
       templates: [{ id: 42, name: 'Broken', source: 'builtin', sourceLabel: 'Built-in' }],
     })).toBe(false);
   });

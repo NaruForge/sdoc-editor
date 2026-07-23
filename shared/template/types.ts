@@ -22,6 +22,8 @@ export type TemplateDiagnosticCode =
   | 'unsupported-version'
   | 'legacy-document'
   | 'invalid-template-metadata'
+  | 'invalid-template-id'
+  | 'duplicate-template-id'
   | 'invalid-title-node'
   | 'unsupported-assets'
   | 'read-failed'
@@ -60,4 +62,46 @@ export interface TemplateCatalogResult {
 export interface InstantiateTemplateOptions {
   title: string;
   now?: () => Date;
+}
+
+export interface CreatePersonalTemplateSnapshotOptions {
+  id: string;
+  name: string;
+  description?: string;
+  category?: string;
+  titleNodeId?: string;
+  sourceLabel?: string;
+}
+
+export interface UpdatePersonalTemplateMetadataPatch {
+  name?: string;
+  description?: string;
+  category?: string;
+  titleNodeId?: string;
+}
+
+export interface TemplateOutlinePreviewItem {
+  id?: string;
+  level: number;
+  text: string;
+  numbered: boolean;
+  isTitle: boolean;
+}
+
+export interface TemplateStructuralCounts {
+  headings: number;
+  paragraphs: number;
+  tables: number;
+  figures: number;
+  equations: number;
+  diagrams: number;
+  codeBlocks: number;
+}
+
+export interface TemplateStructuralPreview {
+  templateId: string;
+  outline: TemplateOutlinePreviewItem[];
+  counts: TemplateStructuralCounts;
+  settingsKeys: string[];
+  truncated: boolean;
 }

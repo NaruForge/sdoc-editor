@@ -17,6 +17,7 @@ import {
   SETTINGS_DEFAULTS,
 } from '../shared/settingsResolver';
 import type { DocumentSettings, CaptionStyleName, SdocMeta, TiptapNode } from '../shared/types';
+import type { EditorToHostMessage, PersonalTemplateOperation } from '../shared/types/messages';
 import { isEditorToHostMessage } from '../shared/types/messageGuards';
 import { VsCodeAssetService } from './services/VsCodeAssetService';
 import { VsCodeExportService, type ExportFormat } from './services/VsCodeExportService';
@@ -35,7 +36,14 @@ import {
   type CurrentDocumentIdentity,
   type WorkspaceTemplateRoot,
 } from './services/VsCodeTemplateService';
-import type { SdocTemplate } from '../shared/template';
+import {
+  buildTemplateStructuralPreview,
+  createPersonalTemplateSnapshot,
+  suggestTemplateTitleNodeId,
+  updatePersonalTemplateMetadata,
+  type SdocTemplate,
+  type TemplateDescriptor,
+} from '../shared/template';
 
 export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
   private static readonly SDOC_VERSION = '1.0';
@@ -113,7 +121,15 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     let writeBlockedReason: string | undefined;
     let readOnlyWarningShown = false;
     let templateApplicationPending = false;
+    let templateManagementPending = false;
     let availableTemplates = new Map<string, SdocTemplate>();
+    let personalTemplateFingerprints = new Map<string, string>();
+    const personalRootScope = vscode.env.remoteName ? 'remote' : 'local';
+    const templateService = new VsCodeTemplateService({
+      personalSourceLabel: vscode.env.remoteName
+        ? `Remote (${vscode.env.remoteName}) · extension host home`
+        : 'Local · shared with the desktop app',
+    });
 
     // Read and send editor settings to webview
     const readVscodeDocDefaults = (): Partial<DocumentSettings> => {
@@ -273,10 +289,11 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         }));
 
     const sendTemplateCatalog = async (): Promise<void> => {
-      const discovery = await new VsCodeTemplateService().discover(workspaceTemplateRoots());
+      const discovery = await templateService.discover(workspaceTemplateRoots());
       availableTemplates = new Map(
         discovery.catalog.templates.map((template) => [template.descriptor.id, template]),
       );
+      personalTemplateFingerprints = new Map(discovery.personalFingerprints);
       const diagnosticCount = discovery.hostDiagnostics.length + discovery.catalog.diagnostics.length;
       if (diagnosticCount > 0) {
         console.warn('Structured Doc template discovery diagnostics', {
@@ -286,8 +303,16 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       }
       webviewPanel.webview.postMessage({
         type: 'templateCatalog',
-        templates: discovery.catalog.templates.map((template) => template.descriptor),
+        templates: discovery.catalog.templates.map((template) => ({
+          ...template.descriptor,
+          preview: buildTemplateStructuralPreview(template),
+          ...(discovery.personalFingerprints.has(template.descriptor.id)
+            ? { revisionToken: discovery.personalFingerprints.get(template.descriptor.id) }
+            : {}),
+        })),
         diagnosticCount,
+        personalRootPath: discovery.personalRootPath,
+        personalRootScope,
       });
     };
 
@@ -359,6 +384,188 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       return true;
     };
 
+    type PersonalTemplateRequest = Extract<EditorToHostMessage, {
+      type:
+        | 'savePersonalTemplate'
+        | 'updatePersonalTemplate'
+        | 'duplicatePersonalTemplate'
+        | 'deletePersonalTemplate'
+        | 'openPersonalTemplateFolder';
+    }>;
+
+    const requestTemplateMetadata = async (
+      defaults?: Pick<TemplateDescriptor, 'name' | 'description' | 'category'>,
+      duplicate = false,
+    ): Promise<{ name: string; description?: string; category?: string } | undefined> => {
+      const name = await vscode.window.showInputBox({
+        title: duplicate ? 'Duplicate Personal Template' : 'Personal Template',
+        prompt: 'Template name',
+        value: duplicate ? `${defaults?.name ?? ''} copy`.trim() : defaults?.name,
+        validateInput: (value) => value.trim().length === 0
+          ? 'Enter a template name.'
+          : value.length > 200 ? 'The template name must be 200 characters or fewer.' : undefined,
+      });
+      if (name === undefined) return undefined;
+      const description = await vscode.window.showInputBox({
+        title: 'Personal Template',
+        prompt: 'Description (optional)',
+        value: defaults?.description,
+      });
+      if (description === undefined) return undefined;
+      const category = await vscode.window.showInputBox({
+        title: 'Personal Template',
+        prompt: 'Category (optional)',
+        value: defaults?.category,
+      });
+      if (category === undefined) return undefined;
+      return {
+        name: name.trim(),
+        ...(description.trim() ? { description: description.trim() } : {}),
+        ...(category.trim() ? { category: category.trim() } : {}),
+      };
+    };
+
+    const requireLiveTemplateRequest = (
+      request: Extract<PersonalTemplateRequest, { sessionId: string }>,
+    ): void => {
+      const current = currentDocumentIdentity();
+      if (request.sessionId !== current.sessionId
+        || request.documentId !== current.documentId
+        || request.baseRevision !== current.revision) {
+        throw new Error('The document changed before the template operation started. Refresh and try again.');
+      }
+    };
+
+    const handlePersonalTemplateRequest = async (
+      request: PersonalTemplateRequest,
+    ): Promise<void> => {
+      let operation: PersonalTemplateOperation;
+      switch (request.type) {
+        case 'savePersonalTemplate': operation = 'save'; break;
+        case 'updatePersonalTemplate': operation = 'update'; break;
+        case 'duplicatePersonalTemplate': operation = 'duplicate'; break;
+        case 'deletePersonalTemplate': operation = 'delete'; break;
+        case 'openPersonalTemplateFolder': operation = 'open-folder'; break;
+      }
+      let succeeded = false;
+      let resultTemplateId: string | undefined;
+      let resultMessage: string | undefined;
+      try {
+        if ('sessionId' in request) {
+          await messageQueue.whenIdle();
+          requireLiveTemplateRequest(request);
+        }
+        if (request.type === 'openPersonalTemplateFolder') {
+          const personalRoot = await templateService.ensurePersonalTemplateRoot();
+          await vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(personalRoot));
+          succeeded = true;
+          return;
+        }
+        if (request.type === 'deletePersonalTemplate') {
+          const template = availableTemplates.get(request.templateId);
+          if (!template || template.descriptor.source !== 'user') {
+            throw new Error('The selected personal template is no longer available.');
+          }
+          const selected = await vscode.window.showWarningMessage(
+            `Move '${template.descriptor.name}' to the personal template trash?`,
+            { modal: true },
+            'Move to Trash',
+          );
+          if (selected !== 'Move to Trash') return;
+          await templateService.trashPersonalTemplate(request.templateId, request.revisionToken);
+          await sendTemplateCatalog();
+          succeeded = true;
+          resultTemplateId = request.templateId;
+          return;
+        }
+        if (request.type === 'updatePersonalTemplate' || request.type === 'duplicatePersonalTemplate') {
+          if (request.type === 'duplicatePersonalTemplate') {
+            await sendTemplateCatalog();
+          }
+          const template = availableTemplates.get(request.templateId);
+          const currentFingerprint = personalTemplateFingerprints.get(request.templateId);
+          if (!template || template.descriptor.source !== 'user' || currentFingerprint !== request.revisionToken) {
+            throw new Error('The selected personal template changed. Refresh and try again.');
+          }
+          const metadata = await requestTemplateMetadata(
+            template.descriptor,
+            request.type === 'duplicatePersonalTemplate',
+          );
+          if (!metadata) return;
+          if (request.type === 'updatePersonalTemplate') {
+            const updated = updatePersonalTemplateMetadata(template, metadata);
+            await templateService.updatePersonalTemplate(
+              request.templateId,
+              request.revisionToken,
+              updated.envelope,
+            );
+            resultTemplateId = request.templateId;
+          } else {
+            const newTemplateId = `user:${randomUUID()}`;
+            const duplicate = createPersonalTemplateSnapshot(template.envelope, {
+              id: newTemplateId,
+              ...metadata,
+              titleNodeId: template.descriptor.titleNodeId,
+              sourceLabel: template.descriptor.sourceLabel,
+            });
+            await templateService.createPersonalTemplate(newTemplateId, duplicate.envelope);
+            resultTemplateId = newTemplateId;
+          }
+          await sendTemplateCatalog();
+          succeeded = true;
+          return;
+        }
+
+        await messageQueue.whenIdle();
+        requireLiveTemplateRequest(request);
+        await this.flushEditor(webviewPanel.webview, sessionId);
+        await messageQueue.whenIdle();
+        const baselineIdentity = currentDocumentIdentity();
+        const baselineText = document.getText();
+        const metadata = await requestTemplateMetadata();
+        if (!metadata) return;
+        if (document.getText() !== baselineText
+          || currentDocumentIdentity().revision !== baselineIdentity.revision) {
+          throw new Error('The document changed while template details were being entered.');
+        }
+        const source: unknown = isUninitializedSdocText(baselineText)
+          ? { sdoc: '1.0', meta: {}, doc: { type: 'doc', content: [] } }
+          : JSON.parse(baselineText);
+        const contract = parseDocumentContract(source);
+        if (!contract.ok || contract.legacy) {
+          throw new Error('Only a valid SDOC 1.0 document can be saved as a personal template.');
+        }
+        const persistedSource = {
+          ...contract.envelope,
+          doc: dehydrateDocumentAssets(contract.envelope.doc),
+        };
+        const newTemplateId = `user:${randomUUID()}`;
+        const snapshot = createPersonalTemplateSnapshot(persistedSource, {
+          id: newTemplateId,
+          ...metadata,
+          titleNodeId: suggestTemplateTitleNodeId(contract.envelope),
+          sourceLabel: templateService.personalTemplateRootPath,
+        });
+        await templateService.createPersonalTemplate(newTemplateId, snapshot.envelope);
+        await sendTemplateCatalog();
+        succeeded = true;
+        resultTemplateId = newTemplateId;
+      } catch (error) {
+        resultMessage = error instanceof Error ? error.message : String(error);
+        await vscode.window.showErrorMessage(`Structured Doc template operation failed: ${resultMessage}`);
+      } finally {
+        templateManagementPending = false;
+        webviewPanel.webview.postMessage({
+          type: 'templateOperationFinished',
+          requestId: request.requestId,
+          operation,
+          succeeded,
+          ...(resultTemplateId ? { templateId: resultTemplateId } : {}),
+          ...(resultMessage ? { message: resultMessage } : {}),
+        });
+      }
+    };
+
     // Handle messages from webview (sequential queue to preserve order)
     const messageQueue = new RecoverableSerialQueue();
     webviewPanel.webview.onDidReceiveMessage((message: unknown) => {
@@ -369,6 +576,8 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       const readOnlySafeMessages = new Set([
         'ready', 'flushComplete', 'viewJson', 'export', 'openDocument', 'browseSdocFiles',
         'requestTemplateCatalog',
+        'savePersonalTemplate', 'updatePersonalTemplate', 'duplicatePersonalTemplate',
+        'deletePersonalTemplate', 'openPersonalTemplateFolder',
       ]);
       if (writeBlockedReason && !readOnlySafeMessages.has(message.type)) {
         if (message.type === 'edit' && message.flushRequestId) {
@@ -394,6 +603,29 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       }
       if (message.type === 'flushComplete') {
         if (message.sessionId === sessionId && message.requestId) this.resolveFlush(message.requestId);
+        return;
+      }
+      if (message.type === 'savePersonalTemplate'
+        || message.type === 'updatePersonalTemplate'
+        || message.type === 'duplicatePersonalTemplate'
+        || message.type === 'deletePersonalTemplate'
+        || message.type === 'openPersonalTemplateFolder') {
+        if (templateManagementPending) {
+          webviewPanel.webview.postMessage({
+            type: 'templateOperationFinished',
+            requestId: message.requestId,
+            operation: message.type === 'savePersonalTemplate' ? 'save'
+              : message.type === 'updatePersonalTemplate' ? 'update'
+                : message.type === 'duplicatePersonalTemplate' ? 'duplicate'
+                  : message.type === 'deletePersonalTemplate' ? 'delete'
+                    : 'open-folder',
+            succeeded: false,
+            message: 'Another template operation is already running.',
+          });
+          return;
+        }
+        templateManagementPending = true;
+        void handlePersonalTemplateRequest(message);
         return;
       }
       if (message.type === 'applyTemplate') {

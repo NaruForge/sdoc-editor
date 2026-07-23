@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rm, stat, symlink, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -41,7 +41,38 @@ const minimalTemplate = (name: string) => ({
   doc: { type: 'doc', content: [] },
 });
 
+const personalTemplate = (id: string, name: string) => ({
+  sdoc: '1.0' as const,
+  meta: {
+    title: name,
+    template: { id: `user:${id}`, name, description: `${name} description`, category: 'test' },
+  },
+  doc: {
+    type: 'doc',
+    content: [{ type: 'heading', attrs: { id: 'heading-1', level: 1 }, content: [{ type: 'text', text: name }] }],
+  },
+});
+
 describe('VS Code template discovery', () => {
+  it('discovers personal templates from the extension-host home and exposes opaque fingerprints', async () => {
+    const home = await createTemporaryDirectory();
+    const templates = path.join(home, '.sdoc', 'templates');
+    const id = '11111111-1111-4111-8111-111111111111';
+    await mkdir(templates, { recursive: true });
+    await writeFile(path.join(templates, `${id}.sdoc`), JSON.stringify(personalTemplate(id, 'Personal')));
+
+    const result = await new VsCodeTemplateService({ homeDirectory: home }).discover([]);
+    const discovered = result.catalog.templates.find((template) => template.descriptor.source === 'user');
+
+    expect(discovered?.descriptor).toMatchObject({
+      id: `user:${id}`,
+      name: 'Personal',
+      source: 'user',
+    });
+    expect(result.personalFingerprints.get(`user:${id}`)).toMatch(/^[a-f0-9]{64}$/);
+    expect(result.personalRootPath).toBe(templates);
+  });
+
   it('discovers non-recursive workspace templates from every root in stable order', async () => {
     const first = await createTemporaryDirectory();
     const second = await createTemporaryDirectory();
@@ -119,6 +150,175 @@ describe('VS Code template discovery', () => {
     expect(result.hostDiagnostics).toEqual([
       expect.objectContaining({ code: 'candidate-limit-exceeded' }),
     ]);
+  });
+});
+
+describe('VS Code personal template storage', () => {
+  it('creates, atomically updates, duplicates, and moves a personal template to trash', async () => {
+    const home = await createTemporaryDirectory();
+    const firstId = '11111111-1111-4111-8111-111111111111';
+    const secondId = '22222222-2222-4222-8222-222222222222';
+    const service = new VsCodeTemplateService({ homeDirectory: home });
+
+    await service.createPersonalTemplate(`user:${firstId}`, personalTemplate(firstId, 'Original'));
+    let discovery = await service.discover([]);
+    const firstKey = `user:${firstId}`;
+    const firstFingerprint = discovery.personalFingerprints.get(firstKey);
+    expect(firstFingerprint).toBeTruthy();
+
+    await service.updatePersonalTemplate(
+      firstKey,
+      firstFingerprint!,
+      personalTemplate(firstId, 'Renamed'),
+    );
+    discovery = await service.discover([]);
+    expect(discovery.catalog.templates.find((item) => item.descriptor.id === firstKey)?.descriptor.name)
+      .toBe('Renamed');
+
+    await service.createPersonalTemplate(`user:${secondId}`, personalTemplate(secondId, 'Copy'));
+    expect((await service.discover([])).catalog.templates.filter((item) => item.descriptor.source === 'user'))
+      .toHaveLength(2);
+
+    const updatedFingerprint = (await service.discover([])).personalFingerprints.get(firstKey);
+    await service.trashPersonalTemplate(firstKey, updatedFingerprint!);
+    expect((await service.discover([])).catalog.templates.some((item) => item.descriptor.id === firstKey))
+      .toBe(false);
+    expect((await stat(path.join(home, '.sdoc', 'templates', '.trash'))).isDirectory()).toBe(true);
+  });
+
+  it('rejects stale mutations and preserves the existing personal template', async () => {
+    const home = await createTemporaryDirectory();
+    const id = '11111111-1111-4111-8111-111111111111';
+    const service = new VsCodeTemplateService({ homeDirectory: home });
+    await service.createPersonalTemplate(`user:${id}`, personalTemplate(id, 'Original'));
+    const target = path.join(home, '.sdoc', 'templates', `${id}.sdoc`);
+    await writeFile(target, JSON.stringify(personalTemplate(id, 'External edit')));
+
+    await expect(service.updatePersonalTemplate(
+      `user:${id}`,
+      '0'.repeat(64),
+      personalTemplate(id, 'Lost update'),
+    )).rejects.toThrow(/changed|stale/i);
+    await expect(service.trashPersonalTemplate(`user:${id}`, '0'.repeat(64)))
+      .rejects.toThrow(/changed|stale/i);
+    expect(JSON.parse(await readFile(target, 'utf8'))).toMatchObject({
+      meta: { template: { name: 'External edit' } },
+    });
+  });
+
+  it('rejects a mutation while another host owns the shared library lock', async () => {
+    const home = await createTemporaryDirectory();
+    const id = '11111111-1111-4111-8111-111111111111';
+    const service = new VsCodeTemplateService({ homeDirectory: home });
+    await service.createPersonalTemplate(`user:${id}`, personalTemplate(id, 'Original'));
+    const discovery = await service.discover([]);
+    const fingerprint = discovery.personalFingerprints.get(`user:${id}`)!;
+    const root = path.join(home, '.sdoc', 'templates');
+    await writeFile(path.join(root, '.mutation.lock'), 'other host', { flag: 'wx' });
+
+    await expect(service.updatePersonalTemplate(
+      `user:${id}`,
+      fingerprint,
+      personalTemplate(id, 'Lost update'),
+    )).rejects.toThrow(/operation|lock|host/i);
+    expect(JSON.parse(await readFile(path.join(root, `${id}.sdoc`), 'utf8'))).toMatchObject({
+      meta: { template: { name: 'Original' } },
+    });
+  });
+
+  it('recovers a shared library lock left by a crashed host after its lease expires', async () => {
+    const home = await createTemporaryDirectory();
+    const id = '11111111-1111-4111-8111-111111111111';
+    const service = new VsCodeTemplateService({ homeDirectory: home });
+    await service.createPersonalTemplate(`user:${id}`, personalTemplate(id, 'Original'));
+    const discovery = await service.discover([]);
+    const fingerprint = discovery.personalFingerprints.get(`user:${id}`)!;
+    const root = path.join(home, '.sdoc', 'templates');
+    await writeFile(
+      path.join(root, '.mutation.lock'),
+      JSON.stringify({ owner: 'crashed-host', createdAt: 0 }),
+      { flag: 'wx' },
+    );
+
+    await service.updatePersonalTemplate(
+      `user:${id}`,
+      fingerprint,
+      personalTemplate(id, 'Recovered'),
+    );
+    expect(JSON.parse(await readFile(path.join(root, `${id}.sdoc`), 'utf8'))).toMatchObject({
+      meta: { template: { name: 'Recovered' } },
+    });
+    await expect(readFile(path.join(root, '.mutation.lock'))).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('recovers an old partial lock payload left during a crashed lock write', async () => {
+    const home = await createTemporaryDirectory();
+    const id = '11111111-1111-4111-8111-111111111111';
+    const service = new VsCodeTemplateService({ homeDirectory: home });
+    await service.createPersonalTemplate(`user:${id}`, personalTemplate(id, 'Original'));
+    const discovery = await service.discover([]);
+    const fingerprint = discovery.personalFingerprints.get(`user:${id}`)!;
+    const lockPath = path.join(home, '.sdoc', 'templates', '.mutation.lock');
+    await writeFile(lockPath, '{"owner":', { flag: 'wx' });
+    await utimes(lockPath, new Date(0), new Date(0));
+
+    await service.updatePersonalTemplate(
+      `user:${id}`,
+      fingerprint,
+      personalTemplate(id, 'Recovered partial lock'),
+    );
+    await expect(readFile(lockPath)).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('rejects an envelope whose persisted template ID differs from the target UUID', async () => {
+    const home = await createTemporaryDirectory();
+    const firstId = '11111111-1111-4111-8111-111111111111';
+    const secondId = '22222222-2222-4222-8222-222222222222';
+    const service = new VsCodeTemplateService({ homeDirectory: home });
+
+    await expect(service.createPersonalTemplate(
+      `user:${firstId}`,
+      personalTemplate(secondId, 'Mismatch'),
+    )).rejects.toThrow(/ID|match/i);
+    await expect(readFile(path.join(home, '.sdoc', 'templates', `${firstId}.sdoc`)))
+      .rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('rejects oversized personal templates and creation beyond the 100-template limit', async () => {
+    const home = await createTemporaryDirectory();
+    const service = new VsCodeTemplateService({ homeDirectory: home });
+    const oversizedId = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
+    const oversized = personalTemplate(oversizedId, 'Oversized');
+    oversized.doc.content[0].content[0].text = 'x'.repeat(2 * 1024 * 1024);
+
+    await expect(service.createPersonalTemplate(`user:${oversizedId}`, oversized))
+      .rejects.toThrow(/size|bytes|large/i);
+
+    const templates = path.join(home, '.sdoc', 'templates');
+    await mkdir(templates, { recursive: true });
+    await Promise.all(Array.from({ length: 100 }, (_, index) => {
+      const id = `${String(index + 1).padStart(8, '0')}-0000-4000-8000-000000000000`;
+      return writeFile(path.join(templates, `${id}.sdoc`), '{}');
+    }));
+    await expect(service.createPersonalTemplate(`user:${oversizedId}`, personalTemplate(
+      oversizedId,
+      'One too many',
+    ))).rejects.toThrow(/100|limit/i);
+  });
+
+  it('rejects a personal template root that escapes the extension-host home through a junction', async () => {
+    const home = await createTemporaryDirectory();
+    const outside = await createTemporaryDirectory();
+    const id = '11111111-1111-4111-8111-111111111111';
+    await mkdir(path.join(home, '.sdoc'), { recursive: true });
+    await symlink(outside, path.join(home, '.sdoc', 'templates'), 'junction');
+    const service = new VsCodeTemplateService({ homeDirectory: home });
+
+    await expect(service.createPersonalTemplate(
+      `user:${id}`,
+      personalTemplate(id, 'Escape'),
+    )).rejects.toThrow(/outside/i);
+    await expect(readFile(path.join(outside, `${id}.sdoc`))).rejects.toMatchObject({ code: 'ENOENT' });
   });
 });
 

@@ -18,6 +18,8 @@ slug = "0.1"
 open = "5"
 trash = "5"
 jsonschema = { version = "0.33", default-features = false }
+sha2 = "0.10"
+uuid = "1"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = ["Win32_Storage_FileSystem"] }

@@ -30,7 +30,21 @@
         "version": { "type": "string", "description": "Document version string (e.g. '1.0', '2.3')." },
         "created": { "type": "string", "format": "date-time", "description": "ISO 8601 creation timestamp." },
         "modified": { "type": "string", "format": "date-time", "description": "ISO 8601 last-modified timestamp." },
-        "settings": { "$ref": "#/definitions/documentSettings" }
+        "settings": { "$ref": "#/definitions/documentSettings" },
+        "template": { "$ref": "#/definitions/templateMetadata" }
+      },
+      "additionalProperties": true
+    },
+
+    "templateMetadata": {
+      "type": "object",
+      "description": "Reusable template catalog metadata. Personal templates additionally require a user:<uuid> id at the catalog boundary.",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 200 },
+        "description": { "type": "string", "maxLength": 2000 },
+        "category": { "type": "string", "maxLength": 100 },
+        "titleNodeId": { "type": "string", "maxLength": 200 }
       },
       "additionalProperties": true
     },

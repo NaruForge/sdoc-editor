@@ -8,11 +8,13 @@ use std::sync::OnceLock;
 
 mod assets;
 mod file_io;
+mod personal_templates;
 mod settings_commands;
 mod watchers;
 mod workspace;
 pub use assets::*;
 pub use file_io::*;
+pub use personal_templates::*;
 pub use settings_commands::*;
 pub use watchers::*;
 pub use workspace::*;
@@ -174,6 +176,10 @@ fn validate_persisted_document(value: &serde_json::Value) -> Result<(), String> 
         candidate
     };
     migrate_legacy_attrs(&mut candidate);
+    validate_schema_document(&candidate)
+}
+
+pub(super) fn validate_schema_document(value: &serde_json::Value) -> Result<(), String> {
     static VALIDATOR: OnceLock<jsonschema::Validator> = OnceLock::new();
     let validator = VALIDATOR.get_or_init(|| {
         let schema: serde_json::Value =
@@ -181,13 +187,61 @@ fn validate_persisted_document(value: &serde_json::Value) -> Result<(), String> 
                 .expect("bundled sdoc schema must be valid JSON");
         jsonschema::validator_for(&schema).expect("bundled sdoc schema must compile")
     });
-    match validator.validate(&candidate) {
+    match validator.validate(value) {
         Ok(()) => Ok(()),
         Err(error) => Err(format!(
             "Malformed document at {}: {}",
             error.instance_path, error
         )),
     }
+}
+
+fn read_active_document_snapshot_from_path(
+    path: &Path,
+    active_document_id: Option<&str>,
+    active_revision: u64,
+    expected_source: Option<&str>,
+    document_id: &str,
+    revision: u64,
+) -> Result<serde_json::Value, String> {
+    validate_save_request(active_document_id, active_revision, document_id, revision)?;
+    let current_source = fs::read_to_string(path).map_err(|error| error.to_string())?;
+    validate_unchanged_source(expected_source, &current_source)?;
+    let envelope: serde_json::Value =
+        serde_json::from_str(&current_source).map_err(|error| error.to_string())?;
+    if envelope.get("sdoc").and_then(|value| value.as_str()) != Some("1.0")
+        || envelope.get("meta").is_none()
+        || envelope.get("doc").is_none()
+    {
+        return Err("Active document snapshot requires a complete SDOC 1.0 envelope".to_string());
+    }
+    validate_schema_document(&envelope)?;
+    Ok(serde_json::json!({
+        "documentId": document_id,
+        "revision": revision,
+        "envelope": envelope,
+    }))
+}
+
+#[tauri::command]
+pub fn read_active_document_snapshot(
+    document_id: String,
+    revision: u64,
+    state: tauri::State<DocState>,
+) -> Result<serde_json::Value, String> {
+    let active_document_id = state.document_id.lock().unwrap().clone();
+    let active_revision = *state.document_revision.lock().unwrap();
+    let file_path = state.file_path.lock().unwrap().clone();
+    let expected_source = state.document_source_text.lock().unwrap().clone();
+    let path = file_path.ok_or("No file open")?;
+    read_active_document_snapshot_from_path(
+        &path,
+        active_document_id.as_deref(),
+        active_revision,
+        expected_source.as_deref(),
+        &document_id,
+        revision,
+    )
 }
 
 #[tauri::command]
@@ -427,8 +481,9 @@ pub fn get_current_file_path(state: tauri::State<DocState>) -> Option<String> {
 #[cfg(test)]
 mod persistence_tests {
     use super::{
-        current_workspace_contains, validate_new_document_target, validate_persisted_document,
-        validate_save_request, validate_unchanged_source,
+        current_workspace_contains, read_active_document_snapshot_from_path,
+        validate_new_document_target, validate_persisted_document, validate_save_request,
+        validate_unchanged_source,
     };
 
     #[test]
@@ -449,6 +504,96 @@ mod persistence_tests {
             validate_unchanged_source(Some("opened source"), "externally changed").unwrap_err();
         assert!(error.contains("modified outside"));
         assert!(validate_unchanged_source(Some("same"), "same").is_ok());
+    }
+
+    #[test]
+    fn reads_only_the_unchanged_schema_valid_active_document_snapshot() {
+        let root =
+            std::env::temp_dir().join(format!("sdoc-active-snapshot-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let path = root.join("active.sdoc");
+        let source = serde_json::to_string_pretty(&serde_json::json!({
+            "sdoc": "1.0",
+            "meta": { "title": "Active" },
+            "doc": { "type": "doc", "content": [] }
+        }))
+        .unwrap();
+        std::fs::write(&path, &source).unwrap();
+
+        let snapshot = read_active_document_snapshot_from_path(
+            &path,
+            Some("active-document"),
+            7,
+            Some(&source),
+            "active-document",
+            7,
+        )
+        .unwrap();
+        assert_eq!(snapshot["documentId"], "active-document");
+        assert_eq!(snapshot["revision"], 7);
+        assert_eq!(snapshot["envelope"]["meta"]["title"], "Active");
+
+        assert!(read_active_document_snapshot_from_path(
+            &path,
+            Some("another-document"),
+            7,
+            Some(&source),
+            "active-document",
+            7,
+        )
+        .unwrap_err()
+        .contains("identity"));
+        assert!(read_active_document_snapshot_from_path(
+            &path,
+            Some("active-document"),
+            8,
+            Some(&source),
+            "active-document",
+            7,
+        )
+        .unwrap_err()
+        .contains("stale revision"));
+
+        std::fs::write(&path, source.replace("Active", "Externally changed")).unwrap();
+        assert!(read_active_document_snapshot_from_path(
+            &path,
+            Some("active-document"),
+            7,
+            Some(&source),
+            "active-document",
+            7,
+        )
+        .unwrap_err()
+        .contains("modified outside"));
+
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn active_document_snapshot_rejects_a_bare_legacy_document() {
+        let root = std::env::temp_dir().join(format!(
+            "sdoc-active-snapshot-legacy-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let path = root.join("legacy.tiptap.json");
+        let source = r#"{"type":"doc","content":[]}"#;
+        std::fs::write(&path, source).unwrap();
+
+        let error = read_active_document_snapshot_from_path(
+            &path,
+            Some("legacy-document"),
+            0,
+            Some(source),
+            "legacy-document",
+            0,
+        )
+        .unwrap_err();
+        assert!(error.contains("complete SDOC 1.0 envelope"));
+
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

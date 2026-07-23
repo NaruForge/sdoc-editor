@@ -4,7 +4,7 @@ import { useEditorContext, resolveFontWeight } from '@shared/editor/context/Edit
 import { useVSCodeMessaging } from './useVSCodeMessaging';
 import { preprocessImportedHtml } from '@shared/editor/utils/preprocessImportedHtml';
 import { isUpdatedDrawioAsset } from '@shared/editor/drawioUpdates';
-import type { TemplateDescriptor } from '@shared/template';
+import type { ManagedTemplateDescriptor } from '@shared/types/messages';
 
 export interface MetaState {
   title: string;
@@ -48,10 +48,13 @@ export function useEditorMessages({
   flushPendingRef.current = flushPendingUpdate;
 
   const [isExporting, setIsExporting] = useState(false);
-  const [templates, setTemplates] = useState<TemplateDescriptor[]>([]);
+  const [templates, setTemplates] = useState<ManagedTemplateDescriptor[]>([]);
   const [templateDiagnosticCount, setTemplateDiagnosticCount] = useState(0);
   const [isTemplateCatalogLoading, setIsTemplateCatalogLoading] = useState(true);
   const [isApplyingTemplate, setIsApplyingTemplate] = useState(false);
+  const [isManagingTemplate, setIsManagingTemplate] = useState(false);
+  const [personalTemplateRootPath, setPersonalTemplateRootPath] = useState('');
+  const [personalTemplateRootScope, setPersonalTemplateRootScope] = useState<'local' | 'remote'>('local');
 
   const { postMessage } = useVSCodeMessaging((message) => {
     const ed = editorRef.current;
@@ -78,10 +81,15 @@ export function useEditorMessages({
       case 'templateCatalog':
         setTemplates(message.templates);
         setTemplateDiagnosticCount(message.diagnosticCount);
+        setPersonalTemplateRootPath(message.personalRootPath);
+        setPersonalTemplateRootScope(message.personalRootScope);
         setIsTemplateCatalogLoading(false);
         break;
       case 'templateApplicationFinished':
         setIsApplyingTemplate(false);
+        break;
+      case 'templateOperationFinished':
+        setIsManagingTemplate(false);
         break;
       case 'update':
         if (persistenceSessionRef.current?.sessionId !== message.sessionId) break;
@@ -242,6 +250,59 @@ export function useEditorMessages({
     });
   };
 
+  const postIdentifiedTemplateOperation = (
+    type: 'savePersonalTemplate' | 'updatePersonalTemplate' | 'duplicatePersonalTemplate',
+    template?: ManagedTemplateDescriptor,
+  ) => {
+    if (isManagingTemplate) return;
+    const session = persistenceSessionRef.current;
+    if (!session) return;
+    if (type !== 'savePersonalTemplate' && (!template || !template.revisionToken)) return;
+    setIsManagingTemplate(true);
+    if (type === 'savePersonalTemplate') {
+      postMessage({
+        type,
+        requestId: crypto.randomUUID(),
+        sessionId: session.sessionId,
+        documentId: session.documentId,
+        baseRevision: session.revision,
+      });
+      return;
+    }
+    if (!template?.revisionToken) return;
+    postMessage({
+      type,
+      requestId: crypto.randomUUID(),
+      sessionId: session.sessionId,
+      documentId: session.documentId,
+      baseRevision: session.revision,
+      templateId: template.id,
+      revisionToken: template.revisionToken,
+    });
+  };
+
+  const handleSavePersonalTemplate = () =>
+    postIdentifiedTemplateOperation('savePersonalTemplate');
+  const handleUpdatePersonalTemplate = (template: ManagedTemplateDescriptor) =>
+    postIdentifiedTemplateOperation('updatePersonalTemplate', template);
+  const handleDuplicatePersonalTemplate = (template: ManagedTemplateDescriptor) =>
+    postIdentifiedTemplateOperation('duplicatePersonalTemplate', template);
+  const handleDeletePersonalTemplate = (template: ManagedTemplateDescriptor) => {
+    if (isManagingTemplate || !template.revisionToken) return;
+    setIsManagingTemplate(true);
+    postMessage({
+      type: 'deletePersonalTemplate',
+      requestId: crypto.randomUUID(),
+      templateId: template.id,
+      revisionToken: template.revisionToken,
+    });
+  };
+  const handleOpenPersonalTemplateFolder = () => {
+    if (isManagingTemplate) return;
+    setIsManagingTemplate(true);
+    postMessage({ type: 'openPersonalTemplateFolder', requestId: crypto.randomUUID() });
+  };
+
   return {
     postMessage,
     handleViewJson,
@@ -250,10 +311,18 @@ export function useEditorMessages({
     handleMetaChange,
     handleRequestTemplateCatalog,
     handleApplyTemplate,
+    handleSavePersonalTemplate,
+    handleUpdatePersonalTemplate,
+    handleDuplicatePersonalTemplate,
+    handleDeletePersonalTemplate,
+    handleOpenPersonalTemplateFolder,
     templates,
     templateDiagnosticCount,
     isTemplateCatalogLoading,
     isApplyingTemplate,
+    isManagingTemplate,
+    personalTemplateRootPath,
+    personalTemplateRootScope,
     isExporting,
   };
 }
