@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.20] - 2026-07-23
+
 ### Changed
 - Replaced the transient empty-document initialization screen with an explicit experimental Template panel in the VS Code editor sidebar
 - Empty Explorer-created `.sdoc` files now open immediately as editable blank documents without writing to disk until the user edits or applies a template
@@ -14,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Template replacement now preserves document identity metadata, validates the selected catalog snapshot, and rejects stale or externally changed documents before one atomic editor replacement
 - Template confirmation no longer rewrites untouched documents, while save/close flushes retain their acknowledgement barrier
+- Preserved trailing spaces in paragraphs and headings during debounced VS Code and Tauri document persistence
 
 ## [0.4.19] - 2026-07-22
 
