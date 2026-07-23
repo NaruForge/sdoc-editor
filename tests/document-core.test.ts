@@ -200,6 +200,24 @@ describe('sdoc envelope', () => {
 });
 
 describe('document structure', () => {
+  it('preserves user-entered trailing spaces in paragraphs and headings', () => {
+    const normalized = normalizeDocument({
+      type: 'doc',
+      content: [
+        { type: 'paragraph', content: [{ type: 'text', text: '테스트 ' }] },
+        {
+          type: 'heading',
+          attrs: { level: 1 },
+          content: [{ type: 'text', text: '제목 ' }],
+        },
+      ],
+    });
+
+    expect(normalized.content?.[0].content?.[0].text).toBe('테스트 ');
+    expect(normalized.content?.[1].content?.[0].text).toBe('제목 ');
+    expect(normalized.content?.[1].attrs?.id).toBe('제목');
+  });
+
   it('preserves literal code block whitespace exactly', () => {
     const normalized = normalizeDocument({
       type: 'doc',

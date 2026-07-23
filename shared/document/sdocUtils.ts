@@ -83,33 +83,15 @@ export function createEmptySdoc(meta: Partial<SdocMeta>): SdocEnvelope {
 }
 
 /**
- * Normalize text content before persistence without mutating the editor-owned tree.
- * Only the final text node of a block is trimmed so intentional spaces between
- * differently marked inline nodes are preserved.
+ * Clone document content before persistence without changing user-entered text.
+ *
+ * The legacy name is retained for callers, but whitespace is intentionally not
+ * normalized: trailing spaces are meaningful editor state and removing them
+ * during the debounced save cycle can move the caret or discard fresh input.
  */
 export function cleanTextNodes(node: TiptapNode): TiptapNode {
-  if (!node.content) return node;
-
-  if (node.type === 'codeBlock') {
-    return { ...node, content: node.content.map((child) => ({ ...child })) };
-  }
-
-  const content = node.content.map(cleanTextNodes);
-  for (let index = content.length - 1; index >= 0; index--) {
-    const child = content[index];
-    if (child?.type === 'text' && typeof child.text === 'string') {
-      const text = child.text.replace(/\s+$/, '');
-      if (text) {
-        content[index] = { ...child, text };
-      } else {
-        content.splice(index, 1);
-      }
-      break;
-    }
-    if (child?.type && child.type !== 'text') break;
-  }
-
-  return { ...node, content };
+  if (!node.content) return { ...node };
+  return { ...node, content: node.content.map(cleanTextNodes) };
 }
 
 export function extractTitle(doc: TiptapNode): string {

@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Template replacement now preserves document identity metadata, validates the selected catalog snapshot, and rejects stale or externally changed documents before one atomic editor replacement
 - Template confirmation no longer rewrites untouched documents, while save/close flushes retain their acknowledgement barrier
+- Preserved trailing spaces in paragraphs and headings during debounced VS Code and Tauri document persistence
 
 ## [0.4.19] - 2026-07-22
 
