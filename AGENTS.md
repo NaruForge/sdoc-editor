@@ -61,6 +61,14 @@ cargo test --manifest-path tauri-app/Cargo.toml --workspace
 - Versions are synchronized by `npm run version:check`.
 - Desktop GitHub Releases: push a `v*` tag matching `package.json` to run `.github/workflows/release-desktop.yml` (Windows NSIS, MSI, portable EXE).
 
+## GitHub operations
+
+- Always use the authenticated GitHub CLI (`gh`) for GitHub repository, issue, pull request, Actions, release, and API operations.
+- Do not use a GitHub App, GitHub MCP connector, or browser-based GitHub workflow unless the user explicitly overrides this rule.
+- If `gh` is unavailable or unauthenticated, report the blocker instead of silently switching to another GitHub integration.
+- Use the relevant `gh issue`, `gh pr`, `gh run`, `gh release`, or `gh api` command and verify every remote mutation with a follow-up `gh` read.
+- For multiline Korean or other non-ASCII bodies, use a UTF-8 `--body-file` and verify the posted text to prevent shell-pipeline encoding corruption.
+
 ## Agent orchestration
 
 - Use `$orchestrate-sdoc-work` when a task has at least two independent workstreams, spans both hosts and shared code, or explicitly requests delegation or parallel review.
