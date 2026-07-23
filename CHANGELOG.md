@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.21] - 2026-07-23
+
 ### Added
 - Added a shared personal template library at `~/.sdoc/templates/` for local VS Code and Tauri hosts
 - Added personal template save, structural preview, metadata management, duplication, and recoverable deletion
