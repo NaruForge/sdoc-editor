@@ -69,6 +69,17 @@ cargo test --manifest-path tauri-app/Cargo.toml --workspace
 - Use the relevant `gh issue`, `gh pr`, `gh run`, `gh release`, or `gh api` command and verify every remote mutation with a follow-up `gh` read.
 - For multiline Korean or other non-ASCII bodies, use a UTF-8 `--body-file` and verify the posted text to prevent shell-pipeline encoding corruption.
 
+## GitHub issue workflow
+
+- GitHub Issues are the public source of truth for bugs, features, UX changes, architectural improvements, and technical debt.
+- Create or identify an issue before starting material implementation work.
+- Record confirmed root causes, considered alternatives, implementation strategy, and important design decisions as issue comments.
+- Link commits and pull requests to the issue. Use `Fixes #<number>` only when the change fully resolves the issue.
+- Before closing an issue, comment with the implemented scope, verification results, and any remaining follow-up work.
+- Do not use private local notes as the sole record of a development decision.
+- Trivial typo fixes, mechanical release or version operations, and routine dependency maintenance may proceed without a dedicated issue when no product decision is involved.
+- Never disclose vulnerabilities, credentials, personal information, customer data, or sensitive logs in public issues. Use GitHub Security Advisories or another appropriate private channel.
+
 ## Agent orchestration
 
 - Use `$orchestrate-sdoc-work` when a task has at least two independent workstreams, spans both hosts and shared code, or explicitly requests delegation or parallel review.
