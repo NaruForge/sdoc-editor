@@ -23,7 +23,7 @@ export default [
     ],
   },
   {
-    files: ['src/**/*.ts', 'shared/**/*.ts'],
+    files: ['src/**/*.ts', 'shared/**/*.ts', 'cli/**/*.ts'],
     ignores: ['shared/editor/**'],
     languageOptions: {
       parser: tsparser,

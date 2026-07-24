@@ -65,6 +65,30 @@ The host-neutral `EditorHostBridge` and the discriminated unions in `shared/type
 
 `shared/document/numbering.ts` is the single numbering index for editor previews, lists, cross-references, and HTML, Markdown, AsciiDoc, and Slides output. Export services flush host editors first and pass current in-memory documents to shared converters.
 
+### Semantic document operations
+
+`shared/document/operations/` is the host-neutral boundary for inspecting,
+validating, and atomically applying versioned semantic operation batches.
+Callers identify a document revision by SHA-256 of its exact bytes, including
+any UTF-8 BOM. Persistent IDs target referenceable nodes; other mutable blocks
+use a revision-scoped path, node type, and canonical subtree digest. Targets
+are resolved to handles before a batch starts, so an earlier insertion or move
+cannot redirect a later operation.
+
+Section operations use heading ranges in one parent content array. A section
+continues through descendant headings and ends before the next heading at the
+same or a shallower level. The core normalizes through resolved document
+settings, validates schema and reference/link/asset invariants, and returns a
+bounded semantic diff. Existing invariant violations are tracked as a
+baseline multiset; a batch may not add or increase them.
+
+The `cli/` workspace is a filesystem host for this core. Its `sdoc` executable
+previews mutations unless `--write` is supplied. A no-op does not update
+`meta.modified` or write bytes. Writes acquire a sibling lock, re-read and
+verify the byte revision inside the lock, then use a synced sibling temporary
+file and atomic rename. The shared operations core itself performs no file or
+network access. See [ADR 0009](adr/0009-use-versioned-semantic-document-operations.md).
+
 ### Path and runtime boundaries
 
 - Persisted assets use portable `./images/...` or `./drawio/...` paths; display URLs and hydration metadata are runtime-only.
@@ -102,6 +126,7 @@ The host-neutral `EditorHostBridge` and the discriminated unions in `shared/type
 ## Verification
 
 - `npm run check`: version sync, TypeScript, ESLint, and Vitest contracts
-- `npm run build:all`: VS Code extension, webview, and Tauri frontend builds
+- `npm run build:all`: VS Code extension, webview, Tauri frontend, and CLI builds
 - Cargo fmt, Clippy with warnings denied, and Cargo tests: native host verification
 - `npm run package`: version-checked VSIX in `output/`
+- `npm run package:cli`: installable CLI `.tgz` in `output/`

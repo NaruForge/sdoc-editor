@@ -1,0 +1,36 @@
+{
+  "contract": "sdoc.operations-comparison/1",
+  "scenario": "Rename the persistent heading intro in a generated 100-paragraph SDOC document",
+  "generator": {
+    "heading": {
+      "id": "intro",
+      "title": "Benchmark"
+    },
+    "paragraphCount": 100,
+    "paragraphTemplate": "Paragraph {n}: repeatable comparison content.",
+    "serialization": {
+      "indent": 2,
+      "finalNewline": true
+    }
+  },
+  "revision": "sha256:09a09c0fac048b10d7024fca14044aabe939f5ef09e7d55270b37cf99cf65d08",
+  "measurements": {
+    "wholeDocumentInputBytes": 19990,
+    "boundedInspectPayloadBytes": 1658,
+    "operationPayloadBytes": 232,
+    "inspectMaxBlocks": 8
+  },
+  "operation": {
+    "op": "renameHeading",
+    "target": {
+      "kind": "id",
+      "id": "intro"
+    },
+    "title": "Benchmark Results"
+  },
+  "outcomes": {
+    "matchingRevision": "ok",
+    "staleRevision": "STALE_REVISION"
+  },
+  "purpose": "Input for #40 Agent Skill evaluation; compare bounded semantic payloads with full-document JSON."
+}

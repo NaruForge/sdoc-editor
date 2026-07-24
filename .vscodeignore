@@ -10,6 +10,7 @@ webview-ui/node_modules/**
 
 # Tauri desktop app (separate build)
 tauri-app/**
+cli/**
 shared/**
 
 # Development files

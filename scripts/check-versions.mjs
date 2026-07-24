@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 const readJson = (path) => JSON.parse(readFileSync(path, 'utf8'));
 const rootVersion = readJson('package.json').version;
 const versions = new Map([
+  ['cli/package.json', readJson('cli/package.json').version],
   ['tauri-app/package.json', readJson('tauri-app/package.json').version],
   ['tauri-app/src-tauri/tauri.conf.json', readJson('tauri-app/src-tauri/tauri.conf.json').version],
 ]);

@@ -1,0 +1,27 @@
+{
+  "name": "sdoc-editor-cli",
+  "version": "0.4.21",
+  "description": "Preview-first command line operations for Structured Doc Editor documents",
+  "type": "module",
+  "bin": {
+    "sdoc": "./dist/sdoc.js"
+  },
+  "files": [
+    "dist/sdoc.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22.22.2"
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --config vitest.config.ts"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/NaruForge/sdoc-editor.git"
+  }
+}

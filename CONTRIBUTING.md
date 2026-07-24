@@ -47,8 +47,37 @@ npm run build:all
 | `npm run build:desktop` | Tauri 프런트엔드 빌드 |
 | `npm run build:all` | 두 배포면의 프런트엔드 전체 빌드 |
 | `npm run package` | `output/`에 VSIX 생성 |
+| `npm run build:cli` | Node.js CLI 단일 ESM bundle 빌드 |
+| `npm run package:cli` | 설치 가능한 CLI `.tgz`를 `output/`에 생성 |
 | `npm run licenses:check` | npm/Cargo 라이선스와 제3자 고지 검증(Rust 필요) |
 | `npm run tauri:build --workspace=sdoc-editor-tauri` | Windows 설치 패키지와 portable ZIP 로컬 빌드 |
+
+### CLI 빌드와 패키징
+
+호스트 중립 operation 의미는 `shared/document/operations/`에 두고 파일
+시스템 동작은 별도 `cli/` npm workspace에 둡니다. CLI 패키지 버전은 루트와
+Tauri 버전에 맞춰 유지합니다.
+
+저장소 루트에서 CLI 빌드와 패키징을 검증합니다.
+
+```powershell
+npm run build:cli
+npm run package:cli
+```
+
+`package:cli`는 설치 가능한 `.tgz`를 `output/`에 생성합니다. 소스를 직접
+실행하는 대신 실제 패키지 내용을 검사하고 전역 임시 설치를 smoke
+test합니다.
+
+```powershell
+$package = Get-ChildItem output -Filter '*.tgz' | Select-Object -First 1
+npm install --global $package.FullName
+sdoc --version
+```
+
+기능 PR에서 공개 npm registry에 게시하지 마세요. CI는 workflow artifact로
+패키지를 업로드하고, 태그 기반 desktop release workflow는 같은 GitHub
+Release에 패키지를 첨부합니다.
 
 ### 데스크톱 릴리스 (유지보수자 전용)
 

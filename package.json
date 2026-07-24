@@ -405,18 +405,21 @@
   },
   "workspaces": [
     "webview-ui",
-    "tauri-app"
+    "tauri-app",
+    "cli"
   ],
   "scripts": {
     "build": "npm run validators:generate && npm run build:ext && npm run build:webview",
-    "build:all": "npm run build && npm run build:desktop",
+    "build:all": "npm run build && npm run build:desktop && npm run build:cli",
+    "build:cli": "npm run build --workspace=sdoc-editor-cli",
     "build:ext": "node esbuild.mjs",
     "build:webview": "npm run build --workspace=webview-ui",
     "build:desktop": "npm run build --workspace=sdoc-editor-tauri",
     "package": "node scripts/package-vsix.mjs",
+    "package:cli": "node scripts/package-cli.mjs",
     "typecheck": "npm run typecheck:core && npm run typecheck --workspaces --if-present",
     "typecheck:core": "tsc --noEmit",
-    "lint": "eslint src shared webview-ui/src tauri-app/src",
+    "lint": "eslint src shared cli/src cli/tests webview-ui/src tauri-app/src",
     "lint:fix": "npm run lint -- --fix",
     "test": "vitest run",
     "test:watch": "vitest",
