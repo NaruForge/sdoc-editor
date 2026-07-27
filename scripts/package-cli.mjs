@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { mirrorArtifact } from './artifact-output.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const outputDir = join(root, 'output');
@@ -30,4 +31,5 @@ if (JSON.stringify(actualFiles) !== JSON.stringify(expectedFiles)) {
   throw new Error(`Unexpected CLI package contents: ${actualFiles.join(', ')}`);
 }
 
+mirrorArtifact(root, join(outputDir, packed.filename));
 console.log(`CLI package ready: output/${pkg.name}-${pkg.version}.tgz`);

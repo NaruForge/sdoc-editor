@@ -15,6 +15,7 @@ shared/**
 
 # Development files
 .gitignore
+.sdoc-output-dir
 .github/**
 .editorconfig
 .node-version
