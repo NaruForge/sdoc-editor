@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.22] - 2026-07-27
+
+### Added
+- Added preview-first semantic SDOC operations and a packaged `sdoc` command-line interface
+- Added non-modal external-change comparison, explicit reload, and keep-local recovery in both editor hosts
+
+### Changed
+- Serialized content, metadata, and document settings through one acknowledgement-based persistence coordinator
+- Restricted full editor replacement to explicit initial load, reload, import, and confirmed-template boundaries
+- Added correlated save barriers, stale response rejection, and Tauri hydration generation guards
+- Mirrored packaged VSIX and CLI artifacts to an optional configured output directory
+
+### Fixed
+- Prevented delayed acknowledgements, rejections, and host snapshots from restoring text deleted with Delete or Backspace
+- Cleared external-change banners after the acknowledgement that covers them while preserving genuinely newer disk changes
+- Normalized expected VS Code snapshots to the document line ending so extension-authored CRLF edits are not reported as external
+- Fixed Linux CLI packaging to invoke the repository-local package entry point
+
 ## [0.4.21] - 2026-07-23
 
 ### Added
