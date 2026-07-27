@@ -35,6 +35,10 @@ Rust reads and writes the envelope but deliberately does not reproduce document 
 
 `shared/template/` owns built-in template data, untrusted template metadata narrowing, catalog diagnostics, and immutable template instantiation. A template is a schema-valid `.sdoc` envelope; creating a document removes template-only metadata, refreshes document metadata, optionally updates an explicitly identified title heading, and preserves settings, IDs, and links.
 
+Instantiation also removes persisted document identity (`meta.documentId` and
+legacy `meta.id`). A host applying a template to an existing document preserves
+that host document's identity explicitly.
+
 Hosts discover workspace templates only from the non-recursive `.sdoc/templates/*.sdoc` boundary. They enforce canonical containment, symlink containment, size and count limits, present host-native selection UI, flush the active editor, and create a new file without overwriting an existing target. In VS Code, zero-byte documents are represented as an editable in-memory blank document without writing on open; the capability-gated shared template panel applies a selected catalog snapshot to the current document only after confirmation, exact identity/revision/text revalidation, and one full-document `WorkspaceEdit`. Rust validates and stores the envelope produced by the shared TypeScript core but does not create template document semantics.
 
 Personal templates use the shared local library `~/.sdoc/templates/`. Each
@@ -114,7 +118,10 @@ previews mutations unless `--write` is supplied. A no-op does not update
 `meta.modified` or write bytes. Writes acquire a sibling lock, re-read and
 verify the byte revision inside the lock, then use a synced sibling temporary
 file and atomic rename. The shared operations core itself performs no file or
-network access. See [ADR 0009](adr/0009-use-versioned-semantic-document-operations.md).
+network access. The CLI package includes the public operation schema and nine
+minimal examples. It also creates new documents from bundled or explicitly
+named templates through the shared template core, using atomic no-replace
+publication. See [ADR 0009](adr/0009-use-versioned-semantic-document-operations.md).
 
 ### Path and runtime boundaries
 

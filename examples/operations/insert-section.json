@@ -1,0 +1,20 @@
+{
+  "contract": "sdoc.operations/1",
+  "expected": {
+    "revision": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "operations": [
+    {
+      "op": "insertSection",
+      "target": { "kind": "id", "id": "parent-heading-id-from-inspect" },
+      "title": "New child section",
+      "id": "new-section-id",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "content": [{ "type": "text", "text": "Section body" }]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "contract": "sdoc.operations/1",
+  "expected": {
+    "revision": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "operations": [
+    {
+      "op": "moveBlock",
+      "target": {
+        "kind": "snapshot",
+        "path": [1],
+        "nodeType": "paragraph",
+        "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+      },
+      "destination": {
+        "position": "after",
+        "target": { "kind": "id", "id": "image-id-from-inspect" }
+      }
+    }
+  ]
+}

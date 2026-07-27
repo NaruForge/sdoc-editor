@@ -122,6 +122,8 @@ describe('Explorer-created empty SDOC initialization', () => {
         modified: '2025-01-02T00:00:00.000Z',
         settings: { headingDecoration: false },
         reviewStatus: 'approved',
+        documentId: 'current-document',
+        id: 'legacy-current-id',
       },
       doc: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Old body' }] }] },
     });
@@ -140,6 +142,8 @@ describe('Explorer-created empty SDOC initialization', () => {
       created: '2025-01-01T00:00:00.000Z',
       modified: '2026-07-22T00:00:00.000Z',
       reviewStatus: 'approved',
+      documentId: 'current-document',
+      id: 'legacy-current-id',
       settings: { headingNumbering: false },
     });
     expect(result.meta.settings).not.toHaveProperty('headingDecoration');

@@ -26,7 +26,23 @@ const packOutput = execFileSync(
 );
 const [packed] = JSON.parse(packOutput);
 const actualFiles = packed.files.map((entry) => entry.path).sort();
-const expectedFiles = ['LICENSE', 'README.md', 'dist/sdoc.js', 'package.json'];
+const expectedFiles = [
+  'LICENSE',
+  'README.md',
+  'dist/examples/operations/delete-block.json',
+  'dist/examples/operations/delete-section.json',
+  'dist/examples/operations/insert-block.json',
+  'dist/examples/operations/insert-section.json',
+  'dist/examples/operations/move-block.json',
+  'dist/examples/operations/move-section.json',
+  'dist/examples/operations/rename-heading.json',
+  'dist/examples/operations/replace-block.json',
+  'dist/examples/operations/update-block-attrs.json',
+  'dist/schemas/sdoc.operations.schema.json',
+  'dist/schemas/sdoc.schema.json',
+  'dist/sdoc.js',
+  'package.json',
+].sort();
 if (JSON.stringify(actualFiles) !== JSON.stringify(expectedFiles)) {
   throw new Error(`Unexpected CLI package contents: ${actualFiles.join(', ')}`);
 }

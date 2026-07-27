@@ -1,0 +1,17 @@
+{
+  "contract": "sdoc.operations/1",
+  "expected": {
+    "revision": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "operations": [
+    {
+      "op": "deleteBlock",
+      "target": {
+        "kind": "snapshot",
+        "path": [1],
+        "nodeType": "paragraph",
+        "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+      }
+    }
+  ]
+}

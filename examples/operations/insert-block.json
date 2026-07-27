@@ -1,0 +1,19 @@
+{
+  "contract": "sdoc.operations/1",
+  "expected": {
+    "revision": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "operations": [
+    {
+      "op": "insertBlock",
+      "destination": {
+        "position": "section-end",
+        "target": { "kind": "id", "id": "heading-id-from-inspect" }
+      },
+      "block": {
+        "type": "paragraph",
+        "content": [{ "type": "text", "text": "Inserted paragraph" }]
+      }
+    }
+  ]
+}

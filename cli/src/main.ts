@@ -1,21 +1,34 @@
 import { pathToFileURL } from 'node:url';
-import { parseArguments, ArgumentError, type CliArguments } from './arguments.js';
+import {
+  parseArguments,
+  ArgumentError,
+  type CliArguments,
+  type ParsedArguments,
+} from './arguments.js';
 import { apply, inspect, revisionOf, validate, type CoreResult, type CoreSuccess } from './coreAdapter.js';
 import {
   acquireSiblingLock,
+  assertCreateDestination,
+  assertCreateTargetAvailable,
+  atomicCreate,
   atomicReplace,
   IoError,
   MAX_DOCUMENT_BYTES,
   MAX_OPERATIONS_BYTES,
   readLimitedFile,
   readStandardInput,
+  resolveCreatePath,
   resolveDocumentPath,
+  suggestedSdocPath,
 } from './io.js';
 import { detectJsonFormat, encodeJson } from './format.js';
+import { renderHelp } from './help.js';
+import { renderHumanFailure, renderHumanSuccess } from './human.js';
+import { createDocumentPlan } from './templateAdapter.js';
 
 declare const __CLI_VERSION__: string | undefined;
 
-const VERSION = typeof __CLI_VERSION__ === 'string' ? __CLI_VERSION__ : '0.4.21';
+const VERSION = typeof __CLI_VERSION__ === 'string' ? __CLI_VERSION__ : '0.5.0';
 
 interface OutputRecord {
   ok: boolean;
@@ -28,14 +41,32 @@ interface OutputRecord {
 
 export interface RunDependencies {
   replaceDocument(path: string, bytes: Uint8Array): Promise<void>;
+  createDocument?(path: string, bytes: Uint8Array): Promise<{ cleanupWarning?: string }>;
 }
 
 const DEFAULT_DEPENDENCIES: RunDependencies = {
   replaceDocument: atomicReplace,
+  createDocument: atomicCreate,
 };
 
-function writeJson(stream: NodeJS.WritableStream, value: unknown): void {
-  stream.write(`${JSON.stringify(value)}\n`);
+function outputMode(args: readonly string[] | CliArguments): 'json' | 'human' {
+  if (Array.isArray(args)) {
+    return args.includes('--human') && !args.includes('--json') ? 'human' : 'json';
+  }
+  return (args as CliArguments).output;
+}
+
+function writeRecord(
+  stream: NodeJS.WritableStream,
+  value: OutputRecord,
+  mode: 'json' | 'human',
+  failure = false,
+): void {
+  if (mode === 'human') {
+    stream.write(`${failure ? renderHumanFailure(value) : renderHumanSuccess(value)}\n`);
+  } else {
+    stream.write(`${JSON.stringify(value)}\n`);
+  }
 }
 
 function failure(code: string, message: string): OutputRecord {
@@ -86,10 +117,10 @@ function outputDocument(result: CoreResult): unknown {
 async function runReadCommand(args: CliArguments, path: string, bytes: Uint8Array): Promise<number> {
   const result = args.command === 'inspect' ? inspect(bytes, args.targetId) : validate(bytes);
   if (!result.ok) {
-    writeJson(process.stderr, result);
+    writeRecord(process.stderr, result as unknown as OutputRecord, args.output, true);
     return exitForResult(result);
   }
-  writeJson(process.stdout, { ...result, command: args.command, path });
+  writeRecord(process.stdout, { ...result, command: args.command, path }, args.output);
   return 0;
 }
 
@@ -128,9 +159,30 @@ async function applyOnce(
   };
 }
 
-function publicApplyResult(result: CoreSuccess): OutputRecord {
+function publicApplyResult(
+  result: CoreSuccess,
+  args: CliArguments,
+  path: string,
+): OutputRecord {
   const { envelope: _envelope, outputText: _outputText, ...summary } = result;
-  return summary as OutputRecord;
+  if (result.legacy !== true || !args.upgradeLegacy || !path.toLowerCase().endsWith('.tiptap.json')) {
+    return summary as OutputRecord;
+  }
+  const existingWarnings = Array.isArray(summary.warnings) ? summary.warnings : [];
+  return {
+    ...summary,
+    warnings: [
+      ...existingWarnings,
+      {
+        code: 'LEGACY_FILE_EXTENSION_RETAINED',
+        severity: 'warning',
+        message: args.write
+          ? 'The file now contains an SDOC envelope but retains its .tiptap.json extension.'
+          : 'Writing this preview would store an SDOC envelope under the existing .tiptap.json extension.',
+        suggestedPath: suggestedSdocPath(path),
+      },
+    ],
+  } as OutputRecord;
 }
 
 async function runApplyCommand(
@@ -143,17 +195,17 @@ async function runApplyCommand(
   const operationTime = new Date().toISOString();
   const preview = await applyOnce(args, path, originalBytes, request, operationTime);
   if (!preview.result.ok) {
-    writeJson(process.stderr, preview.result);
+    writeRecord(process.stderr, preview.result as unknown as OutputRecord, args.output, true);
     return exitForResult(preview.result);
   }
 
   if (!args.write) {
-    writeJson(process.stdout, {
-      ...publicApplyResult(preview.result),
+    writeRecord(process.stdout, {
+      ...publicApplyResult(preview.result, args, path),
       command: args.command,
       preview: true,
       written: false,
-    });
+    }, args.output);
     return 0;
   }
 
@@ -162,22 +214,80 @@ async function runApplyCommand(
     const currentBytes = await readLimitedFile(path, MAX_DOCUMENT_BYTES, 'document');
     const committed = await applyOnce(args, path, currentBytes, request, operationTime);
     if (!committed.result.ok) {
-      writeJson(process.stderr, committed.result);
+      writeRecord(process.stderr, committed.result as unknown as OutputRecord, args.output, true);
       return exitForResult(committed.result);
     }
     if (committed.result.changed === true) {
       await dependencies.replaceDocument(path, committed.encoded!);
     }
-    writeJson(process.stdout, {
-      ...publicApplyResult(committed.result),
+    writeRecord(process.stdout, {
+      ...publicApplyResult(committed.result, args, path),
       command: args.command,
       preview: false,
       written: committed.result.changed === true,
-    });
+    }, args.output);
     return 0;
   } finally {
     await lock.release();
   }
+}
+
+async function runCreateCommand(
+  args: CliArguments,
+  dependencies: RunDependencies,
+): Promise<number> {
+  const path = resolveCreatePath(args.documentPath);
+  await assertCreateDestination(path);
+  await assertCreateTargetAvailable(path);
+  const plan = await createDocumentPlan(path, {
+    ...(args.title !== undefined ? { title: args.title } : {}),
+    ...(args.template !== undefined ? { template: args.template } : {}),
+  });
+  const base: OutputRecord = {
+    ok: true,
+    command: 'create',
+    path,
+    title: plan.title,
+    template: plan.template,
+    templateLabel: plan.templateLabel,
+    revision: plan.revision,
+  };
+  if (args.dryRun) {
+    writeRecord(process.stdout, { ...base, preview: true, written: false }, args.output);
+    return 0;
+  }
+  const created = await (dependencies.createDocument ?? atomicCreate)(path, plan.bytes);
+  const warnings = created.cleanupWarning
+    ? [{
+      code: 'CLI_TEMP_CLEANUP_FAILED',
+      severity: 'warning',
+      message: created.cleanupWarning,
+    }]
+    : [];
+  writeRecord(process.stdout, {
+    ...base,
+    preview: false,
+    written: true,
+    warnings,
+  }, args.output);
+  return 0;
+}
+
+async function runParsed(
+  parsed: ParsedArguments,
+  dependencies: RunDependencies,
+): Promise<number> {
+  if (parsed.kind === 'help') {
+    process.stdout.write(`${renderHelp(parsed.command)}\n`);
+    return 0;
+  }
+  if (parsed.command === 'create') return runCreateCommand(parsed, dependencies);
+  const path = resolveDocumentPath(parsed.documentPath);
+  const bytes = await readLimitedFile(path, MAX_DOCUMENT_BYTES, 'document');
+  if (parsed.command === 'inspect' || parsed.command === 'validate') {
+    return runReadCommand(parsed, path, bytes);
+  }
+  return runApplyCommand(parsed, path, bytes, dependencies);
 }
 
 export async function run(
@@ -188,30 +298,21 @@ export async function run(
     process.stdout.write(`${VERSION}\n`);
     return 0;
   }
-  let args: CliArguments;
+  const fallbackMode = outputMode(argv);
   try {
-    args = parseArguments(argv);
-    const path = resolveDocumentPath(args.documentPath);
-    const bytes = await readLimitedFile(path, MAX_DOCUMENT_BYTES, 'document');
-    if (args.command === 'inspect' || args.command === 'validate') {
-      return await runReadCommand(args, path, bytes);
-    }
-    return await runApplyCommand(args, path, bytes, dependencies);
+    const parsed = parseArguments(argv);
+    return await runParsed(parsed, dependencies);
   } catch (error) {
     if (error instanceof ArgumentError) {
-      if (error.code === 'CLI_HELP') {
-        process.stdout.write(`${error.message}\n`);
-        return 0;
-      }
-      writeJson(process.stderr, failure(error.code, error.message));
+      writeRecord(process.stderr, failure(error.code, error.message), fallbackMode, true);
       return 2;
     }
     if (error instanceof IoError) {
-      writeJson(process.stderr, failure(error.code, error.message));
+      writeRecord(process.stderr, failure(error.code, error.message), fallbackMode, true);
       return error.exitCode;
     }
     const message = error instanceof Error ? error.message : 'Unexpected CLI failure';
-    writeJson(process.stderr, failure('CLI_INTERNAL_ERROR', message));
+    writeRecord(process.stderr, failure('CLI_INTERNAL_ERROR', message), fallbackMode, true);
     return 3;
   }
 }

@@ -7,7 +7,9 @@ import {
   buildTemplateCatalog,
   createPersonalTemplateSnapshot,
   instantiateTemplate,
+  normalizeDocumentTitle,
   updatePersonalTemplateMetadata,
+  validateDocumentTitle,
   type TemplateCandidate,
 } from '../shared/template';
 
@@ -283,8 +285,29 @@ describe('template catalog', () => {
 });
 
 describe('template instantiation', () => {
+  it('normalizes valid document titles and rejects blank or overlong titles', () => {
+    expect(normalizeDocumentTitle('  System design  ')).toEqual({
+      ok: true,
+      title: 'System design',
+    });
+    expect(normalizeDocumentTitle(' \r\n ')).toEqual({
+      ok: false,
+      reason: 'empty',
+    });
+    expect(normalizeDocumentTitle('x'.repeat(201))).toEqual({
+      ok: false,
+      reason: 'too-long',
+    });
+    expect(validateDocumentTitle('')).toBe('Enter a document title.');
+    expect(validateDocumentTitle('x'.repeat(201)))
+      .toBe('The title must be 200 characters or fewer.');
+    expect(validateDocumentTitle('  System design  ')).toBeUndefined();
+  });
+
   it('creates an independent persisted document while preserving document semantics', () => {
     const input = validEnvelope();
+    (input as { meta: Record<string, unknown> }).meta.documentId = 'source-document';
+    (input as { meta: Record<string, unknown> }).meta.id = 'legacy-source-id';
     const snapshot = structuredClone(input);
     const catalog = buildTemplateCatalog({
       builtIn: [],
@@ -310,6 +333,8 @@ describe('template instantiation', () => {
       review: { status: 'draft' },
     });
     expect(instantiated.meta).not.toHaveProperty('template');
+    expect(instantiated.meta).not.toHaveProperty('documentId');
+    expect(instantiated.meta).not.toHaveProperty('id');
     expect(instantiated.doc.content?.[0]).toEqual({
       type: 'heading',
       attrs: { level: 1, id: 'document-title' },

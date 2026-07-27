@@ -64,6 +64,10 @@ export interface InstantiateTemplateOptions {
   now?: () => Date;
 }
 
+export type DocumentTitleValidationResult =
+  | { ok: true; title: string }
+  | { ok: false; reason: 'empty' | 'too-long' };
+
 export interface CreatePersonalTemplateSnapshotOptions {
   id: string;
   name: string;

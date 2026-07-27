@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-07-27
+
+### Added
+- Added `sdoc create` for safe, no-overwrite creation from built-in or explicitly named `.sdoc` templates
+- Added command-specific help and optional human-readable CLI output while retaining JSON as the automation default
+- Published the `sdoc.operations/1` JSON Schema and examples for all nine semantic operations in the CLI package
+
+### Changed
+- Documented AI-safe local CLI installation with `npx --no-install sdoc` and explicit package/version checks
+- Template instantiation now removes persisted document identity while preserving node IDs, links, settings, and unrelated metadata
+- `updateBlockAttrs` previews now identify the attributes and bounded old/new values that changed
+
+### Fixed
+- Added a structured warning and suggested `.sdoc` path when a legacy `.tiptap.json` file is upgraded in place
+
 ## [0.4.22] - 2026-07-27
 
 ### Added

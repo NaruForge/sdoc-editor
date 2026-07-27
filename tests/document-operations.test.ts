@@ -69,6 +69,57 @@ describe('document operations core', () => {
     if (!duplicate.ok) expect(duplicate.diagnostics[0].code).toBe('DUPLICATE_ID');
   });
 
+  it('rejects unknown request, expected, target, destination, and operation fields', () => {
+    const text = source([heading(1, 'intro', 'Intro'), paragraph('Body')]);
+    const revision = computeRevision(text);
+    const requests: unknown[] = [
+      {
+        contract: 'sdoc.operations/1',
+        expected: { revision },
+        operations: [],
+        extra: true,
+      },
+      {
+        contract: 'sdoc.operations/1',
+        expected: { revision, extra: true },
+        operations: [],
+      },
+      {
+        contract: 'sdoc.operations/1',
+        expected: { revision },
+        operations: [{
+          op: 'renameHeading',
+          target: { kind: 'id', id: 'intro', extra: true },
+          title: 'Updated',
+        }],
+      },
+      {
+        contract: 'sdoc.operations/1',
+        expected: { revision },
+        operations: [{
+          op: 'moveBlock',
+          target: { kind: 'snapshot', path: [1], nodeType: 'paragraph', digest: `sha256:${'0'.repeat(64)}` },
+          destination: { position: 'after', target: { kind: 'id', id: 'intro' }, extra: true },
+        }],
+      },
+      {
+        contract: 'sdoc.operations/1',
+        expected: { revision },
+        operations: [{
+          op: 'renameHeading',
+          target: { kind: 'id', id: 'intro' },
+          title: 'Updated',
+          extra: true,
+        }],
+      },
+    ];
+
+    for (const request of requests) {
+      const result = applyOperationRequest(text, request);
+      expect(result).toMatchObject({ ok: false, category: 'argument' });
+    }
+  });
+
   it('renames a plain heading while preserving its id and refreshing reference text', () => {
     const text = source([
       heading(1, 'intro', 'Old'),
@@ -199,12 +250,57 @@ describe('document operations core', () => {
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.envelope.doc.content?.[1].content?.[0].text).toBe(' x  \n');
+      expect(result.diff).toContainEqual({
+        kind: 'block-attrs-updated',
+        before: 'language="ts"',
+        after: 'language="javascript"',
+      });
     }
     const invalid = apply(text, [{
       op: 'updateBlockAttrs', target: codeTarget, attrs: { id: 'forbidden' },
     }]);
     expect(invalid.ok).toBe(false);
     if (!invalid.ok) expect(invalid.diagnostics[0].code).toBe('ATTRIBUTE_NOT_ALLOWED');
+  });
+
+  it('summarizes sorted image attribute changes with bounded old/new values and unset markers', () => {
+    const text = source([
+      heading(1, 'intro', 'Intro'),
+      {
+        type: 'image',
+        attrs: {
+          id: 'figure-1',
+          src: './images/diagram.png',
+          width: '100%',
+        },
+      },
+    ]);
+    const result = apply(text, [{
+      op: 'updateBlockAttrs',
+      target: target('figure-1'),
+      attrs: { width: '75%', alt: 'Architecture overview' },
+    }]);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.diff).toContainEqual({
+      kind: 'block-attrs-updated',
+      before: 'alt=<unset>, width="100%"',
+      after: 'alt="Architecture overview", width="75%"',
+    });
+
+    const bounded = apply(text, [{
+      op: 'updateBlockAttrs',
+      target: target('figure-1'),
+      attrs: { alt: 'x'.repeat(200) },
+    }]);
+    expect(bounded.ok).toBe(true);
+    if (bounded.ok) {
+      const event = bounded.diff.find((entry) => entry.kind === 'block-attrs-updated');
+      expect(event?.before).toBe('alt=<unset>');
+      expect(event?.after).toMatch(/^alt="x+…$/);
+      expect(event?.after?.length).toBeLessThanOrEqual(84);
+    }
   });
 
   it('rejects stale/digest conflicts and rolls back a failing batch', () => {

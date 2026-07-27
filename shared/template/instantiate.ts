@@ -21,7 +21,12 @@ export function instantiateTemplate(
 ): SdocEnvelope {
   const envelope = structuredClone(template.envelope);
   const timestamp = (options.now ?? (() => new Date()))().toISOString();
-  const { template: _templateMetadata, ...preservedMeta } = envelope.meta;
+  const {
+    template: _templateMetadata,
+    documentId: _documentId,
+    id: _legacyDocumentId,
+    ...preservedMeta
+  } = envelope.meta;
   const result: SdocEnvelope = {
     sdoc: '1.0',
     meta: {

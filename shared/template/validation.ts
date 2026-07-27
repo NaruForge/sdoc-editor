@@ -1,8 +1,10 @@
 import { walkDocument } from '../document/walker';
 import type { SdocEnvelope, SdocTemplateMetadata, TiptapNode } from '../types';
+import type { DocumentTitleValidationResult } from './types';
 
 export const PERSONAL_TEMPLATE_ID_PATTERN =
   /^user:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+export const DOCUMENT_TITLE_MAX_LENGTH = 200;
 
 export interface UnsupportedTemplateAsset {
   path: string;
@@ -17,6 +19,20 @@ const isOptionalString = (value: unknown): value is string | undefined =>
 
 export const isPersonalTemplateId = (value: unknown): value is string =>
   typeof value === 'string' && PERSONAL_TEMPLATE_ID_PATTERN.test(value);
+
+export const normalizeDocumentTitle = (value: string): DocumentTitleValidationResult => {
+  const title = value.trim();
+  if (title.length === 0) return { ok: false, reason: 'empty' };
+  if (title.length > DOCUMENT_TITLE_MAX_LENGTH) return { ok: false, reason: 'too-long' };
+  return { ok: true, title };
+};
+
+export const validateDocumentTitle = (value: string): string | undefined => {
+  const result = normalizeDocumentTitle(value);
+  if (!result.ok && result.reason === 'empty') return 'Enter a document title.';
+  if (!result.ok) return 'The title must be 200 characters or fewer.';
+  return undefined;
+};
 
 export const readTemplateMetadata = (
   value: unknown,

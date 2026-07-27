@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
-import { open, readFile, rename, rm, stat, type FileHandle } from 'node:fs/promises';
-import { basename, dirname, extname, join, resolve } from 'node:path';
+import { link, open, readFile, realpath, rename, rm, stat, type FileHandle } from 'node:fs/promises';
+import { basename, dirname, join, resolve } from 'node:path';
 
 export const MAX_DOCUMENT_BYTES = 32 * 1024 * 1024;
 export const MAX_OPERATIONS_BYTES = 4 * 1024 * 1024;
@@ -23,6 +23,61 @@ export function resolveDocumentPath(input: string): string {
     throw new IoError('CLI_UNSUPPORTED_EXTENSION', 'Document must end in .sdoc or .tiptap.json', 2);
   }
   return resolved;
+}
+
+export function resolveCreatePath(input: string): string {
+  const resolved = resolve(input);
+  if (!resolved.toLowerCase().endsWith('.sdoc')) {
+    throw new IoError('CLI_UNSUPPORTED_EXTENSION', 'New documents must end in .sdoc', 2);
+  }
+  return resolved;
+}
+
+const isTemplateDirectoryPath = (path: string): boolean => {
+  const portable = path.replace(/\\/g, '/').toLowerCase();
+  return portable.includes('/.sdoc/templates/') || portable.endsWith('/.sdoc/templates');
+};
+
+export async function assertCreateDestination(path: string): Promise<void> {
+  if (isTemplateDirectoryPath(path)) {
+    throw new IoError(
+      'CLI_TEMPLATE_DESTINATION_FORBIDDEN',
+      'New documents cannot be created inside a .sdoc/templates directory',
+      2,
+    );
+  }
+  let canonicalParent: string;
+  try {
+    canonicalParent = await realpath(dirname(path));
+  } catch (error) {
+    throw new IoError('CLI_CREATE_FAILED', 'Unable to resolve the destination parent directory', 5, {
+      cause: error,
+    });
+  }
+  if (isTemplateDirectoryPath(join(canonicalParent, basename(path)))) {
+    throw new IoError(
+      'CLI_TEMPLATE_DESTINATION_FORBIDDEN',
+      'New documents cannot be created inside a .sdoc/templates directory',
+      2,
+    );
+  }
+}
+
+export async function assertCreateTargetAvailable(path: string): Promise<void> {
+  try {
+    await stat(path);
+    throw new IoError('CLI_TARGET_EXISTS', `Target already exists: ${basename(path)}`, 5);
+  } catch (error) {
+    if (error instanceof IoError) throw error;
+    const code = typeof error === 'object' && error !== null && 'code' in error
+      ? String(error.code)
+      : undefined;
+    if (code !== 'ENOENT') {
+      throw new IoError('CLI_CREATE_FAILED', 'Unable to inspect the destination path', 5, {
+        cause: error,
+      });
+    }
+  }
 }
 
 export async function readLimitedFile(path: string, maximum: number, label: string): Promise<Uint8Array> {
@@ -116,6 +171,55 @@ export async function atomicReplace(
   }
 }
 
-export function suggestedOutputName(documentPath: string): string {
-  return `${basename(documentPath, extname(documentPath))}.preview.sdoc`;
+export interface AtomicCreateResult {
+  cleanupWarning?: string;
+}
+
+export async function atomicCreate(
+  documentPath: string,
+  bytes: Uint8Array,
+  publish: (source: string, destination: string) => Promise<void> = link,
+): Promise<AtomicCreateResult> {
+  const directory = dirname(documentPath);
+  const suffix = randomBytes(8).toString('hex');
+  const tempPath = join(directory, `.${basename(documentPath)}.${process.pid}.${suffix}.tmp`);
+  let handle: FileHandle | undefined;
+  let published = false;
+  try {
+    handle = await open(tempPath, 'wx', 0o600);
+    await handle.writeFile(bytes);
+    await handle.sync();
+    await handle.close();
+    handle = undefined;
+    try {
+      await publish(tempPath, documentPath);
+      published = true;
+    } catch (error) {
+      const code = typeof error === 'object' && error !== null && 'code' in error
+        ? String(error.code)
+        : undefined;
+      if (code === 'EEXIST') {
+        throw new IoError('CLI_TARGET_EXISTS', `Target already exists: ${basename(documentPath)}`, 5, {
+          cause: error,
+        });
+      }
+      throw new IoError('CLI_CREATE_FAILED', 'Unable to publish the new document', 5, { cause: error });
+    }
+  } catch (error) {
+    if (handle) await handle.close().catch(() => undefined);
+    if (!published) await rm(tempPath, { force: true }).catch(() => undefined);
+    if (error instanceof IoError) throw error;
+    throw new IoError('CLI_CREATE_FAILED', 'Unable to create the document', 5, { cause: error });
+  }
+  try {
+    await rm(tempPath);
+    return {};
+  } catch {
+    return { cleanupWarning: `Created document but could not remove temporary link ${basename(tempPath)}` };
+  }
+}
+
+export function suggestedSdocPath(documentPath: string): string {
+  const name = basename(documentPath).replace(/\.tiptap\.json$/i, '');
+  return join(dirname(documentPath), `${name}.sdoc`);
 }

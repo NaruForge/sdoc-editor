@@ -11,12 +11,16 @@ export {
   TEMPLATE_PREVIEW_MAX_TEXT_LENGTH,
 } from './preview';
 export {
+  DOCUMENT_TITLE_MAX_LENGTH,
   isPersonalTemplateId,
+  normalizeDocumentTitle,
   PERSONAL_TEMPLATE_ID_PATTERN,
   suggestTemplateTitleNodeId,
+  validateDocumentTitle,
 } from './validation';
 export type {
   CreatePersonalTemplateSnapshotOptions,
+  DocumentTitleValidationResult,
   InstantiateTemplateOptions,
   SdocTemplate,
   TemplateCandidate,

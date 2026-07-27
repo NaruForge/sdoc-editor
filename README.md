@@ -49,7 +49,7 @@ CLI, the Agent should:
    - **Local, recommended for one project:** use this when the current project
      has a `package.json`, when reproducibility matters, or when the user did
      not explicitly request a machine-wide command. Record the release asset
-     URL as a development dependency and run it with `npx sdoc`.
+     URL as a development dependency and run it with `npx --no-install sdoc`.
    - **Global:** use this only when the user explicitly asks for a global
      installation or wants the same command across multiple unrelated
      projects. Run it directly as `sdoc`.
@@ -66,8 +66,8 @@ For a project-local installation:
 
 ```bash
 npm install --save-dev "$SDOC_CLI_TGZ_URL"
-npx sdoc --version
 npm ls sdoc-editor-cli --depth=0
+npx --no-install sdoc --version
 ```
 
 For an explicitly requested global installation:
@@ -99,6 +99,20 @@ Mutation commands are previews unless `--write` is present. Every apply
 request requires the byte revision returned by `inspect`; this prevents a
 stale operation from overwriting a file that changed after inspection.
 
+For a safe project-local quick start, run the following first from the project
+that contains the local CLI dependency. If the binary is absent, stop and
+install the intended `sdoc-editor-cli` release. Never remove `--no-install`:
+npm could otherwise download and execute the unrelated registry package named
+`sdoc`.
+
+```powershell
+Get-Location
+npm ls sdoc-editor-cli --depth=0
+npx --no-install sdoc --version
+npx --no-install sdoc inspect document.sdoc --json
+npx --no-install sdoc validate document.sdoc --json
+```
+
 ```powershell
 sdoc inspect document.sdoc --json
 sdoc inspect document.sdoc --json --target-id intro
@@ -110,9 +124,15 @@ sdoc rename-heading document.sdoc --id intro --title "시험 결과" `
   --expected-revision sha256:...
 ```
 
+The installable package contains the document schema, the public
+`sdoc.operations/1` schema, and one JSON request example for each of the nine
+semantic operations. See the [complete CLI manual](cli/README.md) for command
+help, targets, placeholders, legacy upgrades, output modes, and exit codes.
+
 Use `--dry-run` as an explicit preview alias. Legacy raw `.tiptap.json`
-documents can be inspected and validated, but writing the converted envelope
-also requires `--upgrade-legacy`. JSON mode writes one result object to
+documents can be inspected and validated, but every mutation requires
+`--upgrade-legacy`; persisting the converted envelope additionally requires
+`--write`. JSON mode writes one result object to
 stdout; structured errors go to stderr. Exit codes are `0` for success, `2`
 for argument or operation-contract errors, `3` for document-contract or
 invariant errors, `4` for stale revisions or precondition conflicts, and `5`

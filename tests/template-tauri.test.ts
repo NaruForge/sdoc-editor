@@ -159,6 +159,8 @@ describe('Tauri template service', () => {
     const current = structuredClone(BUILTIN_TEMPLATES[0].envelope);
     current.meta.title = 'Current title';
     current.meta.author = 'Keep me';
+    current.meta.documentId = 'current-document';
+    current.meta.id = 'legacy-current-id';
     const save = vi.fn(async () => {
       events.push('save');
       return { documentId: 'doc-a', revision: 8 };
@@ -181,7 +183,12 @@ describe('Tauri template service', () => {
     expect(events).toEqual(['flush', 'snapshot', 'confirm', 'save']);
     expect(save).toHaveBeenCalledOnce();
     expect(result.applied).toBe(true);
-    expect(result.envelope?.meta).toMatchObject({ title: 'Current title', author: 'Keep me' });
+    expect(result.envelope?.meta).toMatchObject({
+      title: 'Current title',
+      author: 'Keep me',
+      documentId: 'current-document',
+      id: 'legacy-current-id',
+    });
     expect(result.envelope?.doc.content?.[0].content?.[0].text).toBe('Current title');
     expect(result.envelope?.doc.content?.slice(1)).toEqual(
       BUILTIN_TEMPLATES[1].envelope.doc.content?.slice(1),

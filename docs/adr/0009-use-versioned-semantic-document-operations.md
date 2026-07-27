@@ -25,6 +25,9 @@ into writes.
 request contract, inspection, validation, immutable batch application, and
 bounded semantic diff. Hosts parse external JSON as `unknown`; operation
 failures are returned as discriminated diagnostics with stable codes.
+The public request contract is also described by
+`sdoc.operations.schema.json`; the packaged CLI includes that schema, the
+referenced document schema, and one example for each supported operation.
 
 Every mutation request supplies the SHA-256 revision of the exact source
 bytes. Those bytes include a UTF-8 BOM when one is present. A caller may also
@@ -80,8 +83,14 @@ written.
 The `sdoc-editor-cli` workspace provides the `sdoc` executable for Node.js
 22.22.2 or newer. Mutation commands preview by default; only `--write` permits
 storage, while `--dry-run` is an explicit preview alias. Legacy raw Tiptap JSON
-can be inspected and validated, but writing its envelope upgrade requires
-`--upgrade-legacy`.
+can be inspected and validated, but every legacy mutation requires
+`--upgrade-legacy`; writing its envelope upgrade additionally requires
+`--write` and reports that the legacy filename was retained.
+
+JSON remains the default automation output. `--human` is an explicit
+presentation mode, and every public command exposes command-specific help.
+`sdoc create` writes a new `.sdoc` from a bundled or explicitly named template;
+it does not overwrite, create parent directories, or discover inputs.
 
 The CLI reads only the explicitly named `.sdoc` or `.tiptap.json` file (and an
 explicit operation input or stdin). It does not traverse directories, fetch
@@ -107,4 +116,5 @@ indentation, line endings, and final-newline style.
   persisted SDOC schema.
 - The npm package is built and tested as an installable artifact but is not
   published to the public npm registry by this decision. Tagged GitHub
-  Releases attach the package tarball.
+  Releases attach the package tarball, including the public contracts and
+  examples.
