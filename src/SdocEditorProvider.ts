@@ -7,7 +7,6 @@ import { generateFontFaceCSS } from './utils/fontUtils';
 import { convertImagePathsToWebviewUris, convertWebviewUrisToRelativePaths } from './utils/imageUtils';
 import {
   unwrapSdoc as sharedUnwrapSdoc,
-  wrapSdoc as sharedWrapSdoc,
   normalizeDocument,
 } from '../shared/document/sdocUtils';
 import {
@@ -22,7 +21,11 @@ import { isEditorToHostMessage } from '../shared/types/messageGuards';
 import { VsCodeAssetService } from './services/VsCodeAssetService';
 import { VsCodeExportService, type ExportFormat } from './services/VsCodeExportService';
 import { RecoverableSerialQueue } from '../shared/persistence/RecoverableSerialQueue';
-import { assertPersistedDocument, parseDocumentContract, readDocumentSettings, validateDocumentSettings } from '../shared/document/documentContract';
+import {
+  readDocumentMutationBestEffort,
+  type DocumentMutation,
+} from '../shared/persistence/DocumentSyncCoordinator';
+import { assertPersistedDocument, parseDocumentContract, readDocumentSettings } from '../shared/document/documentContract';
 import { dehydrateDocumentAssets } from '../shared/document/runtimeAssets';
 import { runExportAfterFlush } from '../shared/export/runExportAfterFlush';
 import {
@@ -237,6 +240,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         }
         // Unwrap sdoc envelope → extract doc node
         const { doc, meta } = sharedUnwrapSdoc(parsed);
+        const { settings: documentSettings, ...persistedMeta } = meta;
         // Convert image paths to webview URIs
         const convertedJson = convertImagePathsToWebviewUris(doc, documentDir, webviewPanel.webview);
         webviewPanel.webview.postMessage({
@@ -245,10 +249,12 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
           documentId,
           revision: document.version,
           ...(writeBlockedReason ? { readOnlyReason: writeBlockedReason } : {}),
-          content: convertedJson,
+          snapshot: {
+            content: convertedJson,
+            meta: persistedMeta,
+            documentSettings: documentSettings ?? null,
+          },
         });
-        // Send metadata and settings
-        webviewPanel.webview.postMessage({ type: 'metaUpdate', meta });
         sendSettings();
       } catch (error) {
         vscode.window.showErrorMessage(
@@ -264,12 +270,40 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         : JSON.parse(text);
     };
 
-    const postAuthoritativeUpdate = (): void => {
+    const readCurrentMutation = (): DocumentMutation => {
       const parsed = readCurrentDocumentValue();
-      const { doc } = sharedUnwrapSdoc(parsed);
-      webviewPanel.webview.postMessage({
-        type: 'update', sessionId, documentId, revision: document.version,
+      const { doc, meta } = sharedUnwrapSdoc(parsed);
+      const { settings: documentSettings, ...persistedMeta } = meta;
+      return {
         content: convertImagePathsToWebviewUris(doc, documentDir, webviewPanel.webview),
+        meta: persistedMeta,
+        documentSettings: documentSettings ?? null,
+      };
+    };
+
+    const tryReadCurrentMutation = (): DocumentMutation | undefined =>
+      readDocumentMutationBestEffort(readCurrentMutation);
+
+    const postExternalChange = (): void => {
+      webviewPanel.webview.postMessage({
+        type: 'externalChange',
+        sessionId,
+        documentId,
+        revision: document.version,
+        snapshot: readCurrentMutation(),
+      });
+    };
+
+    const postExplicitReplacement = (
+      reason: 'user-reload' | 'confirmed-template',
+    ): void => {
+      webviewPanel.webview.postMessage({
+        type: 'replaceDocument',
+        sessionId,
+        documentId,
+        revision: document.version,
+        reason,
+        snapshot: readCurrentMutation(),
       });
     };
 
@@ -326,7 +360,6 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         await vscode.window.showWarningMessage(
           '템플릿을 적용하기 전에 문서가 변경되었습니다. 현재 내용을 확인한 뒤 다시 시도하세요.',
         );
-        sendUpdate();
         return false;
       }
 
@@ -377,10 +410,9 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         await vscode.window.showWarningMessage(
           '확인하는 동안 문서가 변경되어 템플릿을 적용하지 않았습니다. 기존 내용은 보존되었습니다.',
         );
-        sendUpdate();
         return false;
       }
-      sendUpdate();
+      postExplicitReplacement('confirmed-template');
       return true;
     };
 
@@ -580,8 +612,21 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         'deletePersonalTemplate', 'openPersonalTemplateFolder',
       ]);
       if (writeBlockedReason && !readOnlySafeMessages.has(message.type)) {
-        if (message.type === 'edit' && message.flushRequestId) {
-          this.rejectFlush(message.flushRequestId, new Error(writeBlockedReason));
+        if (message.type === 'edit') {
+          const hostSnapshot = tryReadCurrentMutation();
+          webviewPanel.webview.postMessage({
+            type: 'editRejected',
+            sessionId,
+            documentId,
+            editId: message.editId,
+            revision: document.version,
+            code: 'INVALID_DOCUMENT',
+            message: writeBlockedReason,
+            ...(hostSnapshot ? { hostSnapshot } : {}),
+          });
+          if (message.flushRequestId) {
+            this.rejectFlush(message.flushRequestId, new Error(writeBlockedReason));
+          }
         }
         vscode.window.showErrorMessage(`Document is read-only because it is invalid: ${writeBlockedReason}`);
         if (message.type === 'applyTemplate') {
@@ -603,6 +648,12 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       }
       if (message.type === 'flushComplete') {
         if (message.sessionId === sessionId && message.requestId) this.resolveFlush(message.requestId);
+        return;
+      }
+      if (message.type === 'flushFailed') {
+        if (message.sessionId === sessionId) {
+          this.rejectFlush(message.requestId, new Error(message.message));
+        }
         return;
       }
       if (message.type === 'savePersonalTemplate'
@@ -657,13 +708,17 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
           }
           case 'edit':
             if (message.sessionId !== sessionId || message.documentId !== documentId
-              || message.baseRevision !== document.version || !message.editId) {
-              const parsed = readCurrentDocumentValue();
-              const { doc } = sharedUnwrapSdoc(parsed);
+              || message.baseRevision !== document.version) {
+              const hostSnapshot = tryReadCurrentMutation();
               webviewPanel.webview.postMessage({
-                type: 'editRejected', sessionId, editId: message.editId ?? '',
-                revision: document.version, reason: 'stale revision or document identity',
-                content: convertImagePathsToWebviewUris(doc, documentDir, webviewPanel.webview),
+                type: 'editRejected',
+                sessionId,
+                documentId,
+                editId: message.editId,
+                revision: document.version,
+                code: 'STALE_REVISION',
+                message: 'stale revision or document identity',
+                ...(hostSnapshot ? { hostSnapshot } : {}),
               });
               if (message.flushRequestId) {
                 this.rejectFlush(message.flushRequestId, new Error('Editor flush was rejected as stale.'));
@@ -671,19 +726,26 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
               break;
             }
             try {
-              await this.updateDocument(document, message.content);
+              await this.updateDocument(document, message.mutation);
               webviewPanel.webview.postMessage({
-                type: 'editAcknowledged', sessionId, editId: message.editId, revision: document.version,
+                type: 'editAcknowledged',
+                sessionId,
+                documentId,
+                editId: message.editId,
+                revision: document.version,
               });
               if (message.flushRequestId) this.resolveFlush(message.flushRequestId);
             } catch (error) {
-              const parsed = readCurrentDocumentValue();
-              const { doc } = sharedUnwrapSdoc(parsed);
+              const hostSnapshot = tryReadCurrentMutation();
               webviewPanel.webview.postMessage({
-                type: 'editRejected', sessionId, editId: message.editId,
+                type: 'editRejected',
+                sessionId,
+                documentId,
+                editId: message.editId,
                 revision: document.version,
-                reason: error instanceof Error ? error.message : String(error),
-                content: convertImagePathsToWebviewUris(doc, documentDir, webviewPanel.webview),
+                code: 'WRITE_FAILED',
+                message: error instanceof Error ? error.message : String(error),
+                ...(hostSnapshot ? { hostSnapshot } : {}),
               });
               if (message.flushRequestId) {
                 this.rejectFlush(message.flushRequestId, new Error('Editor flush failed to apply.'));
@@ -724,34 +786,23 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
           case 'importHtml':
             await this.importHtml(document, webviewPanel);
             break;
-          case 'updateMeta':
-            await this.updateMeta(document, message.meta);
-            postAuthoritativeUpdate();
-            break;
-          case 'updateDocSettings':
-            await this.updateDocSettings(document, webviewPanel, message.settings);
-            postAuthoritativeUpdate();
-            break;
           case 'selectCssFile': {
             const selectedPath = await this.selectCssFile(document);
             if (selectedPath !== undefined) {
-              const target = message.target as 'slide' | 'html';
-              const key = target === 'slide' ? 'slideCssPath' : 'htmlCssPath';
-              const currentSettings = this.readDocSettings(document);
-              const newSettings = { ...currentSettings, [key]: selectedPath };
-              await this.updateDocSettings(document, webviewPanel, newSettings);
+              webviewPanel.webview.postMessage({
+                type: 'documentSettingSelected',
+                key: message.target === 'slide' ? 'slideCssPath' : 'htmlCssPath',
+                value: selectedPath,
+              });
             }
             break;
           }
           case 'clearCssFile': {
-            const target = message.target as 'slide' | 'html';
-            const key = target === 'slide' ? 'slideCssPath' : 'htmlCssPath';
-            const currentSettings = this.readDocSettings(document);
-            if (currentSettings) {
-              const { [key]: _removed, ...rest } = currentSettings;
-              const newSettings = Object.keys(rest).length > 0 ? rest : null;
-              await this.updateDocSettings(document, webviewPanel, newSettings);
-            }
+            webviewPanel.webview.postMessage({
+              type: 'documentSettingSelected',
+              key: message.target === 'slide' ? 'slideCssPath' : 'htmlCssPath',
+              value: null,
+            });
             break;
           }
         }
@@ -778,23 +829,13 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         }
 
         if (isUninitializedSdocText(document.getText())) {
-          sendUpdate();
+          postExternalChange();
           return;
         }
 
         // Send updated content to webview
         try {
-          const text = e.document.getText();
-          const parsed = text.trim() ? JSON.parse(text) : { sdoc: SdocEditorProvider.SDOC_VERSION, meta: {}, doc: { type: 'doc', content: [] } };
-          const { doc } = sharedUnwrapSdoc(parsed);
-          const convertedJson = convertImagePathsToWebviewUris(doc, documentDir, webviewPanel.webview);
-          webviewPanel.webview.postMessage({
-            type: 'update',
-            sessionId,
-            documentId,
-            revision: document.version,
-            content: convertedJson,
-          });
+          postExternalChange();
         } catch {
           // Ignore parse errors during typing
         }
@@ -852,7 +893,10 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     });
   }
 
-  private async updateDocument(document: vscode.TextDocument, content: TiptapNode): Promise<void> {
+  private async updateDocument(
+    document: vscode.TextDocument,
+    mutation: DocumentMutation,
+  ): Promise<void> {
     const edit = new vscode.WorkspaceEdit();
     const fullRange = new vscode.Range(
       document.positionAt(0),
@@ -860,7 +904,9 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     );
 
     // Convert webview URIs back to relative paths before saving
-    const convertedContent = dehydrateDocumentAssets(convertWebviewUrisToRelativePaths(content));
+    const convertedContent = dehydrateDocumentAssets(
+      convertWebviewUrisToRelativePaths(mutation.content),
+    );
 
     // Read existing file to preserve metadata
     const existingText = document.getText();
@@ -871,9 +917,16 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       // intentionally ignored: parse errors during editing
     }
 
+    const nextMeta: SdocMeta = { ...existingMeta, ...mutation.meta };
+    if (mutation.documentSettings && Object.keys(mutation.documentSettings).length > 0) {
+      nextMeta.settings = mutation.documentSettings;
+    } else {
+      delete nextMeta.settings;
+    }
+
     // Resolve settings from doc settings > VS Code > default
     const config = vscode.workspace.getConfiguration('structuredDocEditor');
-    const resolved = resolveSettings(existingMeta.settings, {
+    const resolved = resolveSettings(nextMeta.settings, {
       equationNumbering: config.get<'sequential' | 'hierarchical'>('equation.numbering', 'sequential'),
       captionStyle: config.get<CaptionStyleName>('caption.style', 'modern'),
       crossRefIncludeCaption: config.get<boolean>('caption.crossRefIncludeCaption', false),
@@ -893,14 +946,14 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     const sdocFile: Record<string, unknown> = {
       sdoc: SdocEditorProvider.SDOC_VERSION,
       meta: {
-        ...existingMeta,
-        title: existingMeta.title || '',
-        author: existingMeta.author || '',
-        version: existingMeta.version || '0.1',
-        created: existingMeta.created || new Date().toISOString(),
+        ...nextMeta,
+        title: nextMeta.title || '',
+        author: nextMeta.author || '',
+        version: nextMeta.version || '0.1',
+        created: nextMeta.created || new Date().toISOString(),
         modified: new Date().toISOString(),
-        ...(existingMeta.settings && Object.keys(existingMeta.settings).length > 0
-          ? { settings: existingMeta.settings }
+        ...(nextMeta.settings && Object.keys(nextMeta.settings).length > 0
+          ? { settings: nextMeta.settings }
           : {}),
       },
       doc: synced,
@@ -1095,137 +1148,6 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     }
   }
 
-  private async updateMeta(
-    document: vscode.TextDocument,
-    meta: { title?: string; author?: string; version?: string }
-  ): Promise<void> {
-    const edit = new vscode.WorkspaceEdit();
-    const fullRange = new vscode.Range(
-      document.positionAt(0),
-      document.positionAt(document.getText().length)
-    );
-
-    const existingText = document.getText();
-    let parsed: unknown;
-    try {
-      parsed = existingText.trim() ? JSON.parse(existingText) : {
-        sdoc: SdocEditorProvider.SDOC_VERSION,
-        meta: {},
-        doc: { type: 'doc', content: [] },
-      };
-    } catch {
-      return;
-    }
-
-    if (!parsed || typeof parsed !== 'object' || !('sdoc' in parsed)) return;
-    const { doc, meta: existingMeta } = sharedUnwrapSdoc(parsed);
-    const nextEnvelope = sharedWrapSdoc(doc, { ...existingMeta, ...meta });
-    assertPersistedDocument(nextEnvelope);
-    const json = JSON.stringify(nextEnvelope, null, 2);
-    edit.replace(document.uri, fullRange, json);
-
-    await this.applyExpectedEdit(document, edit, json);
-  }
-
-  /** Save per-document settings into meta.settings, then re-send merged settings to webview. */
-  private async updateDocSettings(
-    document: vscode.TextDocument,
-    webviewPanel: vscode.WebviewPanel,
-    settings: Partial<DocumentSettings> | null,
-  ): Promise<void> {
-    if (settings !== null && !validateDocumentSettings(settings)) {
-      throw new Error('Document settings violate sdoc.schema.json');
-    }
-    const edit = new vscode.WorkspaceEdit();
-    const fullRange = new vscode.Range(
-      document.positionAt(0),
-      document.positionAt(document.getText().length)
-    );
-
-    const existingText = document.getText();
-    let parsed: unknown;
-    try {
-      parsed = existingText.trim() ? JSON.parse(existingText) : {
-        sdoc: SdocEditorProvider.SDOC_VERSION,
-        meta: {},
-        doc: { type: 'doc', content: [] },
-      };
-    } catch {
-      return;
-    }
-
-    if (!parsed || typeof parsed !== 'object' || !('sdoc' in parsed)) return;
-    const { doc, meta } = sharedUnwrapSdoc(parsed);
-    const nextMeta: SdocMeta = { ...meta };
-    if (settings && Object.keys(settings).length > 0) nextMeta.settings = settings;
-    else delete nextMeta.settings;
-    const nextEnvelope = sharedWrapSdoc(doc, nextMeta);
-    assertPersistedDocument(nextEnvelope);
-    const json = JSON.stringify(nextEnvelope, null, 2);
-    edit.replace(document.uri, fullRange, json);
-
-    await this.applyExpectedEdit(document, edit, json);
-
-    // Re-read and re-send merged settings so the webview reflects the change
-    const config = vscode.workspace.getConfiguration('structuredDocEditor');
-    const vscodeDefaults: Partial<DocumentSettings> = {
-      headingNumbering: config.get<boolean>('heading.numbering', true),
-      headingDecoration: config.get<boolean>('heading.decoration', true),
-      headingH1Color: config.get<string>('heading.h1Color', SETTINGS_DEFAULTS.headingH1Color),
-      headingH2Color: config.get<string>('heading.h2Color', SETTINGS_DEFAULTS.headingH2Color),
-      headingH3Color: config.get<string>('heading.h3Color', SETTINGS_DEFAULTS.headingH3Color),
-      headingH4Color: config.get<string>('heading.h4Color', SETTINGS_DEFAULTS.headingH4Color),
-      headingH5Color: config.get<string>('heading.h5Color', SETTINGS_DEFAULTS.headingH5Color),
-      headingH6Color: config.get<string>('heading.h6Color', SETTINGS_DEFAULTS.headingH6Color),
-      captionStyle: config.get<CaptionStyleName>('caption.style', 'modern'),
-      captionNumbering: config.get<'sequential' | 'hierarchical'>('caption.numbering', 'sequential'),
-      equationNumbering: config.get<'sequential' | 'hierarchical'>('equation.numbering', 'sequential'),
-      crossRefIncludeCaption: config.get<boolean>('caption.crossRefIncludeCaption', false),
-    };
-    const resolved = resolveSettings(settings ?? undefined, vscodeDefaults);
-    const preset = getCaptionPreset(resolved.captionStyle);
-    webviewPanel.webview.postMessage({
-      type: 'settingsChanged',
-      settings: {
-        captionStyle: resolved.captionStyle,
-        imageCaptionPrefix: preset.figurePrefix,
-        tableCaptionPrefix: preset.tablePrefix,
-        equationCaptionPrefix: preset.equationPrefix,
-        captionSeparator: preset.separator,
-        tableNumberStyle: preset.tableNumberStyle,
-        equationParens: preset.equationParens,
-        captionNumbering: resolved.captionNumbering,
-        equationNumbering: resolved.equationNumbering,
-        crossRefIncludeCaption: resolved.crossRefIncludeCaption,
-        headingNumbering: resolved.headingNumbering,
-        headingDecoration: resolved.headingDecoration,
-        headingH1Color: resolved.headingH1Color,
-        headingH2Color: resolved.headingH2Color,
-        headingH3Color: resolved.headingH3Color,
-        headingH4Color: resolved.headingH4Color,
-        headingH5Color: resolved.headingH5Color,
-        headingH6Color: resolved.headingH6Color,
-        defaultImageAlignment: config.get<string>('image.defaultAlignment', 'center'),
-        exportImagePath: config.get<string>('export.imagePath', 'relative'),
-        pdfScale: config.get<number>('export.pdfScale', 70),
-        selfContained: config.get<'none' | 'images-only' | 'full'>('export.selfContained', 'images-only'),
-        slideBreakLevel: config.get<'h1-only' | 'h1-h2-vertical'>('slide.breakLevel', 'h1-only'),
-        slideTransition: config.get<'none' | 'fade' | 'slide' | 'convex' | 'concave' | 'zoom'>('slide.transition', 'none'),
-        showTitleSlide: config.get<boolean>('slide.showTitleSlide', true),
-        outputDir: config.get<string>('export.outputDir', ''),
-        fontWeightBody: config.get<string>('font.body', 'Regular'),
-        fontWeightBold: config.get<string>('font.bold', 'Bold'),
-        fontWeightH1: config.get<string>('font.h1', 'Bold'),
-        fontWeightH2: config.get<string>('font.h2', 'SemiBold'),
-        fontWeightH3: config.get<string>('font.h3', 'SemiBold'),
-      },
-    });
-    webviewPanel.webview.postMessage({
-      type: 'docSettingsChanged',
-      docSettings: settings || null,
-    });
-  }
-
   private async openLinkedDocument(
     currentDocument: vscode.TextDocument,
     relPath: string,
@@ -1406,13 +1328,4 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     return './' + path.relative(basePath, selectedUri.fsPath).replace(/\\/g, '/');
   }
 
-  private readDocSettings(document: vscode.TextDocument): Partial<DocumentSettings> | null {
-    try {
-      const text = document.getText();
-      const parsed: unknown = text.trim() ? JSON.parse(text) : {};
-      return readDocumentSettings(parsed) ?? null;
-    } catch {
-      return null;
-    }
-  }
 }

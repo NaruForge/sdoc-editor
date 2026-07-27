@@ -28,6 +28,17 @@ import { collectTargets, CROSSREF_RESYNC_META } from '@shared/editor/extensions/
 import type { RefTarget } from '@shared/editor/extensions/CrossReference';
 import type { DocumentSettings, TiptapNode } from '@shared/types';
 import type { EditorToHostMessage } from '@shared/types/messages';
+import {
+  type DocumentMutation,
+  DocumentSyncCoordinator,
+} from '@shared/persistence/DocumentSyncCoordinator';
+import type { EditorReplacementReason } from '@shared/editor/documentReplacement';
+import {
+  ExternalChangeBanner,
+  ExternalChangeComparison,
+  buildExternalChangeComparison,
+  buildExternalDocumentDiff,
+} from '@shared/editor/externalChanges';
 
 export const Editor: React.FC = () => {
   const { state, dispatch } = useEditorContext();
@@ -40,7 +51,9 @@ export const Editor: React.FC = () => {
   });
   const [meta, setMeta] = useState<MetaState>({ title: '', author: '', version: '', created: '', modified: '' });
   const { dialogs, dialogDispatch, openTableContextMenu, openEditorContextMenu } = useDialogState();
-  const setContentRef = useRef<((content: JSONContent) => void) | null>(null);
+  const replaceEditorDocumentRef = useRef<(
+    (reason: EditorReplacementReason, content: JSONContent) => boolean
+  ) | null>(null);
   const persistenceSessionRef = useRef<{
     sessionId: string;
     documentId: string;
@@ -48,7 +61,12 @@ export const Editor: React.FC = () => {
     pendingFlushRequestId?: string;
   } | null>(null);
   const initDoneRef = useRef(false);
+  const syncCoordinatorRef = useRef<DocumentSyncCoordinator | null>(null);
   const settings = state.settings;
+  const metaRef = useRef(meta);
+  metaRef.current = meta;
+  const docSettingsRef = useRef(state.docSettings);
+  docSettingsRef.current = state.docSettings;
 
   // Apply settings to CSS custom properties and global state
   useEffect(() => {
@@ -81,19 +99,12 @@ export const Editor: React.FC = () => {
       dialogDispatch({ type: 'SET_DIAGRAM_DIALOG', payload: { code, language, pos } }),
   }), [dialogDispatch]);
 
-  const { editor, setContent, flushUpdate, flushPendingUpdate } = useTiptapEditor({
+  const { editor, replaceEditorDocument, flushUpdate, flushPendingUpdate } = useTiptapEditor({
     onUpdate: (content) => {
-      const session = persistenceSessionRef.current;
-      if (!session) return;
-      const editId = crypto.randomUUID();
-      const baseRevision = session.revision;
-      session.revision += 1;
-      const flushRequestId = session.pendingFlushRequestId;
-      delete session.pendingFlushRequestId;
-      postMessageRef.current({
-        type: 'edit', content: content as TiptapNode,
-        sessionId: session.sessionId, documentId: session.documentId,
-        editId, baseRevision, flushRequestId,
+      syncCoordinatorRef.current?.submit({
+        content: content as TiptapNode,
+        meta: metaRef.current,
+        documentSettings: docSettingsRef.current,
       });
     },
     runtime: extensionRuntime,
@@ -149,14 +160,25 @@ export const Editor: React.FC = () => {
     personalTemplateRootPath,
     personalTemplateRootScope,
     isExporting,
+    externalChange,
+    showExternalComparison,
+    setShowExternalComparison,
+    handleKeepLocal,
+    handleReloadExternal,
   } = useEditorMessages({
     editor,
     flushUpdate,
     flushPendingUpdate,
-    setContentRef,
+    replaceEditorDocumentRef,
     initDoneRef,
     setMeta,
     persistenceSessionRef,
+    syncCoordinatorRef,
+    getCurrentMutation: () => editor ? {
+      content: editor.getJSON() as TiptapNode,
+      meta: metaRef.current,
+      documentSettings: docSettingsRef.current,
+    } satisfies DocumentMutation : null,
   });
   postMessageRef.current = postMessage;
 
@@ -185,8 +207,14 @@ export const Editor: React.FC = () => {
 
   const handleUpdateDocSettings = useCallback((settings: Partial<DocumentSettings> | null) => {
     if (settings) dispatch({ type: 'SET_SETTINGS', payload: settings });
-    postMessage({ type: 'updateDocSettings', settings });
-  }, [dispatch, postMessage]);
+    dispatch({ type: 'SET_DOC_SETTINGS', payload: settings });
+    if (!editor) return;
+    syncCoordinatorRef.current?.submit({
+      content: editor.getJSON() as TiptapNode,
+      meta: metaRef.current,
+      documentSettings: settings,
+    });
+  }, [dispatch, editor]);
 
   const handleContextMenu = (event: React.MouseEvent) => {
     event.preventDefault();
@@ -446,17 +474,18 @@ export const Editor: React.FC = () => {
     flushUpdate();
   };
 
-  // Keep setContentRef in sync so message handler can call setContent
+  // Keep the explicit replacement boundary available to the message handler.
   useEffect(() => {
-    if (editor && setContent) {
-      setContentRef.current = setContent;
+    if (editor) {
+      replaceEditorDocumentRef.current = replaceEditorDocument;
       if (state.doc && !initDoneRef.current) {
-        setContent(state.doc);
+        replaceEditorDocument('initial-load', state.doc);
         initDoneRef.current = true;
         dispatch({ type: 'SET_READY', payload: true });
+        editor.setEditable(true);
       }
     }
-  }, [editor, setContent, state.doc, dispatch]);
+  }, [editor, replaceEditorDocument, state.doc, dispatch]);
 
   useEditorDomEvents(editor, handlePaste);
 
@@ -467,6 +496,19 @@ export const Editor: React.FC = () => {
       </div>
     );
   }
+
+  const hasLocalChanges = Boolean(syncCoordinatorRef.current
+    && syncCoordinatorRef.current.state.localGeneration
+      > syncCoordinatorRef.current.state.acknowledgedGeneration);
+  const externalComparison = externalChange
+    ? buildExternalChangeComparison(
+      buildExternalDocumentDiff(
+        editor.getJSON() as TiptapNode,
+        externalChange.snapshot.content,
+      ),
+      { title: '외부 문서 변경 비교', mine: '내 변경', external: '디스크의 문서' },
+    )
+    : null;
 
   return (
     <div className="editor-shell">
@@ -487,6 +529,35 @@ export const Editor: React.FC = () => {
         onInsertImage={handleInsertImage}
         onInsertDrawio={handleInsertDrawio}
       />
+      {externalChange && (
+        <ExternalChangeBanner
+          isDirty={hasLocalChanges}
+          message="외부 변경이 있습니다."
+          compareLabel="비교"
+          keepMineLabel="내 변경 유지"
+          reloadLabel="다시 불러오기"
+          onCompare={() => setShowExternalComparison(true)}
+          onKeepMine={() => {
+            if (window.confirm('내 변경으로 디스크의 외부 변경을 덮어쓰시겠습니까?')) {
+              handleKeepLocal();
+            }
+          }}
+          onReload={() => {
+            if (!hasLocalChanges
+              || window.confirm('저장되지 않은 내 변경을 버리고 외부 문서를 다시 불러오시겠습니까?')) {
+              handleReloadExternal();
+            }
+          }}
+        />
+      )}
+      {showExternalComparison && externalComparison && (
+        <ExternalChangeComparison
+          model={externalComparison}
+          onClose={() => setShowExternalComparison(false)}
+          closeLabel="비교 닫기"
+          emptyMessage="본문 블록의 차이가 없습니다."
+        />
+      )}
       {editor && <BubbleMenuBar editor={editor} />}
       <div className={`editor-body-layout${showSidePanel ? ' editor-body-with-toc' : ''}`}>
         <ActivityBar

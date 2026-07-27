@@ -244,6 +244,75 @@ pub fn read_active_document_snapshot(
     )
 }
 
+fn external_document_snapshot(
+    path: &Path,
+    document_id: &str,
+    revision: u64,
+    expected_source: Option<&str>,
+) -> Result<Option<serde_json::Value>, String> {
+    let current_source = fs::read_to_string(path).map_err(|error| error.to_string())?;
+    if expected_source == Some(current_source.as_str()) {
+        return Ok(None);
+    }
+    let envelope: serde_json::Value =
+        serde_json::from_str(&current_source).map_err(|error| error.to_string())?;
+    validate_persisted_document(&envelope)?;
+    Ok(Some(serde_json::json!({
+        "documentId": document_id,
+        "revision": revision + 1,
+        "envelope": envelope,
+    })))
+}
+
+#[tauri::command]
+pub fn read_external_document_snapshot(
+    document_id: String,
+    state: tauri::State<DocState>,
+) -> Result<Option<serde_json::Value>, String> {
+    let active_document_id = state.document_id.lock().unwrap().clone();
+    if active_document_id.as_deref() != Some(document_id.as_str()) {
+        return Err("External change request does not match the active document".into());
+    }
+    let revision = *state.document_revision.lock().unwrap();
+    let path = state
+        .file_path
+        .lock()
+        .unwrap()
+        .clone()
+        .ok_or("No file open")?;
+    let expected_source = state.document_source_text.lock().unwrap().clone();
+    external_document_snapshot(&path, &document_id, revision, expected_source.as_deref())
+}
+
+#[tauri::command]
+pub fn accept_external_document(
+    document_id: String,
+    state: tauri::State<DocState>,
+) -> Result<serde_json::Value, String> {
+    let active_document_id = state.document_id.lock().unwrap().clone();
+    if active_document_id.as_deref() != Some(document_id.as_str()) {
+        return Err("External change request does not match the active document".into());
+    }
+    let path = state
+        .file_path
+        .lock()
+        .unwrap()
+        .clone()
+        .ok_or("No file open")?;
+    let current_source = fs::read_to_string(&path).map_err(|error| error.to_string())?;
+    let envelope: serde_json::Value =
+        serde_json::from_str(&current_source).map_err(|error| error.to_string())?;
+    validate_persisted_document(&envelope)?;
+    *state.document_source_text.lock().unwrap() = Some(current_source);
+    let mut revision = state.document_revision.lock().unwrap();
+    *revision += 1;
+    Ok(serde_json::json!({
+        "documentId": document_id,
+        "revision": *revision,
+        "envelope": envelope,
+    }))
+}
+
 #[tauri::command]
 pub fn open_document(
     path: String,
@@ -481,9 +550,9 @@ pub fn get_current_file_path(state: tauri::State<DocState>) -> Option<String> {
 #[cfg(test)]
 mod persistence_tests {
     use super::{
-        current_workspace_contains, read_active_document_snapshot_from_path,
-        validate_new_document_target, validate_persisted_document, validate_save_request,
-        validate_unchanged_source,
+        current_workspace_contains, external_document_snapshot,
+        read_active_document_snapshot_from_path, validate_new_document_target,
+        validate_persisted_document, validate_save_request, validate_unchanged_source,
     };
 
     #[test]
@@ -593,6 +662,33 @@ mod persistence_tests {
         .unwrap_err();
         assert!(error.contains("complete SDOC 1.0 envelope"));
 
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn external_snapshot_is_reported_without_mutating_the_expected_source() {
+        let root =
+            std::env::temp_dir().join(format!("sdoc-external-snapshot-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let path = root.join("external.sdoc");
+        let original =
+            r#"{"sdoc":"1.0","meta":{"title":"Original"},"doc":{"type":"doc","content":[]}}"#;
+        let changed =
+            r#"{"sdoc":"1.0","meta":{"title":"Changed"},"doc":{"type":"doc","content":[]}}"#;
+        std::fs::write(&path, original).unwrap();
+        assert!(
+            external_document_snapshot(&path, "doc-a", 3, Some(original))
+                .unwrap()
+                .is_none()
+        );
+
+        std::fs::write(&path, changed).unwrap();
+        let snapshot = external_document_snapshot(&path, "doc-a", 3, Some(original))
+            .unwrap()
+            .unwrap();
+        assert_eq!(snapshot["revision"], 4);
+        assert_eq!(snapshot["envelope"]["meta"]["title"], "Changed");
         std::fs::remove_dir_all(root).unwrap();
     }
 

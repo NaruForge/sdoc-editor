@@ -12,6 +12,10 @@ import type {
   TiptapNode,
 } from '../types';
 import type { TemplateDescriptor, TemplateStructuralPreview } from '../template';
+import type {
+  DocumentMutation,
+  DocumentMutationErrorCode,
+} from '../persistence/DocumentSyncCoordinator';
 
 // ─── Editor Settings (Extension → Webview) ─────────────────────
 
@@ -61,7 +65,7 @@ export interface InitMessage {
   documentId: string;
   revision: number;
   readOnlyReason?: string;
-  content: TiptapNode;
+  snapshot: DocumentMutation;
 }
 
 export interface TemplateCatalogMessage {
@@ -93,17 +97,27 @@ export interface TemplateApplicationFinishedMessage {
   applied: boolean;
 }
 
-export interface UpdateMessage {
-  type: 'update';
+export interface ExternalChangeMessage {
+  type: 'externalChange';
   sessionId: string;
   documentId: string;
   revision: number;
-  content: TiptapNode;
+  snapshot: DocumentMutation;
+}
+
+export interface ReplaceDocumentMessage {
+  type: 'replaceDocument';
+  sessionId: string;
+  documentId: string;
+  revision: number;
+  reason: 'user-reload' | 'confirmed-template';
+  snapshot: DocumentMutation;
 }
 
 export interface EditAcknowledgedMessage {
   type: 'editAcknowledged';
   sessionId: string;
+  documentId: string;
   editId: string;
   revision: number;
 }
@@ -111,10 +125,12 @@ export interface EditAcknowledgedMessage {
 export interface EditRejectedMessage {
   type: 'editRejected';
   sessionId: string;
+  documentId: string;
   editId: string;
   revision: number;
-  reason: string;
-  content: TiptapNode;
+  code: DocumentMutationErrorCode;
+  message: string;
+  hostSnapshot?: DocumentMutation;
 }
 
 export interface SettingsChangedMessage {
@@ -125,6 +141,12 @@ export interface SettingsChangedMessage {
 export interface DocSettingsChangedMessage {
   type: 'docSettingsChanged';
   docSettings: Partial<DocumentSettings> | null;
+}
+
+export interface DocumentSettingSelectedMessage {
+  type: 'documentSettingSelected';
+  key: 'slideCssPath' | 'htmlCssPath';
+  value: string | null;
 }
 
 export interface MetaUpdateMessage {
@@ -215,11 +237,13 @@ export type ExtensionToWebviewMessage =
   | TemplateCatalogMessage
   | TemplateApplicationFinishedMessage
   | TemplateOperationFinishedMessage
-  | UpdateMessage
+  | ExternalChangeMessage
+  | ReplaceDocumentMessage
   | EditAcknowledgedMessage
   | EditRejectedMessage
   | SettingsChangedMessage
   | DocSettingsChangedMessage
+  | DocumentSettingSelectedMessage
   | MetaUpdateMessage
   | ImportContentMessage
   | ImportHtmlToWebviewMessage
@@ -296,13 +320,13 @@ export interface OpenPersonalTemplateFolderMessage {
 
 export interface EditMessage {
   type: 'edit';
-  sessionId?: string;
-  documentId?: string;
-  editId?: string;
-  baseRevision?: number;
+  sessionId: string;
+  documentId: string;
+  editId: string;
+  baseRevision: number;
+  localGeneration: number;
   flushRequestId?: string;
-  content: TiptapNode;
-  meta?: Partial<SdocMeta>;
+  mutation: DocumentMutation;
 }
 
 export interface ViewJsonMessage {
@@ -362,20 +386,18 @@ export interface ImportHtmlFromWebviewMessage {
   type: 'importHtml';
 }
 
-export interface UpdateMetaMessage {
-  type: 'updateMeta';
-  meta: Partial<SdocMeta>;
-}
-
-export interface UpdateDocSettingsMessage {
-  type: 'updateDocSettings';
-  settings: Partial<DocumentSettings> | null;
-}
-
 export interface FlushCompleteMessage {
   type: 'flushComplete';
-  sessionId?: string;
-  requestId?: string;
+  sessionId: string;
+  requestId: string;
+}
+
+export interface FlushFailedMessage {
+  type: 'flushFailed';
+  sessionId: string;
+  requestId: string;
+  code: DocumentMutationErrorCode;
+  message: string;
 }
 
 export interface SelectCssFileMessage {
@@ -410,9 +432,8 @@ export type WebviewToExtensionMessage =
   | BrowseSdocFilesMessage
   | ImportMarkdownMessage
   | ImportHtmlFromWebviewMessage
-  | UpdateMetaMessage
-  | UpdateDocSettingsMessage
   | FlushCompleteMessage
+  | FlushFailedMessage
   | SelectCssFileMessage
   | ClearCssFileMessage;
 

@@ -1,0 +1,145 @@
+.external-change-banner {
+  align-items: center;
+  background: color-mix(in srgb, var(--vscode-editorWarning-foreground, #cca700) 12%, transparent);
+  border: 1px solid var(--vscode-editorWarning-foreground, #cca700);
+  color: var(--vscode-foreground, inherit);
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 8px 12px;
+}
+
+.external-change-banner__message {
+  margin: 0;
+}
+
+.external-change-banner__actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.external-change-action {
+  background: var(--vscode-button-secondaryBackground, #3a3d41);
+  border: 0;
+  color: var(--vscode-button-secondaryForeground, #fff);
+  cursor: pointer;
+  font: inherit;
+  padding: 5px 10px;
+}
+
+.external-change-action:hover {
+  background: var(--vscode-button-secondaryHoverBackground, #45494e);
+}
+
+.external-change-action:focus-visible {
+  outline: 2px solid var(--vscode-focusBorder, #007fd4);
+  outline-offset: 2px;
+}
+
+.external-change-action--primary {
+  background: var(--vscode-button-background, #0e639c);
+  color: var(--vscode-button-foreground, #fff);
+}
+
+.external-change-action--primary:hover {
+  background: var(--vscode-button-hoverBackground, #1177bb);
+}
+
+.external-comparison {
+  background: var(--vscode-editor-background, #fff);
+  border: 1px solid var(--vscode-panel-border, #d0d0d0);
+  color: var(--vscode-editor-foreground, #1f1f1f);
+  max-height: min(65vh, 720px);
+  overflow: auto;
+  padding: 12px;
+}
+
+.external-comparison__header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.external-comparison__header h2 {
+  font-size: 1rem;
+  margin: 0;
+}
+
+.external-comparison__table {
+  display: grid;
+  gap: 1px;
+}
+
+.external-comparison__row {
+  display: grid;
+  gap: 1px;
+  grid-template-columns: minmax(80px, 0.35fr) minmax(180px, 1fr) minmax(180px, 1fr);
+}
+
+.external-comparison__row > div {
+  background: var(--vscode-editorWidget-background, #f5f5f5);
+  min-width: 0;
+  padding: 8px;
+}
+
+.external-comparison__row--head > div {
+  font-weight: 600;
+}
+
+.external-comparison__kinds {
+  align-content: start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.external-comparison__kind {
+  border: 1px solid currentColor;
+  border-radius: 10px;
+  font-size: 0.75rem;
+  padding: 1px 6px;
+}
+
+.external-comparison__kind--added {
+  color: var(--vscode-testing-iconPassed, #388a34);
+}
+
+.external-comparison__kind--removed {
+  color: var(--vscode-testing-iconFailed, #be1100);
+}
+
+.external-comparison__kind--changed,
+.external-comparison__kind--moved {
+  color: var(--vscode-editorWarning-foreground, #9d7a00);
+}
+
+.external-comparison__block-label {
+  font-size: 0.75rem;
+  opacity: 0.75;
+}
+
+.external-comparison__preview {
+  font: inherit;
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.external-comparison__empty {
+  font-style: italic;
+  opacity: 0.65;
+}
+
+@media (max-width: 640px) {
+  .external-change-banner {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .external-comparison__row {
+    grid-template-columns: 72px minmax(120px, 1fr) minmax(120px, 1fr);
+  }
+}
