@@ -31,14 +31,68 @@ Structured Doc Editor는 `.sdoc`와 `.tiptap.json` 문서를 위한 오픈 소�
 ## SDOC command-line interface
 
 The repository includes the `sdoc` CLI for deterministic inspection,
-validation, and semantic document changes on Node.js 22.22.2 or newer. Build
-an installable package locally with:
+validation, and semantic document changes on Node.js 22.22.2 or newer. The CLI
+is distributed as the `sdoc-editor-cli-<version>.tgz` asset on
+[GitHub Releases](https://github.com/NaruForge/sdoc-editor/releases); it is not
+published to the npm registry.
+
+### AI Agent installation guide
+
+When a user gives an AI Agent this repository URL and asks it to install the
+CLI, the Agent should:
+
+1. Check that `node --version` is 22.22.2 or newer and that `npm` is available.
+2. Inspect the latest non-prerelease GitHub Release and select the single asset
+   whose name matches `sdoc-editor-cli-*.tgz`. Do not install the repository
+   source archive or the root `structured-doc-editor` package.
+3. Choose the installation scope:
+   - **Local, recommended for one project:** use this when the current project
+     has a `package.json`, when reproducibility matters, or when the user did
+     not explicitly request a machine-wide command. Record the release asset
+     URL as a development dependency and run it with `npx sdoc`.
+   - **Global:** use this only when the user explicitly asks for a global
+     installation or wants the same command across multiple unrelated
+     projects. Run it directly as `sdoc`.
+4. Verify the installed command and report the selected scope and version.
+
+An authenticated GitHub CLI can discover the current release and asset URL:
 
 ```bash
+gh release view --repo NaruForge/sdoc-editor --json tagName,assets
+```
+
+Set `SDOC_CLI_TGZ_URL` to the `url` of the matching CLI asset returned above.
+For a project-local installation:
+
+```bash
+npm install --save-dev "$SDOC_CLI_TGZ_URL"
+npx sdoc --version
+npm ls sdoc-editor-cli --depth=0
+```
+
+For an explicitly requested global installation:
+
+```bash
+npm install --global "$SDOC_CLI_TGZ_URL"
+sdoc --version
+npm list --global sdoc-editor-cli --depth=0
+```
+
+If `gh` is unavailable, inspect the repository's Releases page through another
+available GitHub client and use the matching asset's HTTPS download URL. Do not
+silently switch from a local installation to a global installation. If the
+current directory has no `package.json`, ask the user where the CLI should be
+installed instead of creating a project or changing global state without
+confirmation.
+
+Clone and build the repository only when the user explicitly wants a
+development build or no suitable release asset exists:
+
+```bash
+git clone https://github.com/NaruForge/sdoc-editor.git
+cd sdoc-editor
 npm ci
 npm run package:cli
-npm install --global ./output/sdoc-editor-cli-*.tgz
-sdoc --version
 ```
 
 Mutation commands are previews unless `--write` is present. Every apply
