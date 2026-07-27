@@ -376,6 +376,11 @@ export const Editor: React.FC<EditorProps> = ({
         break;
       case 'editAcknowledged':
         if (syncCoordinatorRef.current?.acknowledge(message)) {
+          const observed = syncCoordinatorRef.current.state.externalChange;
+          setExternalChange(observed
+            ? { revision: observed.revision, snapshot: observed.hostSnapshot }
+            : null);
+          if (!observed) setShowExternalComparison(false);
           setSaveStatus(
             syncCoordinatorRef.current.state.localGeneration
               === syncCoordinatorRef.current.state.acknowledgedGeneration

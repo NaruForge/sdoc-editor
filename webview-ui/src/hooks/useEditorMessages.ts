@@ -177,9 +177,15 @@ export function useEditorMessages({
         });
         break;
       case 'editAcknowledged':
-        if (syncCoordinatorRef.current?.acknowledge(message)
-          && persistenceSessionRef.current) {
-          persistenceSessionRef.current.revision = message.revision;
+        if (syncCoordinatorRef.current?.acknowledge(message)) {
+          if (persistenceSessionRef.current) {
+            persistenceSessionRef.current.revision = message.revision;
+          }
+          const observed = syncCoordinatorRef.current.state.externalChange;
+          setExternalChange(observed
+            ? { revision: observed.revision, snapshot: observed.hostSnapshot }
+            : null);
+          if (!observed) setShowExternalComparison(false);
         }
         break;
       case 'editRejected':

@@ -136,6 +136,48 @@ describe('DocumentSyncCoordinator', () => {
     expect(sent).toHaveLength(2);
   });
 
+  it('clears an external-change notice covered by the matching acknowledgement', () => {
+    const sync = new DocumentSyncCoordinator({
+      identity: { sessionId: 'session-a', documentId: 'doc-a', revision: 4 },
+      createEditId: () => 'edit-1',
+      send: () => {},
+    });
+    sync.submit(mutation('local'));
+    sync.observeExternalChange(5, mutation('host echo'));
+
+    expect(sync.acknowledge({
+      sessionId: 'session-a',
+      documentId: 'doc-a',
+      editId: 'edit-1',
+      revision: 5,
+    })).toBe(true);
+    expect(sync.state.externalChange).toBeNull();
+  });
+
+  it('retains an external change newer than the matching acknowledgement', () => {
+    const sent: DocumentMutationRequest[] = [];
+    const sync = new DocumentSyncCoordinator({
+      identity: { sessionId: 'session-a', documentId: 'doc-a', revision: 4 },
+      createEditId: () => 'edit-1',
+      send: (request) => { sent.push(request); },
+    });
+    sync.submit(mutation('local'));
+    sync.submit(mutation('newest local'));
+    sync.observeExternalChange(6, mutation('newer external'));
+
+    expect(sync.acknowledge({
+      sessionId: 'session-a',
+      documentId: 'doc-a',
+      editId: 'edit-1',
+      revision: 5,
+    })).toBe(true);
+    expect(sync.state.externalChange).toEqual({
+      revision: 6,
+      hostSnapshot: mutation('newer external'),
+    });
+    expect(sent).toHaveLength(1);
+  });
+
   it('uses a save barrier captured at request time without blocking later typing', async () => {
     let nextId = 0;
     const sent: DocumentMutationRequest[] = [];

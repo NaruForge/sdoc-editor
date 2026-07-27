@@ -146,6 +146,10 @@ export class DocumentSyncCoordinator {
   public acknowledge(message: DocumentMutationAcknowledgement): boolean {
     const inFlight = this.matchInFlight(message);
     if (!inFlight || message.revision <= inFlight.baseRevision) return false;
+    const remainingExternalChange = this.current.externalChange
+      && this.current.externalChange.revision > message.revision
+      ? this.current.externalChange
+      : null;
 
     this.current = {
       ...this.current,
@@ -157,7 +161,7 @@ export class DocumentSyncCoordinator {
       inFlight: null,
       error: null,
       conflict: null,
-      externalChange: null,
+      externalChange: remainingExternalChange,
     };
     this.settleFlushWaiters();
     this.dispatchNext();
@@ -285,7 +289,10 @@ export class DocumentSyncCoordinator {
   }
 
   private dispatchNext(): void {
-    if (this.current.inFlight || this.current.error || !this.current.pending) return;
+    if (this.current.inFlight
+      || this.current.error
+      || this.current.externalChange
+      || !this.current.pending) return;
 
     const request: DocumentMutationRequest = {
       sessionId: this.current.sessionId,

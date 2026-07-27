@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { randomUUID } from 'crypto';
 import { getNonce, getWebviewUri } from './utils/webviewHelper';
+import { ExpectedDocumentChanges } from './utils/expectedDocumentChanges';
 import { convertMarkdownToJson } from '../shared/converter';
 import { generateFontFaceCSS } from './utils/fontUtils';
 import { convertImagePathsToWebviewUris, convertWebviewUrisToRelativePaths } from './utils/imageUtils';
@@ -84,7 +85,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
   }
 
   /** Exact snapshots expected from our own WorkspaceEdit, never a blind event counter. */
-  private pendingAppliedTexts = new Map<string, string[]>();
+  private readonly expectedDocumentChanges = new ExpectedDocumentChanges();
   private pendingFlushResolvers = new Map<string, {
     resolve: () => void;
     reject: (error: Error) => void;
@@ -824,7 +825,10 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     const changeDocumentSubscription = vscode.workspace.onDidChangeTextDocument((e) => {
       if (e.document.uri.toString() === document.uri.toString()) {
         // Don't send update if we caused the change
-        if (this.consumePendingEdit(document)) {
+        if (this.expectedDocumentChanges.consume(
+          document.uri.toString(),
+          document.getText(),
+        )) {
           return;
         }
 
@@ -884,7 +888,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       drawioWatcher.dispose();
       pendingDrawioEvents.forEach((timer) => clearTimeout(timer));
       settingsSubscription.dispose();
-      this.pendingAppliedTexts.delete(document.uri.toString());
+      this.expectedDocumentChanges.clear(document.uri.toString());
       for (const [requestId, pending] of this.pendingFlushResolvers) {
         clearTimeout(pending.timer);
         pending.reject(new Error('Editor was closed before its content could be flushed.'));
@@ -967,48 +971,28 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     await this.applyExpectedEdit(document, edit, json);
   }
 
-  private expectAppliedText(document: vscode.TextDocument, text: string): void {
-    const key = document.uri.toString();
-    const pending = this.pendingAppliedTexts.get(key) ?? [];
-    pending.push(text);
-    this.pendingAppliedTexts.set(key, pending);
-  }
-
   private async applyExpectedEdit(
     document: vscode.TextDocument,
     edit: vscode.WorkspaceEdit,
     expectedText: string,
   ): Promise<void> {
-    this.expectAppliedText(document, expectedText);
+    const uri = document.uri.toString();
+    const expectedAppliedText = this.expectedDocumentChanges.expect(
+      uri,
+      expectedText,
+      document.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n',
+    );
     let applied: boolean;
     try {
       applied = await vscode.workspace.applyEdit(edit);
     } catch (error) {
-      this.removeExpectedText(document, expectedText);
+      this.expectedDocumentChanges.remove(uri, expectedAppliedText);
       throw error;
     }
     if (!applied) {
-      this.removeExpectedText(document, expectedText);
+      this.expectedDocumentChanges.remove(uri, expectedAppliedText);
       throw new Error('VS Code rejected the document edit.');
     }
-  }
-
-  private consumePendingEdit(document: vscode.TextDocument): boolean {
-    const key = document.uri.toString();
-    const pending = this.pendingAppliedTexts.get(key) ?? [];
-    const index = pending.indexOf(document.getText());
-    if (index < 0) return false;
-    pending.splice(index, 1);
-    if (pending.length === 0) this.pendingAppliedTexts.delete(key);
-    return true;
-  }
-
-  private removeExpectedText(document: vscode.TextDocument, text: string): void {
-    const key = document.uri.toString();
-    const pending = this.pendingAppliedTexts.get(key) ?? [];
-    const index = pending.indexOf(text);
-    if (index >= 0) pending.splice(index, 1);
-    if (pending.length === 0) this.pendingAppliedTexts.delete(key);
   }
 
   private async exportActive(format: ExportFormat): Promise<void> {
