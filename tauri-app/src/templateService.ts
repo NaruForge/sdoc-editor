@@ -2,6 +2,7 @@ import {
   buildTemplateCatalog,
   createPersonalTemplateSnapshot,
   instantiateTemplate,
+  normalizeDocumentTitle,
   suggestTemplateTitleNodeId,
   type SdocTemplate,
   type TemplateCatalogResult,
@@ -140,12 +141,12 @@ export async function createTauriTemplateDocument<TResult>(
   request: CreateTauriTemplateRequest,
   operations: CreateTauriTemplateOperations<TResult>,
 ): Promise<TResult> {
-  const title = request.title.trim();
-  if (title.length < 1 || title.length > 200) {
+  const title = normalizeDocumentTitle(request.title);
+  if (!title.ok) {
     throw new Error('Document title must be between 1 and 200 characters.');
   }
   await operations.flush();
-  const envelope = instantiateTemplate(request.template, { title });
+  const envelope = instantiateTemplate(request.template, { title: title.title });
   return operations.create(envelope);
 }
 

@@ -7,6 +7,8 @@ import {
   getBuiltInTemplates,
   instantiateTemplate,
   isPersonalTemplateId,
+  normalizeDocumentTitle,
+  validateDocumentTitle as validateSharedDocumentTitle,
   type SdocTemplate,
   type TemplateCandidate,
   type TemplateCatalogResult,
@@ -226,10 +228,7 @@ export function prepareCurrentDocumentTemplateApplication(
 }
 
 export function validateDocumentTitle(value: string): string | undefined {
-  const trimmed = value.trim();
-  if (!trimmed) return 'Enter a document title.';
-  if (trimmed.length > 200) return 'The title must be 200 characters or fewer.';
-  return undefined;
+  return validateSharedDocumentTitle(value);
 }
 
 export function suggestSdocFileName(title: string): string {
@@ -693,8 +692,8 @@ export class VsCodeTemplateService {
     workspaces: readonly WorkspaceTemplateRoot[],
     now?: () => Date,
   ): Promise<void> {
-    const titleError = validateDocumentTitle(title);
-    if (titleError) throw new Error(titleError);
+    const normalizedTitle = normalizeDocumentTitle(title);
+    if (!normalizedTitle.ok) throw new Error(validateSharedDocumentTitle(title));
     if (path.extname(targetPath).toLocaleLowerCase('en-US') !== '.sdoc') {
       throw new Error('The destination must use the .sdoc extension.');
     }
@@ -702,7 +701,10 @@ export class VsCodeTemplateService {
       throw new Error('New documents cannot be created inside a template directory.');
     }
 
-    const envelope = instantiateTemplate(template, { title: title.trim(), ...(now ? { now } : {}) });
+    const envelope = instantiateTemplate(template, {
+      title: normalizedTitle.title,
+      ...(now ? { now } : {}),
+    });
     await writeFile(targetPath, `${JSON.stringify(envelope, null, 2)}\n`, {
       encoding: 'utf8',
       flag: 'wx',

@@ -1,0 +1,192 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "sdoc.operations.schema.json",
+  "title": "SDOC semantic operation request",
+  "description": "Public request contract for an atomic sdoc.operations/1 batch.",
+  "type": "object",
+  "required": ["contract", "expected", "operations"],
+  "properties": {
+    "contract": { "const": "sdoc.operations/1" },
+    "expected": { "$ref": "#/definitions/expected" },
+    "operations": {
+      "type": "array",
+      "maxItems": 100,
+      "items": { "$ref": "#/definitions/operation" }
+    }
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "expected": {
+      "type": "object",
+      "required": ["revision"],
+      "properties": {
+        "revision": { "$ref": "#/definitions/sha256" },
+        "documentId": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "idTarget": {
+      "type": "object",
+      "required": ["kind", "id"],
+      "properties": {
+        "kind": { "const": "id" },
+        "id": { "type": "string" },
+        "expectedType": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "snapshotTarget": {
+      "type": "object",
+      "required": ["kind", "path", "nodeType", "digest"],
+      "properties": {
+        "kind": { "const": "snapshot" },
+        "path": {
+          "type": "array",
+          "items": { "type": "integer", "minimum": 0 }
+        },
+        "nodeType": { "type": "string" },
+        "digest": { "$ref": "#/definitions/sha256" }
+      },
+      "additionalProperties": false
+    },
+    "target": {
+      "oneOf": [
+        { "$ref": "#/definitions/idTarget" },
+        { "$ref": "#/definitions/snapshotTarget" }
+      ]
+    },
+    "destination": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["position", "target"],
+          "properties": {
+            "position": { "enum": ["before", "after"] },
+            "target": { "$ref": "#/definitions/target" }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["position", "target"],
+          "properties": {
+            "position": { "const": "section-end" },
+            "target": { "$ref": "#/definitions/target" }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "operation": {
+      "oneOf": [
+        { "$ref": "#/definitions/renameHeading" },
+        { "$ref": "#/definitions/insertBlock" },
+        { "$ref": "#/definitions/insertSection" },
+        { "$ref": "#/definitions/replaceBlock" },
+        { "$ref": "#/definitions/updateBlockAttrs" },
+        { "$ref": "#/definitions/moveBlock" },
+        { "$ref": "#/definitions/deleteBlock" },
+        { "$ref": "#/definitions/moveSection" },
+        { "$ref": "#/definitions/deleteSection" }
+      ]
+    },
+    "renameHeading": {
+      "type": "object",
+      "required": ["op", "target", "title"],
+      "properties": {
+        "op": { "const": "renameHeading" },
+        "target": { "$ref": "#/definitions/target" },
+        "title": { "type": "string" },
+        "discardFormatting": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "insertBlock": {
+      "type": "object",
+      "required": ["op", "destination", "block"],
+      "properties": {
+        "op": { "const": "insertBlock" },
+        "destination": { "$ref": "#/definitions/destination" },
+        "block": { "$ref": "https://sdoc.dev/schema/v1.0.json#/definitions/anyNode" }
+      },
+      "additionalProperties": false
+    },
+    "insertSection": {
+      "type": "object",
+      "required": ["op", "target", "title"],
+      "properties": {
+        "op": { "const": "insertSection" },
+        "target": { "$ref": "#/definitions/target" },
+        "title": { "type": "string" },
+        "id": { "type": "string" },
+        "blocks": {
+          "type": "array",
+          "items": { "$ref": "https://sdoc.dev/schema/v1.0.json#/definitions/anyNode" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "replaceBlock": {
+      "type": "object",
+      "required": ["op", "target", "block"],
+      "properties": {
+        "op": { "const": "replaceBlock" },
+        "target": { "$ref": "#/definitions/target" },
+        "block": { "$ref": "https://sdoc.dev/schema/v1.0.json#/definitions/anyNode" }
+      },
+      "additionalProperties": false
+    },
+    "updateBlockAttrs": {
+      "type": "object",
+      "required": ["op", "target", "attrs"],
+      "properties": {
+        "op": { "const": "updateBlockAttrs" },
+        "target": { "$ref": "#/definitions/target" },
+        "attrs": { "type": "object" }
+      },
+      "additionalProperties": false
+    },
+    "moveBlock": {
+      "type": "object",
+      "required": ["op", "target", "destination"],
+      "properties": {
+        "op": { "const": "moveBlock" },
+        "target": { "$ref": "#/definitions/target" },
+        "destination": { "$ref": "#/definitions/destination" }
+      },
+      "additionalProperties": false
+    },
+    "deleteBlock": {
+      "type": "object",
+      "required": ["op", "target"],
+      "properties": {
+        "op": { "const": "deleteBlock" },
+        "target": { "$ref": "#/definitions/target" }
+      },
+      "additionalProperties": false
+    },
+    "moveSection": {
+      "type": "object",
+      "required": ["op", "target", "destination"],
+      "properties": {
+        "op": { "const": "moveSection" },
+        "target": { "$ref": "#/definitions/target" },
+        "destination": { "$ref": "#/definitions/destination" }
+      },
+      "additionalProperties": false
+    },
+    "deleteSection": {
+      "type": "object",
+      "required": ["op", "target"],
+      "properties": {
+        "op": { "const": "deleteSection" },
+        "target": { "$ref": "#/definitions/target" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "contract": "sdoc.operations/1",
+  "expected": {
+    "revision": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "operations": [
+    {
+      "op": "deleteSection",
+      "target": { "kind": "id", "id": "section-heading-id-from-inspect" }
+    }
+  ]
+}

@@ -40,6 +40,10 @@ const ATTR_ALLOWLIST: Record<string, ReadonlySet<string>> = {
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
+const hasOnlyKeys = (
+  value: Record<string, unknown>,
+  allowed: ReadonlySet<string>,
+): boolean => Object.keys(value).every((key) => allowed.has(key));
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 const textOf = (node: TiptapNode): string =>
   node.type === 'text' ? node.text ?? '' : (node.content ?? []).map(textOf).join('');
@@ -48,6 +52,23 @@ const summary = (node: TiptapNode, limit = 120): string => {
   const compact = raw.replace(/\s+/g, ' ').trim();
   return `${node.type}${compact ? `: ${compact}` : ''}`.slice(0, limit);
 };
+const ATTRIBUTE_DIFF_VALUE_LIMIT = 80;
+const boundedAttributeValue = (value: unknown): string => {
+  const serialized = JSON.stringify(value);
+  const rendered = serialized === undefined ? String(value) : serialized;
+  return rendered.length <= ATTRIBUTE_DIFF_VALUE_LIMIT
+    ? rendered
+    : `${rendered.slice(0, ATTRIBUTE_DIFF_VALUE_LIMIT - 1)}…`;
+};
+const attributeDiffSummary = (
+  attrs: Record<string, unknown> | undefined,
+  keys: readonly string[],
+): string => keys.map((key) => {
+  const value = attrs && Object.prototype.hasOwnProperty.call(attrs, key)
+    ? boundedAttributeValue(attrs[key])
+    : '<unset>';
+  return `${key}=${value}`;
+}).join(', ');
 const internalReferenceTexts = (doc: TiptapNode): Map<string, string> => {
   const result = new Map<string, string>();
   for (const { node, path } of walkDocument(doc)) {
@@ -270,10 +291,12 @@ function resolveTarget(
 function narrowTarget(value: unknown): NodeTarget | undefined {
   if (!isRecord(value)) return undefined;
   if (value.kind === 'id' && typeof value.id === 'string'
+    && hasOnlyKeys(value, new Set(['kind', 'id', 'expectedType']))
     && (value.expectedType === undefined || typeof value.expectedType === 'string')) {
     return { kind: 'id', id: value.id, ...(value.expectedType ? { expectedType: value.expectedType } : {}) };
   }
   if (value.kind === 'snapshot' && Array.isArray(value.path)
+    && hasOnlyKeys(value, new Set(['kind', 'path', 'nodeType', 'digest']))
     && value.path.every((item) => Number.isInteger(item) && Number(item) >= 0)
     && typeof value.nodeType === 'string'
     && typeof value.digest === 'string' && /^sha256:[0-9a-f]{64}$/.test(value.digest)) {
@@ -287,6 +310,7 @@ function narrowTarget(value: unknown): NodeTarget | undefined {
 
 function narrowDestination(value: unknown): BlockDestination | undefined {
   if (!isRecord(value)
+    || !hasOnlyKeys(value, new Set(['position', 'target']))
     || (value.position !== 'before' && value.position !== 'after' && value.position !== 'section-end')) {
     return undefined;
   }
@@ -295,10 +319,16 @@ function narrowDestination(value: unknown): BlockDestination | undefined {
 }
 
 function isNode(value: unknown): value is TiptapNode {
-  return isRecord(value) && typeof value.type === 'string'
+  return isRecord(value) && typeof value.type === 'string' && value.type.length > 0
     && (value.content === undefined
       || (Array.isArray(value.content) && value.content.every(isNode)))
-    && (value.attrs === undefined || isRecord(value.attrs));
+    && (value.attrs === undefined || isRecord(value.attrs))
+    && (value.text === undefined || typeof value.text === 'string')
+    && (value.marks === undefined || (Array.isArray(value.marks) && value.marks.every((mark) =>
+      isRecord(mark)
+      && typeof mark.type === 'string'
+      && mark.type.length > 0
+      && (mark.attrs === undefined || isRecord(mark.attrs)))));
 }
 
 function checkOperationTreeLimits(operations: readonly unknown[]): OperationFailure | undefined {
@@ -337,8 +367,22 @@ function checkOperationTreeLimits(operations: readonly unknown[]): OperationFail
 
 function narrowOperation(value: unknown): SdocOperation | undefined {
   if (!isRecord(value) || typeof value.op !== 'string') return undefined;
+  const allowedKeys: Record<string, ReadonlySet<string>> = {
+    renameHeading: new Set(['op', 'target', 'title', 'discardFormatting']),
+    insertBlock: new Set(['op', 'destination', 'block']),
+    insertSection: new Set(['op', 'target', 'title', 'id', 'blocks']),
+    replaceBlock: new Set(['op', 'target', 'block']),
+    updateBlockAttrs: new Set(['op', 'target', 'attrs']),
+    moveBlock: new Set(['op', 'target', 'destination']),
+    deleteBlock: new Set(['op', 'target']),
+    moveSection: new Set(['op', 'target', 'destination']),
+    deleteSection: new Set(['op', 'target']),
+  };
+  const allowed = allowedKeys[value.op];
+  if (!allowed || !hasOnlyKeys(value, allowed)) return undefined;
   const target = narrowTarget(value.target);
-  if (value.op === 'renameHeading' && target && typeof value.title === 'string') {
+  if (value.op === 'renameHeading' && target && typeof value.title === 'string'
+    && (value.discardFormatting === undefined || typeof value.discardFormatting === 'boolean')) {
     return { op: value.op, target, title: value.title, discardFormatting: value.discardFormatting === true };
   }
   if (value.op === 'insertBlock') {
@@ -375,6 +419,8 @@ function narrowOperation(value: unknown): SdocOperation | undefined {
 
 function narrowRequest(value: unknown): SdocOperationRequest | OperationFailure {
   if (!isRecord(value) || value.contract !== 'sdoc.operations/1' || !isRecord(value.expected)
+    || !hasOnlyKeys(value, new Set(['contract', 'expected', 'operations']))
+    || !hasOnlyKeys(value.expected, new Set(['revision', 'documentId']))
     || typeof value.expected.revision !== 'string'
     || !/^sha256:[0-9a-f]{64}$/.test(value.expected.revision)
     || (value.expected.documentId !== undefined && typeof value.expected.documentId !== 'string')
@@ -531,9 +577,16 @@ function applyOne(
     const allowed = ATTR_ALLOWLIST[target.type] ?? new Set<string>();
     const invalid = Object.keys(op.attrs).find((key) => !allowed.has(key));
     if (invalid) return failure('argument', 'ATTRIBUTE_NOT_ALLOWED', `${invalid} is not mutable on ${target.type}`);
-    const before = summary(target);
+    const beforeAttrs = target.attrs;
+    const changedKeys = Object.keys(op.attrs)
+      .filter((key) => JSON.stringify(beforeAttrs?.[key]) !== JSON.stringify(op.attrs[key]))
+      .sort();
     target.attrs = { ...target.attrs, ...clone(op.attrs) };
-    return operationEvent(op, before, summary(target));
+    return operationEvent(
+      op,
+      attributeDiffSummary(beforeAttrs, changedKeys),
+      attributeDiffSummary(target.attrs, changedKeys),
+    );
   }
   if (op.op === 'deleteBlock' || op.op === 'moveBlock') {
     if (!target) return failure('conflict', 'TARGET_REMOVED', 'target is unavailable');

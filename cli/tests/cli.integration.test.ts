@@ -246,4 +246,225 @@ describe('CLI integration', () => {
       diagnostics: [{ code: 'DOCUMENT_ID_UNVERIFIABLE' }],
     });
   });
+
+  it('renders top-level and command help without reading a document', async () => {
+    let stdout = '';
+    vi.spyOn(process.stdout, 'write').mockImplementation((chunk) => {
+      stdout += String(chunk);
+      return true;
+    });
+
+    expect(await run(['inspect', '--help'])).toBe(0);
+    expect(stdout).toContain('Usage: sdoc inspect');
+    expect(stdout).toContain('--target-id');
+  });
+
+  it('keeps JSON as the default and supports human inspection output', async () => {
+    const { documentPath } = await fixture();
+    let stdout = '';
+    vi.spyOn(process.stdout, 'write').mockImplementation((chunk) => {
+      stdout += String(chunk);
+      return true;
+    });
+
+    expect(await run(['inspect', documentPath])).toBe(0);
+    expect(JSON.parse(stdout)).toMatchObject({ ok: true, command: 'inspect' });
+    stdout = '';
+    expect(await run(['inspect', documentPath, '--human'])).toBe(0);
+    expect(stdout).toContain('SDOC inspection');
+    expect(stdout).toContain('Revision: sha256:');
+  });
+
+  it('creates a valid blank document immediately and previews without writing', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'sdoc-create-cli-'));
+    temporaryDirectories.push(directory);
+    const previewPath = join(directory, 'Preview title.sdoc');
+    const documentPath = join(directory, '실제 문서.sdoc');
+    let stdout = '';
+    vi.spyOn(process.stdout, 'write').mockImplementation((chunk) => {
+      stdout += String(chunk);
+      return true;
+    });
+
+    expect(await run(['create', previewPath, '--dry-run'])).toBe(0);
+    const preview = JSON.parse(stdout) as Record<string, unknown>;
+    expect(preview).toMatchObject({
+      ok: true,
+      command: 'create',
+      title: 'Preview title',
+      preview: true,
+      written: false,
+    });
+    expect(await readFile(previewPath).catch(() => undefined)).toBeUndefined();
+
+    stdout = '';
+    expect(await run(['create', documentPath, '--title', '시험 문서'])).toBe(0);
+    expect(JSON.parse(stdout)).toMatchObject({
+      ok: true,
+      command: 'create',
+      title: '시험 문서',
+      preview: false,
+      written: true,
+      template: { kind: 'builtin', id: 'builtin:blank' },
+    });
+    const created = JSON.parse(await readFile(documentPath, 'utf8')) as {
+      meta: { title: string; template?: unknown };
+      doc: { content: Array<{ attrs?: { id?: string } }> };
+    };
+    expect(created.meta.title).toBe('시험 문서');
+    expect(created.meta).not.toHaveProperty('template');
+    expect(created.doc.content[0]?.attrs?.id).toBe('document-title');
+    expect(await run(['validate', documentPath])).toBe(0);
+  });
+
+  it('accepts every bundled template selector', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'sdoc-create-cli-'));
+    temporaryDirectories.push(directory);
+    let stdout = '';
+    vi.spyOn(process.stdout, 'write').mockImplementation((chunk) => {
+      stdout += String(chunk);
+      return true;
+    });
+
+    const templateIds = [
+      'builtin:blank',
+      'builtin:technical-report',
+      'builtin:design-specification',
+      'builtin:verification-report',
+    ];
+    for (const [index, templateId] of templateIds.entries()) {
+      const path = join(directory, `template-${index}.sdoc`);
+      expect(await run(['create', path, '--template', templateId, '--dry-run'])).toBe(0);
+    }
+
+    const outputs = stdout.trim().split('\n').map((line) => JSON.parse(line) as {
+      template: { id: string };
+    });
+    expect(outputs.map((output) => output.template.id)).toEqual(templateIds);
+  });
+
+  it('reports invalid file templates and missing destination parents', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'sdoc-create-cli-'));
+    temporaryDirectories.push(directory);
+    const templatePath = join(directory, 'invalid.sdoc');
+    await writeFile(templatePath, '{}');
+    let stderr = '';
+    vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+      stderr += String(chunk);
+      return true;
+    });
+
+    expect(await run([
+      'create',
+      join(directory, 'invalid-target.sdoc'),
+      '--template',
+      templatePath,
+    ])).toBe(3);
+    expect(JSON.parse(stderr)).toMatchObject({
+      diagnostics: [{ code: 'CLI_TEMPLATE_INVALID' }],
+    });
+
+    stderr = '';
+    expect(await run(['create', join(directory, 'missing', 'target.sdoc')])).toBe(5);
+    expect(JSON.parse(stderr)).toMatchObject({
+      diagnostics: [{ code: 'CLI_CREATE_FAILED' }],
+    });
+  });
+
+  it('creates from an explicit file template and never overwrites a target', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'sdoc-create-cli-'));
+    temporaryDirectories.push(directory);
+    const templatePath = join(directory, 'template.sdoc');
+    const targetPath = join(directory, 'target.sdoc');
+    const template = {
+      sdoc: '1.0',
+      meta: {
+        title: 'Template',
+        documentId: 'must-not-copy',
+        template: { name: 'CLI template', titleNodeId: 'title' },
+      },
+      doc: {
+        type: 'doc',
+        content: [{
+          type: 'heading',
+          attrs: { level: 1, id: 'title' },
+          content: [{ type: 'text', text: 'Template' }],
+        }],
+      },
+    };
+    await writeFile(templatePath, JSON.stringify(template));
+    let stderr = '';
+    vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+      stderr += String(chunk);
+      return true;
+    });
+
+    expect(await run([
+      'create',
+      targetPath,
+      '--template',
+      templatePath,
+      '--title',
+      'Created title',
+    ])).toBe(0);
+    const created = JSON.parse(await readFile(targetPath, 'utf8')) as {
+      meta: Record<string, unknown>;
+      doc: { content: Array<{ content?: Array<{ text?: string }> }> };
+    };
+    expect(created.meta).not.toHaveProperty('documentId');
+    expect(created.doc.content[0]?.content?.[0]?.text).toBe('Created title');
+
+    expect(await run(['create', targetPath])).toBe(5);
+    expect(JSON.parse(stderr)).toMatchObject({
+      diagnostics: [{ code: 'CLI_TARGET_EXISTS' }],
+    });
+  });
+
+  it('adds a structured warning when a legacy file keeps its extension', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'sdoc-legacy-cli-'));
+    temporaryDirectories.push(directory);
+    const documentPath = join(directory, 'legacy.tiptap.json');
+    const legacy = {
+      type: 'doc',
+      content: [{
+        type: 'heading',
+        attrs: { level: 1, id: 'legacy-title' },
+        content: [{ type: 'text', text: 'Legacy' }],
+      }],
+    };
+    const bytes = Buffer.from(JSON.stringify(legacy));
+    await writeFile(documentPath, bytes);
+    const operationsPath = join(directory, 'legacy-ops.json');
+    await writeFile(operationsPath, JSON.stringify({
+      contract: 'sdoc.operations/1',
+      expected: { revision: computeRevision(bytes) },
+      operations: [{
+        op: 'renameHeading',
+        target: { kind: 'id', id: 'legacy-title' },
+        title: 'Updated',
+      }],
+    }));
+    let stdout = '';
+    vi.spyOn(process.stdout, 'write').mockImplementation((chunk) => {
+      stdout += String(chunk);
+      return true;
+    });
+
+    expect(await run([
+      'apply',
+      documentPath,
+      '--operations',
+      operationsPath,
+      '--upgrade-legacy',
+    ])).toBe(0);
+    expect(JSON.parse(stdout)).toMatchObject({
+      warnings: [{
+        code: 'LEGACY_FILE_EXTENSION_RETAINED',
+        severity: 'warning',
+        message: expect.stringContaining('Writing this preview'),
+        suggestedPath: join(directory, 'legacy.sdoc'),
+      }],
+    });
+  });
 });

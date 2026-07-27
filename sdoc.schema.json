@@ -525,6 +525,34 @@
         }
       },
       "additionalProperties": false
+    },
+
+    "anyNode": {
+      "type": "object",
+      "description": "A generic Tiptap JSON node for contracts that carry node fragments. Persisted documents continue to use the more specific node definitions above.",
+      "required": ["type"],
+      "properties": {
+        "type": { "type": "string", "minLength": 1 },
+        "attrs": { "type": "object" },
+        "content": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/anyNode" }
+        },
+        "marks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["type"],
+            "properties": {
+              "type": { "type": "string", "minLength": 1 },
+              "attrs": { "type": "object" }
+            },
+            "additionalProperties": true
+          }
+        },
+        "text": { "type": "string" }
+      },
+      "additionalProperties": true
     }
   }
 }
