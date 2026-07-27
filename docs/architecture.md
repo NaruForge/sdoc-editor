@@ -59,6 +59,33 @@ Chapter loading is parallel while results and diagnostics remain in manifest ord
 
 The host-neutral `EditorHostBridge` and the discriminated unions in `shared/types/messages.ts` define host communication. JSON entering the VS Code webview boundary is narrowed with runtime message guards before use.
 
+### Editing and persistence synchronization
+
+`shared/persistence/DocumentSyncCoordinator.ts` is the host-neutral live-edit
+state machine. It serializes complete content, metadata, and document-settings
+drafts with one in-flight mutation and one latest coalesced pending mutation.
+Only the matching acknowledgement advances the confirmed revision. Rejects,
+stale responses, and external-change notices preserve the local editor draft
+and never apply a host snapshot.
+
+The editor starts read-only and crosses
+`shared/editor/documentReplacement.ts` exactly once for initial hydration.
+Later full-document replacement is limited to explicit Reload, Import, and
+confirmed Template actions. Persistence ACK/reject, settings, external file
+changes, and asset refreshes do not cross this boundary.
+
+Save and export barriers capture a local generation and wait for its
+acknowledgement while later input remains editable. Tauri additionally uses a
+document-session hydration generation so late asset resolution cannot replace
+the active document. External changes use the shared non-modal banner and
+read-only block comparison in `shared/editor/externalChanges/`; no automatic
+refresh or merge is performed. See [ADR 0010](adr/0010-use-single-flight-document-mutations-and-explicit-replacement.md).
+
+A later user save/switch/close barrier may retry a transient write or transport
+failure. Conflict and invalid-document errors never retry through that path;
+they remain non-destructive and require explicit conflict recovery or source
+repair.
+
 ### Conversion and settings
 
 `shared/converter/` contains host-neutral import/export conversion. `shared/settingsResolver.ts` owns defaults, caption presets, and document-over-workspace setting resolution. Neither layer may access VS Code, Tauri, or the filesystem.

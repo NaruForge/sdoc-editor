@@ -100,12 +100,18 @@ const AppContent: React.FC = () => {
     adapter.setWorkspaceFolder(workspaceFolder);
   }, [adapter, workspaceFolder]);
   const closeApplication = useCallback(async () => {
-    const { exit } = await import('@tauri-apps/plugin-process');
-    await closeTauriApplication({
-      flush: () => adapter.flushAndWait(),
-      stopWatchers: () => invoke('stop_file_watcher'),
-      exit: () => exit(0),
-    });
+    adapter.setEditorEditable(false);
+    try {
+      const { exit } = await import('@tauri-apps/plugin-process');
+      await closeTauriApplication({
+        flush: () => adapter.flushAndWait(),
+        stopWatchers: () => invoke('stop_file_watcher'),
+        exit: () => exit(0),
+      });
+    } catch (error: unknown) {
+      adapter.setEditorEditable(true);
+      throw error;
+    }
   }, [adapter]);
 
   useEffect(() => () => adapter.dispose(), [adapter]);
@@ -146,6 +152,7 @@ const AppContent: React.FC = () => {
   }, [workspaceFolder]);
 
   const loadDocument = useCallback(async (path: string, options: { fromRecent?: boolean } = {}) => {
+    adapter.setEditorEditable(false);
     try {
       await adapter.flushAndWait();
       const result = await invoke<OpenDocumentResult>('open_document', { path });
@@ -186,6 +193,7 @@ const AppContent: React.FC = () => {
         return next;
       });
     } catch (e: unknown) {
+      adapter.setEditorEditable(true);
       console.error('Failed to open document:', e);
       if (options.fromRecent) {
         setRecentErrors(prev => ({ ...prev, [path]: String(e) }));
@@ -648,7 +656,7 @@ const AppContent: React.FC = () => {
 
   return <>
     <Editor
-    key={currentPath ?? 'untitled'}
+    key={`${currentPath ?? 'untitled'}:${adapter.getDocumentSession()?.sessionId ?? 'no-session'}`}
     adapter={adapter}
     initialDoc={doc}
     initialMeta={meta}

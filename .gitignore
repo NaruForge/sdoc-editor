@@ -1,6 +1,7 @@
 node_modules
 dist
 output
+.sdoc-output-dir
 target
 *.vsix
 .vscode-test

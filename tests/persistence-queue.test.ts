@@ -13,7 +13,7 @@ describe('recoverable persistence queue', () => {
 
     expect(errors).toHaveLength(1);
     expect(nextEdit).toHaveBeenCalledOnce();
-    await expect(queue.whenIdle()).rejects.toThrow('transient failure');
+    await expect(queue.whenIdle()).resolves.toBeUndefined();
   });
 
   it('reports the latest failed save to a flush barrier', async () => {
@@ -21,5 +21,23 @@ describe('recoverable persistence queue', () => {
     queue.enqueue(async () => { throw new Error('disk full'); }, () => {});
 
     await expect(queue.whenIdle()).rejects.toThrow('disk full');
+  });
+
+  it('follows a mutation enqueued by the acknowledgement of the current tail', async () => {
+    const queue = new RecoverableSerialQueue();
+    let releaseFirst!: () => void;
+    const first = new Promise<void>((resolve) => { releaseFirst = resolve; });
+    let secondCompleted = false;
+    void queue.enqueue(async () => {
+      await first;
+      void queue.enqueue(async () => {
+        secondCompleted = true;
+      }, () => {});
+    }, () => {});
+
+    const idle = queue.whenIdle();
+    releaseFirst();
+    await idle;
+    expect(secondCompleted).toBe(true);
   });
 });

@@ -15,6 +15,17 @@ const hasTemplateRequestIdentity = (value: Record<string, unknown>): boolean =>
   && hasString(value, 'documentId')
   && hasNumber(value, 'baseRevision');
 
+const isDocumentMutation = (value: unknown): boolean =>
+  isRecord(value)
+  && isRecord(value.content)
+  && value.content.type === 'doc'
+  && isRecord(value.meta)
+  && (value.documentSettings === null || isRecord(value.documentSettings));
+
+const isMutationErrorCode = (value: unknown): boolean =>
+  ['STALE_REVISION', 'EXTERNAL_CHANGE', 'INVALID_DOCUMENT', 'WRITE_FAILED', 'TRANSPORT_ERROR', 'UNKNOWN']
+    .includes(String(value));
+
 const isTemplatePreview = (value: unknown): boolean => {
   if (!isRecord(value) || !hasString(value, 'templateId') || !Array.isArray(value.outline)
     || !isRecord(value.counts) || !Array.isArray(value.settingsKeys)
@@ -53,14 +64,20 @@ export function isEditorToHostMessage(value: unknown): value is EditorToHostMess
     case 'browseSdocFiles':
     case 'importMarkdown':
     case 'importHtml':
-    case 'flushComplete':
       return true;
+    case 'flushComplete':
+      return hasString(value, 'sessionId') && hasString(value, 'requestId');
+    case 'flushFailed':
+      return hasString(value, 'sessionId') && hasString(value, 'requestId')
+        && isMutationErrorCode(value.code) && hasString(value, 'message');
     case 'edit':
-      return isRecord(value.content) && value.content.type === 'doc'
-        && (value.sessionId === undefined || hasString(value, 'sessionId'))
-        && (value.documentId === undefined || hasString(value, 'documentId'))
-        && (value.editId === undefined || hasString(value, 'editId'))
-        && (value.baseRevision === undefined || hasNumber(value, 'baseRevision'));
+      return hasString(value, 'sessionId')
+        && hasString(value, 'documentId')
+        && hasString(value, 'editId')
+        && hasNumber(value, 'baseRevision')
+        && hasNumber(value, 'localGeneration')
+        && isDocumentMutation(value.mutation)
+        && (value.flushRequestId === undefined || hasString(value, 'flushRequestId'));
     case 'applyTemplate':
       return typeof value.templateId === 'string' && value.templateId.length > 0
         && hasString(value, 'sessionId') && hasString(value, 'documentId')
@@ -90,10 +107,6 @@ export function isEditorToHostMessage(value: unknown): value is EditorToHostMess
       return ['html', 'adoc', 'markdown', 'pdf', 'slides'].includes(String(value.format));
     case 'openDocument':
       return hasString(value, 'path') && (value.anchor === undefined || typeof value.anchor === 'string');
-    case 'updateMeta':
-      return isRecord(value.meta);
-    case 'updateDocSettings':
-      return value.settings === null || isRecord(value.settings);
     case 'selectCssFile':
     case 'clearCssFile':
       return value.target === 'slide' || value.target === 'html';
@@ -120,11 +133,18 @@ export function isHostToEditorMessage(value: unknown): value is HostToEditorMess
     case 'requestFlush':
       return hasString(value, 'sessionId') && hasString(value, 'requestId');
     case 'init':
-    case 'update':
       return hasString(value, 'sessionId') && hasString(value, 'documentId')
         && hasNumber(value, 'revision')
         && (value.readOnlyReason === undefined || hasString(value, 'readOnlyReason'))
-        && isRecord(value.content) && value.content.type === 'doc';
+        && isDocumentMutation(value.snapshot);
+    case 'externalChange':
+      return hasString(value, 'sessionId') && hasString(value, 'documentId')
+        && hasNumber(value, 'revision') && isDocumentMutation(value.snapshot);
+    case 'replaceDocument':
+      return hasString(value, 'sessionId') && hasString(value, 'documentId')
+        && hasNumber(value, 'revision')
+        && (value.reason === 'user-reload' || value.reason === 'confirmed-template')
+        && isDocumentMutation(value.snapshot);
     case 'templateCatalog':
       return Array.isArray(value.templates) && value.templates.every(isTemplateDescriptor)
         && typeof value.diagnosticCount === 'number'
@@ -132,16 +152,22 @@ export function isHostToEditorMessage(value: unknown): value is HostToEditorMess
         && hasString(value, 'personalRootPath')
         && (value.personalRootScope === 'local' || value.personalRootScope === 'remote');
     case 'editAcknowledged':
-      return hasString(value, 'sessionId') && hasString(value, 'editId') && hasNumber(value, 'revision');
+      return hasString(value, 'sessionId') && hasString(value, 'documentId')
+        && hasString(value, 'editId') && hasNumber(value, 'revision');
     case 'editRejected':
-      return hasString(value, 'sessionId') && hasString(value, 'editId') && hasNumber(value, 'revision')
-        && hasString(value, 'reason') && isRecord(value.content) && value.content.type === 'doc';
+      return hasString(value, 'sessionId') && hasString(value, 'documentId')
+        && hasString(value, 'editId') && hasNumber(value, 'revision')
+        && isMutationErrorCode(value.code) && hasString(value, 'message')
+        && (value.hostSnapshot === undefined || isDocumentMutation(value.hostSnapshot));
     case 'importContent':
       return isRecord(value.content) && value.content.type === 'doc';
     case 'settingsChanged':
       return isRecord(value.settings);
     case 'docSettingsChanged':
       return value.docSettings === null || isRecord(value.docSettings);
+    case 'documentSettingSelected':
+      return (value.key === 'slideCssPath' || value.key === 'htmlCssPath')
+        && (value.value === null || typeof value.value === 'string');
     case 'metaUpdate':
       return isRecord(value.meta);
     case 'importHtml':

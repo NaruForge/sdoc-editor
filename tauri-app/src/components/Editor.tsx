@@ -38,7 +38,7 @@ import { collectTargets, CROSSREF_RESYNC_META } from '@shared/editor/extensions/
 import type { RefTarget } from '@shared/editor/extensions/CrossReference';
 import { extractRelativePathFromSrc } from '@shared/editor/extensions/CustomImage';
 import { preprocessImportedHtml } from '@shared/editor/utils/preprocessImportedHtml';
-import type { DocumentSettings, TiptapNode } from '@shared/types';
+import type { DocumentSettings, SdocMeta, TiptapNode } from '@shared/types';
 import type { EditorToHostMessage, ManagedTemplateDescriptor } from '@shared/types/messages';
 import type { ExplorerEntry } from '../App';
 import { exportDocument, type ExportFormat } from '../services/exportService';
@@ -46,6 +46,18 @@ import {
   dispatchTauriSettingsMessage,
   resolveTauriEditorSettings,
 } from '../settingsAdapter';
+import {
+  DocumentSyncCoordinator,
+  SaveCoordinator,
+  type DocumentMutation,
+} from '@shared/persistence/DocumentSyncCoordinator';
+import { DocumentHydrationCoordinator } from '../documentHydration';
+import {
+  ExternalChangeBanner,
+  ExternalChangeComparison,
+  buildExternalChangeComparison,
+  buildExternalDocumentDiff,
+} from '@shared/editor/externalChanges';
 
 /**
  * `setImage`'s TipTap-generated type only knows about `src`/`alt`/`title`. `relativePath` is a
@@ -69,7 +81,7 @@ async function convertImagePaths(doc: TiptapNode): Promise<TiptapNode> {
 interface EditorProps {
   adapter: TauriAdapter;
   initialDoc?: TiptapNode;
-  initialMeta?: { title?: string; author?: string; version?: string; created?: string; modified?: string; settings?: Partial<DocumentSettings> } | null;
+  initialMeta?: SdocMeta | null;
   currentPath?: string | null;
   workspaceFolder?: string | null;
   workspaceEntries?: ExplorerEntry[];
@@ -89,6 +101,22 @@ interface EditorProps {
 }
 
 type SaveStatus = 'saved' | 'saving' | 'dirty' | 'error';
+
+interface EditorMetaState extends SdocMeta {
+  title: string;
+  author: string;
+  version: string;
+  created: string;
+  modified: string;
+}
+
+const replaceMetaState = (meta: Partial<SdocMeta> | null | undefined): EditorMetaState => ({
+  title: meta?.title ?? '',
+  author: meta?.author ?? '',
+  version: meta?.version ?? '',
+  created: meta?.created ?? '',
+  modified: meta?.modified ?? '',
+});
 
 export const Editor: React.FC<EditorProps> = ({
   adapter,
@@ -123,6 +151,11 @@ export const Editor: React.FC<EditorProps> = ({
   const [isApplyingTemplate, setIsApplyingTemplate] = useState(false);
   const [isManagingTemplate, setIsManagingTemplate] = useState(false);
   const [personalTemplateRootPath, setPersonalTemplateRootPath] = useState('');
+  const [externalChange, setExternalChange] = useState<{
+    revision: number;
+    snapshot: DocumentMutation;
+  } | null>(null);
+  const [showExternalComparison, setShowExternalComparison] = useState(false);
   const [hoveredExplorerPath, setHoveredExplorerPath] = useState<string | null>(null);
   const [appVersion, setAppVersion] = useState('');
   useEffect(() => {
@@ -156,20 +189,19 @@ export const Editor: React.FC<EditorProps> = ({
   const setDiagramDialog = useCallback((payload: typeof diagramDialog) => dialogDispatch({ type: 'SET_DIAGRAM_DIALOG', payload }), [dialogDispatch]);
   const setShowCrossRefDialog = (open: boolean) => dialogDispatch({ type: open ? 'OPEN_CROSSREF_DIALOG' : 'CLOSE_CROSSREF_DIALOG' });
   const [showDrawioInstallGuide, setShowDrawioInstallGuide] = useState(false);
-  const [meta, setMeta] = useState<{ title: string; author: string; version: string; created: string; modified: string }>(
-    {
-      title: initialMeta?.title ?? '',
-      author: initialMeta?.author ?? '',
-      version: initialMeta?.version ?? '',
-      created: initialMeta?.created ?? '',
-      modified: initialMeta?.modified ?? '',
-    }
-  );
+  const [meta, setMeta] = useState<EditorMetaState>(() => replaceMetaState(initialMeta));
   const initDoneRef = useRef(false);
   const postMessageRef = useRef<(msg: EditorToHostMessage) => Promise<void>>(() => Promise.resolve());
+  const syncCoordinatorRef = useRef<DocumentSyncCoordinator | null>(null);
+  const hydrationCoordinatorRef = useRef(new DocumentHydrationCoordinator<TiptapNode>());
+  const replacementHydrationRef = useRef<string | null>(null);
   const settings = state.settings;
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
+  const metaRef = useRef(meta);
+  metaRef.current = meta;
+  const docSettingsRef = useRef(state.docSettings);
+  docSettingsRef.current = state.docSettings;
   const flushUpdateRef = useRef<() => void>(() => {});
   const openWorkspaceFileRef = useRef(onOpenWorkspaceFile);
   openWorkspaceFileRef.current = onOpenWorkspaceFile;
@@ -192,20 +224,15 @@ export const Editor: React.FC<EditorProps> = ({
     openDiagramDialog: (code: string, language: string, pos: number) => setDiagramDialog({ code, language, pos }),
   }), [setDiagramDialog, setImageContextMenu, setMathDialog]);
 
-  const trackSave = useCallback((savePromise: Promise<void>) => {
-    setSaveStatus('saving');
-    savePromise
-      .then(() => {
-        setSaveStatus('saved');
-        setLastSavedAt(new Date().toLocaleTimeString());
-      })
-      .catch((error: unknown) => {
-        setSaveStatus('error');
-        console.error('Failed to save document', error);
-      });
-  }, []);
+  const session = adapter.getDocumentSession();
+  if (session && syncCoordinatorRef.current?.state.sessionId !== session.sessionId) {
+    syncCoordinatorRef.current = new DocumentSyncCoordinator({
+      identity: session,
+      send: (request) => postMessageRef.current({ type: 'edit', ...request }),
+    });
+  }
 
-  const { editor, setContent, flushUpdate } = useTiptapEditor({
+  const { editor, replaceEditorDocument, flushUpdate } = useTiptapEditor({
     onUpdate: (content) => {
       setSaveStatus('dirty');
       const normalized = normalizeDocument(dehydrateDocumentAssets(content as TiptapNode), {
@@ -216,20 +243,31 @@ export const Editor: React.FC<EditorProps> = ({
         headingNumbering: settings.headingNumbering,
       });
       assertPersistedDocument(wrapSdoc(normalized, {}));
-      trackSave(postMessageRef.current({
-        type: 'edit',
+      syncCoordinatorRef.current?.submit({
         content: normalized,
-        meta: { title: extractTitle(normalized) },
-      }));
+        meta: { ...metaRef.current, title: extractTitle(normalized) },
+        documentSettings: docSettingsRef.current,
+      });
     },
     runtime: extensionRuntime,
   });
   flushUpdateRef.current = flushUpdate;
 
   useEffect(() => {
-    adapter.setFlushHandler(() => flushUpdate());
+    adapter.setFlushHandler(async () => {
+      flushUpdate();
+      const sync = syncCoordinatorRef.current;
+      if (sync) {
+        await new SaveCoordinator(sync).afterAcknowledged(async () => {});
+      }
+    });
     return () => adapter.setFlushHandler(null);
   }, [adapter, flushUpdate]);
+
+  useEffect(() => {
+    adapter.setEditorEditableHandler((editable) => editor?.setEditable(editable));
+    return () => adapter.setEditorEditableHandler(null);
+  }, [adapter, editor]);
 
   useEffect(() => {
     const proseMirrorEl = document.querySelector('.ProseMirror') as HTMLElement;
@@ -259,14 +297,14 @@ export const Editor: React.FC<EditorProps> = ({
       case 'importMarkdownText':
         if (editor) {
           const converted = convertMarkdownToJson(message.text);
-          editor.commands.setContent(converted);
+          replaceEditorDocument('user-import', converted);
           flushUpdate();
         }
         break;
       case 'importHtml':
         if (editor) {
           const cleaned = preprocessImportedHtml(message.html);
-          editor.commands.setContent(cleaned);
+          replaceEditorDocument('user-import', cleaned as unknown as TiptapNode);
           flushUpdate();
         }
         break;
@@ -326,6 +364,9 @@ export const Editor: React.FC<EditorProps> = ({
         break;
       case 'templateApplicationFinished':
         setIsApplyingTemplate(false);
+        if (!message.applied || replacementHydrationRef.current === null) {
+          editor?.setEditable(true);
+        }
         break;
       case 'templateOperationFinished':
         setIsManagingTemplate(false);
@@ -333,8 +374,67 @@ export const Editor: React.FC<EditorProps> = ({
           window.alert(`템플릿 작업을 완료하지 못했습니다: ${message.message}`);
         }
         break;
-      case 'update':
-        setContent(message.content);
+      case 'editAcknowledged':
+        if (syncCoordinatorRef.current?.acknowledge(message)) {
+          const observed = syncCoordinatorRef.current.state.externalChange;
+          setExternalChange(observed
+            ? { revision: observed.revision, snapshot: observed.hostSnapshot }
+            : null);
+          if (!observed) setShowExternalComparison(false);
+          setSaveStatus(
+            syncCoordinatorRef.current.state.localGeneration
+              === syncCoordinatorRef.current.state.acknowledgedGeneration
+              ? 'saved'
+              : 'saving',
+          );
+          setLastSavedAt(new Date().toLocaleTimeString());
+        }
+        break;
+      case 'editRejected':
+        if (syncCoordinatorRef.current?.reject(message)) {
+          setSaveStatus('error');
+          console.error('Failed to save document', message.message);
+        }
+        break;
+      case 'externalChange':
+        if (session?.sessionId !== message.sessionId
+          || session.documentId !== message.documentId) break;
+        if (syncCoordinatorRef.current?.observeExternalChange(message.revision, message.snapshot)) {
+          setExternalChange({ revision: message.revision, snapshot: message.snapshot });
+        }
+        break;
+      case 'replaceDocument':
+        if (session?.sessionId !== message.sessionId
+          || session.documentId !== message.documentId) break;
+        {
+          const hydrationKey = `${message.sessionId}:${message.revision}:${message.reason}`;
+          const applyReplacement = (content: TiptapNode) => {
+            replaceEditorDocument(message.reason, content);
+            syncCoordinatorRef.current?.adoptReplacement(message.revision, message.snapshot);
+              setMeta(replaceMetaState(message.snapshot.meta));
+            dispatch({ type: 'SET_DOC_SETTINGS', payload: message.snapshot.documentSettings });
+            setExternalChange(null);
+            setShowExternalComparison(false);
+          };
+          replacementHydrationRef.current = hydrationKey;
+          editor?.setEditable(false);
+          void hydrationCoordinatorRef.current.hydrate(
+            hydrationKey,
+            () => convertImagePaths(message.snapshot.content),
+            applyReplacement,
+          ).catch((error: unknown) => {
+            setSaveStatus('error');
+            console.error('Failed to hydrate replacement document assets', error);
+            if (replacementHydrationRef.current === hydrationKey) {
+              applyReplacement(message.snapshot.content);
+            }
+          }).finally(() => {
+            if (replacementHydrationRef.current === hydrationKey) {
+              replacementHydrationRef.current = null;
+              editor?.setEditable(true);
+            }
+          });
+        }
         break;
     }
   });
@@ -347,6 +447,13 @@ export const Editor: React.FC<EditorProps> = ({
   const handleViewJson = () => { postMessage({ type: 'viewJson' }); };
   const handleExport = async (format: ExportFormat) => {
     if (editor) {
+      flushUpdate();
+      const sync = syncCoordinatorRef.current;
+      if (sync) {
+        await new SaveCoordinator(sync).afterAcknowledged(() => adapter.flushAndWait());
+      } else {
+        await adapter.flushAndWait();
+      }
       await exportDocument(format, editor.getJSON() as TiptapNode, state.settings, state.docSettings, meta);
     }
   };
@@ -356,7 +463,12 @@ export const Editor: React.FC<EditorProps> = ({
   const handleMetaChange = (field: string, value: string) => {
     setMeta(prev => ({ ...prev, [field]: value }));
     if (editor) {
-      trackSave(postMessage({ type: 'updateMeta', meta: { [field]: value } }));
+      setSaveStatus('dirty');
+      syncCoordinatorRef.current?.submit({
+        content: normalizeDocument(dehydrateDocumentAssets(editor.getJSON() as TiptapNode), settingsRef.current),
+        meta: { ...metaRef.current, [field]: value },
+        documentSettings: docSettingsRef.current,
+      });
     }
   };
   const handleToggleNumbering = () => { setShowNumbering(!showNumbering); };
@@ -374,14 +486,19 @@ export const Editor: React.FC<EditorProps> = ({
     const session = currentTemplateIdentity();
     if (!session || isApplyingTemplate) return;
     setIsApplyingTemplate(true);
+    editor?.setEditable(false);
     void postMessage({
       type: 'applyTemplate',
       templateId,
       sessionId: session.sessionId,
       documentId: session.documentId,
       baseRevision: session.revision,
+    }).catch((error: unknown) => {
+      setIsApplyingTemplate(false);
+      editor?.setEditable(true);
+      console.error('Failed to apply template', error);
     });
-  }, [currentTemplateIdentity, isApplyingTemplate, postMessage]);
+  }, [currentTemplateIdentity, editor, isApplyingTemplate, postMessage]);
 
   const handleManagedTemplate = useCallback((
     type: 'savePersonalTemplate' | 'updatePersonalTemplate' | 'duplicatePersonalTemplate',
@@ -446,13 +563,38 @@ export const Editor: React.FC<EditorProps> = ({
         }))
         .catch((error: unknown) => console.warn('Failed to reload editor settings', error));
     }
+    dispatch({ type: 'SET_DOC_SETTINGS', payload: settings });
     if (editor) {
-      trackSave(postMessage({
-        type: 'updateDocSettings',
-        settings,
-      }));
+      setSaveStatus('dirty');
+      syncCoordinatorRef.current?.submit({
+        content: normalizeDocument(dehydrateDocumentAssets(editor.getJSON() as TiptapNode), {
+          ...settingsRef.current,
+          ...(settings ?? {}),
+        }),
+        meta: metaRef.current,
+        documentSettings: settings,
+      });
     }
-  }, [dispatch, editor, postMessage, trackSave]);
+  }, [dispatch, editor]);
+
+  const handleKeepExternal = useCallback(async () => {
+    const accepted = await adapter.acceptExternalChange();
+    syncCoordinatorRef.current?.keepLocal(accepted.revision);
+    setExternalChange(null);
+    setShowExternalComparison(false);
+  }, [adapter]);
+
+  const handleReloadExternal = useCallback(async () => {
+    const accepted = await adapter.acceptExternalChange();
+    const hydrated = await convertImagePaths(accepted.snapshot.content);
+    replaceEditorDocument('user-reload', hydrated);
+    syncCoordinatorRef.current?.adoptReplacement(accepted.revision, accepted.snapshot);
+    setMeta(replaceMetaState(accepted.snapshot.meta));
+    dispatch({ type: 'SET_DOC_SETTINGS', payload: accepted.snapshot.documentSettings });
+    setExternalChange(null);
+    setShowExternalComparison(false);
+    setSaveStatus('saved');
+  }, [adapter, dispatch, replaceEditorDocument]);
   const handleContextMenu = (event: React.MouseEvent) => {
     event.preventDefault();
     if (editor && editor.isActive('table')) {
@@ -620,14 +762,31 @@ export const Editor: React.FC<EditorProps> = ({
 
   // Initialize editor with document
   useEffect(() => {
-    if (editor && setContent && initialDoc && !initDoneRef.current) {
-      convertImagePaths(initialDoc).then(converted => {
-        setContent(converted);
-        initDoneRef.current = true;
-        dispatch({ type: 'SET_READY', payload: true });
+    const currentSession = adapter.getDocumentSession();
+    const hydrationCoordinator = hydrationCoordinatorRef.current;
+    if (editor && initialDoc && currentSession && !initDoneRef.current) {
+      void hydrationCoordinator.hydrate(
+        currentSession.sessionId,
+        () => convertImagePaths(initialDoc),
+        (converted) => {
+          replaceEditorDocument('initial-load', converted);
+          const { settings: initialDocumentSettings, ...initialPersistedMeta } = initialMeta ?? {};
+          syncCoordinatorRef.current?.adoptReplacement(currentSession.revision, {
+            content: initialDoc,
+            meta: initialPersistedMeta,
+            documentSettings: initialDocumentSettings ?? null,
+          });
+          initDoneRef.current = true;
+          dispatch({ type: 'SET_READY', payload: true });
+          editor.setEditable(true);
+        },
+      ).catch((error: unknown) => {
+        setSaveStatus('error');
+        console.error('Failed to hydrate document assets', error);
       });
     }
-  }, [editor, setContent, initialDoc, dispatch]);
+    return () => hydrationCoordinator.cancel();
+  }, [adapter, editor, replaceEditorDocument, initialDoc, initialMeta, dispatch]);
 
   useEditorDomEvents(editor, handlePaste);
 
@@ -716,6 +875,18 @@ export const Editor: React.FC<EditorProps> = ({
       ],
     },
   ];
+  const hasLocalChanges = Boolean(syncCoordinatorRef.current
+    && syncCoordinatorRef.current.state.localGeneration
+      > syncCoordinatorRef.current.state.acknowledgedGeneration);
+  const externalComparison = externalChange
+    ? buildExternalChangeComparison(
+      buildExternalDocumentDiff(
+        editor.getJSON() as TiptapNode,
+        externalChange.snapshot.content,
+      ),
+      { title: '외부 문서 변경 비교', mine: '내 변경', external: '디스크의 문서' },
+    )
+    : null;
 
   return (
     <div className="editor-shell">
@@ -732,6 +903,41 @@ export const Editor: React.FC<EditorProps> = ({
         onInsertCrossRef={() => setShowCrossRefDialog(true)} onInsertImage={handleInsertImage}
         onInsertDrawio={handleInsertDrawio}
       />
+      {externalChange && (
+        <ExternalChangeBanner
+          isDirty={hasLocalChanges}
+          message="외부 변경이 있습니다."
+          compareLabel="비교"
+          keepMineLabel="내 변경 유지"
+          reloadLabel="다시 불러오기"
+          onCompare={() => setShowExternalComparison(true)}
+          onKeepMine={() => {
+            if (window.confirm('내 변경으로 디스크의 외부 변경을 덮어쓰시겠습니까?')) {
+              void handleKeepExternal().catch((error: unknown) => {
+                setSaveStatus('error');
+                console.error('Failed to keep local document', error);
+              });
+            }
+          }}
+          onReload={() => {
+            if (!hasLocalChanges
+              || window.confirm('저장되지 않은 내 변경을 버리고 외부 문서를 다시 불러오시겠습니까?')) {
+              void handleReloadExternal().catch((error: unknown) => {
+                setSaveStatus('error');
+                console.error('Failed to reload external document', error);
+              });
+            }
+          }}
+        />
+      )}
+      {showExternalComparison && externalComparison && (
+        <ExternalChangeComparison
+          model={externalComparison}
+          onClose={() => setShowExternalComparison(false)}
+          closeLabel="비교 닫기"
+          emptyMessage="본문 블록의 차이가 없습니다."
+        />
+      )}
       {editor && <BubbleMenuBar editor={editor} />}
       <div className={`editor-body-layout${showSidePanel ? ' editor-body-with-toc' : ''}`}>
         <ActivityBar

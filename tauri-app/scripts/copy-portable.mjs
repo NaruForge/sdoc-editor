@@ -1,11 +1,13 @@
 import { spawnSync } from 'node:child_process';
-import { cpSync, mkdirSync, existsSync, rmSync } from 'node:fs';
+import { cpSync, mkdirSync, existsSync, readdirSync, rmSync } from 'node:fs';
 import { resolve, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'url';
 import { readFileSync } from 'node:fs';
+import { mirrorArtifact } from '../../scripts/artifact-output.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, '..');
+const workspaceRoot = resolve(root, '..');
 
 const conf = JSON.parse(readFileSync(resolve(root, 'src-tauri', 'tauri.conf.json'), 'utf8'));
 const productName = conf.productName;
@@ -55,6 +57,19 @@ const zip = spawnSync(
 if (zip.error || zip.status !== 0) {
   console.error(`Portable archive creation failed: ${zip.error?.message ?? `tar exited with ${zip.status}`}`);
   process.exit(1);
+}
+
+for (const artifact of [dest, archive]) {
+  mirrorArtifact(workspaceRoot, artifact);
+}
+for (const bundleType of ['nsis', 'msi']) {
+  const bundleDir = resolve(root, 'target', 'release', 'bundle', bundleType);
+  if (!existsSync(bundleDir)) continue;
+  for (const entry of readdirSync(bundleDir, { withFileTypes: true })) {
+    if (entry.isFile() && /\.(?:exe|msi)$/i.test(entry.name)) {
+      mirrorArtifact(workspaceRoot, resolve(bundleDir, entry.name));
+    }
+  }
 }
 
 console.log(`Portable archive ready: ${archive}`);

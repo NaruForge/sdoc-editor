@@ -239,7 +239,6 @@ pub fn start_workspace_watcher(
         + 1;
 
     std::thread::spawn(move || {
-        use notify::event::ModifyKind;
         use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
         use std::sync::atomic::Ordering;
         use std::sync::mpsc::{self, RecvTimeoutError};
@@ -266,14 +265,12 @@ pub fn start_workspace_watcher(
         loop {
             match rx.recv_timeout(POLL_INTERVAL) {
                 Ok(Ok(event)) => {
-                    let is_structural = matches!(
+                    let is_relevant_kind = matches!(
                         event.kind,
-                        EventKind::Create(_)
-                            | EventKind::Remove(_)
-                            | EventKind::Modify(ModifyKind::Name(_))
+                        EventKind::Create(_) | EventKind::Remove(_) | EventKind::Modify(_)
                     );
                     let is_relevant =
-                        is_structural && event.paths.iter().any(|p| !path_is_excluded(p));
+                        is_relevant_kind && event.paths.iter().any(|p| !path_is_excluded(p));
                     if is_relevant {
                         dirty = true;
                         last_change = Instant::now();

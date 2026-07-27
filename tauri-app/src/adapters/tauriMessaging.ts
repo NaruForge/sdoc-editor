@@ -17,6 +17,8 @@ import type {
   PersonalTemplateOperation,
 } from '@shared/types/messages';
 import { RecoverableSerialQueue } from '@shared/persistence/RecoverableSerialQueue';
+import type { DocumentMutation } from '@shared/persistence/DocumentSyncCoordinator';
+import { parseDocumentContract } from '@shared/document/documentContract';
 import {
   buildTemplateStructuralPreview,
   createPersonalTemplateSnapshot,
@@ -32,6 +34,7 @@ import {
   type TauriDocumentIdentity,
   type WorkspaceTemplateDiscovery,
 } from '../templateService';
+import { classifyTauriSaveError } from './tauriPersistenceErrors';
 
 type SettingsChangedPayload = Partial<ResolvedEditorSettings>;
 interface DrawioFileUpdatedPayload {
@@ -72,8 +75,11 @@ export interface TauriAdapter extends EditorHostBridge {
   setDocumentSession(documentId: string, revision: number): void;
   getDocumentSession(): { sessionId: string; documentId: string; revision: number } | null;
   setWorkspaceFolder(workspaceFolder: string | null): void;
-  setFlushHandler(handler: (() => void) | null): void;
+  setFlushHandler(handler: (() => void | Promise<void>) | null): void;
+  setEditorEditableHandler(handler: ((editable: boolean) => void) | null): void;
+  setEditorEditable(editable: boolean): void;
   flushAndWait(): Promise<void>;
+  acceptExternalChange(): Promise<{ revision: number; snapshot: DocumentMutation }>;
 }
 
 export function createTauriAdapter(): TauriAdapter {
@@ -85,11 +91,30 @@ export function createTauriAdapter(): TauriAdapter {
   let availableTemplates = new Map<string, SdocTemplate>();
   let personalTemplateFingerprints = new Map<string, string>();
   let latestDrawioGeneration = 0;
-  let flushHandler: (() => void) | null = null;
+  let flushHandler: (() => void | Promise<void>) | null = null;
+  let editorEditableHandler: ((editable: boolean) => void) | null = null;
   const saveQueue = new RecoverableSerialQueue();
 
   const emit = (message: HostToEditorMessage): void => {
     for (const handler of listeners) handler(message);
+  };
+
+  const toExternalMutation = (
+    value: TauriActiveDocumentSnapshot,
+  ): { revision: number; snapshot: DocumentMutation } => {
+    const contract = parseDocumentContract(value.envelope);
+    if (!contract.ok) {
+      throw new Error(contract.diagnostics.map((item) => item.message).join('; '));
+    }
+    const { settings, ...meta } = contract.envelope.meta;
+    return {
+      revision: value.revision,
+      snapshot: {
+        content: contract.envelope.doc,
+        meta,
+        documentSettings: settings ?? null,
+      },
+    };
   };
 
   const requireIdentity = (): TauriDocumentIdentity => {
@@ -103,7 +128,7 @@ export function createTauriAdapter(): TauriAdapter {
       revision: identity.revision,
     });
   const readSnapshotAfterFlush = async (): Promise<TauriActiveDocumentSnapshot> => {
-    flushHandler?.();
+    await flushHandler?.();
     await saveQueue.whenIdle();
     return readSnapshot(requireIdentity());
   };
@@ -204,6 +229,27 @@ export function createTauriAdapter(): TauriAdapter {
       });
     });
     retainListener(u2);
+
+    const u3 = await listen<{ folder: string }>('workspace-changed', () => {
+      const observedSession = session ? { ...session } : null;
+      if (!observedSession) return;
+      void invoke<TauriActiveDocumentSnapshot | null>('read_external_document_snapshot', {
+        documentId: observedSession.documentId,
+      }).then((external) => {
+        if (!external || !session || session.sessionId !== observedSession.sessionId) return;
+        const converted = toExternalMutation(external);
+        emit({
+          type: 'externalChange',
+          sessionId: observedSession.sessionId,
+          documentId: observedSession.documentId,
+          revision: converted.revision,
+          snapshot: converted.snapshot,
+        });
+      }).catch((error: unknown) => {
+        console.warn('Failed to inspect external document change', error);
+      });
+    });
+    retainListener(u3);
   };
 
   setupListeners();
@@ -211,7 +257,7 @@ export function createTauriAdapter(): TauriAdapter {
   return {
     kind: 'tauri',
     setDocumentSession(documentId: string, revision: number) {
-      session = { sessionId: documentId, documentId, revision };
+      session = { sessionId: crypto.randomUUID(), documentId, revision };
       latestDrawioGeneration = 0;
     },
     getDocumentSession() {
@@ -220,12 +266,29 @@ export function createTauriAdapter(): TauriAdapter {
     setWorkspaceFolder(value: string | null) {
       workspaceFolder = value;
     },
-    setFlushHandler(handler: (() => void) | null) {
+    setFlushHandler(handler: (() => void | Promise<void>) | null) {
       flushHandler = handler;
     },
-    flushAndWait() {
-      flushHandler?.();
-      return saveQueue.whenIdle();
+    setEditorEditableHandler(handler: ((editable: boolean) => void) | null) {
+      editorEditableHandler = handler;
+    },
+    setEditorEditable(editable: boolean) {
+      editorEditableHandler?.(editable);
+    },
+    async flushAndWait() {
+      await flushHandler?.();
+      await saveQueue.whenIdle();
+    },
+    async acceptExternalChange() {
+      if (!session) throw new Error('No active document session');
+      const accepted = await invoke<TauriActiveDocumentSnapshot>('accept_external_document', {
+        documentId: session.documentId,
+      });
+      if (!session || accepted.documentId !== session.documentId) {
+        throw new Error('External document identity changed.');
+      }
+      session = { ...session, revision: accepted.revision };
+      return toExternalMutation(accepted);
     },
     postMessage: async (msg: EditorToHostMessage) => {
       // Route messages to appropriate Tauri commands
@@ -236,42 +299,81 @@ export function createTauriAdapter(): TauriAdapter {
 
         case 'edit':
           if (!session) throw new Error('No active document session');
-          await saveQueue.enqueue(async () => {
-            if (!session) throw new Error('No active document session');
-            const saved = await invoke<{ documentId: string; revision: number }>('save_document', {
-              content: msg.content,
-              metaUpdates: msg.meta ?? null,
-              documentId: session.documentId,
-              revision: session.revision,
+          {
+            const requestSession = { ...session };
+            void saveQueue.enqueue(async () => {
+              const saved = await invoke<{ documentId: string; revision: number }>('save_document', {
+                content: msg.mutation.content,
+                metaUpdates: {
+                  ...msg.mutation.meta,
+                  settings: msg.mutation.documentSettings,
+                },
+                documentId: requestSession.documentId,
+                revision: msg.baseRevision,
+              });
+              if (!session || session.sessionId !== requestSession.sessionId
+                || session.documentId !== saved.documentId) return;
+              session = { ...session, revision: saved.revision };
+              emit({
+                type: 'editAcknowledged',
+                sessionId: msg.sessionId,
+                documentId: msg.documentId,
+                editId: msg.editId,
+                revision: saved.revision,
+              });
+            }, (error: unknown) => {
+              const message = error instanceof Error ? error.message : String(error);
+              const code = classifyTauriSaveError(message);
+              if (code !== 'EXTERNAL_CHANGE') {
+                emit({
+                  type: 'editRejected',
+                  sessionId: msg.sessionId,
+                  documentId: msg.documentId,
+                  editId: msg.editId,
+                  revision: requestSession.revision,
+                  code,
+                  message,
+                });
+                return;
+              }
+              void invoke<TauriActiveDocumentSnapshot | null>('read_external_document_snapshot', {
+                documentId: requestSession.documentId,
+              }).then((external) => {
+                const converted = external ? toExternalMutation(external) : null;
+                emit({
+                  type: 'editRejected',
+                  sessionId: msg.sessionId,
+                  documentId: msg.documentId,
+                  editId: msg.editId,
+                  revision: converted?.revision ?? requestSession.revision,
+                  code: 'EXTERNAL_CHANGE',
+                  message,
+                  ...(converted ? { hostSnapshot: converted.snapshot } : {}),
+                });
+                if (converted) {
+                  emit({
+                    type: 'externalChange',
+                    sessionId: msg.sessionId,
+                    documentId: msg.documentId,
+                    revision: converted.revision,
+                    snapshot: converted.snapshot,
+                  });
+                }
+              }).catch(() => {
+                emit({
+                  type: 'editRejected',
+                  sessionId: msg.sessionId,
+                  documentId: msg.documentId,
+                  editId: msg.editId,
+                  revision: requestSession.revision,
+                  code: 'EXTERNAL_CHANGE',
+                  message,
+                });
+              });
+            }).catch(() => {
+              // The coordinator is notified through editRejected above. Keep the
+              // adapter send promise from racing that structured rejection.
             });
-            session = { ...session, ...saved };
-          }, () => {});
-          break;
-
-        case 'updateMeta':
-          if (!session) throw new Error('No active document session');
-          await saveQueue.enqueue(async () => {
-            if (!session) throw new Error('No active document session');
-            const saved = await invoke<{ documentId: string; revision: number }>('save_document', {
-              content: null, metaUpdates: msg.meta,
-              documentId: session.documentId, revision: session.revision,
-            });
-            session = { ...session, ...saved };
-          }, () => {});
-          break;
-
-        case 'updateDocSettings':
-          if (!session) throw new Error('No active document session');
-          await saveQueue.enqueue(async () => {
-            if (!session) throw new Error('No active document session');
-            const saved = await invoke<{ documentId: string; revision: number }>('save_document', {
-              content: null, metaUpdates: { settings: msg.settings },
-              documentId: session.documentId, revision: session.revision,
-            });
-            session = { ...session, ...saved };
-          }, () => {});
-          for (const handler of listeners) {
-            handler({ type: 'docSettingsChanged', docSettings: msg.settings });
           }
           break;
 
@@ -429,6 +531,7 @@ export function createTauriAdapter(): TauriAdapter {
         }
 
         case 'flushComplete':
+        case 'flushFailed':
           break;
 
         case 'openDocument':
@@ -458,7 +561,7 @@ export function createTauriAdapter(): TauriAdapter {
           try {
             const result = await applyTemplateToActiveTauriDocument(template, {
               flushAndWait: async () => {
-                flushHandler?.();
+                await flushHandler?.();
                 await saveQueue.whenIdle();
               },
               getIdentity: requireIdentity,
@@ -473,16 +576,22 @@ export function createTauriAdapter(): TauriAdapter {
               },
             });
             if (result.applied && result.identity && result.envelope && session) {
+              const { settings: documentSettings, ...persistedMeta } = result.envelope.meta;
               emit({
-                type: 'update',
+                type: 'replaceDocument',
                 sessionId: session.sessionId,
                 documentId: result.identity.documentId,
                 revision: result.identity.revision,
-                content: result.envelope.doc,
+                reason: 'confirmed-template',
+                snapshot: {
+                  content: result.envelope.doc,
+                  meta: persistedMeta,
+                  documentSettings: documentSettings ?? null,
+                },
               });
               emit({
                 type: 'docSettingsChanged',
-                docSettings: result.envelope.meta.settings ?? null,
+                docSettings: documentSettings ?? null,
               });
             }
             emit({ type: 'templateApplicationFinished', applied: result.applied });

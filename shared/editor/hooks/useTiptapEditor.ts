@@ -2,6 +2,10 @@ import { useEditor, JSONContent } from '@tiptap/react';
 import { useRef, useEffect, useCallback, useMemo } from 'react';
 import { createTiptapExtensions } from '../extensions/tiptapExtensions';
 import type { EditorExtensionRuntime } from '../extensionRuntime';
+import {
+  EditorDocumentReplacementBoundary,
+  type EditorReplacementReason,
+} from '../documentReplacement';
 
 interface UseTiptapEditorOptions {
   onUpdate: (content: JSONContent) => void;
@@ -53,6 +57,7 @@ export const useTiptapEditor = ({
 }: UseTiptapEditorOptions) => {
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const updateGateRef = useRef(new PendingEditorUpdateGate());
+  const replacementBoundaryRef = useRef(new EditorDocumentReplacementBoundary<JSONContent>());
   const onUpdateRef = useRef(onUpdate);
   useEffect(() => { onUpdateRef.current = onUpdate; }, [onUpdate]);
 
@@ -60,6 +65,7 @@ export const useTiptapEditor = ({
   const editor = useEditor({
     extensions,
     content: '',
+    editable: false,
     onUpdate: ({ editor }) => {
       updateGateRef.current.markPending();
       // Debounce updates to avoid too many messages
@@ -76,30 +82,21 @@ export const useTiptapEditor = ({
     },
   });
 
-  const setContent = (content: JSONContent) => {
-    if (!editor) return;
+  const replaceEditorDocument = useCallback((
+    reason: EditorReplacementReason,
+    content: JSONContent,
+  ): boolean => {
+    if (!editor) return false;
+    return replacementBoundaryRef.current.replace(reason, content, (nextContent) => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
+      }
+      updateGateRef.current.clear();
 
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-      debounceTimerRef.current = null;
-    }
-    updateGateRef.current.clear();
-
-    // Save cursor position before replacing content
-    const { from, to } = editor.state.selection;
-
-    editor.commands.setContent(content, { emitUpdate: false });
-
-    // Restore cursor position (clamped to new doc size)
-    try {
-      const newMax = editor.state.doc.content.size;
-      const safeFrom = Math.min(from, newMax);
-      const safeTo = Math.min(to, newMax);
-      editor.commands.setTextSelection({ from: safeFrom, to: safeTo });
-    } catch {
-      // ignore if position is invalid
-    }
-  };
+      editor.commands.setContent(nextContent, { emitUpdate: false });
+    });
+  }, [editor]);
 
   const emitUpdate = useCallback((mode: EditorFlushMode) => {
     const hadPendingUpdate = updateGateRef.current.consume();
@@ -146,7 +143,7 @@ export const useTiptapEditor = ({
 
   return {
     editor,
-    setContent,
+    replaceEditorDocument,
     flushUpdate,
     flushPendingUpdate,
   };

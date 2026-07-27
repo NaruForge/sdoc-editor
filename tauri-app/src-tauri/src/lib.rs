@@ -58,6 +58,8 @@ pub fn run() {
             commands::save_document,
             commands::new_document,
             commands::read_active_document_snapshot,
+            commands::read_external_document_snapshot,
+            commands::accept_external_document,
             commands::get_current_file_path,
             commands::set_current_folder,
             commands::get_current_folder,

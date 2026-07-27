@@ -52,6 +52,11 @@ npm run build:all
 | `npm run licenses:check` | npm/Cargo 라이선스와 제3자 고지 검증(Rust 필요) |
 | `npm run tauri:build --workspace=sdoc-editor-tauri` | Windows 설치 패키지와 portable ZIP 로컬 빌드 |
 
+`npm run package`, `npm run package:cli`, Tauri native packaging은
+`SDOC_OUTPUT_DIR` 환경 변수나 Git에서 제외되는 루트 `.sdoc-output-dir`
+파일이 지정되어 있으면 생성한 배포 패키지를 해당 폴더에도 복사합니다.
+환경 변수가 로컬 파일보다 우선합니다.
+
 ### CLI 빌드와 패키징
 
 호스트 중립 operation 의미는 `shared/document/operations/`에 두고 파일
