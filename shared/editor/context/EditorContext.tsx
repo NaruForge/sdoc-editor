@@ -2,6 +2,8 @@ import React, { createContext, useContext, useReducer, ReactNode } from 'react';
 import { JSONContent } from '@tiptap/react';
 import type { DocumentSettings, ResolvedEditorSettings } from '@shared/types';
 import { EDITOR_SETTINGS_DEFAULTS } from '@shared/settingsResolver';
+import { EditorI18nProvider } from '../i18n/EditorI18nContext';
+import { resolveEditorLocale, type EditorLocale } from '../i18n/locale';
 
 export interface EditorSettings extends ResolvedEditorSettings {
   fontWeightBody: number;
@@ -34,6 +36,7 @@ export const defaultSettings: EditorSettings = {
 interface EditorState {
   doc: JSONContent | null;
   isReady: boolean;
+  locale: EditorLocale;
   settings: EditorSettings;
   /** Raw per-document settings (null = no overrides, falls back to VS Code). */
   docSettings: Partial<DocumentSettings> | null;
@@ -42,15 +45,17 @@ interface EditorState {
 type EditorAction =
   | { type: 'SET_DOC'; payload: JSONContent }
   | { type: 'SET_READY'; payload: boolean }
+  | { type: 'SET_LOCALE'; payload: EditorLocale }
   | { type: 'SET_SETTINGS'; payload: Partial<EditorSettings> }
   | { type: 'SET_DOC_SETTINGS'; payload: Partial<DocumentSettings> | null };
 
-const initialState: EditorState = {
+const createInitialState = (locale: EditorLocale): EditorState => ({
   doc: null,
   isReady: false,
+  locale,
   settings: defaultSettings,
   docSettings: null,
-};
+});
 
 const editorReducer = (state: EditorState, action: EditorAction): EditorState => {
   switch (action.type) {
@@ -58,6 +63,8 @@ const editorReducer = (state: EditorState, action: EditorAction): EditorState =>
       return { ...state, doc: action.payload };
     case 'SET_READY':
       return { ...state, isReady: action.payload };
+    case 'SET_LOCALE':
+      return { ...state, locale: action.payload };
     case 'SET_SETTINGS':
       return { ...state, settings: { ...state.settings, ...action.payload } };
     case 'SET_DOC_SETTINGS':
@@ -74,12 +81,21 @@ interface EditorContextValue {
 
 const EditorContext = createContext<EditorContextValue | undefined>(undefined);
 
-export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [state, dispatch] = useReducer(editorReducer, initialState);
+export const EditorProvider: React.FC<{
+  children: ReactNode;
+  initialLocale?: string;
+}> = ({ children, initialLocale = 'en' }) => {
+  const [state, dispatch] = useReducer(
+    editorReducer,
+    resolveEditorLocale(initialLocale),
+    createInitialState,
+  );
 
   return (
     <EditorContext.Provider value={{ state, dispatch }}>
-      {children}
+      <EditorI18nProvider locale={state.locale}>
+        {children}
+      </EditorI18nProvider>
     </EditorContext.Provider>
   );
 };

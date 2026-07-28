@@ -39,9 +39,14 @@ import {
   buildExternalChangeComparison,
   buildExternalDocumentDiff,
 } from '@shared/editor/externalChanges';
+import { useEditorI18n } from '@shared/editor/i18n';
+import type { EditorExtensionRuntime } from '@shared/editor/extensionRuntime';
 
 export const Editor: React.FC = () => {
   const { state, dispatch } = useEditorContext();
+  const { t } = useEditorI18n();
+  const translatorRef = useRef(t);
+  translatorRef.current = t;
   const [showNumbering, setShowNumbering] = useState(true);
   const [showSidePanel, setShowSidePanel] = useState(false);
   const [sidePanelTab, setSidePanelTab] = useState<ActivityTab>('toc');
@@ -83,8 +88,9 @@ export const Editor: React.FC = () => {
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
   const flushUpdateRef = useRef<() => boolean>(() => false);
-  const extensionRuntime = useMemo(() => ({
+  const extensionRuntime = useMemo<EditorExtensionRuntime>(() => ({
     getSettings: () => settingsRef.current,
+    translate: (key, params) => translatorRef.current(key, params),
     flush: () => flushUpdateRef.current(),
     openDocument: (path: string, anchor?: string) => postMessageRef.current({ type: 'openDocument', path, anchor }),
     openDrawio: (drawioPath: string) => postMessageRef.current({ type: 'openDrawio', drawioPath }),
@@ -198,6 +204,14 @@ export const Editor: React.FC = () => {
       setShowSidePanel(true);
     }
   }, [showSidePanel, sidePanelTab]);
+
+  const handleCloseSidePanel = useCallback(() => {
+    const triggerId = `activity-tab-${sidePanelTab}`;
+    setShowSidePanel(false);
+    requestAnimationFrame(() => {
+      document.getElementById(triggerId)?.focus();
+    });
+  }, [sidePanelTab]);
 
   const handleZoomChange = useCallback((value: number) => {
     const clamped = Math.min(200, Math.max(60, value));
@@ -492,7 +506,7 @@ export const Editor: React.FC = () => {
   if (!editor) {
     return (
       <div style={{ padding: '20px', textAlign: 'center' }}>
-        Loading editor...
+        {t('editor.loading')}
       </div>
     );
   }
@@ -506,7 +520,11 @@ export const Editor: React.FC = () => {
         editor.getJSON() as TiptapNode,
         externalChange.snapshot.content,
       ),
-      { title: '외부 문서 변경 비교', mine: '내 변경', external: '디스크의 문서' },
+      {
+        title: t('externalChange.compareTitle'),
+        mine: t('externalChange.mine'),
+        external: t('externalChange.external'),
+      },
     )
     : null;
 
@@ -532,19 +550,19 @@ export const Editor: React.FC = () => {
       {externalChange && (
         <ExternalChangeBanner
           isDirty={hasLocalChanges}
-          message="외부 변경이 있습니다."
-          compareLabel="비교"
-          keepMineLabel="내 변경 유지"
-          reloadLabel="다시 불러오기"
+          message={t('externalChange.message')}
+          compareLabel={t('externalChange.compare')}
+          keepMineLabel={t('externalChange.keepMine')}
+          reloadLabel={t('externalChange.reload')}
           onCompare={() => setShowExternalComparison(true)}
           onKeepMine={() => {
-            if (window.confirm('내 변경으로 디스크의 외부 변경을 덮어쓰시겠습니까?')) {
+            if (window.confirm(t('externalChange.confirmKeepMine'))) {
               handleKeepLocal();
             }
           }}
           onReload={() => {
             if (!hasLocalChanges
-              || window.confirm('저장되지 않은 내 변경을 버리고 외부 문서를 다시 불러오시겠습니까?')) {
+              || window.confirm(t('externalChange.confirmReload'))) {
               handleReloadExternal();
             }
           }}
@@ -554,8 +572,8 @@ export const Editor: React.FC = () => {
         <ExternalChangeComparison
           model={externalComparison}
           onClose={() => setShowExternalComparison(false)}
-          closeLabel="비교 닫기"
-          emptyMessage="본문 블록의 차이가 없습니다."
+          closeLabel={t('externalChange.closeComparison')}
+          emptyMessage={t('externalChange.noBlockDiff')}
         />
       )}
       {editor && <BubbleMenuBar editor={editor} />}
@@ -567,6 +585,7 @@ export const Editor: React.FC = () => {
         />
         {showSidePanel && (
           <SidePanel
+            onClose={handleCloseSidePanel}
             activeTab={sidePanelTab}
             editor={editor}
             settings={state.settings}
@@ -604,7 +623,7 @@ export const Editor: React.FC = () => {
                   className="editor-title-input"
                   value={meta.title}
                   onChange={(e) => handleMetaChange('title', e.target.value)}
-                  placeholder="문서 제목을 입력하세요"
+                  placeholder={t('document.titlePlaceholder')}
                 />
               </div>
               <EditorContent

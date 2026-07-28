@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { User, Calendar, Clock, Tag } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { User, Calendar, Clock, Tag, Info } from 'lucide-react';
+import { useEditorI18n } from '../i18n';
 
 interface DocumentHeaderProps {
   author: string;
@@ -18,42 +19,33 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
   onAuthorChange,
   onVersionChange,
 }) => {
+  const { t, formatDate } = useEditorI18n();
   const [editingAuthor, setEditingAuthor] = useState(false);
   const [authorDraft, setAuthorDraft] = useState('');
   const [editingVersion, setEditingVersion] = useState(false);
   const [versionDraft, setVersionDraft] = useState('');
-
-  const formatDate = (iso: string): string => {
-    if (!iso) return '—';
-    try {
-      const d = new Date(iso);
-      return d.toLocaleDateString(undefined, {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-    } catch {
-      return iso;
-    }
-  };
+  const authorButtonRef = useRef<HTMLButtonElement>(null);
+  const versionButtonRef = useRef<HTMLButtonElement>(null);
 
   const handleAuthorClick = () => {
     setAuthorDraft(author);
     setEditingAuthor(true);
   };
 
-  const handleAuthorCommit = () => {
+  const handleAuthorCommit = (restoreFocus = false) => {
     setEditingAuthor(false);
     if (authorDraft !== author) {
       onAuthorChange(authorDraft);
     }
+    if (restoreFocus) requestAnimationFrame(() => authorButtonRef.current?.focus());
   };
 
   const handleAuthorKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') handleAuthorCommit();
-    if (e.key === 'Escape') setEditingAuthor(false);
+    if (e.key === 'Enter') handleAuthorCommit(true);
+    if (e.key === 'Escape') {
+      setEditingAuthor(false);
+      requestAnimationFrame(() => authorButtonRef.current?.focus());
+    }
   };
 
   const handleVersionClick = () => {
@@ -61,72 +53,99 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
     setEditingVersion(true);
   };
 
-  const handleVersionCommit = () => {
+  const handleVersionCommit = (restoreFocus = false) => {
     setEditingVersion(false);
     if (versionDraft !== version) {
       onVersionChange(versionDraft);
     }
+    if (restoreFocus) requestAnimationFrame(() => versionButtonRef.current?.focus());
   };
 
   const handleVersionKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') handleVersionCommit();
-    if (e.key === 'Escape') setEditingVersion(false);
+    if (e.key === 'Enter') handleVersionCommit(true);
+    if (e.key === 'Escape') {
+      setEditingVersion(false);
+      requestAnimationFrame(() => versionButtonRef.current?.focus());
+    }
   };
+
+  const timestamps = (
+    <>
+      <div className="document-header-field" title={t('document.created')}>
+        <Calendar size={14} aria-hidden="true" />
+        <span className="document-header-value">{formatDate(created)}</span>
+      </div>
+      <div className="document-header-field" title={t('document.modified')}>
+        <Clock size={14} aria-hidden="true" />
+        <span className="document-header-value">{formatDate(modified)}</span>
+      </div>
+    </>
+  );
 
   return (
     <div className="document-header">
       <div className="document-header-meta">
-        <div className="document-header-field" title="Author">
-          <User size={14} />
+        <div className="document-header-field" title={t('document.author')}>
+          <User size={14} aria-hidden="true" />
           {editingAuthor ? (
             <input
               className="document-header-input"
               value={authorDraft}
               onChange={(e) => setAuthorDraft(e.target.value)}
-              onBlur={handleAuthorCommit}
+              aria-label={t('document.author')}
+              onBlur={() => handleAuthorCommit(false)}
               onKeyDown={handleAuthorKeyDown}
-              placeholder="Enter author name"
+              placeholder={t('document.authorPlaceholder')}
               autoFocus
             />
           ) : (
-            <span
+            <button
+              ref={authorButtonRef}
+              type="button"
               className={`document-header-value editable ${!author ? 'placeholder' : ''}`}
               onClick={handleAuthorClick}
+              aria-label={author || t('document.authorUnset')}
             >
-              {author || 'Click to set author'}
-            </span>
+              {author || t('document.authorUnset')}
+            </button>
           )}
         </div>
-        <div className="document-header-field" title="Version">
-          <Tag size={14} />
+        <div className="document-header-field" title={t('document.version')}>
+          <Tag size={14} aria-hidden="true" />
           {editingVersion ? (
             <input
               className="document-header-input"
               style={{ width: '80px' }}
               value={versionDraft}
               onChange={(e) => setVersionDraft(e.target.value)}
-              onBlur={handleVersionCommit}
+              aria-label={t('document.version')}
+              onBlur={() => handleVersionCommit(false)}
               onKeyDown={handleVersionKeyDown}
-              placeholder="e.g. 1.0"
+              placeholder={t('document.versionPlaceholder')}
               autoFocus
             />
           ) : (
-            <span
+            <button
+              ref={versionButtonRef}
+              type="button"
               className={`document-header-value editable ${!version ? 'placeholder' : ''}`}
               onClick={handleVersionClick}
+              aria-label={version ? `${t('document.version')} ${version}` : t('document.versionUnset')}
             >
-              {version ? `v${version}` : 'Set version'}
-            </span>
+              {version ? `v${version}` : t('document.versionUnset')}
+            </button>
           )}
         </div>
-        <div className="document-header-field" title="Created">
-          <Calendar size={14} />
-          <span className="document-header-value">{formatDate(created)}</span>
+        <div className="document-header-timestamps">
+          {timestamps}
         </div>
-        <div className="document-header-field" title="Modified">
-          <Clock size={14} />
-          <span className="document-header-value">{formatDate(modified)}</span>
-        </div>
+        <details className="document-header-info">
+          <summary aria-label={t('document.info')}>
+            <Info size={14} aria-hidden="true" />
+            <span>{t('document.info')}</span>
+          </summary>
+          <div className="document-header-info-popover">{timestamps}</div>
+        </details>
       </div>
     </div>
   );

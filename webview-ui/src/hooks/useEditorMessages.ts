@@ -90,6 +90,7 @@ export function useEditorMessages({
     switch (message.type) {
       case 'init':
         if (initDoneRef.current) break;
+        dispatch({ type: 'SET_LOCALE', payload: message.locale });
         persistenceSessionRef.current = {
           sessionId: message.sessionId,
           documentId: message.documentId,

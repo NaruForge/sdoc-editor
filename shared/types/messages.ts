@@ -16,6 +16,7 @@ import type {
   DocumentMutation,
   DocumentMutationErrorCode,
 } from '../persistence/DocumentSyncCoordinator';
+import type { EditorLocale } from '../editor/i18n/locale';
 
 // ─── Editor Settings (Extension → Webview) ─────────────────────
 
@@ -61,6 +62,7 @@ export interface EditorSettings {
 
 export interface InitMessage {
   type: 'init';
+  locale: EditorLocale;
   sessionId: string;
   documentId: string;
   revision: number;

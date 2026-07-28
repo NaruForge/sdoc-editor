@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useEditorI18n } from '../i18n';
 
 interface DrawioNameDialogProps {
   defaultName: string;
@@ -11,6 +12,7 @@ export const DrawioNameDialog: React.FC<DrawioNameDialogProps> = ({
   onConfirm,
   onCancel,
 }) => {
+  const { t } = useEditorI18n();
   const [fileName, setFileName] = useState(defaultName);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -35,12 +37,12 @@ export const DrawioNameDialog: React.FC<DrawioNameDialogProps> = ({
 
   return (
     <div className="modal-overlay" onClick={onCancel}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-        <h3>Create Draw.io Diagram</h3>
+      <div className="modal-content" role="dialog" aria-modal="true" aria-labelledby="drawio-name-title" onClick={(e) => e.stopPropagation()}>
+        <h3 id="drawio-name-title">{t('drawio.createTitle')}</h3>
         <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label htmlFor="drawio-name" className="form-label">
-              File name (without extension):
+              {t('drawio.fileName')}:
             </label>
             <input
               ref={inputRef}
@@ -53,19 +55,19 @@ export const DrawioNameDialog: React.FC<DrawioNameDialogProps> = ({
               placeholder="diagram-name"
             />
             <div className="form-hint">
-              Will be saved as: {fileName.trim() || 'diagram-name'}.drawio.svg
+              {t('drawio.savedAs', { name: fileName.trim() || 'diagram-name' })}
             </div>
           </div>
           <div className="modal-actions">
             <button type="button" onClick={onCancel} className="btn-secondary">
-              Cancel
+              {t('common.cancel')}
             </button>
             <button
               type="submit"
               disabled={!fileName.trim()}
               className="btn-primary"
             >
-              Create
+              {t('common.create')}
             </button>
           </div>
         </form>

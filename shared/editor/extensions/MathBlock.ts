@@ -52,7 +52,7 @@ export const MathBlock = Node.create<EditorExtensionOptions>({
       dom.classList.add('math-block');
       dom.setAttribute('contenteditable', 'false');
       dom.style.cursor = 'pointer';
-      dom.title = '클릭하여 수식 편집 · 더블클릭으로 Dialog';
+      dom.title = runtime.translate('math.editHint');
 
       // --- Rendered math (visible when NOT editing) ---
       const renderedWrapper = document.createElement('div');
@@ -80,19 +80,19 @@ export const MathBlock = Node.create<EditorExtensionOptions>({
 
       const typeLabel = document.createElement('span');
       typeLabel.classList.add('math-edit-type-label');
-      typeLabel.textContent = 'Block';
+      typeLabel.textContent = runtime.translate('math.block');
       toolbar.appendChild(typeLabel);
 
       const toggleBtn = document.createElement('button');
       toggleBtn.classList.add('math-edit-btn');
-      toggleBtn.textContent = '→ Inline';
-      toggleBtn.title = '인라인 수식으로 변환';
+      toggleBtn.textContent = `→ ${runtime.translate('math.inline')}`;
+      toggleBtn.title = runtime.translate('math.toInline');
       toolbar.appendChild(toggleBtn);
 
       const dialogBtn = document.createElement('button');
       dialogBtn.classList.add('math-edit-btn');
-      dialogBtn.textContent = '⬒ Dialog';
-      dialogBtn.title = 'Dialog에서 편집';
+      dialogBtn.textContent = `⬒ ${runtime.translate('math.dialog')}`;
+      dialogBtn.title = runtime.translate('math.editDialog');
       toolbar.appendChild(dialogBtn);
 
       // Textarea

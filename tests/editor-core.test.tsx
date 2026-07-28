@@ -57,12 +57,12 @@ describe('shared editor core', () => {
     expect(markup).not.toContain('settings-color-value');
 
     for (const level of HEADING_LEVELS) {
-      expect(markup).toContain(`H${level} 색상`);
-      expect(markup).toContain(`aria-label="H${level} 파란 계열"`);
-      expect(markup).toContain(`aria-label="H${level} LG 헤리티지 레드"`);
-      expect(markup).toContain(`aria-label="H${level} 검정색"`);
-      expect(markup).toContain(`aria-label="H${level} 사용자 지정 색상"`);
-      expect(markup).toContain(`aria-label="H${level} RGB Color Picker"`);
+      expect(markup).toContain(`H${level} color`);
+      expect(markup).toContain(`aria-label="H${level} Blue palette"`);
+      expect(markup).toContain(`aria-label="H${level} LG heritage red"`);
+      expect(markup).toContain(`aria-label="H${level} Black"`);
+      expect(markup).toContain(`aria-label="Custom H${level} color"`);
+      expect(markup).toContain(`aria-label="Custom H${level} color"`);
     }
 
     const cssPath = fileURLToPath(new URL('../shared/editor/styles/editor.css', import.meta.url));
@@ -88,7 +88,11 @@ describe('shared editor core', () => {
       on: vi.fn(),
       off: vi.fn(),
     } as unknown as TiptapEditor;
-    const markup = renderToStaticMarkup(<Toolbar editor={editor} />);
+    const markup = renderToStaticMarkup(
+      <EditorProvider>
+        <Toolbar editor={editor} />
+      </EditorProvider>,
+    );
 
     expect(HEADING_LEVELS).toEqual([1, 2, 3, 4, 5, 6]);
     expect(markup).toContain('aria-label="Heading"');

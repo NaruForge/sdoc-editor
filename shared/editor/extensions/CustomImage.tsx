@@ -79,16 +79,20 @@ export const CustomImage = Image.extend<EditorExtensionOptions>({
       // -- Alignment toolbar (shown on image click) --
       const alignToolbar = document.createElement('div');
       alignToolbar.classList.add('image-align-toolbar');
+      alignToolbar.setAttribute('role', 'toolbar');
+      alignToolbar.setAttribute('aria-label', runtime.translate('image.alignment'));
       const alignDefs = [
-        { value: 'left', label: '← Left' },
-        { value: 'center', label: '↔ Center' },
-        { value: 'right', label: 'Right →' },
+        { value: 'left', icon: '←', label: runtime.translate('image.alignLeft') },
+        { value: 'center', icon: '↔', label: runtime.translate('image.alignCenter') },
+        { value: 'right', icon: '→', label: runtime.translate('image.alignRight') },
       ];
-      alignDefs.forEach(({ value, label }) => {
+      alignDefs.forEach(({ value, icon, label }) => {
         const btn = document.createElement('button');
+        btn.type = 'button';
         btn.classList.add('image-align-btn');
-        btn.textContent = label;
+        btn.textContent = `${icon} ${label}`;
         btn.dataset.alignValue = value;
+        btn.setAttribute('aria-label', label);
         btn.addEventListener('click', (e) => {
           e.stopPropagation();
           applyAlign(value);
@@ -98,9 +102,11 @@ export const CustomImage = Image.extend<EditorExtensionOptions>({
       });
 
       // -- Caption display (visible when not editing) --
-      const captionDisplay = document.createElement('div');
+      const captionDisplay = document.createElement('button');
+      captionDisplay.type = 'button';
       captionDisplay.classList.add('image-caption-display');
       captionDisplay.setAttribute('contenteditable', 'false');
+      captionDisplay.setAttribute('aria-label', runtime.translate('image.editCaption'));
 
       // -- Image container --
       const imageContainer = document.createElement('div');
@@ -120,7 +126,8 @@ export const CustomImage = Image.extend<EditorExtensionOptions>({
       const captionInput = document.createElement('input');
       captionInput.type = 'text';
       captionInput.classList.add('caption-input');
-      captionInput.placeholder = 'Enter image caption...';
+      captionInput.placeholder = runtime.translate('image.captionPlaceholder');
+      captionInput.setAttribute('aria-label', runtime.translate('image.editCaption'));
       captionInputWrapper.appendChild(captionInput);
 
       // Keep the toolbar anchored to the image, outside its double-click target.
@@ -158,7 +165,7 @@ export const CustomImage = Image.extend<EditorExtensionOptions>({
 
           const ph = document.createElement('span');
           ph.className = 'caption-placeholder';
-          ph.textContent = 'Click to add caption...';
+          ph.textContent = runtime.translate('caption.add');
           captionDisplay.appendChild(ph);
         }
       }
@@ -176,7 +183,10 @@ export const CustomImage = Image.extend<EditorExtensionOptions>({
           const relativePath = currentNode.attrs.relativePath || extractRelativePathFromSrc(src);
           if (relativePath) {
             const fileName = relativePath.split('/').pop();
-            img.title = `Filename: ${fileName}\nPath: ${relativePath}`;
+            img.title = runtime.translate('image.fileDetails', {
+              name: fileName ?? '',
+              path: relativePath,
+            });
           } else {
             img.title = src;
           }
@@ -210,7 +220,9 @@ export const CustomImage = Image.extend<EditorExtensionOptions>({
         const align = currentNode.attrs.align || 'center';
         wrapper.dataset.align = align;
         alignToolbar.querySelectorAll<HTMLButtonElement>('.image-align-btn').forEach(btn => {
-          btn.classList.toggle('active', btn.dataset.alignValue === align);
+          const isActive = btn.dataset.alignValue === align;
+          btn.classList.toggle('active', isActive);
+          btn.setAttribute('aria-pressed', String(isActive));
         });
       }
 
@@ -241,11 +253,8 @@ export const CustomImage = Image.extend<EditorExtensionOptions>({
         }
       }
 
-      // === Caption display click → start editing ===
-      captionDisplay.addEventListener('mousedown', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-
+      function startCaptionEditing() {
+        if (isEditingCaption) return;
         isEditingCaption = true;
         captionDisplay.style.display = 'none';
         captionInputWrapper.style.display = '';
@@ -255,6 +264,16 @@ export const CustomImage = Image.extend<EditorExtensionOptions>({
           captionInput.focus();
           captionInput.select();
         });
+      }
+
+      captionDisplay.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      });
+      captionDisplay.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        startCaptionEditing();
       });
 
       // === Image double-click → open draw.io files for editing ===

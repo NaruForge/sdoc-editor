@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
+import { useEditorI18n } from '../i18n';
 
 interface ImageNameDialogProps {
   onConfirm: (name: string) => void;
@@ -12,6 +13,7 @@ export const ImageNameDialog: React.FC<ImageNameDialogProps> = ({
   onCancel,
   defaultName = ''
 }) => {
+  const { t } = useEditorI18n();
   const [name, setName] = useState(defaultName);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -41,12 +43,15 @@ export const ImageNameDialog: React.FC<ImageNameDialogProps> = ({
     <div className="modal-overlay" onClick={onCancel}>
       <div
         className="modal-content"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="image-name-title"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={handleKeyDown}
       >
         <div className="modal-header">
-          <h3>Image Name</h3>
-          <button className="modal-close" onClick={onCancel}>
+          <h3 id="image-name-title">{t('image.nameDialogTitle')}</h3>
+          <button type="button" className="modal-close" onClick={onCancel} aria-label={t('common.close')}>
             <X size={18} />
           </button>
         </div>
@@ -54,7 +59,7 @@ export const ImageNameDialog: React.FC<ImageNameDialogProps> = ({
         <form onSubmit={handleSubmit}>
           <div className="modal-body">
             <div className="form-group">
-              <label>Enter a name for the image:</label>
+              <label>{t('image.enterName')}:</label>
               <input
                 ref={inputRef}
                 type="text"
@@ -63,7 +68,7 @@ export const ImageNameDialog: React.FC<ImageNameDialogProps> = ({
                 placeholder="e.g., architecture-diagram"
                 className="form-input"
               />
-              <small>This will be used as the image filename and alt text</small>
+              <small>{t('image.nameHint')}</small>
             </div>
           </div>
 
@@ -73,14 +78,14 @@ export const ImageNameDialog: React.FC<ImageNameDialogProps> = ({
               className="btn-secondary"
               onClick={onCancel}
             >
-              Cancel
+              {t('common.cancel')}
             </button>
             <button
               type="submit"
               className="btn-primary"
               disabled={!name.trim()}
             >
-              Insert Image
+              {t('image.insert')}
             </button>
           </div>
         </form>

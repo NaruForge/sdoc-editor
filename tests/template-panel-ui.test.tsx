@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { ActivityBar } from '../shared/editor/components/ActivityBar';
 import { TemplatePanel } from '../shared/editor/components/TemplatePanel';
+import { EditorI18nProvider } from '../shared/editor/i18n';
 
 const templates = [
   {
@@ -41,15 +42,16 @@ const templates = [
 
 describe('template side panel UI', () => {
   it('exposes the template tab only when the host enables it', () => {
-    const enabled = renderToStaticMarkup(React.createElement(ActivityBar, {
-      activeTab: 'template',
-      onTabClick: vi.fn(),
-      showTemplates: true,
-    }));
-    const disabled = renderToStaticMarkup(React.createElement(ActivityBar, {
-      activeTab: null,
-      onTabClick: vi.fn(),
-    }));
+    const enabled = renderToStaticMarkup(
+      <EditorI18nProvider locale="ko">
+        <ActivityBar activeTab="template" onTabClick={vi.fn()} showTemplates />
+      </EditorI18nProvider>,
+    );
+    const disabled = renderToStaticMarkup(
+      <EditorI18nProvider locale="ko">
+        <ActivityBar activeTab={null} onTabClick={vi.fn()} />
+      </EditorI18nProvider>,
+    );
 
     expect(enabled).toContain('템플릿');
     expect(enabled).toContain('aria-pressed="true"');
@@ -57,20 +59,24 @@ describe('template side panel UI', () => {
   });
 
   it('renders built-in and workspace templates as explicit apply actions', () => {
-    const markup = renderToStaticMarkup(React.createElement(TemplatePanel, {
-      templates,
-      isApplying: false,
-      isManaging: false,
-      personalRootPath: 'C:\\Users\\test\\.sdoc\\templates',
-      personalRootScope: 'local',
-      onApply: vi.fn(),
-      onRefresh: vi.fn(),
-      onSaveCurrent: vi.fn(),
-      onEdit: vi.fn(),
-      onDuplicate: vi.fn(),
-      onDelete: vi.fn(),
-      onOpenPersonalFolder: vi.fn(),
-    }));
+    const markup = renderToStaticMarkup(
+      <EditorI18nProvider locale="ko">
+        <TemplatePanel
+          templates={templates}
+          isApplying={false}
+          isManaging={false}
+          personalRootPath="C:\Users\test\.sdoc\templates"
+          personalRootScope="local"
+          onApply={vi.fn()}
+          onRefresh={vi.fn()}
+          onSaveCurrent={vi.fn()}
+          onEdit={vi.fn()}
+          onDuplicate={vi.fn()}
+          onDelete={vi.fn()}
+          onOpenPersonalFolder={vi.fn()}
+        />
+      </EditorI18nProvider>,
+    );
 
     expect(markup).toContain('기술 보고서');
     expect(markup).toContain('팀 설계서');
@@ -80,7 +86,7 @@ describe('template side panel UI', () => {
     expect(markup).toContain('현재 문서를 내 템플릿으로 저장');
     expect(markup).toContain('전체');
     expect(markup).toContain('내 템플릿');
-    expect(markup).toContain('미리보기');
+    expect(markup).toContain('미리 보기');
     expect(markup).toContain('design');
     expect(markup).toContain('수정');
     expect(markup).toContain('복제');

@@ -5,6 +5,7 @@ import { PanelEmptyState } from './PanelEmptyState';
 import { buildNumberingIndex } from '../../document/numbering';
 import type { ResolvedEditorSettings, TiptapNode } from '../../types';
 import { findActivePosition } from '../structureIndex';
+import { useEditorI18n } from '../i18n';
 
 interface LotEntry {
   pos: number;
@@ -18,6 +19,7 @@ interface ListOfTablesProps {
 }
 
 export const ListOfTables: React.FC<ListOfTablesProps> = ({ editor, settings }) => {
+  const { t } = useEditorI18n();
   const [entries, setEntries] = useState<LotEntry[]>([]);
   const [activePos, setActivePos] = useState<number>(-1);
   const entryPositions = useMemo(() => entries.map((entry) => entry.pos), [entries]);
@@ -72,12 +74,12 @@ export const ListOfTables: React.FC<ListOfTablesProps> = ({ editor, settings }) 
   if (entries.length === 0) {
     return (
       <div className="toc-panel">
-        <div className="toc-title">표 목록</div>
+        <div className="toc-title">{t('tables.title')}</div>
         <PanelEmptyState
           icon={<Table2 size={22} />}
-          title="아직 표가 없습니다"
-          message="표를 삽입하면 번호와 함께 표 목록에 표시됩니다."
-          hint="툴바의 삽입 → 표에서 크기를 선택해 추가하세요."
+          title={t('tables.emptyTitle')}
+          message={t('tables.emptyMessage')}
+          hint={t('tables.emptyHint')}
         />
       </div>
     );
@@ -85,18 +87,19 @@ export const ListOfTables: React.FC<ListOfTablesProps> = ({ editor, settings }) 
 
   return (
     <div className="toc-panel">
-      <div className="toc-title">표 목록</div>
+      <div className="toc-title">{t('tables.title')}</div>
       <nav className="toc-nav">
         {entries.map((entry) => (
           <button
             key={entry.pos}
             className={`toc-entry toc-level-1 lot-entry ${activePos === entry.pos ? 'toc-active' : ''}`}
+            type="button"
             onClick={() => handleClick(entry)}
             title={entry.caption || entry.label}
           >
             <span className="toc-number">{entry.label}</span>
             <span className="toc-text">
-              {entry.caption || <em className="toc-empty-caption">캡션 없음</em>}
+              {entry.caption || <em className="toc-empty-caption">{t('caption.none')}</em>}
             </span>
           </button>
         ))}

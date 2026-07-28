@@ -525,7 +525,7 @@ export function createTiptapExtensions(runtime: EditorExtensionRuntime) {
   }),
   HeadingNumbering,
   PersistentNodeIds,
-  Callout,
+  Callout.configure({ runtime }),
   CustomCodeBlock,
   TaskList,
   TaskItem.configure({

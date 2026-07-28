@@ -58,6 +58,8 @@ import {
   buildExternalChangeComparison,
   buildExternalDocumentDiff,
 } from '@shared/editor/externalChanges';
+import { useEditorI18n } from '@shared/editor/i18n';
+import type { EditorExtensionRuntime } from '@shared/editor/extensionRuntime';
 
 /**
  * `setImage`'s TipTap-generated type only knows about `src`/`alt`/`title`. `relativePath` is a
@@ -140,6 +142,9 @@ export const Editor: React.FC<EditorProps> = ({
   onExit,
 }) => {
   const { state, dispatch } = useEditorContext();
+  const { t } = useEditorI18n();
+  const translatorRef = useRef(t);
+  translatorRef.current = t;
   const [showNumbering, setShowNumbering] = useState(true);
   const [showSidePanel, setShowSidePanel] = useState(true);
   const [sidePanelTab, setSidePanelTab] = useState<ActivityTab>('explorer');
@@ -205,8 +210,9 @@ export const Editor: React.FC<EditorProps> = ({
   const flushUpdateRef = useRef<() => void>(() => {});
   const openWorkspaceFileRef = useRef(onOpenWorkspaceFile);
   openWorkspaceFileRef.current = onOpenWorkspaceFile;
-  const extensionRuntime = useMemo(() => ({
+  const extensionRuntime = useMemo<EditorExtensionRuntime>(() => ({
     getSettings: () => settingsRef.current,
+    translate: (key, params) => translatorRef.current(key, params),
     flush: () => flushUpdateRef.current(),
     openDocument: (path: string) => {
       void invoke<string>('resolve_document_relative_path', { path })
@@ -371,7 +377,7 @@ export const Editor: React.FC<EditorProps> = ({
       case 'templateOperationFinished':
         setIsManagingTemplate(false);
         if (!message.succeeded && message.message) {
-          window.alert(`템플릿 작업을 완료하지 못했습니다: ${message.message}`);
+          window.alert(t('template.operationFailed', { message: message.message }));
         }
         break;
       case 'editAcknowledged':
@@ -545,6 +551,14 @@ export const Editor: React.FC<EditorProps> = ({
       setShowSidePanel(true);
     }
   }, [showSidePanel, sidePanelTab]);
+
+  const handleCloseSidePanel = useCallback(() => {
+    const triggerId = `activity-tab-${sidePanelTab}`;
+    setShowSidePanel(false);
+    requestAnimationFrame(() => {
+      document.getElementById(triggerId)?.focus();
+    });
+  }, [sidePanelTab]);
 
   const handleZoomChange = useCallback((value: number) => {
     const clamped = Math.min(200, Math.max(60, value));
@@ -823,55 +837,58 @@ export const Editor: React.FC<EditorProps> = ({
   }, [onNewDocument, onOpenDocument, handleZoomChange]);
 
   if (!editor) {
-    return <div style={{ padding: '20px', textAlign: 'center' }}>Loading editor...</div>;
+    return <div style={{ padding: '20px', textAlign: 'center' }}>{t('editor.loading')}</div>;
   }
 
   const menuBarMenus: MenuDef[] = [
     {
-      label: '파일',
+      label: t('menu.file'),
       items: [
-        { label: '새 문서', shortcut: 'Ctrl+N', onClick: onNewDocument },
-        { label: '문서 열기...', shortcut: 'Ctrl+O', onClick: onOpenDocument },
-        { label: '폴더 열기...', onClick: onSelectFolder },
+        { label: t('explorer.newDocument'), shortcut: 'Ctrl+N', onClick: onNewDocument },
+        { label: t('menu.openDocument'), shortcut: 'Ctrl+O', onClick: onOpenDocument },
+        { label: t('menu.openFolder'), onClick: onSelectFolder },
         { separator: true },
-        { label: '저장', shortcut: 'Ctrl+S', onClick: () => flushUpdate() },
+        { label: t('common.save'), shortcut: 'Ctrl+S', onClick: () => flushUpdate() },
         { separator: true },
-        { label: 'HTML로 내보내기', onClick: () => handleExport('html') },
-        { label: 'Markdown으로 내보내기', onClick: () => handleExport('markdown') },
-        { label: 'AsciiDoc으로 내보내기', onClick: () => handleExport('adoc') },
+        { label: t('menu.exportAs', { format: 'HTML' }), onClick: () => handleExport('html') },
+        { label: t('menu.exportAs', { format: 'Markdown' }), onClick: () => handleExport('markdown') },
+        { label: t('menu.exportAs', { format: 'AsciiDoc' }), onClick: () => handleExport('adoc') },
         { separator: true },
-        { label: 'Markdown 가져오기', onClick: () => handleImport('markdown') },
-        { label: 'HTML 가져오기', onClick: () => handleImport('html') },
+        { label: t('menu.importFrom', { format: 'Markdown' }), onClick: () => handleImport('markdown') },
+        { label: t('menu.importFrom', { format: 'HTML' }), onClick: () => handleImport('html') },
         { separator: true },
-        { label: 'JSON 소스 보기', onClick: handleViewJson },
+        { label: t('panel.jsonSource'), onClick: handleViewJson },
         { separator: true },
-        { label: '종료', onClick: onExit, disabled: !onExit },
+        { label: t('menu.exit'), onClick: onExit, disabled: !onExit },
       ],
     },
     {
-      label: '편집',
+      label: t('menu.edit'),
       items: [
-        { label: '실행 취소', shortcut: 'Ctrl+Z', disabled: !editor.can().undo(), onClick: () => editor.chain().focus().undo().run() },
-        { label: '다시 실행', shortcut: 'Ctrl+Y', disabled: !editor.can().redo(), onClick: () => editor.chain().focus().redo().run() },
+        { label: t('common.undo'), shortcut: 'Ctrl+Z', disabled: !editor.can().undo(), onClick: () => editor.chain().focus().undo().run() },
+        { label: t('menu.redo'), shortcut: 'Ctrl+Y', disabled: !editor.can().redo(), onClick: () => editor.chain().focus().redo().run() },
       ],
     },
     {
-      label: '보기',
+      label: t('menu.view'),
       items: [
-        { label: showSidePanel ? '사이드바 숨기기' : '사이드바 표시', onClick: () => setShowSidePanel(!showSidePanel) },
+        { label: t(showSidePanel ? 'menu.hideSidebar' : 'menu.showSidebar'), onClick: () => setShowSidePanel(!showSidePanel) },
         { separator: true },
-        { label: '확대', shortcut: 'Ctrl++', onClick: () => handleZoomChange(zoom + 10) },
-        { label: '축소', shortcut: 'Ctrl+-', onClick: () => handleZoomChange(zoom - 10) },
-        { label: '확대/축소 초기화', shortcut: 'Ctrl+0', onClick: () => handleZoomChange(100) },
+        { label: t('menu.zoomIn'), shortcut: 'Ctrl++', onClick: () => handleZoomChange(zoom + 10) },
+        { label: t('menu.zoomOut'), shortcut: 'Ctrl+-', onClick: () => handleZoomChange(zoom - 10) },
+        { label: t('menu.resetZoom'), shortcut: 'Ctrl+0', onClick: () => handleZoomChange(100) },
         { separator: true },
-        { label: showNumbering ? '번호 매기기 숨기기' : '번호 매기기 표시', onClick: handleToggleNumbering },
-        { label: state.settings.headingDecoration ? '헤딩 장식 숨기기' : '헤딩 장식 표시', onClick: handleToggleDecoration },
+        { label: t(showNumbering ? 'panel.hideNumbering' : 'panel.showNumbering'), onClick: handleToggleNumbering },
+        { label: t(state.settings.headingDecoration ? 'panel.hideDecoration' : 'panel.showDecoration'), onClick: handleToggleDecoration },
       ],
     },
     {
-      label: '도움말',
+      label: t('menu.help'),
       items: [
-        { label: '정보', onClick: () => alert(`Structured Doc Editor\n버전: ${appVersion || '알 수 없음'}`) },
+        {
+          label: t('menu.about'),
+          onClick: () => alert(`Structured Doc Editor\n${t('menu.version', { version: appVersion || t('common.unknown') })}`),
+        },
       ],
     },
   ];
@@ -884,7 +901,11 @@ export const Editor: React.FC<EditorProps> = ({
         editor.getJSON() as TiptapNode,
         externalChange.snapshot.content,
       ),
-      { title: '외부 문서 변경 비교', mine: '내 변경', external: '디스크의 문서' },
+      {
+        title: t('externalChange.compareTitle'),
+        mine: t('externalChange.mine'),
+        external: t('externalChange.external'),
+      },
     )
     : null;
 
@@ -906,13 +927,13 @@ export const Editor: React.FC<EditorProps> = ({
       {externalChange && (
         <ExternalChangeBanner
           isDirty={hasLocalChanges}
-          message="외부 변경이 있습니다."
-          compareLabel="비교"
-          keepMineLabel="내 변경 유지"
-          reloadLabel="다시 불러오기"
+          message={t('externalChange.message')}
+          compareLabel={t('externalChange.compare')}
+          keepMineLabel={t('externalChange.keepMine')}
+          reloadLabel={t('externalChange.reload')}
           onCompare={() => setShowExternalComparison(true)}
           onKeepMine={() => {
-            if (window.confirm('내 변경으로 디스크의 외부 변경을 덮어쓰시겠습니까?')) {
+            if (window.confirm(t('externalChange.confirmKeepMine'))) {
               void handleKeepExternal().catch((error: unknown) => {
                 setSaveStatus('error');
                 console.error('Failed to keep local document', error);
@@ -921,7 +942,7 @@ export const Editor: React.FC<EditorProps> = ({
           }}
           onReload={() => {
             if (!hasLocalChanges
-              || window.confirm('저장되지 않은 내 변경을 버리고 외부 문서를 다시 불러오시겠습니까?')) {
+              || window.confirm(t('externalChange.confirmReload'))) {
               void handleReloadExternal().catch((error: unknown) => {
                 setSaveStatus('error');
                 console.error('Failed to reload external document', error);
@@ -934,8 +955,8 @@ export const Editor: React.FC<EditorProps> = ({
         <ExternalChangeComparison
           model={externalComparison}
           onClose={() => setShowExternalComparison(false)}
-          closeLabel="비교 닫기"
-          emptyMessage="본문 블록의 차이가 없습니다."
+          closeLabel={t('externalChange.closeComparison')}
+          emptyMessage={t('externalChange.noBlockDiff')}
         />
       )}
       {editor && <BubbleMenuBar editor={editor} />}
@@ -948,6 +969,7 @@ export const Editor: React.FC<EditorProps> = ({
         />
         {showSidePanel && (
           <SidePanel
+            onClose={handleCloseSidePanel}
             activeTab={sidePanelTab}
             editor={editor}
             settings={state.settings}
@@ -992,7 +1014,7 @@ export const Editor: React.FC<EditorProps> = ({
             <div style={{ zoom: zoom / 100 }}>
               <div className="editor-title-area">
                 <input className="editor-title-input" value={meta.title}
-                  onChange={(e) => handleMetaChange('title', e.target.value)} placeholder="문서 제목을 입력하세요" />
+                  onChange={(e) => handleMetaChange('title', e.target.value)} placeholder={t('document.titlePlaceholder')} />
               </div>
               <EditorContent editor={editor}
                 className={`${showNumbering ? 'show-numbering' : 'hide-numbering'} ${state.settings.headingDecoration ? 'show-heading-decoration' : ''} ${state.settings.captionNumbering === 'hierarchical' ? 'hierarchical-numbering' : 'sequential-numbering'}`}
@@ -1001,17 +1023,17 @@ export const Editor: React.FC<EditorProps> = ({
           </div>
           <ZoomBar zoom={zoom} onZoomChange={handleZoomChange} />
           <div className={`save-status save-status-${saveStatus}`}>
-            {saveStatus === 'saving' && '저장 중…'}
-            {saveStatus === 'dirty' && '변경됨'}
-            {saveStatus === 'saved' && (lastSavedAt ? `저장됨 ${lastSavedAt}` : '저장됨')}
-            {saveStatus === 'error' && '저장 실패'}
+            {saveStatus === 'saving' && t('editor.saving')}
+            {saveStatus === 'dirty' && t('editor.dirty')}
+            {saveStatus === 'saved' && (lastSavedAt ? `${t('editor.saved')} ${lastSavedAt}` : t('editor.saved'))}
+            {saveStatus === 'error' && t('editor.saveError')}
           </div>
         </div>
       </div>
       <div className="app-status-bar" title={hoveredExplorerPath ?? currentPath ?? workspaceFolder ?? undefined}>
         <FolderOpen size={12} className="app-status-bar-icon" />
         <span className="app-status-bar-path">
-          {hoveredExplorerPath ?? currentPath ?? workspaceFolder ?? '열린 폴더 없음'}
+          {hoveredExplorerPath ?? currentPath ?? workspaceFolder ?? t('editor.noFolder')}
         </span>
       </div>
       {editorContextMenu && editor && <EditorContextMenu

@@ -14,6 +14,8 @@ import type { ExplorerEntry } from '../App';
 import { ExplorerContextMenu, type ExplorerContextMenuTarget } from './ExplorerContextMenu';
 import { open as openWithSystemApp } from '@tauri-apps/plugin-shell';
 import type { ActivityTab } from '@shared/editor/components/ActivityBar';
+import { ResponsiveSidePanel } from '@shared/editor/components/ResponsiveSidePanel';
+import { useEditorI18n, type EditorTranslationKey } from '@shared/editor/i18n';
 
 const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'];
 
@@ -67,7 +69,19 @@ interface SidePanelProps {
   onDuplicatePersonalTemplate?: (template: ManagedTemplateDescriptor) => void;
   onDeletePersonalTemplate?: (template: ManagedTemplateDescriptor) => void;
   onOpenPersonalTemplateFolder?: () => void;
+  onClose: () => void;
 }
+
+const PANEL_TITLE_KEYS: Record<ActivityTab, EditorTranslationKey> = {
+  explorer: 'panel.explorer',
+  view: 'panel.view',
+  toc: 'panel.contents',
+  lof: 'panel.figures',
+  lot: 'panel.tables',
+  settings: 'panel.settings',
+  file: 'panel.files',
+  template: 'panel.templates',
+};
 
 export const SidePanel: React.FC<SidePanelProps> = ({
   activeTab,
@@ -108,10 +122,15 @@ export const SidePanel: React.FC<SidePanelProps> = ({
   onDuplicatePersonalTemplate,
   onDeletePersonalTemplate,
   onOpenPersonalTemplateFolder,
+  onClose,
 }) => {
+  const { t } = useEditorI18n();
   return (
-    <div className="side-panel">
-      <div className="side-panel-content">
+    <ResponsiveSidePanel
+      title={t(PANEL_TITLE_KEYS[activeTab])}
+      closeLabel={t('panel.close')}
+      onClose={onClose}
+    >
         {activeTab === 'view' && (
           <ViewControlPanel
             showNumbering={showNumbering}
@@ -178,8 +197,7 @@ export const SidePanel: React.FC<SidePanelProps> = ({
             onOpenPersonalFolder={onOpenPersonalTemplateFolder}
           />
         )}
-      </div>
-    </div>
+    </ResponsiveSidePanel>
   );
 };
 
@@ -197,32 +215,41 @@ const ViewControlPanel: React.FC<ViewControlPanelProps> = ({
   onToggleNumbering,
   showDecoration,
   onToggleDecoration,
-}) => (
-  <div className="side-panel-section">
-    <div className="side-panel-section-title">뷰 컨트롤</div>
-    <div className="side-panel-section-desc">편집 화면에만 적용되는 표시 옵션입니다. 내보내기 결과에는 영향을 주지 않습니다.</div>
-    <label className="side-panel-toggle-row">
-      <span className="side-panel-toggle-label">헤딩 번호 매김</span>
-      <button
-        className={`side-panel-toggle-btn${showNumbering ? ' is-active' : ''}`}
-        onClick={onToggleNumbering}
-        title={showNumbering ? '번호 숨기기' : '번호 표시'}
-      >
-        {showNumbering ? 'ON' : 'OFF'}
-      </button>
-    </label>
-    <label className="side-panel-toggle-row">
-      <span className="side-panel-toggle-label">헤딩 장식 (색상/선)</span>
-      <button
-        className={`side-panel-toggle-btn${showDecoration ? ' is-active' : ''}`}
-        onClick={onToggleDecoration}
-        title={showDecoration ? '장식 숨기기' : '장식 표시'}
-      >
-        {showDecoration ? 'ON' : 'OFF'}
-      </button>
-    </label>
-  </div>
-);
+}) => {
+  const { t } = useEditorI18n();
+  return (
+    <div className="side-panel-section">
+      <div className="side-panel-section-title">{t('panel.viewControls')}</div>
+      <div className="side-panel-section-desc">{t('panel.viewOnlyDescription')}</div>
+      <label className="side-panel-toggle-row">
+        <span className="side-panel-toggle-label">{t('panel.headingNumbering')}</span>
+        <button
+          type="button"
+          className={`side-panel-toggle-btn${showNumbering ? ' is-active' : ''}`}
+          onClick={onToggleNumbering}
+          title={t(showNumbering ? 'panel.hideNumbering' : 'panel.showNumbering')}
+          aria-label={t(showNumbering ? 'panel.hideNumbering' : 'panel.showNumbering')}
+          aria-pressed={showNumbering}
+        >
+          {showNumbering ? 'ON' : 'OFF'}
+        </button>
+      </label>
+      <label className="side-panel-toggle-row">
+        <span className="side-panel-toggle-label">{t('panel.headingDecoration')}</span>
+        <button
+          type="button"
+          className={`side-panel-toggle-btn${showDecoration ? ' is-active' : ''}`}
+          onClick={onToggleDecoration}
+          title={t(showDecoration ? 'panel.hideDecoration' : 'panel.showDecoration')}
+          aria-label={t(showDecoration ? 'panel.hideDecoration' : 'panel.showDecoration')}
+          aria-pressed={showDecoration}
+        >
+          {showDecoration ? 'ON' : 'OFF'}
+        </button>
+      </label>
+    </div>
+  );
+};
 
 // ─── File Panel ──────────────────────────────────────────────────
 
@@ -235,10 +262,10 @@ interface FilePanelProps {
 
 const EXPORT_FORMATS: { format: 'html' | 'adoc' | 'markdown' | 'pdf' | 'slides'; label: string; supported: boolean }[] = [
   { format: 'html', label: 'HTML', supported: true },
-  { format: 'pdf', label: 'PDF (Tauri 미지원)', supported: false },
+  { format: 'pdf', label: 'PDF', supported: false },
   { format: 'markdown', label: 'Markdown', supported: true },
   { format: 'adoc', label: 'AsciiDoc', supported: true },
-  { format: 'slides', label: 'Slides (Tauri 미지원)', supported: false },
+  { format: 'slides', label: 'Slides', supported: false },
 ];
 
 const IMPORT_FORMATS: { format: 'markdown' | 'html'; label: string }[] = [
@@ -247,14 +274,15 @@ const IMPORT_FORMATS: { format: 'markdown' | 'html'; label: string }[] = [
 ];
 
 const FilePanel: React.FC<FilePanelProps> = ({ onViewJson, onExport, onImport, isExporting = false }) => {
+  const { t } = useEditorI18n();
   if (!onExport && !onImport && !onViewJson) {
     return (
       <div className="side-panel-section">
         <PanelEmptyState
           icon={<FolderOpen size={22} />}
-          title="파일 작업을 사용할 수 없습니다"
-          message="이 문서에서는 내보내기·가져오기 명령을 사용할 수 없습니다."
-          hint="문서를 다시 열거나 앱을 재시작해 보세요."
+          title={t('panel.fileUnavailableTitle')}
+          message={t('panel.fileUnavailableMessage')}
+          hint={t('panel.restartApp')}
         />
       </div>
     );
@@ -266,12 +294,12 @@ const FilePanel: React.FC<FilePanelProps> = ({ onViewJson, onExport, onImport, i
       <>
         <div className="side-panel-section-title">
           <Download size={13} style={{ marginRight: 4, flexShrink: 0 }} />
-          내보내기
+          {t('panel.export')}
           {isExporting && (
             <Loader2 size={12} style={{ marginLeft: 'auto', animation: 'spin 1s linear infinite', flexShrink: 0 }} />
           )}
         </div>
-        <div className="side-panel-section-desc">선택한 형식으로 현재 문서를 변환해 저장합니다.</div>
+        <div className="side-panel-section-desc">{t('panel.exportDescription')}</div>
         {EXPORT_FORMATS.map(({ format, label, supported }) => {
           const disabled = isExporting || !supported;
           return (
@@ -280,9 +308,9 @@ const FilePanel: React.FC<FilePanelProps> = ({ onViewJson, onExport, onImport, i
             className={`side-panel-file-btn${disabled ? ' is-disabled' : ''}`}
             onClick={() => !disabled && onExport(format)}
             disabled={disabled}
-            title={supported ? undefined : 'Tauri 앱에서는 아직 지원되지 않습니다.'}
+            title={supported ? undefined : t('panel.unsupportedTauri')}
           >
-            {label}
+            {supported ? label : `${label} (${t('panel.unsupportedTauri')})`}
           </button>
         );})}
       </>
@@ -292,9 +320,9 @@ const FilePanel: React.FC<FilePanelProps> = ({ onViewJson, onExport, onImport, i
       <>
         <div className="side-panel-section-title" style={{ marginTop: 12 }}>
           <Upload size={13} style={{ marginRight: 4, flexShrink: 0 }} />
-          가져오기
+          {t('panel.import')}
         </div>
-        <div className="side-panel-section-desc">외부 파일을 현재 편집기 형식으로 불러옵니다.</div>
+        <div className="side-panel-section-desc">{t('panel.importDescription')}</div>
         {IMPORT_FORMATS.map(({ format, label }) => (
           <button
             key={format}
@@ -311,10 +339,10 @@ const FilePanel: React.FC<FilePanelProps> = ({ onViewJson, onExport, onImport, i
       <>
         <div className="side-panel-section-title" style={{ marginTop: 12 }}>
           <FileJson size={13} style={{ marginRight: 4, flexShrink: 0 }} />
-          개발
+          {t('panel.development')}
         </div>
         <button className="side-panel-file-btn" onClick={onViewJson}>
-          JSON 소스 보기
+          {t('panel.jsonSource')}
         </button>
       </>
     )}
@@ -353,6 +381,7 @@ const ExplorerPanel: React.FC<ExplorerPanelProps> = ({
   hasDeletionHistory,
   onHoverPath,
 }) => {
+  const { t } = useEditorI18n();
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; target: ExplorerContextMenuTarget } | null>(null);
   const [renamingPath, setRenamingPath] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
@@ -450,18 +479,24 @@ const ExplorerPanel: React.FC<ExplorerPanelProps> = ({
     <div className="side-panel-section explorer-panel">
       <div className="side-panel-section-title">
         <FolderOpen size={13} />
-        탐색기
+        {t('panel.explorer')}
       </div>
       <div className="explorer-actions">
         <button className="explorer-action-btn" onClick={onSelectFolder}>
           <FolderOpen size={13} />
-          폴더 열기
+          {t('explorer.openFolder')}
         </button>
         <button className="explorer-action-btn" onClick={() => onCreateInFolder?.()} disabled={!workspaceFolder}>
           <FilePlus size={13} />
-          새 문서
+          {t('explorer.newDocument')}
         </button>
-        <button className="explorer-icon-btn" onClick={onRefresh} disabled={!workspaceFolder} title="새로고침">
+        <button
+          className="explorer-icon-btn"
+          onClick={onRefresh}
+          disabled={!workspaceFolder}
+          title={t('explorer.refresh')}
+          aria-label={t('explorer.refresh')}
+        >
           <RefreshCw size={13} />
         </button>
       </div>
@@ -469,7 +504,7 @@ const ExplorerPanel: React.FC<ExplorerPanelProps> = ({
         <>
           <div className="explorer-root" title={workspaceFolder}>{workspaceFolder.split(/[\\/]/).pop() || workspaceFolder}</div>
           <div className="explorer-list" onContextMenu={openRootContextMenu}>
-            {entries.length === 0 && <div className="explorer-empty">표시할 파일이 없습니다.</div>}
+            {entries.length === 0 && <div className="explorer-empty">{t('explorer.empty')}</div>}
             {visibleEntries.map((entry) => (
               <button
                 key={entry.path}
@@ -513,7 +548,7 @@ const ExplorerPanel: React.FC<ExplorerPanelProps> = ({
           </div>
         </>
       ) : (
-        <div className="explorer-empty">좌측 사이드바에서 폴더를 열면 문서 목록이 표시됩니다.</div>
+        <div className="explorer-empty">{t('explorer.openFolderHint')}</div>
       )}
       {contextMenu && (
         <ExplorerContextMenu

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import type { SdocTemplate } from '@shared/template';
+import { useEditorI18n } from '@shared/editor/i18n';
 import { suggestTemplateFileName } from '../templateService';
 
 interface TemplateDialogProps {
@@ -21,6 +22,7 @@ export const TemplateDialog: React.FC<TemplateDialogProps> = ({
   onConfirm,
   onCancel,
 }) => {
+  const { t } = useEditorI18n();
   const [selectedId, setSelectedId] = useState('builtin:blank');
   const [title, setTitle] = useState('');
   const [fileName, setFileName] = useState('untitled.sdoc');
@@ -52,17 +54,23 @@ export const TemplateDialog: React.FC<TemplateDialogProps> = ({
 
   return (
     <div className="modal-overlay" onClick={onCancel}>
-      <div className="modal-content modal-content--lg template-dialog" onClick={(event) => event.stopPropagation()}>
+      <div
+        className="modal-content modal-content--lg template-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="template-dialog-title"
+        onClick={(event) => event.stopPropagation()}
+      >
         <div className="modal-header">
           <div>
-            <h3>새 SDOC 문서 · 실험적 템플릿</h3>
-            <p>템플릿 기능은 실험적입니다. 문서 구조에 맞는 템플릿을 선택하세요.</p>
+            <h3 id="template-dialog-title">{t('template.newTitle')}</h3>
+            <p>{t('template.experimentalDescription')}</p>
           </div>
-          <button type="button" className="modal-close" aria-label="닫기" onClick={onCancel}>×</button>
+          <button type="button" className="modal-close" aria-label={t('common.close')} onClick={onCancel}>×</button>
         </div>
         <div className="template-dialog-body">
-          <section className="template-dialog-list" aria-label="문서 템플릿">
-            {loading && <p className="template-dialog-status">템플릿을 불러오는 중…</p>}
+          <section className="template-dialog-list" aria-label={t('template.documentTemplates')}>
+            {loading && <p className="template-dialog-status">{t('template.dialogLoading')}</p>}
             {!loading && templates.map((template) => (
               <button
                 type="button"
@@ -81,22 +89,22 @@ export const TemplateDialog: React.FC<TemplateDialogProps> = ({
               <div className="template-dialog-summary">
                 <strong>{selected.descriptor.name}</strong>
                 <span>{selected.descriptor.sourceLabel}</span>
-                <p>{selected.descriptor.description ?? '선택한 구조로 새 문서를 만듭니다.'}</p>
+                <p>{selected.descriptor.description ?? t('template.defaultDescription')}</p>
               </div>
             )}
             <label>
-              문서 제목
+              {t('document.title')}
               <input
                 autoFocus
                 value={title}
                 maxLength={200}
                 onChange={(event) => setTitle(event.target.value)}
-                placeholder="문서 제목을 입력하세요"
+                placeholder={t('document.titlePlaceholder')}
               />
             </label>
             {workspaceMode && (
               <label>
-                파일 이름
+                {t('template.fileName')}
                 <input
                   value={fileName}
                   onChange={(event) => {
@@ -109,21 +117,21 @@ export const TemplateDialog: React.FC<TemplateDialogProps> = ({
             {error && <p className="template-dialog-error" role="alert">{error}</p>}
             {diagnostics.length > 0 && (
               <details className="template-dialog-diagnostics">
-                <summary>사용할 수 없는 템플릿 {diagnostics.length}개</summary>
+                <summary>{t('template.unavailableCount', { count: diagnostics.length })}</summary>
                 <ul>{diagnostics.map((diagnostic, index) => <li key={`${index}-${diagnostic}`}>{diagnostic}</li>)}</ul>
               </details>
             )}
           </section>
         </div>
         <div className="modal-footer">
-          <button type="button" className="btn-secondary" onClick={onCancel}>취소</button>
+          <button type="button" className="btn-secondary" onClick={onCancel}>{t('common.cancel')}</button>
           <button
             type="button"
             className="btn-primary"
             disabled={loading || !selected || !validTitle || !validFileName}
             onClick={() => selected && onConfirm(selected, normalizedTitle, workspaceMode ? fileName.trim() : undefined)}
           >
-            만들기
+            {t('common.create')}
           </button>
         </div>
       </div>

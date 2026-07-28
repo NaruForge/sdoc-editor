@@ -5,6 +5,7 @@ import { PanelEmptyState } from './PanelEmptyState';
 import { buildNumberingIndex } from '../../document/numbering';
 import type { ResolvedEditorSettings, TiptapNode } from '../../types';
 import { findActivePosition } from '../structureIndex';
+import { useEditorI18n } from '../i18n';
 
 interface TocEntry {
   level: number;
@@ -53,6 +54,7 @@ function computeVisibility(entries: TocEntry[], collapsed: Set<number>): boolean
 }
 
 export const TableOfContents: React.FC<TableOfContentsProps> = ({ editor, showNumbering, settings }) => {
+  const { t } = useEditorI18n();
   const [entries, setEntries] = useState<TocEntry[]>([]);
   const [activePos, setActivePos] = useState<number>(-1);
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
@@ -128,12 +130,12 @@ export const TableOfContents: React.FC<TableOfContentsProps> = ({ editor, showNu
   if (entries.length === 0) {
     return (
       <div className="toc-panel">
-        <div className="toc-title">목차</div>
+        <div className="toc-title">{t('toc.title')}</div>
         <PanelEmptyState
           icon={<BookOpen size={22} />}
-          title="아직 목차가 없습니다"
-          message="본문에 제목(H1~H6)을 추가하면 목차가 자동으로 만들어집니다."
-          hint="툴바의 Heading 버튼을 누르거나 줄 시작에서 # 뒤에 공백을 입력하세요."
+          title={t('toc.emptyTitle')}
+          message={t('toc.emptyMessage')}
+          hint={t('toc.emptyHint')}
         />
       </div>
     );
@@ -141,7 +143,7 @@ export const TableOfContents: React.FC<TableOfContentsProps> = ({ editor, showNu
 
   return (
     <div className="toc-panel">
-      <div className="toc-title">목차</div>
+      <div className="toc-title">{t('toc.title')}</div>
       <nav className="toc-nav">
         {entries.map((entry, idx) => {
           if (!visibility[idx]) return null;
@@ -154,7 +156,8 @@ export const TableOfContents: React.FC<TableOfContentsProps> = ({ editor, showNu
             >
               <button
                 className="toc-toggle"
-                aria-label={isCollapsed ? '펼치기' : '접기'}
+                type="button"
+                aria-label={isCollapsed ? t('toc.expand') : t('toc.collapse')}
                 style={{ visibility: showToggle ? 'visible' : 'hidden' }}
                 onClick={() => toggleCollapse(entry.pos)}
               >
@@ -164,6 +167,7 @@ export const TableOfContents: React.FC<TableOfContentsProps> = ({ editor, showNu
               </button>
               <button
                 className="toc-label"
+                type="button"
                 onClick={() => handleClick(entry)}
                 title={entry.text}
               >

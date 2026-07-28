@@ -81,7 +81,7 @@ export const DiagramBlock = Node.create<EditorExtensionOptions>({
       dom.classList.add('diagram-block');
       dom.setAttribute('contenteditable', 'false');
       dom.style.cursor = 'pointer';
-      dom.title = '클릭하여 다이어그램 편집';
+      dom.title = runtime.translate('diagram.editHint');
 
       // Language badge
       const badge = document.createElement('span');
@@ -96,14 +96,20 @@ export const DiagramBlock = Node.create<EditorExtensionOptions>({
 
       const renderDiagram = async (language: string, code: string) => {
         if (!code.trim()) {
-          rendered.innerHTML = '<div class="diagram-placeholder">클릭하여 다이어그램 코드를 입력하세요</div>';
+          const placeholder = document.createElement('div');
+          placeholder.className = 'diagram-placeholder';
+          placeholder.textContent = runtime.translate('diagram.codePlaceholder');
+          rendered.replaceChildren(placeholder);
           return;
         }
         if (language === 'mermaid') {
           await renderMermaid(code, rendered);
         } else {
           // Future: Kroki support
-          rendered.innerHTML = `<div class="diagram-placeholder">${language} rendering not yet supported. Configure a Kroki server.</div>`;
+          const placeholder = document.createElement('div');
+          placeholder.className = 'diagram-placeholder';
+          placeholder.textContent = runtime.translate('diagram.unsupportedRenderer', { language });
+          rendered.replaceChildren(placeholder);
         }
       };
 

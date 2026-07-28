@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useEditorI18n } from '../i18n';
 
 interface ImagePropertiesDialogProps {
   src: string;
@@ -23,6 +24,7 @@ export const ImagePropertiesDialog: React.FC<ImagePropertiesDialogProps> = ({
   isDrawio = false,
   path: relativePathOverride,
 }) => {
+  const { t } = useEditorI18n();
   const [altText, setAltText] = useState(alt);
   const [alignValue, setAlignValue] = useState(align);
 
@@ -74,21 +76,21 @@ export const ImagePropertiesDialog: React.FC<ImagePropertiesDialogProps> = ({
 
   return (
     <div className="modal-overlay" onClick={onCancel}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-        <h3>Image Properties</h3>
+      <div className="modal-content" role="dialog" aria-modal="true" aria-labelledby="image-properties-title" onClick={(e) => e.stopPropagation()}>
+        <h3 id="image-properties-title">{t('image.properties')}</h3>
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label className="form-label">Filename:</label>
+            <label className="form-label">{t('image.filename')}:</label>
             <div className="form-readonly">{filename}</div>
           </div>
 
           <div className="form-group">
-            <label className="form-label">Path:</label>
+            <label className="form-label">{t('image.path')}:</label>
             <div className="form-readonly">{path}</div>
           </div>
 
           <div className="form-group">
-            <label className="form-label">Alignment:</label>
+            <label className="form-label">{t('image.alignment')}:</label>
             <div style={{ display: 'flex', gap: '6px' }}>
               {(['left', 'center', 'right'] as const).map((a) => (
                 <button
@@ -96,22 +98,23 @@ export const ImagePropertiesDialog: React.FC<ImagePropertiesDialogProps> = ({
                   type="button"
                   onClick={() => setAlignValue(a)}
                   className={`align-btn ${alignValue === a ? 'align-btn--active' : ''}`}
+                  aria-pressed={alignValue === a}
                 >
-                  {a === 'left' ? '← Left' : a === 'center' ? '↔ Center' : 'Right →'}
+                  {a === 'left' ? t('image.alignLeftShort') : a === 'center' ? t('image.alignCenterShort') : t('image.alignRightShort')}
                 </button>
               ))}
             </div>
           </div>
 
           <div className="form-group">
-            <label htmlFor="image-alt" className="form-label">Alt Text:</label>
+            <label htmlFor="image-alt" className="form-label">{t('image.altText')}:</label>
             <input
               id="image-alt"
               type="text"
               value={altText}
               onChange={(e) => setAltText(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Describe this image..."
+              placeholder={t('image.altTextPlaceholder')}
               autoFocus
               className="form-input"
             />
@@ -125,15 +128,15 @@ export const ImagePropertiesDialog: React.FC<ImagePropertiesDialogProps> = ({
                 className="btn-secondary"
                 style={{ flex: '1' }}
               >
-                Replace Image...
+                {t('image.replace')}
               </button>
             )}
             <div className="modal-actions" style={{ marginLeft: isDrawio ? 'auto' : '0' }}>
               <button type="button" onClick={onCancel} className="btn-secondary">
-                Cancel
+                {t('common.cancel')}
               </button>
               <button type="submit" className="btn-primary">
-                OK
+                {t('common.ok')}
               </button>
             </div>
           </div>

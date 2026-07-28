@@ -3,6 +3,7 @@ import { FolderOpen, LayoutTemplate, RefreshCw, Save } from 'lucide-react';
 import type { ManagedTemplateDescriptor } from '../../types/messages';
 import type { TemplateSource } from '../../template';
 import { PanelEmptyState } from './PanelEmptyState';
+import { useEditorI18n, type EditorTranslationKey } from '../i18n';
 
 type TemplateFilter = 'all' | TemplateSource;
 
@@ -23,17 +24,17 @@ interface TemplatePanelProps {
   onOpenPersonalFolder: () => void;
 }
 
-const sourceLabel = (source: TemplateSource): string => {
-  if (source === 'builtin') return '내장';
-  if (source === 'workspace') return '작업공간';
-  return '내 템플릿';
+const sourceLabelKey = (source: TemplateSource): EditorTranslationKey => {
+  if (source === 'builtin') return 'template.sourceBuiltin';
+  if (source === 'workspace') return 'template.sourceWorkspace';
+  return 'template.sourceUser';
 };
 
-const FILTERS: ReadonlyArray<{ id: TemplateFilter; label: string }> = [
-  { id: 'all', label: '전체' },
-  { id: 'builtin', label: '내장' },
-  { id: 'workspace', label: '작업공간' },
-  { id: 'user', label: '내 템플릿' },
+const FILTERS: ReadonlyArray<{ id: TemplateFilter; labelKey: EditorTranslationKey }> = [
+  { id: 'all', labelKey: 'crossRef.filterAll' },
+  { id: 'builtin', labelKey: 'template.sourceBuiltin' },
+  { id: 'workspace', labelKey: 'template.sourceWorkspace' },
+  { id: 'user', labelKey: 'template.sourceUser' },
 ];
 
 export const TemplatePanel: React.FC<TemplatePanelProps> = ({
@@ -52,6 +53,7 @@ export const TemplatePanel: React.FC<TemplatePanelProps> = ({
   onDelete,
   onOpenPersonalFolder,
 }) => {
+  const { t } = useEditorI18n();
   const [filter, setFilter] = useState<TemplateFilter>('all');
   const [previewId, setPreviewId] = useState<string>();
   const visibleTemplates = useMemo(
@@ -63,25 +65,25 @@ export const TemplatePanel: React.FC<TemplatePanelProps> = ({
   return (
     <section className="template-panel" aria-labelledby="template-panel-title">
       <div className="template-panel-header">
-        <div id="template-panel-title" className="side-panel-section-title">문서 템플릿</div>
+        <div id="template-panel-title" className="side-panel-section-title">{t('template.title')}</div>
         <button
           type="button"
           className="template-panel-refresh"
           onClick={onRefresh}
           disabled={busy}
-          aria-label="템플릿 목록 새로 고침"
-          title="템플릿 목록 새로 고침"
+          aria-label={t('template.refresh')}
+          title={t('template.refresh')}
         >
           <RefreshCw size={14} aria-hidden="true" />
         </button>
       </div>
       <p className="side-panel-section-desc">
-        템플릿은 사용자가 선택할 때만 현재 문서에 적용됩니다.
+        {t('template.applyPolicy')}
       </p>
       <div className="template-personal-actions">
         <button type="button" onClick={onSaveCurrent} disabled={busy}>
           <Save size={13} aria-hidden="true" />
-          현재 문서를 내 템플릿으로 저장
+          {t('template.saveCurrent')}
         </button>
         <button
           type="button"
@@ -90,13 +92,13 @@ export const TemplatePanel: React.FC<TemplatePanelProps> = ({
           title={personalRootPath}
         >
           <FolderOpen size={13} aria-hidden="true" />
-          개인 템플릿 폴더 열기
+          {t('template.openPersonalFolder')}
         </button>
       </div>
       <p className="template-personal-location" title={personalRootPath}>
-        {personalRootScope === 'remote' ? '원격 Extension Host 저장소' : '이 PC의 공유 저장소'} · {personalRootPath}
+        {personalRootScope === 'remote' ? t('template.remoteStore') : t('template.localStore')} · {personalRootPath}
       </p>
-      <div className="template-filter" role="group" aria-label="템플릿 출처 필터">
+      <div className="template-filter" role="group" aria-label={t('template.sourceFilter')}>
         {FILTERS.map((item) => (
           <button
             key={item.id}
@@ -104,20 +106,20 @@ export const TemplatePanel: React.FC<TemplatePanelProps> = ({
             aria-pressed={filter === item.id}
             onClick={() => setFilter(item.id)}
           >
-            {item.label}
+            {t(item.labelKey)}
           </button>
         ))}
       </div>
       {diagnosticCount > 0 && (
         <p className="template-panel-diagnostic" role="status">
-          불러오지 못한 템플릿 {diagnosticCount}개가 있습니다.
+          {t('template.diagnostics', { count: diagnosticCount })}
         </p>
       )}
       {visibleTemplates.length === 0 ? (
         <PanelEmptyState
           icon={<LayoutTemplate size={22} />}
-          title={isLoading ? '템플릿을 불러오는 중입니다' : '해당하는 템플릿이 없습니다'}
-          message="개인 템플릿을 저장하거나 작업공간의 .sdoc/templates 폴더를 확인하세요."
+          title={isLoading ? t('template.loading') : t('template.empty')}
+          message={t('template.emptyMessage')}
         />
       ) : (
         <ul className="template-list">
@@ -128,7 +130,7 @@ export const TemplatePanel: React.FC<TemplatePanelProps> = ({
               <li key={template.id} className="template-card">
                 <div className="template-card-heading">
                   <strong>{template.name}</strong>
-                  <span>{sourceLabel(template.source)}</span>
+                  <span>{t(sourceLabelKey(template.source))}</span>
                 </div>
                 {template.description && <p>{template.description}</p>}
                 {template.category && (
@@ -141,7 +143,7 @@ export const TemplatePanel: React.FC<TemplatePanelProps> = ({
                     onClick={() => onApply(template.id)}
                     disabled={busy}
                   >
-                    {isApplying ? '적용 중…' : '템플릿 적용'}
+                    {isApplying ? t('template.applying') : t('template.apply')}
                   </button>
                   <button
                     type="button"
@@ -149,39 +151,44 @@ export const TemplatePanel: React.FC<TemplatePanelProps> = ({
                     disabled={!template.preview}
                     aria-expanded={showPreview}
                   >
-                    미리보기
+                    {t('common.preview')}
                   </button>
                 </div>
                 {personal && (
                   <details className="template-card-more">
-                    <summary>더보기</summary>
+                    <summary>{t('template.more')}</summary>
                     <div>
-                      <button type="button" onClick={() => onEdit(template)} disabled={busy}>수정</button>
-                      <button type="button" onClick={() => onDuplicate(template)} disabled={busy}>복제</button>
-                      <button type="button" onClick={() => onDelete(template)} disabled={busy}>삭제</button>
+                      <button type="button" onClick={() => onEdit(template)} disabled={busy}>{t('template.edit')}</button>
+                      <button type="button" onClick={() => onDuplicate(template)} disabled={busy}>{t('template.duplicate')}</button>
+                      <button type="button" onClick={() => onDelete(template)} disabled={busy}>{t('common.delete')}</button>
                     </div>
                   </details>
                 )}
                 {showPreview && template.preview && (
                   <div className="template-structural-preview">
-                    <strong>구조 미리보기</strong>
+                    <strong>{t('template.structurePreview')}</strong>
                     {template.preview.outline.length > 0 ? (
                       <ol>
                         {template.preview.outline.map((heading, index) => (
                           <li key={`${heading.id ?? heading.text}-${index}`} style={{ paddingLeft: `${(heading.level - 1) * 8}px` }}>
-                            H{heading.level} · {heading.text || '(빈 제목)'}
+                            H{heading.level} · {heading.text || t('template.emptyHeading')}
                           </li>
                         ))}
                       </ol>
-                    ) : <p>제목 구조가 없습니다.</p>}
+                    ) : <p>{t('template.noOutline')}</p>}
                     <p>
-                      표 {template.preview.counts.tables} · 그림 {template.preview.counts.figures}
-                      {' · '}수식 {template.preview.counts.equations}
+                      {t('template.counts', {
+                        tables: template.preview.counts.tables,
+                        figures: template.preview.counts.figures,
+                        equations: template.preview.counts.equations,
+                      })}
                     </p>
                     <p>
-                      문서 설정 {template.preview.settingsKeys.length > 0
-                        ? template.preview.settingsKeys.join(', ')
-                        : '기본값'}
+                      {t('template.settings', {
+                        settings: template.preview.settingsKeys.length > 0
+                          ? template.preview.settingsKeys.join(', ')
+                          : t('template.defaults'),
+                      })}
                     </p>
                   </div>
                 )}

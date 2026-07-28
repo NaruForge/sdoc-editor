@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { EditorProvider, useEditorContext } from '@shared/editor/context/EditorContext';
+import { useEditorI18n } from '@shared/editor/i18n';
 import { Editor } from './components/Editor';
 import { createTauriAdapter } from './adapters/tauriMessaging';
 import type { SdocMeta, TiptapNode } from '@shared/types';
@@ -71,6 +72,7 @@ function isPathInsideFolder(filePath: string, folder: string): boolean {
 
 const AppContent: React.FC = () => {
   const { dispatch } = useEditorContext();
+  const { t } = useEditorI18n();
   const [view, setView] = useState<AppView>('welcome');
   const [doc, setDoc] = useState<TiptapNode | null>(null);
   const [meta, setMeta] = useState<SdocMeta | null>(null);
@@ -95,7 +97,7 @@ const AppContent: React.FC = () => {
     workspaceFolderRef.current = workspaceFolder;
   }, [workspaceFolder]);
 
-  const adapter = useMemo(() => createTauriAdapter(), []);
+  const adapter = useMemo(() => createTauriAdapter(t), [t]);
   useEffect(() => {
     adapter.setWorkspaceFolder(workspaceFolder);
   }, [adapter, workspaceFolder]);
@@ -198,9 +200,9 @@ const AppContent: React.FC = () => {
       if (options.fromRecent) {
         setRecentErrors(prev => ({ ...prev, [path]: String(e) }));
       }
-      alert(`문서를 열 수 없습니다: ${e}`);
+      alert(t('app.openDocumentFailed', { message: String(e) }));
     }
-  }, [adapter, dispatch, loadWorkspace]);
+  }, [adapter, dispatch, loadWorkspace, t]);
 
   const activateCreatedDocument = useCallback(async (result: OpenDocumentResult) => {
     const contract = parseDocumentContract({ sdoc: '1.0', meta: result.meta, doc: result.doc });
@@ -258,11 +260,11 @@ const AppContent: React.FC = () => {
           templates: fallback.catalog.templates,
           diagnostics: [],
           loading: false,
-          error: `워크스페이스 템플릿을 불러오지 못했습니다: ${String(error)}`,
+          error: t('app.workspaceTemplatesFailed', { message: String(error) }),
         }
         : current);
     }
-  }, []);
+  }, [t]);
 
   const handleNew = useCallback(() => {
     void showTemplateDialog('save-dialog');
@@ -296,9 +298,9 @@ const AppContent: React.FC = () => {
     } catch (error: unknown) {
       // 다이얼로그/폴더 전환 실패를 조용히 무시하지 않고 사용자에게 알려 원인 파악을 돕는다.
       console.error('Failed to select/open folder:', error);
-      alert(`폴더를 여는 중 오류가 발생했습니다: ${error}`);
+      alert(t('app.openFolderFailed', { message: String(error) }));
     }
-  }, [loadWorkspace]);
+  }, [loadWorkspace, t]);
 
   /** 최근 작업 폴더 목록 항목을 클릭했을 때 해당 폴더를 워크스페이스로 연다. */
   const handleOpenRecentFolder = useCallback(async (folder: string) => {
@@ -370,9 +372,9 @@ const AppContent: React.FC = () => {
       }
       await loadWorkspace(workspaceFolder);
     } catch (e: unknown) {
-      alert(`이름을 변경할 수 없습니다: ${e}`);
+      alert(t('app.renameFailed', { message: String(e) }));
     }
-  }, [adapter, currentPath, loadDocument, loadWorkspace, workspaceFolder]);
+  }, [adapter, currentPath, loadDocument, loadWorkspace, t, workspaceFolder]);
 
   /** 탐색기에서 파일/폴더를 삭제(휴지통으로 이동)한다. 현재 열려 있는 문서(또는 그 하위)를
    *  삭제한 경우 편집기를 닫고 시작 화면으로 돌아가 존재하지 않는 파일에 저장을 시도하는
@@ -393,12 +395,12 @@ const AppContent: React.FC = () => {
         setView('welcome');
       }
       await loadWorkspace(workspaceFolder);
-      setUndoInfo({ message: `'${entry.name}'을(를) 휴지통으로 이동했습니다.` });
+      setUndoInfo({ message: t('app.movedToTrash', { name: entry.name }) });
       setHasDeletionHistory(true);
     } catch (e: unknown) {
-      alert(`삭제할 수 없습니다: ${e}`);
+      alert(t('app.deleteFailed', { message: String(e) }));
     }
-  }, [adapter, currentPath, loadWorkspace, workspaceFolder]);
+  }, [adapter, currentPath, loadWorkspace, t, workspaceFolder]);
 
   const handleConfirmDelete = useCallback(() => {
     if (pendingDelete) {
@@ -416,15 +418,15 @@ const AppContent: React.FC = () => {
       await invoke('undo_last_delete');
       await loadWorkspace(workspaceFolder);
     } catch (e: unknown) {
-      alert(`되돌릴 수 없습니다: ${e}`);
+      alert(t('app.undoFailed', { message: String(e) }));
     } finally {
       const remaining = await invoke<boolean>('has_recent_deletions').catch(() => false);
       setHasDeletionHistory(remaining);
     }
-  }, [loadWorkspace, workspaceFolder]);
+  }, [loadWorkspace, t, workspaceFolder]);
 
   const handleCreateFolder = useCallback(async (parent: string) => {
-    const folderName = window.prompt('새 폴더 이름', 'New Folder');
+    const folderName = window.prompt(t('app.newFolderName'), t('explorer.newFolder'));
     if (!folderName) {
       return;
     }
@@ -432,9 +434,9 @@ const AppContent: React.FC = () => {
       await invoke<ExplorerEntry>('create_folder', { parent, folderName });
       await loadWorkspace(workspaceFolder ?? parent);
     } catch (e: unknown) {
-      alert(`폴더를 생성할 수 없습니다: ${e}`);
+      alert(t('app.createFolderFailed', { message: String(e) }));
     }
-  }, [loadWorkspace, workspaceFolder]);
+  }, [loadWorkspace, t, workspaceFolder]);
 
   const handleJsonView = useCallback(async () => {
     await adapter.flushAndWait();
@@ -539,11 +541,11 @@ const AppContent: React.FC = () => {
       )}
       {pendingDelete && (
         <ConfirmDialog
-          title="삭제 확인"
+          title={t('app.confirmDelete')}
           message={pendingDelete.kind === 'folder'
-            ? `'${pendingDelete.name}' 폴더와 하위 내용을 모두 휴지통으로 이동할까요?`
-            : `'${pendingDelete.name}' 파일을 휴지통으로 이동할까요?`}
-          confirmLabel="삭제"
+            ? t('app.confirmDeleteFolder', { name: pendingDelete.name })
+            : t('app.confirmDeleteFile', { name: pendingDelete.name })}
+          confirmLabel={t('common.delete')}
           danger
           onConfirm={handleConfirmDelete}
           onCancel={() => setPendingDelete(null)}
@@ -564,8 +566,8 @@ const AppContent: React.FC = () => {
       <>
         <div className="json-viewer">
           <div className="json-viewer-toolbar">
-            <button onClick={() => setView('editor')}>← 편집기로 돌아가기</button>
-            <button onClick={() => navigator.clipboard.writeText(jsonContent)}>복사</button>
+            <button type="button" onClick={() => setView('editor')}>← {t('app.backToEditor')}</button>
+            <button type="button" onClick={() => navigator.clipboard.writeText(jsonContent)}>{t('app.copy')}</button>
           </div>
           <pre className="json-viewer-content">{jsonContent}</pre>
         </div>
@@ -580,19 +582,19 @@ const AppContent: React.FC = () => {
       <div className="welcome-screen">
         <div className="welcome-content">
           <h1>Structured Doc Editor</h1>
-          <p>이전에 작업하던 폴더를 이어서 열거나, 새 폴더/문서를 열어 시작하세요.</p>
+          <p>{t('app.welcomeDescription')}</p>
           <div className="welcome-actions">
-            <button className="welcome-btn primary" onClick={handleNew}>새 문서 만들기</button>
-            <button className="welcome-btn" onClick={handleOpen}>문서 열기</button>
-            <button className="welcome-btn" onClick={handleSelectFolder}>폴더 열기</button>
+            <button type="button" className="welcome-btn primary" onClick={handleNew}>{t('app.createNewDocument')}</button>
+            <button type="button" className="welcome-btn" onClick={handleOpen}>{t('menu.openDocument')}</button>
+            <button type="button" className="welcome-btn" onClick={handleSelectFolder}>{t('explorer.openFolder')}</button>
           </div>
           <div className="welcome-samples">
             <strong>Tip</strong>
-            <span>샘플 문서는 폴더를 연 뒤 “새 문서”로 빠르게 만들 수 있습니다. 최근 문서가 이동/삭제되면 오류가 아래에 표시됩니다.</span>
+            <span>{t('app.welcomeTip')}</span>
           </div>
           {recentFolders.filter(folder => !workspaceFolder || normalizePath(folder) !== normalizePath(workspaceFolder)).length > 0 && (
             <div className="welcome-recent-folders">
-              <h3>최근 작업 폴더</h3>
+              <h3>{t('app.recentFolders')}</h3>
               <ul>
                 {recentFolders
                   .filter(folder => !workspaceFolder || normalizePath(folder) !== normalizePath(workspaceFolder))
@@ -601,7 +603,7 @@ const AppContent: React.FC = () => {
                       <button className="recent-file-btn" onClick={() => handleOpenRecentFolder(folder)}>
                         {folder.split(/[\\/]/).pop()}
                         <span className="recent-file-path">{folder}</span>
-                        {recentFolderErrors[folder] && <span className="recent-file-error">열기 실패: {recentFolderErrors[folder]}</span>}
+                        {recentFolderErrors[folder] && <span className="recent-file-error">{t('app.openFailedShort', { message: recentFolderErrors[folder] })}</span>}
                       </button>
                     </li>
                   ))}
@@ -611,12 +613,12 @@ const AppContent: React.FC = () => {
           {workspaceFolder && (
             <div className="welcome-workspace">
               <div className="welcome-workspace-header">
-                <h3>열린 폴더</h3>
-                <button onClick={() => handleCreateInFolder()}>새 문서</button>
+                <h3>{t('app.openedFolder')}</h3>
+                <button type="button" onClick={() => handleCreateInFolder()}>{t('explorer.newDocument')}</button>
               </div>
               <div className="welcome-workspace-path">{workspaceFolder}</div>
               {workspaceEntries.filter(entry => entry.isDocument).length === 0 ? (
-                <div className="welcome-workspace-empty">문서가 없습니다. 새 문서를 만들어 시작하세요.</div>
+                <div className="welcome-workspace-empty">{t('app.workspaceEmpty')}</div>
               ) : (
                 <ul>
                   {workspaceEntries.filter(entry => entry.isDocument).map(entry => (
@@ -633,14 +635,14 @@ const AppContent: React.FC = () => {
           )}
           {recentFiles.length > 0 && (
             <div className="welcome-recent">
-              <h3>최근 문서</h3>
+              <h3>{t('app.recentDocuments')}</h3>
               <ul>
                 {recentFiles.map((file, i) => (
                   <li key={i}>
                     <button className="recent-file-btn" onClick={() => loadDocument(file, { fromRecent: true })}>
                       {file.split(/[\\/]/).pop()}
                       <span className="recent-file-path">{file}</span>
-                      {recentErrors[file] && <span className="recent-file-error">열기 실패: {recentErrors[file]}</span>}
+                      {recentErrors[file] && <span className="recent-file-error">{t('app.openFailedShort', { message: recentErrors[file] })}</span>}
                     </button>
                   </li>
                 ))}
@@ -683,7 +685,7 @@ const AppContent: React.FC = () => {
 
 const App: React.FC = () => {
   return (
-    <EditorProvider>
+    <EditorProvider initialLocale={navigator.language}>
       <AppContent />
     </EditorProvider>
   );

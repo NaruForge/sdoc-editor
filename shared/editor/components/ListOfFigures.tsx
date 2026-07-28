@@ -5,6 +5,7 @@ import { PanelEmptyState } from './PanelEmptyState';
 import { buildNumberingIndex } from '../../document/numbering';
 import type { ResolvedEditorSettings, TiptapNode } from '../../types';
 import { findActivePosition } from '../structureIndex';
+import { useEditorI18n } from '../i18n';
 
 interface LofEntry {
   pos: number;
@@ -18,6 +19,7 @@ interface ListOfFiguresProps {
 }
 
 export const ListOfFigures: React.FC<ListOfFiguresProps> = ({ editor, settings }) => {
+  const { t } = useEditorI18n();
   const [entries, setEntries] = useState<LofEntry[]>([]);
   const [activePos, setActivePos] = useState<number>(-1);
   const entryPositions = useMemo(() => entries.map((entry) => entry.pos), [entries]);
@@ -72,12 +74,12 @@ export const ListOfFigures: React.FC<ListOfFiguresProps> = ({ editor, settings }
   if (entries.length === 0) {
     return (
       <div className="toc-panel">
-        <div className="toc-title">그림 목록</div>
+        <div className="toc-title">{t('figures.title')}</div>
         <PanelEmptyState
           icon={<ImageIcon size={22} />}
-          title="아직 그림이 없습니다"
-          message="이미지를 삽입하면 번호와 함께 그림 목록에 표시됩니다."
-          hint="툴바의 삽입 → 이미지를 선택하거나 이미지를 본문에 드래그하세요."
+          title={t('figures.emptyTitle')}
+          message={t('figures.emptyMessage')}
+          hint={t('figures.emptyHint')}
         />
       </div>
     );
@@ -85,18 +87,19 @@ export const ListOfFigures: React.FC<ListOfFiguresProps> = ({ editor, settings }
 
   return (
     <div className="toc-panel">
-      <div className="toc-title">그림 목록</div>
+      <div className="toc-title">{t('figures.title')}</div>
       <nav className="toc-nav">
         {entries.map((entry) => (
           <button
             key={entry.pos}
             className={`toc-entry toc-level-1 lof-entry ${activePos === entry.pos ? 'toc-active' : ''}`}
+            type="button"
             onClick={() => handleClick(entry)}
             title={entry.caption || entry.label}
           >
             <span className="toc-number">{entry.label}</span>
             <span className="toc-text">
-              {entry.caption || <em className="toc-empty-caption">캡션 없음</em>}
+              {entry.caption || <em className="toc-empty-caption">{t('caption.none')}</em>}
             </span>
           </button>
         ))}

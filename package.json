@@ -422,6 +422,10 @@
     "lint": "eslint src shared cli/src cli/tests webview-ui/src tauri-app/src",
     "lint:fix": "npm run lint -- --fix",
     "test": "vitest run",
+    "test:ui": "npm run test:ui:typecheck && playwright test --config tests/ui/playwright.config.ts",
+    "test:ui:typecheck": "tsc --noEmit -p tests/ui/tsconfig.json",
+    "test:ui:update": "playwright test --config tests/ui/playwright.config.ts --update-snapshots",
+    "test:ui:report": "playwright show-report tests/ui/artifacts/report",
     "test:watch": "vitest",
     "version:check": "node scripts/check-versions.mjs",
     "check": "npm run version:check && npm run validators:check && npm run typecheck && npm run lint && npm test",
@@ -437,10 +441,15 @@
     "vscode:prepublish": "npm run build && npm run clean:dist"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.12.1",
+    "@playwright/test": "1.62.0",
     "@types/node": "^26.1.1",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
     "@types/vscode": "^1.85.0",
     "@typescript-eslint/eslint-plugin": "^8.64.0",
     "@typescript-eslint/parser": "^8.64.0",
+    "@vitejs/plugin-react": "6.0.3",
     "@vscode/vsce": "3.9.2",
     "esbuild": "^0.28.1",
     "eslint": "^10.7.0",
@@ -449,7 +458,10 @@
     "highlight.js": "^11.11.1",
     "npm-run-all2": "^9.0.2",
     "prettier": "^3.9.5",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
     "typescript": "^5.9.3",
+    "vite": "8.1.5",
     "vitest": "^4.1.10"
   },
   "dependencies": {

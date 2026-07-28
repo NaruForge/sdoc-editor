@@ -135,6 +135,7 @@ export function isHostToEditorMessage(value: unknown): value is HostToEditorMess
     case 'init':
       return hasString(value, 'sessionId') && hasString(value, 'documentId')
         && hasNumber(value, 'revision')
+        && (value.locale === 'en' || value.locale === 'ko')
         && (value.readOnlyReason === undefined || hasString(value, 'readOnlyReason'))
         && isDocumentMutation(value.snapshot);
     case 'externalChange':

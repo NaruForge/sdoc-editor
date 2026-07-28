@@ -1,4 +1,5 @@
 import React from 'react';
+import { useEditorI18n } from '../i18n';
 
 interface ZoomBarProps {
   zoom: number;
@@ -10,15 +11,17 @@ const MAX_ZOOM = 200;
 const STEP = 5;
 
 export const ZoomBar: React.FC<ZoomBarProps> = ({ zoom, onZoomChange }) => {
+  const { t } = useEditorI18n();
   const clamp = (v: number) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, v));
 
   return (
     <div className="editor-zoom-bar">
       <button
+        type="button"
         className="zoom-btn"
         onClick={() => onZoomChange(clamp(zoom - STEP))}
-        aria-label="축소"
-        title="축소 (−5%)"
+        aria-label={t('zoom.out')}
+        title={t('zoom.outTitle')}
       >
         −
       </button>
@@ -30,21 +33,23 @@ export const ZoomBar: React.FC<ZoomBarProps> = ({ zoom, onZoomChange }) => {
         step={STEP}
         value={zoom}
         onChange={(e) => onZoomChange(parseInt(e.target.value, 10))}
-        aria-label="배율 조절"
+        aria-label={t('zoom.adjust')}
       />
       <button
+        type="button"
         className="zoom-btn"
         onClick={() => onZoomChange(clamp(zoom + STEP))}
-        aria-label="확대"
-        title="확대 (+5%)"
+        aria-label={t('zoom.in')}
+        title={t('zoom.inTitle')}
       >
         +
       </button>
       <button
+        type="button"
         className="zoom-label"
         onClick={() => onZoomChange(100)}
-        title="100%로 초기화"
-        aria-label="배율 초기화"
+        title={t('zoom.resetTitle')}
+        aria-label={t('zoom.reset')}
       >
         {zoom}%
       </button>

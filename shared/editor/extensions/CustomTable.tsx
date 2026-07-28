@@ -1,4 +1,5 @@
 import { Table } from '@tiptap/extension-table';
+import { TableMap } from '@tiptap/pm/tables';
 import { NOOP_EDITOR_EXTENSION_RUNTIME, type EditorExtensionOptions } from '../extensionRuntime';
 
 export const CustomTable = Table.extend<EditorExtensionOptions>({
@@ -52,9 +53,11 @@ export const CustomTable = Table.extend<EditorExtensionOptions>({
       wrapper.classList.add('table-node-wrapper');
 
       // -- Caption display (visible when not editing) --
-      const captionDisplay = document.createElement('div');
+      const captionDisplay = document.createElement('button');
+      captionDisplay.type = 'button';
       captionDisplay.classList.add('table-caption-display');
       captionDisplay.setAttribute('contenteditable', 'false');
+      captionDisplay.setAttribute('aria-label', runtime.translate('table.editCaption'));
       wrapper.appendChild(captionDisplay);
 
       // -- Caption input (visible only when editing) --
@@ -66,13 +69,17 @@ export const CustomTable = Table.extend<EditorExtensionOptions>({
       const captionInput = document.createElement('input');
       captionInput.type = 'text';
       captionInput.classList.add('caption-input');
-      captionInput.placeholder = 'Enter table caption...';
+      captionInput.placeholder = runtime.translate('table.captionPlaceholder');
+      captionInput.setAttribute('aria-label', runtime.translate('table.editCaption'));
       captionInputWrapper.appendChild(captionInput);
       wrapper.appendChild(captionInputWrapper);
 
       // -- Table container (width & alignment) --
       const tableContainer = document.createElement('div');
       tableContainer.classList.add('table-container');
+      tableContainer.tabIndex = 0;
+      tableContainer.setAttribute('role', 'region');
+      tableContainer.setAttribute('aria-label', runtime.translate('table.scrollRegion'));
       wrapper.appendChild(tableContainer);
 
       const table = document.createElement('table');
@@ -111,7 +118,7 @@ export const CustomTable = Table.extend<EditorExtensionOptions>({
 
           const ph = document.createElement('span');
           ph.className = 'caption-placeholder';
-          ph.textContent = 'Click to add caption...';
+          ph.textContent = runtime.translate('caption.add');
           captionDisplay.appendChild(ph);
         }
       }
@@ -120,6 +127,10 @@ export const CustomTable = Table.extend<EditorExtensionOptions>({
       function refreshStyles() {
         const w = currentNode.attrs.width || '100%';
         const a = currentNode.attrs.align || 'left';
+        const logicalColumnCount = Math.max(1, TableMap.get(currentNode).width);
+        const minimumTableWidth = `${logicalColumnCount * 8}rem`;
+        tableContainer.style.setProperty('--sdoc-table-min-width', minimumTableWidth);
+        table.style.minWidth = minimumTableWidth;
 
         if (w === 'auto') {
           tableContainer.style.width = 'fit-content';
@@ -164,21 +175,29 @@ export const CustomTable = Table.extend<EditorExtensionOptions>({
         }
       }
 
-      // === Caption display click → start editing ===
-      captionDisplay.addEventListener('mousedown', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-
+      function startCaptionEditing() {
+        if (isEditingCaption) return;
         isEditingCaption = true;
         captionDisplay.style.display = 'none';
         captionInputWrapper.style.display = '';
         captionInput.value = currentNode.attrs.caption || '';
 
-        // Focus input after a microtask to avoid PM interference
         requestAnimationFrame(() => {
           captionInput.focus();
           captionInput.select();
         });
+      }
+
+      // Preserve the editor selection on pointer interaction; the button's click
+      // event remains the single activation path for mouse and keyboard users.
+      captionDisplay.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      });
+      captionDisplay.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        startCaptionEditing();
       });
 
       // === Caption input: Enter → save, Escape → cancel ===

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { FilePlus, FolderPlus, Pencil, FolderOpen, Copy, RefreshCw, Trash2, Undo2 } from 'lucide-react';
+import { useEditorI18n } from '@shared/editor/i18n';
 
 export interface ExplorerContextMenuTarget {
   /** 우클릭된 경로. 루트(작업 폴더 빈 공간)일 경우 workspaceFolder 경로. */
@@ -39,6 +40,7 @@ export const ExplorerContextMenu: React.FC<ExplorerContextMenuProps> = ({
   onCopyPath,
   onRefresh,
 }) => {
+  const { t } = useEditorI18n();
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -74,6 +76,8 @@ export const ExplorerContextMenu: React.FC<ExplorerContextMenuProps> = ({
     disabled = false,
   }) => (
     <button
+      type="button"
+      role="menuitem"
       className="context-menu-item"
       disabled={disabled}
       onMouseDown={(e) => {
@@ -95,30 +99,32 @@ export const ExplorerContextMenu: React.FC<ExplorerContextMenuProps> = ({
     <div
       ref={menuRef}
       className="table-context-menu"
+      role="menu"
+      aria-label={t('panel.explorer')}
       style={{ position: 'fixed', left: `${position.x}px`, top: `${position.y}px`, zIndex: 1000 }}
       onClick={(e) => e.stopPropagation()}
     >
-      <MenuItem icon={<FilePlus size={14} />} label="새 문서" onClick={() => onCreateHere(folderForCreate)} />
-      <MenuItem icon={<FolderPlus size={14} />} label="새 폴더" onClick={() => onCreateFolderHere(folderForCreate)} />
+      <MenuItem icon={<FilePlus size={14} />} label={t('explorer.newDocument')} onClick={() => onCreateHere(folderForCreate)} />
+      <MenuItem icon={<FolderPlus size={14} />} label={t('explorer.newFolder')} onClick={() => onCreateFolderHere(folderForCreate)} />
       {!target.isRoot && (
         <>
           <div className="context-menu-separator" />
-          <MenuItem icon={<Pencil size={14} />} label="이름 바꾸기" onClick={onRename} />
-          <MenuItem icon={<Trash2 size={14} />} label="삭제" onClick={onDelete} />
+          <MenuItem icon={<Pencil size={14} />} label={t('explorer.rename')} onClick={onRename} />
+          <MenuItem icon={<Trash2 size={14} />} label={t('common.delete')} onClick={onDelete} />
         </>
       )}
       <div className="context-menu-separator" />
       <MenuItem
         icon={<Undo2 size={14} />}
-        label="삭제 취소"
+        label={t('explorer.undoDelete')}
         onClick={() => onUndoDelete?.()}
         disabled={!hasDeletionHistory}
       />
       <div className="context-menu-separator" />
-      <MenuItem icon={<FolderOpen size={14} />} label="파일 탐색기에서 보기" onClick={() => onRevealInFileExplorer(target.path)} />
-      <MenuItem icon={<Copy size={14} />} label="경로 복사" onClick={() => onCopyPath(target.path)} />
+      <MenuItem icon={<FolderOpen size={14} />} label={t('explorer.reveal')} onClick={() => onRevealInFileExplorer(target.path)} />
+      <MenuItem icon={<Copy size={14} />} label={t('explorer.copyPath')} onClick={() => onCopyPath(target.path)} />
       <div className="context-menu-separator" />
-      <MenuItem icon={<RefreshCw size={14} />} label="새로고침" onClick={onRefresh} />
+      <MenuItem icon={<RefreshCw size={14} />} label={t('explorer.refresh')} onClick={onRefresh} />
     </div>
   );
 };

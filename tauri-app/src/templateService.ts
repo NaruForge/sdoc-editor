@@ -99,7 +99,7 @@ export async function loadTauriTemplateCatalog(
     return {
       id,
       source: 'user',
-      sourceLabel: `이 PC의 공유 저장소 · ${personalDiscovery.libraryPath}`,
+      sourceLabel: personalDiscovery.libraryPath,
       fileName: candidate.fileName,
       value,
       targetPath: candidate.fileName,
@@ -198,7 +198,7 @@ export async function saveActiveDocumentAsPersonalTemplate(
     ...(metadata.description === undefined ? {} : { description: metadata.description }),
     ...(metadata.category === undefined ? {} : { category: metadata.category }),
     ...(titleNodeId === undefined ? {} : { titleNodeId }),
-    sourceLabel: '이 PC의 공유 저장소',
+    sourceLabel: '.sdoc/templates',
   });
   await operations.create(template.descriptor.id, template.envelope);
   return template;

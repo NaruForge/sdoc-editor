@@ -48,6 +48,7 @@ import {
   type SdocTemplate,
   type TemplateDescriptor,
 } from '../shared/template';
+import { resolveEditorLocale } from '../shared/editor/i18n/locale';
 
 export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
   private static readonly SDOC_VERSION = '1.0';
@@ -246,6 +247,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         const convertedJson = convertImagePathsToWebviewUris(doc, documentDir, webviewPanel.webview);
         webviewPanel.webview.postMessage({
           type: 'init',
+          locale: resolveEditorLocale(vscode.env.language),
           sessionId,
           documentId,
           revision: document.version,
@@ -1273,9 +1275,10 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     const fontFaces = generateFontFaceCSS(webview, this.context.extensionUri);
 
     const nonce = getNonce();
+    const htmlLanguage = resolveEditorLocale(vscode.env.language) === 'ko' ? 'ko-KR' : 'en';
 
     return `<!DOCTYPE html>
-<html lang="en">
+<html lang="${htmlLanguage}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">

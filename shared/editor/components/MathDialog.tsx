@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import katex from 'katex';
+import { useEditorI18n, type EditorTranslationKey } from '../i18n';
 
 interface MathDialogProps {
   initialLatex?: string;
@@ -8,13 +9,13 @@ interface MathDialogProps {
   onCancel: () => void;
 }
 
-const EXAMPLES = [
-  { label: 'Fraction', latex: '\\frac{a}{b}' },
-  { label: 'Square root', latex: '\\sqrt{x^2 + y^2}' },
-  { label: 'Sum', latex: '\\sum_{i=1}^{n} i' },
-  { label: 'Integral', latex: '\\int_0^\\infty e^{-x}\\,dx' },
-  { label: 'Matrix', latex: '\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}' },
-  { label: 'Limit', latex: '\\lim_{x \\to \\infty} f(x)' },
+const EXAMPLES: ReadonlyArray<{ labelKey: EditorTranslationKey; latex: string }> = [
+  { labelKey: 'math.exampleFraction', latex: '\\frac{a}{b}' },
+  { labelKey: 'math.exampleSquareRoot', latex: '\\sqrt{x^2 + y^2}' },
+  { labelKey: 'math.exampleSum', latex: '\\sum_{i=1}^{n} i' },
+  { labelKey: 'math.exampleIntegral', latex: '\\int_0^\\infty e^{-x}\\,dx' },
+  { labelKey: 'math.exampleMatrix', latex: '\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}' },
+  { labelKey: 'math.exampleLimit', latex: '\\lim_{x \\to \\infty} f(x)' },
 ];
 
 export const MathDialog: React.FC<MathDialogProps> = ({
@@ -23,6 +24,7 @@ export const MathDialog: React.FC<MathDialogProps> = ({
   onConfirm,
   onCancel,
 }) => {
+  const { t } = useEditorI18n();
   const [latex, setLatex] = useState(initialLatex);
   const [isBlock, setIsBlock] = useState(initialIsBlock);
   const [error, setError] = useState<string | null>(null);
@@ -39,7 +41,7 @@ export const MathDialog: React.FC<MathDialogProps> = ({
   useEffect(() => {
     if (!previewRef.current) return;
     if (!latex.trim()) {
-      previewRef.current.innerHTML = '<span style="opacity:0.4;font-style:italic">Type LaTeX to preview...</span>';
+      previewRef.current.textContent = t('math.emptyPreview');
       setError(null);
       return;
     }
@@ -51,11 +53,11 @@ export const MathDialog: React.FC<MathDialogProps> = ({
       });
       setError(null);
     } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : 'Invalid LaTeX';
-      previewRef.current.innerHTML = `<span style="color:var(--vscode-errorForeground,#f48771);font-size:12px">${message}</span>`;
+      const message = e instanceof Error ? e.message : t('math.invalidLatex');
+      previewRef.current.textContent = message;
       setError(message);
     }
-  }, [latex, isBlock]);
+  }, [latex, isBlock, t]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
@@ -80,10 +82,13 @@ export const MathDialog: React.FC<MathDialogProps> = ({
     <div className="modal-overlay" onClick={onCancel}>
       <div
         className="modal-content modal-content--md"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="math-dialog-title"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={handleKeyDown}
       >
-        <h3>Insert Math Formula</h3>
+        <h3 id="math-dialog-title">{t('math.insertTitle')}</h3>
 
         {/* Mode toggle */}
         <div className="form-group" style={{ display: 'flex', gap: '8px' }}>
@@ -92,14 +97,14 @@ export const MathDialog: React.FC<MathDialogProps> = ({
             onClick={() => setIsBlock(false)}
             className={`toggle-btn ${!isBlock ? 'btn-primary' : 'btn-secondary'}`}
           >
-            Inline  <code className="kbd-hint">$...$</code>
+            {t('math.inline')} <code className="kbd-hint">$...$</code>
           </button>
           <button
             type="button"
             onClick={() => setIsBlock(true)}
             className={`toggle-btn ${isBlock ? 'btn-primary' : 'btn-secondary'}`}
           >
-            Block  <code className="kbd-hint">$$...$$</code>
+            {t('math.block')} <code className="kbd-hint">$$...$$</code>
           </button>
         </div>
 
@@ -111,7 +116,7 @@ export const MathDialog: React.FC<MathDialogProps> = ({
             value={latex}
             onChange={(e) => setLatex(e.target.value)}
             rows={3}
-            placeholder="Enter LaTeX, e.g. E = mc^2"
+            placeholder={t('math.latexPlaceholder')}
             spellCheck={false}
             className={`form-textarea ${error ? 'form-input--error' : ''}`}
           />
@@ -119,7 +124,7 @@ export const MathDialog: React.FC<MathDialogProps> = ({
 
         {/* Live preview */}
         <div className="form-group">
-          <label className="form-label">Preview:</label>
+          <label className="form-label">{t('diagram.preview')}:</label>
           <div
             ref={previewRef}
             className="dialog-preview"
@@ -129,17 +134,17 @@ export const MathDialog: React.FC<MathDialogProps> = ({
 
         {/* Examples */}
         <div className="form-group">
-          <label className="form-label">Examples:</label>
+          <label className="form-label">{t('math.examples')}:</label>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
             {EXAMPLES.map((ex) => (
               <button
-                key={ex.label}
+                key={ex.labelKey}
                 type="button"
                 onClick={() => insertExample(ex.latex)}
                 className="btn-secondary chip-btn"
                 title={ex.latex}
               >
-                {ex.label}
+                {t(ex.labelKey)}
               </button>
             ))}
           </div>
@@ -148,7 +153,7 @@ export const MathDialog: React.FC<MathDialogProps> = ({
         {/* Actions */}
         <div className="modal-actions">
           <button type="button" onClick={onCancel} className="btn-secondary">
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             type="button"
@@ -156,7 +161,7 @@ export const MathDialog: React.FC<MathDialogProps> = ({
             className="btn-primary"
             disabled={!latex.trim()}
           >
-            Insert  <span className="kbd-hint">Ctrl+Enter</span>
+            {t('common.insert')} <span className="kbd-hint">Ctrl+Enter</span>
           </button>
         </div>
       </div>

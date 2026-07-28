@@ -4,7 +4,7 @@ import { Editor } from './components/Editor';
 
 const App: React.FC = () => {
   return (
-    <EditorProvider>
+    <EditorProvider initialLocale={document.documentElement.lang}>
       <Editor />
     </EditorProvider>
   );

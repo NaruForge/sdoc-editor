@@ -1,43 +1,62 @@
-/* ===== Standalone Dark Theme (replaces VS Code CSS variables) ===== */
+/* ===== Desktop light/dark theme (provides VS Code-compatible semantic tokens) ===== */
 :root {
   --font-family: var(--sdoc-font-sans);
   --font-mono: var(--sdoc-font-mono);
   --editor-font-family: var(--sdoc-font-mono);
   --font-size: 14px;
   --font-weight: 400;
-  --editor-bg: #1e1e1e;
-  --editor-fg: #d4d4d4;
-  --panel-border: #3c3c3c;
-  --focus-border: #007acc;
-  --input-bg: #3c3c3c;
-  --input-fg: #cccccc;
-  --input-border: #3c3c3c;
-  --input-placeholder: #6b6b6b;
-  --button-bg: #0e639c;
+  color-scheme: dark;
+  --editor-bg: #1f2329;
+  --editor-fg: #f0f3f6;
+  --panel-bg: #252a32;
+  --panel-border: #697586;
+  --focus-border: #58a6ff;
+  --input-bg: #2b313a;
+  --input-fg: #f0f3f6;
+  --input-border: #7a8696;
+  --input-placeholder: #b5bdc9;
+  --button-bg: #1769aa;
   --button-fg: #ffffff;
-  --button-hover-bg: #1177bb;
-  --button-secondary-bg: #3a3d41;
-  --button-secondary-fg: #cccccc;
-  --button-secondary-hover-bg: #45494e;
-  --menu-bg: #252526;
-  --menu-fg: #cccccc;
-  --menu-border: #454545;
-  --menu-selection-bg: rgba(255,255,255,0.08);
+  --button-hover-bg: #1d79c2;
+  --button-secondary-bg: #343b46;
+  --button-secondary-fg: #f0f3f6;
+  --button-secondary-hover-bg: #46505e;
+  --menu-bg: #292f38;
+  --menu-fg: #f0f3f6;
+  --menu-border: #7a8696;
+  --menu-selection-bg: #3f4b5c;
   --menu-selection-fg: #ffffff;
-  --menu-separator: #454545;
-  --list-hover-bg: rgba(255,255,255,0.05);
-  --description-fg: #6b6b6b;
-  --disabled-fg: #5a5a5a;
-  --error-fg: #f48771;
-  --selection-bg: rgba(38, 79, 120, 0.5);
-  --inactive-selection-bg: rgba(255,255,255,0.04);
-  --code-bg: #1a1a2e;
-  --toolbar-hover-bg: rgba(255,255,255,0.08);
-  --widget-bg: #252526;
-  --widget-border: #454545;
-  --dropdown-bg: #3c3c3c;
-  --dropdown-fg: #cccccc;
-  --dropdown-border: #454545;
+  --menu-separator: #697586;
+  --list-hover-bg: #343d49;
+  --list-active-bg: #1769aa;
+  --list-active-fg: #ffffff;
+  --description-fg: #b5bdc9;
+  --disabled-fg: #a3acb8;
+  --error-fg: #ff9b8e;
+  --warning-fg: #f0c36a;
+  --selection-bg: rgba(88, 166, 255, 0.36);
+  --inactive-selection-bg: rgba(181, 189, 201, 0.16);
+  --code-bg: #171b21;
+  --toolbar-hover-bg: #3f4855;
+  --widget-bg: #292f38;
+  --widget-border: #7a8696;
+  --dropdown-bg: #2b313a;
+  --dropdown-fg: #f0f3f6;
+  --dropdown-border: #7a8696;
+  --foreground: var(--editor-fg);
+  --text-primary: var(--editor-fg);
+  --text-muted: var(--description-fg);
+  --bg-primary: var(--editor-bg);
+  --bg-elevated: var(--widget-bg);
+  --border-color: var(--panel-border);
+  --border-focus: var(--focus-border);
+  --accent-color: var(--focus-border);
+  --error-color: var(--error-fg);
+  --btn-primary-bg: var(--button-bg);
+  --btn-secondary-bg: var(--button-secondary-bg);
+  --btn-secondary-fg: var(--button-secondary-fg);
+  --btn-secondary-hover-bg: var(--button-secondary-hover-bg);
+  --sidebar-bg: var(--panel-bg);
   font-family: var(--font-family);
   font-size: var(--font-size);
   font-weight: var(--font-weight);
@@ -61,6 +80,7 @@
   --vscode-button-secondaryBackground: var(--button-secondary-bg);
   --vscode-button-secondaryForeground: var(--button-secondary-fg);
   --vscode-button-secondaryHoverBackground: var(--button-secondary-hover-bg);
+  --vscode-button-secondaryBorder: var(--panel-border);
   --vscode-menu-background: var(--menu-bg);
   --vscode-menu-foreground: var(--menu-fg);
   --vscode-menu-border: var(--menu-border);
@@ -68,9 +88,12 @@
   --vscode-menu-selectionForeground: var(--menu-selection-fg);
   --vscode-menu-separatorBackground: var(--menu-separator);
   --vscode-list-hoverBackground: var(--list-hover-bg);
+  --vscode-list-activeSelectionBackground: var(--list-active-bg);
+  --vscode-list-activeSelectionForeground: var(--list-active-fg);
   --vscode-descriptionForeground: var(--description-fg);
   --vscode-disabledForeground: var(--disabled-fg);
   --vscode-errorForeground: var(--error-fg);
+  --vscode-editorWarning-foreground: var(--warning-fg);
   --vscode-editor-selectionBackground: var(--selection-bg);
   --vscode-editor-inactiveSelectionBackground: var(--inactive-selection-bg);
   --vscode-textCodeBlock-background: var(--code-bg);
@@ -81,6 +104,55 @@
   --vscode-dropdown-foreground: var(--dropdown-fg);
   --vscode-dropdown-border: var(--dropdown-border);
   --vscode-editor-font-family: var(--sdoc-font-mono);
+  --vscode-sideBar-background: var(--panel-bg);
+  --vscode-sideBarTitle-foreground: var(--editor-fg);
+  --vscode-badge-background: var(--button-bg);
+  --vscode-badge-foreground: var(--button-fg);
+  --vscode-inputValidation-errorBorder: var(--error-fg);
+  --vscode-textBlockQuote-background: var(--inactive-selection-bg);
+  --vscode-textBlockQuote-border: var(--focus-border);
+  --vscode-contrastBorder: var(--panel-border);
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+  --editor-bg: #ffffff;
+  --editor-fg: #1f2328;
+  --panel-bg: #f6f8fa;
+  --panel-border: #768390;
+  --focus-border: #0969da;
+  --input-bg: #ffffff;
+  --input-fg: #1f2328;
+  --input-border: #768390;
+  --input-placeholder: #57606a;
+  --button-bg: #0969da;
+  --button-fg: #ffffff;
+  --button-hover-bg: #0757b7;
+  --button-secondary-bg: #e6ebf1;
+  --button-secondary-fg: #1f2328;
+  --button-secondary-hover-bg: #d0d7de;
+  --menu-bg: #ffffff;
+  --menu-fg: #1f2328;
+  --menu-border: #768390;
+  --menu-selection-bg: #dbeafe;
+  --menu-selection-fg: #172554;
+  --menu-separator: #768390;
+  --list-hover-bg: #eaeef2;
+  --list-active-bg: #0969da;
+  --list-active-fg: #ffffff;
+  --description-fg: #4b5563;
+  --disabled-fg: #687385;
+  --error-fg: #b42318;
+  --warning-fg: #7d4e00;
+  --selection-bg: rgba(9, 105, 218, 0.24);
+  --inactive-selection-bg: rgba(31, 35, 40, 0.1);
+  --code-bg: #f1f5f9;
+  --toolbar-hover-bg: #dce3ea;
+  --widget-bg: #ffffff;
+  --widget-border: #768390;
+  --dropdown-bg: #ffffff;
+  --dropdown-fg: #1f2328;
+  --dropdown-border: #768390;
 }
 
 body {
@@ -269,19 +341,6 @@ body {
 .ProseMirror .selectedCell { background-color: var(--selection-bg); }
 
 /* Toolbar — fixed, does not scroll */
-.toolbar {
-  flex-shrink: 0; background-color: var(--editor-bg); border-bottom: 1px solid var(--panel-border);
-  padding: 8px; display: flex; gap: 4px; flex-wrap: wrap; z-index: 10;
-}
-.toolbar-button {
-  background-color: var(--button-secondary-bg); color: var(--button-secondary-fg);
-  border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer;
-  display: flex; align-items: center; gap: 4px; font-size: 14px; transition: background-color 0.2s;
-}
-.toolbar-button:hover { background-color: var(--button-secondary-hover-bg); }
-.toolbar-button.is-active { background-color: var(--button-bg); color: var(--button-fg); }
-.toolbar-separator { width: 1px; background-color: var(--panel-border); margin: 0 4px; }
-
 /* Insert Menu & Dropdown */
 .insert-menu {
   position: absolute; top: 100%; left: 0; margin-top: 4px; background-color: var(--menu-bg);
@@ -462,22 +521,6 @@ body {
 /* Link styles */
 
 /* Document Header */
-.document-header { flex-shrink: 0; border-bottom: 1px solid var(--panel-border); padding: 12px 16px 10px; background-color: var(--editor-bg); }
-.editor-title-input {
-  width: 100%; font-size: 2.5em; font-weight: var(--font-weight-h1, 700); color: var(--editor-fg); background: transparent;
-  border: none; border-bottom: 2px solid transparent; outline: none; padding: 4px 0;
-  font-family: var(--font-family, sans-serif); letter-spacing: -0.02em; line-height: 1.2; transition: border-color 0.2s;
-}
-.editor-title-input:focus { border-bottom-color: var(--focus-border); }
-.editor-title-input::placeholder { color: var(--disabled-fg); font-style: italic; }
-.document-header-meta { display: flex; gap: 20px; flex-wrap: wrap; font-size: 12px; color: var(--description-fg); }
-.document-header-value { color: var(--description-fg); }
-.document-header-value.editable:hover { background-color: var(--list-hover-bg); }
-.document-header-input {
-  background-color: var(--input-bg); color: var(--input-fg); border: 1px solid var(--focus-border);
-  border-radius: 3px; padding: 1px 4px; font-size: 12px; font-family: var(--font-family); outline: none; width: 180px;
-}
-
 /* Cross-Reference Popup */
 .crossref-popup {
   position: fixed; z-index: 200; background-color: var(--menu-bg); border: 1px solid var(--menu-border);
@@ -917,45 +960,6 @@ body {
 }
 
 /* ===== Side Panel (4-tab) ===== */
-.side-panel {
-  width: 240px;
-  min-width: 200px;
-  max-width: 280px;
-  flex-shrink: 0;
-  height: 100%;
-  overflow-y: auto;
-  border-right: 1px solid var(--panel-border);
-  background-color: var(--editor-bg);
-  display: flex;
-  flex-direction: column;
-}
-
-.side-panel-tabs {
-  display: flex;
-  border-bottom: 1px solid var(--panel-border);
-  flex-shrink: 0;
-}
-
-.side-panel-tab {
-  flex: 1;
-  padding: 6px 8px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  background: transparent;
-  border: none;
-  border-bottom: 2px solid transparent;
-  color: var(--editor-fg);
-  opacity: 0.6;
-  cursor: pointer;
-  transition: opacity 0.15s, border-color 0.15s;
-  font-family: var(--font-family);
-}
-.side-panel-tab.active {
-  opacity: 1;
-  border-bottom-color: var(--focus-border);
-}
-
 /* ===== Document Settings Panel ===== */
 
 .settings-panel-title {
@@ -1036,50 +1040,8 @@ body {
 .bubble-menu-separator { width: 1px; background-color: var(--panel-border); margin: 2px 2px; align-self: stretch; }
 
 /* ===== Activity Bar ===== */
-.activity-bar {
-  width: 48px;
-  flex-shrink: 0;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 4px 0;
-  gap: 2px;
-  background: var(--panel-bg, #1e1e1e);
-  border-right: 1px solid var(--panel-border, #333);
-  overflow-y: auto;
-}
-.activity-bar-icon {
-  width: 44px;
-  height: auto;
-  min-height: 40px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  border: none;
-  background: transparent;
-  color: var(--text-primary, #ccc);
-  opacity: 0.65;
-  border-radius: 4px;
-  padding: 5px 0;
-  cursor: pointer;
-  transition: opacity 0.1s, background 0.1s;
-}
-.activity-bar-icon:hover { opacity: 1; background: rgba(90,93,94,.31); }
-.activity-bar-icon.is-active { opacity: 1; background: var(--btn-primary-bg, #0078d4); color: #fff; }
-
 /* ===== Side Panel (4-tab) new elements ===== */
-.side-panel-section-title { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted, #888); padding: 4px 12px 6px; display: flex; align-items: center; gap: 5px; }
 .side-panel-section-desc { font-size: 11px; line-height: 1.5; color: var(--description-fg); padding: 0 12px 8px; }
-.side-panel-toggle-label { font-size: 12px; color: var(--text-primary, #ccc); }
-.side-panel-toggle-btn { padding: 2px 8px; font-size: 11px; border-radius: 3px; border: 1px solid var(--panel-border, #333); cursor: pointer; background: transparent; color: var(--text-primary, #ccc); }
-.side-panel-toggle-btn.is-active { background: var(--btn-primary-bg, #0078d4); color: #fff; border-color: transparent; }
-.side-panel-file-btn { width: 100%; text-align: left; padding: 5px 12px; font-size: 12px; background: transparent; border: none; cursor: pointer; color: var(--text-primary, #ccc); display: flex; align-items: center; gap: 6px; }
-.side-panel-file-btn:hover { background: rgba(90,93,94,.2); }
-.side-panel-file-btn.is-disabled { opacity: 0.45; cursor: not-allowed; }
-.side-panel-file-btn.is-disabled:hover { background: transparent; }
 
 .explorer-panel { height: 100%; display: flex; flex-direction: column; min-height: 0; }
 .explorer-actions { display: flex; gap: 4px; padding: 4px 8px 8px; }

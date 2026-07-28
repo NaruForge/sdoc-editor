@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Undo2, X } from 'lucide-react';
+import { useEditorI18n } from '@shared/editor/i18n';
 
 interface UndoToastProps {
   message: string;
@@ -12,6 +13,7 @@ interface UndoToastProps {
 /** 삭제 등 되돌릴 수 있는 작업 직후 잠시 표시되는 하단 토스트. "실행 취소" 버튼을 누르면
  *  onUndo가 호출되고, durationMs가 지나거나 닫기 버튼을 누르면 자동으로 사라진다. */
 export const UndoToast: React.FC<UndoToastProps> = ({ message, onUndo, onDismiss, durationMs = 6000 }) => {
+  const { t } = useEditorI18n();
   const [remaining, setRemaining] = useState(durationMs);
 
   useEffect(() => {
@@ -32,11 +34,17 @@ export const UndoToast: React.FC<UndoToastProps> = ({ message, onUndo, onDismiss
   return (
     <div className="undo-toast">
       <span className="undo-toast-message">{message}</span>
-      <button className="undo-toast-action" onClick={onUndo}>
+      <button type="button" className="undo-toast-action" onClick={onUndo}>
         <Undo2 size={14} />
-        실행 취소
+        {t('common.undo')}
       </button>
-      <button className="undo-toast-close" onClick={onDismiss} title="닫기">
+      <button
+        type="button"
+        className="undo-toast-close"
+        onClick={onDismiss}
+        title={t('common.close')}
+        aria-label={t('common.close')}
+      >
         <X size={13} />
       </button>
       <div className="undo-toast-progress" style={{ width: `${(remaining / durationMs) * 100}%` }} />

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { getMermaid } from '../utils/mermaid';
+import { useEditorI18n, type EditorTranslationKey } from '../i18n';
 
 interface DiagramDialogProps {
   initialCode?: string;
@@ -9,9 +10,9 @@ interface DiagramDialogProps {
   onCancel: () => void;
 }
 
-const EXAMPLES = [
+const EXAMPLES: ReadonlyArray<{ labelKey: EditorTranslationKey; code: string }> = [
   {
-    label: 'Flowchart',
+    labelKey: 'diagram.exampleFlowchart',
     code: `graph TD
     A[Start] --> B{Decision}
     B -->|Yes| C[Process 1]
@@ -20,7 +21,7 @@ const EXAMPLES = [
     D --> E`,
   },
   {
-    label: 'Sequence',
+    labelKey: 'diagram.exampleSequence',
     code: `sequenceDiagram
     participant A as Client
     participant B as Server
@@ -28,7 +29,7 @@ const EXAMPLES = [
     B-->>A: Response`,
   },
   {
-    label: 'Class',
+    labelKey: 'diagram.exampleClass',
     code: `classDiagram
     class Animal {
         +String name
@@ -41,7 +42,7 @@ const EXAMPLES = [
     Animal <|-- Dog`,
   },
   {
-    label: 'State',
+    labelKey: 'diagram.exampleState',
     code: `stateDiagram-v2
     [*] --> Idle
     Idle --> Processing : Start
@@ -51,14 +52,14 @@ const EXAMPLES = [
     Done --> [*]`,
   },
   {
-    label: 'ER Diagram',
+    labelKey: 'diagram.exampleEr',
     code: `erDiagram
     USER ||--o{ ORDER : places
     ORDER ||--|{ LINE-ITEM : contains
     PRODUCT ||--o{ LINE-ITEM : "ordered in"`,
   },
   {
-    label: 'Gantt',
+    labelKey: 'diagram.exampleGantt',
     code: `gantt
     title Project Plan
     dateFormat YYYY-MM-DD
@@ -80,6 +81,7 @@ export const DiagramDialog: React.FC<DiagramDialogProps> = ({
   onConfirm,
   onCancel,
 }) => {
+  const { t } = useEditorI18n();
   const [code, setCode] = useState(initialCode);
   const [language] = useState(initialLanguage);
   const [error, setError] = useState<string | null>(null);
@@ -94,7 +96,7 @@ export const DiagramDialog: React.FC<DiagramDialogProps> = ({
   const renderPreview = useCallback(async (src: string) => {
     if (!previewRef.current) return;
     if (!src.trim()) {
-      previewRef.current.innerHTML = '<span style="opacity:0.4;font-style:italic">다이어그램 코드를 입력하세요...</span>';
+      previewRef.current.textContent = t('diagram.codePlaceholder');
       setError(null);
       return;
     }
@@ -113,10 +115,10 @@ export const DiagramDialog: React.FC<DiagramDialogProps> = ({
         if (previewRef.current) {
           previewRef.current.innerHTML = '';
         }
-        setError(e instanceof Error ? e.message : 'Syntax error');
+        setError(e instanceof Error ? e.message : t('diagram.syntaxError'));
       }
     }
-  }, [language]);
+  }, [language, t]);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -138,11 +140,14 @@ export const DiagramDialog: React.FC<DiagramDialogProps> = ({
     <div className="modal-overlay" onClick={onCancel}>
       <div
         className="modal-content modal-content--lg"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="diagram-dialog-title"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={handleKeyDown}
       >
-        <h3>
-          {pos !== null ? 'Edit Diagram' : 'Insert Diagram'}
+        <h3 id="diagram-dialog-title">
+          {pos !== null ? t('diagram.editTitle') : t('diagram.insertTitle')}
           <span className="kbd-hint" style={{ marginLeft: '8px', fontSize: '12px', fontWeight: 'normal' }}>
             ({language})
           </span>
@@ -150,16 +155,16 @@ export const DiagramDialog: React.FC<DiagramDialogProps> = ({
 
         {/* Examples */}
         <div className="form-group">
-          <label className="form-label form-label--sm">Templates:</label>
+          <label className="form-label form-label--sm">{t('diagram.templates')}:</label>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
             {EXAMPLES.map((ex) => (
               <button
-                key={ex.label}
+                key={ex.labelKey}
                 type="button"
                 onClick={() => { setCode(ex.code); textareaRef.current?.focus(); }}
                 className="btn-secondary chip-btn"
               >
-                {ex.label}
+                {t(ex.labelKey)}
               </button>
             ))}
           </div>
@@ -169,8 +174,9 @@ export const DiagramDialog: React.FC<DiagramDialogProps> = ({
         <div className="dialog-split">
           {/* Code editor */}
           <div className="dialog-split__pane">
-            <label className="form-label form-label--sm">Code:</label>
+            <label htmlFor="diagram-code" className="form-label form-label--sm">{t('diagram.code')}:</label>
             <textarea
+              id="diagram-code"
               ref={textareaRef}
               value={code}
               onChange={(e) => setCode(e.target.value)}
@@ -184,7 +190,7 @@ export const DiagramDialog: React.FC<DiagramDialogProps> = ({
 
           {/* Live Preview */}
           <div className="dialog-split__pane">
-            <label className="form-label form-label--sm">Preview:</label>
+            <label className="form-label form-label--sm">{t('diagram.preview')}:</label>
             <div
               ref={previewRef}
               className="diagram-preview-area dialog-preview dialog-preview--grow"
@@ -195,7 +201,7 @@ export const DiagramDialog: React.FC<DiagramDialogProps> = ({
         {/* Actions */}
         <div className="modal-actions modal-actions--bordered">
           <button type="button" onClick={onCancel} className="btn-secondary">
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             type="button"
@@ -203,7 +209,7 @@ export const DiagramDialog: React.FC<DiagramDialogProps> = ({
             className="btn-primary"
             disabled={!code.trim()}
           >
-            {pos !== null ? 'Update' : 'Insert'}
+            {pos !== null ? t('diagram.update') : t('common.insert')}
             <span className="kbd-hint" style={{ marginLeft: '6px' }}>Ctrl+Enter</span>
           </button>
         </div>

@@ -36,7 +36,7 @@ describe('editor host message boundary', () => {
 
   it('requires identity and revision on persistence updates', () => {
     expect(isHostToEditorMessage({
-      type: 'init', sessionId: 'session-1', documentId: 'doc-a', revision: 4,
+      type: 'init', locale: 'ko', sessionId: 'session-1', documentId: 'doc-a', revision: 4,
       snapshot: {
         content: { type: 'doc', content: [] },
         meta: {},
@@ -48,7 +48,31 @@ describe('editor host message boundary', () => {
       sessionId: 'session-1',
       documentId: 'doc-a',
       revision: 4,
+      snapshot: {
+        content: { type: 'doc', content: [] },
+        meta: {},
+        documentSettings: null,
+      },
+    })).toBe(false);
+    expect(isHostToEditorMessage({
+      type: 'init',
+      locale: 'en',
+      sessionId: 'session-1',
+      documentId: 'doc-a',
+      revision: 4,
       content: { type: 'doc', content: [] },
+    })).toBe(false);
+    expect(isHostToEditorMessage({
+      type: 'init',
+      locale: 'ja',
+      sessionId: 'session-1',
+      documentId: 'doc-a',
+      revision: 4,
+      snapshot: {
+        content: { type: 'doc', content: [] },
+        meta: {},
+        documentSettings: null,
+      },
     })).toBe(false);
     expect(isHostToEditorMessage({ type: 'requestFlush', sessionId: 'session-1', requestId: 'flush-1' })).toBe(true);
     expect(isHostToEditorMessage({ type: 'requestFlush' })).toBe(false);

@@ -1,6 +1,9 @@
 import { Node } from '@tiptap/core';
 import type { NodeView } from '@tiptap/pm/view';
 import type { Node as PmNode } from '@tiptap/pm/model';
+import type { EditorExtensionOptions } from '../extensionRuntime';
+import { NOOP_EDITOR_EXTENSION_RUNTIME } from '../extensionRuntime';
+import type { EditorTranslationKey } from '../i18n';
 
 export type CalloutVariant = 'note' | 'info' | 'tip' | 'warning' | 'danger';
 
@@ -12,18 +15,19 @@ export const CALLOUT_ICONS: Record<CalloutVariant, string> = {
   danger: '🚨',
 };
 
-export const CALLOUT_LABELS: Record<CalloutVariant, string> = {
-  note: 'Note',
-  info: 'Info',
-  tip: 'Tip',
-  warning: 'Warning',
-  danger: 'Danger',
+const CALLOUT_LABEL_KEYS: Record<CalloutVariant, EditorTranslationKey> = {
+  note: 'callout.note',
+  info: 'callout.info',
+  tip: 'callout.tip',
+  warning: 'callout.warning',
+  danger: 'callout.danger',
 };
 
 function createCalloutNodeView(
   node: PmNode,
   _view: unknown,
   _getPos: unknown,
+  options: EditorExtensionOptions,
 ): NodeView {
   const variant: CalloutVariant = (node.attrs.variant as CalloutVariant) || 'note';
 
@@ -42,7 +46,7 @@ function createCalloutNodeView(
 
   const label = document.createElement('span');
   label.classList.add('callout-label');
-  label.textContent = CALLOUT_LABELS[variant] ?? CALLOUT_LABELS.note;
+  label.textContent = options.runtime.translate(CALLOUT_LABEL_KEYS[variant]);
 
   header.appendChild(icon);
   header.appendChild(label);
@@ -61,17 +65,21 @@ function createCalloutNodeView(
       const newVariant: CalloutVariant = (updatedNode.attrs.variant as CalloutVariant) || 'note';
       outer.setAttribute('data-variant', newVariant);
       icon.textContent = CALLOUT_ICONS[newVariant] ?? CALLOUT_ICONS.note;
-      label.textContent = CALLOUT_LABELS[newVariant] ?? CALLOUT_LABELS.note;
+      label.textContent = options.runtime.translate(CALLOUT_LABEL_KEYS[newVariant]);
       return true;
     },
   };
 }
 
-export const Callout = Node.create({
+export const Callout = Node.create<EditorExtensionOptions>({
   name: 'callout',
   group: 'block',
   content: 'block+',
   defining: true,
+
+  addOptions() {
+    return { runtime: NOOP_EDITOR_EXTENSION_RUNTIME };
+  },
 
   addAttributes() {
     return {
@@ -100,7 +108,8 @@ export const Callout = Node.create({
   },
 
   addNodeView() {
-    return ({ node, view, getPos }) => createCalloutNodeView(node, view, getPos);
+    const options = this.options;
+    return ({ node, view, getPos }) => createCalloutNodeView(node, view, getPos, options);
   },
 
   addKeyboardShortcuts() {

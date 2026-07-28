@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import type { RefTarget } from '../extensions/CrossReference';
+import { useEditorI18n, type EditorTranslationKey } from '../i18n';
 
 interface CrossReferenceDialogProps {
   targets: RefTarget[];
@@ -9,22 +10,23 @@ interface CrossReferenceDialogProps {
 
 type FilterType = 'all' | RefTarget['type'];
 
-const TYPE_META: Record<RefTarget['type'], { category: string; icon: string }> = {
-  heading: { category: 'Headings', icon: '§' },
-  figure: { category: 'Figures', icon: '🖼' },
-  table: { category: 'Tables', icon: '▦' },
-  equation: { category: 'Equations', icon: '∑' },
+const TYPE_META: Record<RefTarget['type'], { categoryKey: EditorTranslationKey; icon: string }> = {
+  heading: { categoryKey: 'crossRef.heading', icon: '§' },
+  figure: { categoryKey: 'crossRef.figure', icon: '🖼' },
+  table: { categoryKey: 'crossRef.table', icon: '▦' },
+  equation: { categoryKey: 'crossRef.equation', icon: '∑' },
 };
 
-const FILTERS: { id: FilterType; label: string }[] = [
-  { id: 'all', label: '전체' },
-  { id: 'heading', label: '제목' },
-  { id: 'figure', label: '그림' },
-  { id: 'table', label: '표' },
-  { id: 'equation', label: '수식' },
+const FILTERS: { id: FilterType; labelKey: EditorTranslationKey }[] = [
+  { id: 'all', labelKey: 'crossRef.filterAll' },
+  { id: 'heading', labelKey: 'crossRef.heading' },
+  { id: 'figure', labelKey: 'crossRef.figure' },
+  { id: 'table', labelKey: 'crossRef.table' },
+  { id: 'equation', labelKey: 'crossRef.equation' },
 ];
 
 export const CrossReferenceDialog: React.FC<CrossReferenceDialogProps> = ({ targets, onSelect, onClose }) => {
+  const { t } = useEditorI18n();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<FilterType>('all');
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -50,9 +52,9 @@ export const CrossReferenceDialog: React.FC<CrossReferenceDialogProps> = ({ targ
   }, [query, filter]);
 
   const groups: Record<string, RefTarget[]> = {};
-  for (const t of filtered) {
-    const cat = TYPE_META[t.type].category;
-    (groups[cat] ??= []).push(t);
+  for (const target of filtered) {
+    const cat = t(TYPE_META[target.type].categoryKey);
+    (groups[cat] ??= []).push(target);
   }
 
   const flatItems = Object.values(groups).flat();
@@ -76,13 +78,21 @@ export const CrossReferenceDialog: React.FC<CrossReferenceDialogProps> = ({ targ
 
   return (
     <div className="crossref-dialog-overlay" onMouseDown={onClose}>
-      <div className="crossref-dialog" onMouseDown={(e) => e.stopPropagation()} onKeyDown={handleKeyDown}>
-        <div className="crossref-dialog-header">교차 참조 삽입</div>
+      <div
+        className="crossref-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="crossref-dialog-title"
+        onMouseDown={(e) => e.stopPropagation()}
+        onKeyDown={handleKeyDown}
+      >
+        <div id="crossref-dialog-title" className="crossref-dialog-header">{t('crossRef.title')}</div>
         <input
           ref={inputRef}
           type="text"
           className="crossref-dialog-search"
-          placeholder="제목, 그림, 표, 수식 검색..."
+          placeholder={t('crossRef.searchPlaceholder')}
+          aria-label={t('common.search')}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
@@ -92,15 +102,16 @@ export const CrossReferenceDialog: React.FC<CrossReferenceDialogProps> = ({ targ
               key={f.id}
               type="button"
               className={`crossref-filter-chip${filter === f.id ? ' is-active' : ''}`}
+              aria-pressed={filter === f.id}
               onMouseDown={(e) => { e.preventDefault(); setFilter(f.id); }}
             >
-              {f.label}
+              {t(f.labelKey)}
             </button>
           ))}
         </div>
         <div className="crossref-dialog-list">
           {filtered.length === 0 && (
-            <div className="crossref-dialog-empty">참조할 대상이 없습니다</div>
+            <div className="crossref-dialog-empty">{t('crossRef.empty')}</div>
           )}
           {Object.entries(groups).map(([cat, items]) => (
             <div key={cat}>
@@ -111,6 +122,8 @@ export const CrossReferenceDialog: React.FC<CrossReferenceDialogProps> = ({ targ
                   <div
                     key={item.id}
                     className={`crossref-item${idx === selectedIndex ? ' focused' : ''}`}
+                    role="button"
+                    tabIndex={idx === selectedIndex ? 0 : -1}
                     onMouseDown={(e) => { e.preventDefault(); onSelect(item); }}
                     onMouseEnter={() => setSelectedIndex(idx)}
                   >

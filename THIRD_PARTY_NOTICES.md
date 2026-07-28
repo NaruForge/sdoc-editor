@@ -16,7 +16,7 @@ The inventory links each package source. License and notice files found in insta
 
 ## Package dependency inventory
 
-Dependency count: 753
+Dependency count: 747
 
 | Ecosystem | Package | Version | License | Source |
 | --- | --- | --- | --- | --- |
@@ -650,9 +650,8 @@ Dependency count: 753
 | npm | @types/d3 | 7.4.3 | MIT | [source](https://github.com/DefinitelyTyped/DefinitelyTyped) |
 | npm | @types/geojson | 7946.0.16 | MIT | [source](https://github.com/DefinitelyTyped/DefinitelyTyped) |
 | npm | @types/hast | 3.0.4 | MIT | [source](https://github.com/DefinitelyTyped/DefinitelyTyped) |
-| npm | @types/prop-types | 15.7.15 | MIT | [source](https://github.com/DefinitelyTyped/DefinitelyTyped) |
-| npm | @types/react-dom | 18.3.7 | MIT | [source](https://github.com/DefinitelyTyped/DefinitelyTyped) |
-| npm | @types/react | 18.3.28 | MIT | [source](https://github.com/DefinitelyTyped/DefinitelyTyped) |
+| npm | @types/react-dom | 19.2.3 | MIT | [source](https://github.com/DefinitelyTyped/DefinitelyTyped) |
+| npm | @types/react | 19.2.17 | MIT | [source](https://github.com/DefinitelyTyped/DefinitelyTyped) |
 | npm | @types/trusted-types | 2.0.7 | MIT | [source](https://github.com/DefinitelyTyped/DefinitelyTyped) |
 | npm | @types/unist | 3.0.3 | MIT | [source](https://github.com/DefinitelyTyped/DefinitelyTyped) |
 | npm | @types/use-sync-external-store | 0.0.6 | MIT | [source](https://github.com/DefinitelyTyped/DefinitelyTyped) |
@@ -719,7 +718,6 @@ Dependency count: 753
 | npm | iconv-lite | 0.6.3 | MIT | [source](https://github.com/ashtuchkin/iconv-lite) |
 | npm | internmap | 1.0.1 | ISC | [source](https://github.com/mbostock/internmap) |
 | npm | internmap | 2.0.3 | ISC | [source](https://github.com/mbostock/internmap) |
-| npm | js-tokens | 4.0.0 | MIT | [source](https://www.npmjs.com/package/js-tokens/v/4.0.0) |
 | npm | json-schema-traverse | 1.0.0 | MIT | [source](https://github.com/epoberezkin/json-schema-traverse) |
 | npm | katex | 0.16.47 | MIT | [source](https://github.com/KaTeX/KaTeX) |
 | npm | katex | 0.18.1 | MIT | [source](https://github.com/KaTeX/KaTeX) |
@@ -728,7 +726,6 @@ Dependency count: 753
 | npm | layout-base | 2.0.1 | MIT | [source](https://github.com/iVis-at-Bilkent/layout-base) |
 | npm | linkifyjs | 4.3.3 | MIT | [source](https://github.com/nfrasser/linkifyjs) |
 | npm | lodash-es | 4.18.1 | MIT | [source](https://lodash.com/custom-builds) |
-| npm | loose-envify | 1.4.0 | MIT | [source](https://github.com/zertosh/loose-envify) |
 | npm | lowlight | 3.3.0 | MIT | [source](https://www.npmjs.com/package/lowlight/v/3.3.0) |
 | npm | lucide-react | 1.25.0 | ISC | [source](https://github.com/lucide-icons/lucide) |
 | npm | marked | 16.4.2 | MIT | [source](https://marked.js.org) |
@@ -754,9 +751,7 @@ Dependency count: 753
 | npm | prosemirror-tables | 1.8.5 | MIT | [source](https://github.com/ProseMirror/prosemirror-tables) |
 | npm | prosemirror-transform | 1.12.0 | MIT | [source](https://www.npmjs.com/package/prosemirror-transform/v/1.12.0) |
 | npm | prosemirror-view | 1.42.1 | MIT | [source](https://code.haverbeke.berlin/prosemirror/prosemirror-view) |
-| npm | react-dom | 18.3.1 | MIT | [source](https://github.com/facebook/react) |
 | npm | react-dom | 19.2.7 | MIT | [source](https://github.com/facebook/react) |
-| npm | react | 18.3.1 | MIT | [source](https://github.com/facebook/react) |
 | npm | react | 19.2.7 | MIT | [source](https://github.com/facebook/react) |
 | npm | require-from-string | 2.0.2 | MIT | [source](https://www.npmjs.com/package/require-from-string/v/2.0.2) |
 | npm | robust-predicates | 3.0.3 | Unlicense | [source](https://github.com/mourner/robust-predicates) |
@@ -764,7 +759,6 @@ Dependency count: 753
 | npm | roughjs | 4.6.6 | MIT | [source](https://github.com/pshihn/rough) |
 | npm | rw | 1.3.3 | BSD-3-Clause | [source](https://github.com/mbostock/rw) |
 | npm | safer-buffer | 2.1.2 | MIT | [source](https://github.com/ChALkeR/safer-buffer) |
-| npm | scheduler | 0.23.2 | MIT | [source](https://github.com/facebook/react) |
 | npm | scheduler | 0.27.0 | MIT | [source](https://github.com/facebook/react) |
 | npm | stylis | 4.3.6 | MIT | [source](https://github.com/thysultan/stylis.js) |
 | npm | tinyexec | 1.0.4 | MIT | [source](https://github.com/tinylibs/tinyexec) |
@@ -5496,37 +5490,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 90 (4b68ef983e0f)
-
-Packages: `npm:loose-envify@1.4.0`
-
-Source filenames: `LICENSE`
-
-````text
-The MIT License (MIT)
-
-Copyright (c) 2015 Andres Suarez <zertosh@gmail.com>
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-THE SOFTWARE.
-````
-
-### Notice group 91 (4b89d4518bd1)
+### Notice group 90 (4b89d4518bd1)
 
 Packages: `Cargo:cssparser-macros@0.6.1`, `Cargo:cssparser@0.29.6`, `Cargo:cssparser@0.36.0`, `Cargo:dtoa-short@0.3.5`, `npm:dompurify@3.4.12`
 
@@ -5908,7 +5872,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
   defined by the Mozilla Public License, v. 2.0.
 ````
 
-### Notice group 92 (4bddfb319e32)
+### Notice group 91 (4bddfb319e32)
 
 Packages: `Cargo:http-body-util@0.1.3`
 
@@ -5942,7 +5906,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 93 (4bf96504d6e8)
+### Notice group 92 (4bf96504d6e8)
 
 Packages: `Cargo:fdeflate@0.3.7`, `Cargo:field-offset@0.3.6`, `Cargo:miniz_oxide@0.8.9`, `Cargo:num-conv@0.2.1`, `Cargo:pin-project-lite@0.2.17`, `Cargo:raw-window-handle@0.6.2`, `Cargo:sync_wrapper@1.0.2`, `Cargo:tauri-build@2.6.3`, `Cargo:tauri-codegen@2.6.3`, `Cargo:tauri-macros@2.6.3`, `Cargo:tauri-plugin-dialog@2.7.2`, `Cargo:tauri-plugin-fs@2.5.1`, `Cargo:tauri-plugin-process@2.3.1`, `Cargo:tauri-plugin-shell@2.3.5`, `Cargo:tauri-runtime-wry@2.11.4`, `Cargo:tauri-runtime@2.11.3`, `Cargo:tauri-utils@2.9.3`, `Cargo:tauri@2.11.5`, `Cargo:time-core@0.1.8`, `Cargo:time-macros@0.2.27`, `Cargo:time@0.3.47`, `npm:@tauri-apps/api@2.11.1`
 
@@ -6127,7 +6091,7 @@ Apache License
    END OF TERMS AND CONDITIONS
 ````
 
-### Notice group 94 (4c1cd1d0c4f8)
+### Notice group 93 (4c1cd1d0c4f8)
 
 Packages: `npm:d3-dsv@3.0.1`
 
@@ -6149,7 +6113,7 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 ````
 
-### Notice group 95 (4c4e6eed8b86)
+### Notice group 94 (4c4e6eed8b86)
 
 Packages: `Cargo:bit-set@0.8.0`, `Cargo:bit-vec@0.8.0`
 
@@ -6183,7 +6147,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 96 (4c54c0a6cedf)
+### Notice group 95 (4c54c0a6cedf)
 
 Packages: `npm:orderedmap@2.1.1`, `npm:w3c-keyname@2.2.8`
 
@@ -6211,7 +6175,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ````
 
-### Notice group 97 (4cc9c2af4eb0)
+### Notice group 96 (4cc9c2af4eb0)
 
 Packages: `npm:commander@7.2.0`, `npm:commander@8.3.0`
 
@@ -6242,7 +6206,7 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 98 (4d83b119f786)
+### Notice group 97 (4d83b119f786)
 
 Packages: `Cargo:num-conv@0.2.1`
 
@@ -6270,7 +6234,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 99 (4f2ac128e429)
+### Notice group 98 (4f2ac128e429)
 
 Packages: `Cargo:indexmap@1.9.3`, `Cargo:indexmap@2.13.0`
 
@@ -6304,7 +6268,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 100 (4f4f9997e3d9)
+### Notice group 99 (4f4f9997e3d9)
 
 Packages: `npm:d3-color@3.1.0`, `npm:d3-shape@3.2.0`, `npm:d3-time@3.1.0`
 
@@ -6326,7 +6290,7 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 ````
 
-### Notice group 101 (4f8e381e74d4)
+### Notice group 100 (4f8e381e74d4)
 
 Packages: `npm:d3-delaunay@6.0.4`
 
@@ -6349,7 +6313,7 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 ````
 
-### Notice group 102 (50366760ca85)
+### Notice group 101 (50366760ca85)
 
 Packages: `npm:d3-shape@1.3.7`
 
@@ -6385,7 +6349,7 @@ ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ````
 
-### Notice group 103 (5135f3f76071)
+### Notice group 102 (5135f3f76071)
 
 Packages: `npm:khroma@2.1.0`
 
@@ -6415,7 +6379,7 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 104 (51f778ffff2c)
+### Notice group 103 (51f778ffff2c)
 
 Packages: `Cargo:bytes@1.11.1`
 
@@ -6449,7 +6413,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 105 (5662394bebb1)
+### Notice group 104 (5662394bebb1)
 
 Packages: `Cargo:bumpalo@3.20.2`
 
@@ -6483,7 +6447,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 106 (586409690da3)
+### Notice group 105 (586409690da3)
 
 Packages: `npm:d3-array@2.12.1`
 
@@ -6519,7 +6483,7 @@ ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ````
 
-### Notice group 107 (58f959e2911c)
+### Notice group 106 (58f959e2911c)
 
 Packages: `npm:d3-path@3.1.0`
 
@@ -6541,7 +6505,7 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 ````
 
-### Notice group 108 (5a7d13c6710c)
+### Notice group 107 (5a7d13c6710c)
 
 Packages: `Cargo:crossbeam-channel@0.5.15`, `Cargo:crossbeam-utils@0.8.21`
 
@@ -6577,7 +6541,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 109 (5b0ae40d1a35)
+### Notice group 108 (5b0ae40d1a35)
 
 Packages: `Cargo:plist@1.8.0`
 
@@ -6605,7 +6569,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 110 (5c3866f31ed2)
+### Notice group 109 (5c3866f31ed2)
 
 Packages: `Cargo:reqwest@0.13.2`
 
@@ -6815,7 +6779,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ````
 
-### Notice group 111 (5df9b8726f15)
+### Notice group 110 (5df9b8726f15)
 
 Packages: `Cargo:urlencoding@2.1.3`
 
@@ -6844,7 +6808,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ````
 
-### Notice group 112 (5e05b024f653)
+### Notice group 111 (5e05b024f653)
 
 Packages: `Cargo:stable_deref_trait@1.2.1`
 
@@ -6878,7 +6842,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 113 (5f89ce4ac63b)
+### Notice group 112 (5f89ce4ac63b)
 
 Packages: `Cargo:jsonptr@0.6.3`
 
@@ -7088,7 +7052,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ````
 
-### Notice group 114 (5f9689aff91a)
+### Notice group 113 (5f9689aff91a)
 
 Packages: `Cargo:hyper@1.8.1`
 
@@ -7116,7 +7080,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ````
 
-### Notice group 115 (5ff5253f2cb9)
+### Notice group 114 (5ff5253f2cb9)
 
 Packages: `Cargo:block-buffer@0.10.4`
 
@@ -7150,7 +7114,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 116 (6019bf345195)
+### Notice group 115 (6019bf345195)
 
 Packages: `npm:d3-axis@3.0.0`, `npm:d3-brush@3.0.0`, `npm:d3-chord@3.0.1`, `npm:d3-dispatch@3.0.1`, `npm:d3-drag@3.0.0`, `npm:d3-force@3.0.0`, `npm:d3-hierarchy@3.1.2`, `npm:d3-interpolate@3.0.1`, `npm:d3-polygon@3.0.1`, `npm:d3-quadtree@3.0.1`, `npm:d3-random@3.0.1`, `npm:d3-scale@4.0.2`, `npm:d3-selection@3.0.0`, `npm:d3-time-format@4.1.0`, `npm:d3-timer@3.0.1`, `npm:d3-transition@3.0.1`, `npm:d3-zoom@3.0.0`
 
@@ -7172,7 +7136,7 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 ````
 
-### Notice group 117 (627eff66d6c4)
+### Notice group 116 (627eff66d6c4)
 
 Packages: `Cargo:simd-adler32@0.3.8`
 
@@ -7202,7 +7166,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 118 (6334e52844d6)
+### Notice group 117 (6334e52844d6)
 
 Packages: `Cargo:cpufeatures@0.2.17`
 
@@ -7236,7 +7200,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 119 (647374afb37c)
+### Notice group 118 (647374afb37c)
 
 Packages: `Cargo:jsonschema@0.33.0`, `Cargo:referencing@0.33.0`
 
@@ -7266,7 +7230,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 120 (65314a6c9668)
+### Notice group 119 (65314a6c9668)
 
 Packages: `Cargo:aho-corasick@1.1.4`, `Cargo:byteorder@1.5.0`, `Cargo:memchr@2.8.0`, `Cargo:same-file@1.0.6`, `Cargo:walkdir@2.5.0`, `Cargo:winapi-util@0.1.11`
 
@@ -7278,7 +7242,7 @@ This project is dual-licensed under the Unlicense and MIT licenses.
 You may use this code under the terms of either license.
 ````
 
-### Notice group 121 (65dc2a869ff7)
+### Notice group 120 (65dc2a869ff7)
 
 Packages: `Cargo:typenum@1.19.0`
 
@@ -7488,7 +7452,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ````
 
-### Notice group 122 (665f7d320f28)
+### Notice group 121 (665f7d320f28)
 
 Packages: `npm:@antfu/install-pkg@1.1.0`
 
@@ -7518,7 +7482,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 123 (67047503c71f)
+### Notice group 122 (67047503c71f)
 
 Packages: `Cargo:bs58@0.5.1`
 
@@ -7547,7 +7511,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 124 (6821b85df472)
+### Notice group 123 (6821b85df472)
 
 Packages: `npm:stylis@4.3.6`
 
@@ -7577,7 +7541,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 125 (692b1604961d)
+### Notice group 124 (692b1604961d)
 
 Packages: `Cargo:crypto-common@0.1.7`
 
@@ -7611,7 +7575,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 126 (695de7436b47)
+### Notice group 125 (695de7436b47)
 
 Packages: `Cargo:precomputed-hash@0.1.1`
 
@@ -7641,7 +7605,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 127 (699b4f57c568)
+### Notice group 126 (699b4f57c568)
 
 Packages: `npm:linkifyjs@4.3.3`
 
@@ -7669,7 +7633,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ````
 
-### Notice group 128 (69af84a0cb48)
+### Notice group 127 (69af84a0cb48)
 
 Packages: `npm:d3-ease@3.0.1`
 
@@ -7706,7 +7670,7 @@ ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ````
 
-### Notice group 129 (6a8da4c78c72)
+### Notice group 128 (6a8da4c78c72)
 
 Packages: `Cargo:base64@0.21.7`, `Cargo:base64@0.22.1`
 
@@ -7736,7 +7700,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ````
 
-### Notice group 130 (6a972b33787e)
+### Notice group 129 (6a972b33787e)
 
 Packages: `npm:csstype@3.2.3`
 
@@ -7764,7 +7728,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 131 (6c1117dc530c)
+### Notice group 130 (6c1117dc530c)
 
 Packages: `npm:@floating-ui/core@1.8.0`, `npm:@floating-ui/dom@1.8.0`, `npm:@floating-ui/utils@0.2.12`
 
@@ -7793,7 +7757,7 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 132 (6c1dcd86d8ae)
+### Notice group 131 (6c1dcd86d8ae)
 
 Packages: `Cargo:jni@0.21.1`
 
@@ -7823,7 +7787,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 133 (6c1e5d0ccf5e)
+### Notice group 132 (6c1e5d0ccf5e)
 
 Packages: `Cargo:tray-icon@0.24.1`
 
@@ -7851,7 +7815,7 @@ PackageDownloadLocation: git+ssh://github.com/tauri-apps/tray-icon.git
 Creator: Person: Daniel Thompson-Yvetot
 ````
 
-### Notice group 134 (6c91ec82929f)
+### Notice group 133 (6c91ec82929f)
 
 Packages: `Cargo:alloc-no-stdlib@2.0.4`, `Cargo:brotli-decompressor@5.0.0`
 
@@ -7872,7 +7836,7 @@ Redistribution and use in source and binary forms, with or without modification,
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ````
 
-### Notice group 135 (6d182023b788)
+### Notice group 134 (6d182023b788)
 
 Packages: `Cargo:cfg-expr@0.15.8`
 
@@ -7906,7 +7870,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 136 (6d489af62926)
+### Notice group 135 (6d489af62926)
 
 Packages: `Cargo:dunce@1.0.5`
 
@@ -8036,7 +8000,7 @@ express Statement of Purpose.
     this CC0 or use of the Work.
 ````
 
-### Notice group 137 (6dc0e068dcf3)
+### Notice group 136 (6dc0e068dcf3)
 
 Packages: `Cargo:bytecount@0.6.9`, `Cargo:crc32fast@1.5.0`, `Cargo:ctor-proc-macro@0.0.7`, `Cargo:ctor@0.8.0`, `Cargo:dpi@0.1.2`, `Cargo:dtor-proc-macro@0.0.6`, `Cargo:dtor@0.3.0`, `Cargo:foreign-types-macros@0.2.3`, `Cargo:foreign-types-shared@0.3.1`, `Cargo:foreign-types@0.5.0`, `Cargo:hex@0.4.3`, `Cargo:jni-sys@0.3.1`, `Cargo:jni-sys@0.4.1`, `Cargo:json-patch@3.0.1`, `Cargo:serde_spanned@0.6.9`, `Cargo:serde_spanned@1.1.0`, `Cargo:tao@0.35.3`, `Cargo:toml@0.8.2`, `Cargo:toml@0.9.12+spec-1.1.0`, `Cargo:toml@1.1.0+spec-1.1.0`, `Cargo:toml_datetime@0.7.5+spec-1.1.0`, `Cargo:toml_datetime@1.1.0+spec-1.1.0`, `Cargo:toml_edit@0.19.15`, `Cargo:toml_edit@0.20.2`, `Cargo:toml_edit@0.25.8+spec-1.1.0`, `Cargo:toml_parser@1.1.0+spec-1.1.0`, `Cargo:toml_writer@1.1.0+spec-1.1.0`, `Cargo:winapi@0.3.9`
 
@@ -8246,7 +8210,7 @@ Apache License
    limitations under the License.
 ````
 
-### Notice group 138 (6dfc8a41d27c)
+### Notice group 137 (6dfc8a41d27c)
 
 Packages: `npm:layout-base@1.0.2`, `npm:layout-base@2.0.1`
 
@@ -8276,7 +8240,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 139 (6e972f314e81)
+### Notice group 138 (6e972f314e81)
 
 Packages: `Cargo:powerfmt@0.2.0`
 
@@ -8304,7 +8268,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 140 (6ec9abcffcca)
+### Notice group 139 (6ec9abcffcca)
 
 Packages: `Cargo:nodrop@0.1.14`
 
@@ -8338,7 +8302,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 141 (6f5cc4b4fa98)
+### Notice group 140 (6f5cc4b4fa98)
 
 Packages: `Cargo:notify-types@2.1.0`
 
@@ -8548,7 +8512,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ````
 
-### Notice group 142 (739620ea44ad)
+### Notice group 141 (739620ea44ad)
 
 Packages: `Cargo:same-file@1.0.6`, `Cargo:winapi-util@0.1.11`
 
@@ -8578,7 +8542,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ````
 
-### Notice group 143 (73af2019a565)
+### Notice group 142 (73af2019a565)
 
 Packages: `Cargo:getrandom@0.3.4`
 
@@ -8613,7 +8577,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 144 (7427abc63036)
+### Notice group 143 (7427abc63036)
 
 Packages: `Cargo:miniz_oxide@0.8.9`
 
@@ -8647,7 +8611,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 145 (74f1c9127a52)
+### Notice group 144 (74f1c9127a52)
 
 Packages: `Cargo:dirs-sys@0.5.0`, `Cargo:dirs@6.0.0`
 
@@ -8830,7 +8794,7 @@ TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
    of your accepting any such warranty or additional liability.
 ````
 
-### Notice group 146 (7593ea50d2d4)
+### Notice group 145 (7593ea50d2d4)
 
 Packages: `Cargo:swift-rs@1.0.7`
 
@@ -8858,7 +8822,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 147 (76c38fe92a3d)
+### Notice group 146 (76c38fe92a3d)
 
 Packages: `npm:pkg-types@1.3.1`
 
@@ -8911,7 +8875,7 @@ OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
 USE OR OTHER DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 148 (777eb7417541)
+### Notice group 147 (777eb7417541)
 
 Packages: `Cargo:serialize-to-javascript-impl@0.1.2`, `Cargo:serialize-to-javascript@0.1.2`
 
@@ -8941,7 +8905,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 149 (77949ead506e)
+### Notice group 148 (77949ead506e)
 
 Packages: `Cargo:fdeflate@0.3.7`
 
@@ -8975,7 +8939,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 150 (7804ded9273b)
+### Notice group 149 (7804ded9273b)
 
 Packages: `Cargo:infer@0.19.0`
 
@@ -9005,7 +8969,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 151 (783829b43aac)
+### Notice group 150 (783829b43aac)
 
 Packages: `Cargo:windows-collections@0.2.0`, `Cargo:windows-core@0.56.0`, `Cargo:windows-core@0.61.2`, `Cargo:windows-future@0.2.1`, `Cargo:windows-implement@0.56.0`, `Cargo:windows-implement@0.60.2`, `Cargo:windows-interface@0.56.0`, `Cargo:windows-interface@0.59.3`, `Cargo:windows-link@0.1.3`, `Cargo:windows-link@0.2.1`, `Cargo:windows-numerics@0.2.0`, `Cargo:windows-result@0.1.2`, `Cargo:windows-result@0.3.4`, `Cargo:windows-strings@0.4.2`, `Cargo:windows-sys@0.45.0`, `Cargo:windows-sys@0.59.0`, `Cargo:windows-sys@0.60.2`, `Cargo:windows-sys@0.61.2`, `Cargo:windows-targets@0.42.2`, `Cargo:windows-targets@0.52.6`, `Cargo:windows-targets@0.53.5`, `Cargo:windows-threading@0.1.0`, `Cargo:windows-version@0.1.7`, `Cargo:windows@0.56.0`, `Cargo:windows@0.61.3`, `Cargo:windows_aarch64_gnullvm@0.42.2`, `Cargo:windows_aarch64_gnullvm@0.52.6`, `Cargo:windows_aarch64_gnullvm@0.53.1`, `Cargo:windows_aarch64_msvc@0.42.2`, `Cargo:windows_aarch64_msvc@0.52.6`, `Cargo:windows_aarch64_msvc@0.53.1`, `Cargo:windows_i686_gnu@0.42.2`, `Cargo:windows_i686_gnu@0.52.6`, `Cargo:windows_i686_gnu@0.53.1`, `Cargo:windows_i686_gnullvm@0.52.6`, `Cargo:windows_i686_gnullvm@0.53.1`, `Cargo:windows_i686_msvc@0.42.2`, `Cargo:windows_i686_msvc@0.52.6`, `Cargo:windows_i686_msvc@0.53.1`, `Cargo:windows_x86_64_gnu@0.42.2`, `Cargo:windows_x86_64_gnu@0.52.6`, `Cargo:windows_x86_64_gnu@0.53.1`, `Cargo:windows_x86_64_gnullvm@0.42.2`, `Cargo:windows_x86_64_gnullvm@0.52.6`, `Cargo:windows_x86_64_gnullvm@0.53.1`, `Cargo:windows_x86_64_msvc@0.42.2`, `Cargo:windows_x86_64_msvc@0.52.6`, `Cargo:windows_x86_64_msvc@0.53.1`
 
@@ -9215,7 +9179,7 @@ Apache License
    limitations under the License.
 ````
 
-### Notice group 152 (793420c92f3c)
+### Notice group 151 (793420c92f3c)
 
 Packages: `Cargo:iana-time-zone-haiku@0.1.2`, `Cargo:iana-time-zone@0.1.65`
 
@@ -9425,7 +9389,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ````
 
-### Notice group 153 (79d0fc447160)
+### Notice group 152 (79d0fc447160)
 
 Packages: `npm:robust-predicates@3.0.3`
 
@@ -9458,7 +9422,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 For more information, please refer to <http://unlicense.org>
 ````
 
-### Notice group 154 (7a8093fb4a93)
+### Notice group 153 (7a8093fb4a93)
 
 Packages: `Cargo:idna@1.1.0`, `Cargo:percent-encoding@2.3.2`, `Cargo:url@2.5.8`
 
@@ -9492,7 +9456,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 155 (7b3da1c1283f)
+### Notice group 154 (7b3da1c1283f)
 
 Packages: `Cargo:siphasher@0.3.11`
 
@@ -9508,7 +9472,7 @@ http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 option.
 ````
 
-### Notice group 156 (7bdac5ba137b)
+### Notice group 155 (7bdac5ba137b)
 
 Packages: `npm:@upsetjs/venn.js@2.0.0`
 
@@ -9539,7 +9503,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 157 (7bdd5c5e8ad0)
+### Notice group 156 (7bdd5c5e8ad0)
 
 Packages: `Cargo:slug@0.1.6`
 
@@ -9573,7 +9537,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 158 (7dbbefcddfaa)
+### Notice group 157 (7dbbefcddfaa)
 
 Packages: `Cargo:libredox@0.1.15`
 
@@ -9603,7 +9567,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 159 (7dc2f6402447)
+### Notice group 158 (7dc2f6402447)
 
 Packages: `Cargo:encoding_rs@0.8.35`, `Cargo:utf8_iter@1.0.4`
 
@@ -9637,37 +9601,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 160 (7e02e9c37c88)
-
-Packages: `npm:js-tokens@4.0.0`
-
-Source filenames: `LICENSE`
-
-````text
-The MIT License (MIT)
-
-Copyright (c) 2014, 2015, 2016, 2017, 2018 Simon Lydell
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-THE SOFTWARE.
-````
-
-### Notice group 161 (7e079b7f6983)
+### Notice group 159 (7e079b7f6983)
 
 Packages: `Cargo:rand_hc@0.2.0`
 
@@ -9701,7 +9635,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 162 (7e1b38c60796)
+### Notice group 160 (7e1b38c60796)
 
 Packages: `Cargo:bit-set@0.8.0`, `Cargo:bit-vec@0.8.0`, `Cargo:cfg-expr@0.15.8`
 
@@ -9911,7 +9845,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ````
 
-### Notice group 163 (7eae6ec4d1b4)
+### Notice group 161 (7eae6ec4d1b4)
 
 Packages: `Cargo:http-range@0.1.5`
 
@@ -9941,7 +9875,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 164 (7f194ae45c25)
+### Notice group 162 (7f194ae45c25)
 
 Packages: `Cargo:smallvec@1.15.1`
 
@@ -9975,7 +9909,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 165 (7f91c2a4eddb)
+### Notice group 163 (7f91c2a4eddb)
 
 Packages: `Cargo:errno@0.3.14`
 
@@ -10009,7 +9943,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 166 (7fdbca77dec6)
+### Notice group 164 (7fdbca77dec6)
 
 Packages: `Cargo:time-core@0.1.8`, `Cargo:time-macros@0.2.27`, `Cargo:time@0.3.47`
 
@@ -10037,7 +9971,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 167 (80cdd90699e4)
+### Notice group 165 (80cdd90699e4)
 
 Packages: `Cargo:png@0.17.16`, `Cargo:png@0.18.1`
 
@@ -10071,7 +10005,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 168 (815ee3575dd3)
+### Notice group 166 (815ee3575dd3)
 
 Packages: `Cargo:proc-macro-hack@0.5.20+deprecated`
 
@@ -10105,7 +10039,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 169 (818df39e5cd5)
+### Notice group 167 (818df39e5cd5)
 
 Packages: `Cargo:matches@0.1.10`
 
@@ -10139,7 +10073,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 170 (81976b4834c3)
+### Notice group 168 (81976b4834c3)
 
 Packages: `Cargo:raw-window-handle@0.6.2`
 
@@ -10159,7 +10093,7 @@ Permission is granted to anyone to use this software for any purpose, including 
 3. This notice may not be removed or altered from any source distribution.
 ````
 
-### Notice group 171 (8348c9fe2fb7)
+### Notice group 169 (8348c9fe2fb7)
 
 Packages: `Cargo:pin-utils@0.1.0`
 
@@ -10369,7 +10303,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ````
 
-### Notice group 172 (84e1bbfebd74)
+### Notice group 170 (84e1bbfebd74)
 
 Packages: `Cargo:cc@1.2.57`, `Cargo:cfg-if@1.0.4`, `Cargo:find-msvc-tools@0.1.9`, `Cargo:id-arena@2.3.0`, `Cargo:js-sys@0.3.91`, `Cargo:pkg-config@0.3.32`, `Cargo:socket2@0.6.3`, `Cargo:toml_datetime@0.6.3`, `Cargo:wasm-bindgen-futures@0.4.64`, `Cargo:wasm-bindgen-macro-support@0.2.114`, `Cargo:wasm-bindgen-macro@0.2.114`, `Cargo:wasm-bindgen-shared@0.2.114`, `Cargo:wasm-bindgen@0.2.114`, `Cargo:web-sys@0.3.91`
 
@@ -10403,7 +10337,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 173 (8502803cebb3)
+### Notice group 171 (8502803cebb3)
 
 Packages: `Cargo:httparse@1.10.1`
 
@@ -10431,7 +10365,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ````
 
-### Notice group 174 (859a90323b68)
+### Notice group 172 (859a90323b68)
 
 Packages: `Cargo:muda@0.19.3`, `Cargo:tray-icon@0.24.1`
 
@@ -10461,7 +10395,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 175 (85ad950cce87)
+### Notice group 173 (85ad950cce87)
 
 Packages: `Cargo:anyhow@1.0.102`, `Cargo:dtoa@1.0.11`, `Cargo:dyn-clone@1.0.20`, `Cargo:erased-serde@0.4.10`, `Cargo:itoa@1.0.18`, `Cargo:libc@0.2.183`, `Cargo:num_enum@0.7.6`, `Cargo:num_enum_derive@0.7.6`, `Cargo:prettyplease@0.2.37`, `Cargo:proc-macro2@1.0.106`, `Cargo:quote@1.0.45`, `Cargo:ref-cast-impl@1.0.25`, `Cargo:ref-cast@1.0.25`, `Cargo:rustc-hash@2.1.1`, `Cargo:rustversion@1.0.22`, `Cargo:semver@1.0.27`, `Cargo:serde-untagged@0.1.9`, `Cargo:serde@1.0.229`, `Cargo:serde_core@1.0.229`, `Cargo:serde_derive@1.0.229`, `Cargo:serde_derive_internals@0.29.1`, `Cargo:serde_json@1.0.151`, `Cargo:serde_repr@0.1.20`, `Cargo:syn@2.0.117`, `Cargo:syn@3.0.2`, `Cargo:thiserror-impl@1.0.69`, `Cargo:thiserror-impl@2.0.18`, `Cargo:thiserror@1.0.69`, `Cargo:thiserror@2.0.18`, `Cargo:typeid@1.0.3`, `Cargo:unicode-ident@1.0.24`, `Cargo:utf-8@0.7.6`, `Cargo:wasm-streams@0.5.0`
 
@@ -10646,7 +10580,7 @@ TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
 END OF TERMS AND CONDITIONS
 ````
 
-### Notice group 176 (86cf9656479f)
+### Notice group 174 (86cf9656479f)
 
 Packages: `Cargo:option-ext@0.2.0`
 
@@ -11028,7 +10962,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
   defined by the Mozilla Public License, v. 2.0.
 ````
 
-### Notice group 177 (86eb6a41ef64)
+### Notice group 175 (86eb6a41ef64)
 
 Packages: `Cargo:wry@0.55.1`
 
@@ -11058,7 +10992,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 178 (8793aa4141de)
+### Notice group 176 (8793aa4141de)
 
 Packages: `Cargo:winnow@0.5.40`, `Cargo:winnow@0.7.15`, `Cargo:winnow@1.0.0`
 
@@ -11085,7 +11019,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 179 (87ebb37988ef)
+### Notice group 177 (87ebb37988ef)
 
 Packages: `Cargo:typenum@1.19.0`
 
@@ -11115,7 +11049,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 180 (881c9fe2d29b)
+### Notice group 178 (881c9fe2d29b)
 
 Packages: `Cargo:http@1.4.0`
 
@@ -11325,7 +11259,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ````
 
-### Notice group 181 (882b129495bc)
+### Notice group 179 (882b129495bc)
 
 Packages: `Cargo:num_enum@0.7.6`, `Cargo:num_enum_derive@0.7.6`
 
@@ -11361,7 +11295,7 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ````
 
-### Notice group 182 (89ff9689dcf9)
+### Notice group 180 (89ff9689dcf9)
 
 Packages: `Cargo:tauri-build@2.6.3`, `Cargo:tauri-codegen@2.6.3`, `Cargo:tauri-macros@2.6.3`, `Cargo:tauri-plugin-dialog@2.7.2`, `Cargo:tauri-plugin-fs@2.5.1`, `Cargo:tauri-plugin-process@2.3.1`, `Cargo:tauri-plugin-shell@2.3.5`, `Cargo:tauri-runtime-wry@2.11.4`, `Cargo:tauri-runtime@2.11.3`, `Cargo:tauri-utils@2.9.3`, `Cargo:tauri@2.11.5`, `npm:@tauri-apps/api@2.11.1`
 
@@ -11391,7 +11325,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 183 (8a08757a7c38)
+### Notice group 181 (8a08757a7c38)
 
 Packages: `Cargo:javascriptcore-rs@1.1.2`
 
@@ -11422,7 +11356,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 184 (8d1f81ea4e87)
+### Notice group 182 (8d1f81ea4e87)
 
 Packages: `Cargo:lock_api@0.4.14`, `Cargo:parking_lot@0.12.5`, `Cargo:parking_lot_core@0.9.12`, `Cargo:rustc_version@0.4.1`
 
@@ -11456,7 +11390,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 185 (8d2ca3a111ce)
+### Notice group 183 (8d2ca3a111ce)
 
 Packages: `Cargo:dbus@0.9.12`, `Cargo:libdbus-sys@0.2.7`
 
@@ -11666,7 +11600,7 @@ Apache License
    limitations under the License.
 ````
 
-### Notice group 186 (8f8eade124ab)
+### Notice group 184 (8f8eade124ab)
 
 Packages: `Cargo:dom_query@0.27.0`
 
@@ -11702,7 +11636,7 @@ derived from the "nipper" project (https://github.com/importcjj/nipper),
 developed by Chen Jiaju, licensed under the MIT License and the Apache License 2.0 (dual licensed).
 ````
 
-### Notice group 187 (8fd8980cab89)
+### Notice group 185 (8fd8980cab89)
 
 Packages: `Cargo:strsim@0.11.1`
 
@@ -11734,7 +11668,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 188 (90ee3cca58da)
+### Notice group 186 (90ee3cca58da)
 
 Packages: `npm:cose-base@1.0.3`, `npm:cose-base@2.2.0`
 
@@ -11764,7 +11698,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 189 (937e8ea6d28e)
+### Notice group 187 (937e8ea6d28e)
 
 Packages: `npm:require-from-string@2.0.2`
 
@@ -11794,7 +11728,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ````
 
-### Notice group 190 (940ef9fe4ef9)
+### Notice group 188 (940ef9fe4ef9)
 
 Packages: `npm:prosemirror-changeset@2.4.1`
 
@@ -11822,7 +11756,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ````
 
-### Notice group 191 (94228ab8fc0b)
+### Notice group 189 (94228ab8fc0b)
 
 Packages: `npm:mermaid@11.16.0`
 
@@ -11852,7 +11786,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 192 (943f36fd309f)
+### Notice group 190 (943f36fd309f)
 
 Packages: `Cargo:bytemuck@1.25.0`, `Cargo:tinyvec@1.12.0`
 
@@ -11872,7 +11806,7 @@ Permission is granted to anyone to use this software for any purpose, including 
 3. This notice may not be removed or altered from any source distribution.
 ````
 
-### Notice group 193 (94b1870d380c)
+### Notice group 191 (94b1870d380c)
 
 Packages: `Cargo:getrandom@0.4.2`
 
@@ -11907,7 +11841,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 194 (954f335b8baf)
+### Notice group 192 (954f335b8baf)
 
 Packages: `Cargo:ahash@0.8.12`, `Cargo:atomic-waker@1.1.2`, `Cargo:autocfg@1.5.0`, `Cargo:base64@0.21.7`, `Cargo:base64@0.22.1`, `Cargo:bitflags@1.3.2`, `Cargo:bitflags@2.11.0`, `Cargo:bs58@0.5.1`, `Cargo:bumpalo@3.20.2`, `Cargo:camino@1.2.2`, `Cargo:cc@1.2.57`, `Cargo:cfg-if@1.0.4`, `Cargo:core-foundation-sys@0.8.7`, `Cargo:core-foundation@0.10.1`, `Cargo:core-graphics-types@0.2.0`, `Cargo:core-graphics@0.25.0`, `Cargo:crossbeam-channel@0.5.15`, `Cargo:crossbeam-utils@0.8.21`, `Cargo:displaydoc@0.2.5`, `Cargo:equivalent@1.0.2`, `Cargo:errno@0.3.14`, `Cargo:fastrand@2.3.0`, `Cargo:find-msvc-tools@0.1.9`, `Cargo:flate2@1.1.9`, `Cargo:fnv@1.0.7`, `Cargo:form_urlencoded@1.2.2`, `Cargo:fraction@0.15.4`, `Cargo:futf@0.1.5`, `Cargo:glob@0.3.3`, `Cargo:hashbrown@0.12.3`, `Cargo:hashbrown@0.15.5`, `Cargo:hashbrown@0.16.1`, `Cargo:heck@0.4.1`, `Cargo:heck@0.5.0`, `Cargo:html5ever@0.29.1`, `Cargo:html5ever@0.38.0`, `Cargo:httparse@1.10.1`, `Cargo:id-arena@2.3.0`, `Cargo:idna@1.1.0`, `Cargo:idna_adapter@1.2.1`, `Cargo:indexmap@1.9.3`, `Cargo:indexmap@2.13.0`, `Cargo:jni@0.21.1`, `Cargo:js-sys@0.3.91`, `Cargo:keyboard-types@0.7.0`, `Cargo:lazy_static@1.5.0`, `Cargo:leb128fmt@0.1.0`, `Cargo:libappindicator@0.9.0`, `Cargo:lock_api@0.4.14`, `Cargo:log@0.4.29`, `Cargo:markup5ever@0.14.1`, `Cargo:markup5ever@0.38.0`, `Cargo:mime@0.3.17`, `Cargo:muda@0.19.3`, `Cargo:nodrop@0.1.14`, `Cargo:num-bigint@0.4.8`, `Cargo:num-complex@0.4.6`, `Cargo:num-integer@0.1.46`, `Cargo:num-iter@0.1.46`, `Cargo:num-rational@0.4.2`, `Cargo:num-traits@0.2.19`, `Cargo:num@0.4.3`, `Cargo:once_cell@1.21.4`, `Cargo:parking_lot@0.12.5`, `Cargo:parking_lot_core@0.9.12`, `Cargo:percent-encoding@2.3.2`, `Cargo:pkg-config@0.3.32`, `Cargo:png@0.17.16`, `Cargo:png@0.18.1`, `Cargo:proc-macro-hack@0.5.20+deprecated`, `Cargo:regex-automata@0.4.14`, `Cargo:regex-syntax@0.8.10`, `Cargo:regex@1.12.3`, `Cargo:rustc_version@0.4.1`, `Cargo:scopeguard@1.2.0`, `Cargo:serde_with@3.21.0`, `Cargo:serde_with_macros@3.21.0`, `Cargo:servo_arc@0.2.0`, `Cargo:servo_arc@0.4.3`, `Cargo:signal-hook-registry@1.4.8`, `Cargo:signal-hook@0.3.18`, `Cargo:slug@0.1.6`, `Cargo:smallvec@1.15.1`, `Cargo:socket2@0.6.3`, `Cargo:stable_deref_trait@1.2.1`, `Cargo:string_cache@0.8.9`, `Cargo:string_cache@0.9.0`, `Cargo:string_cache_codegen@0.5.4`, `Cargo:string_cache_codegen@0.6.1`, `Cargo:syn@1.0.109`, `Cargo:system-deps@6.2.2`, `Cargo:tendril@0.4.3`, `Cargo:tendril@0.5.0`, `Cargo:toml_datetime@0.6.3`, `Cargo:tray-icon@0.24.1`, `Cargo:unicode-segmentation@1.13.2`, `Cargo:unicode-xid@0.2.6`, `Cargo:url@2.5.8`, `Cargo:uuid@1.22.0`, `Cargo:version_check@0.9.5`, `Cargo:wasi@0.11.1+wasi-snapshot-preview1`, `Cargo:wasi@0.9.0+wasi-snapshot-preview1`, `Cargo:wasm-bindgen-futures@0.4.64`, `Cargo:wasm-bindgen-macro-support@0.2.114`, `Cargo:wasm-bindgen-macro@0.2.114`, `Cargo:wasm-bindgen-shared@0.2.114`, `Cargo:wasm-bindgen@0.2.114`, `Cargo:web-sys@0.3.91`, `Cargo:web_atoms@0.2.3`, `Cargo:window-vibrancy@0.6.0`, `Cargo:wit-bindgen-core@0.51.0`, `Cargo:wit-bindgen-rust-macro@0.51.0`, `Cargo:wit-bindgen-rust@0.51.0`, `Cargo:wit-bindgen@0.51.0`, `Cargo:wry@0.55.1`
 
@@ -12117,7 +12051,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ````
 
-### Notice group 195 (95573f040b56)
+### Notice group 193 (95573f040b56)
 
 Packages: `Cargo:ico@0.5.0`
 
@@ -12147,7 +12081,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 196 (9599127e421e)
+### Notice group 194 (9599127e421e)
 
 Packages: `Cargo:crc32fast@1.5.0`
 
@@ -12177,7 +12111,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 197 (962bf55435d8)
+### Notice group 195 (962bf55435d8)
 
 Packages: `npm:rope-sequence@1.3.4`
 
@@ -12205,7 +12139,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ````
 
-### Notice group 198 (983a293c55cd)
+### Notice group 196 (983a293c55cd)
 
 Packages: `Cargo:fsevent-sys@4.1.0`
 
@@ -12235,7 +12169,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 199 (98ed0ad9db8a)
+### Notice group 197 (98ed0ad9db8a)
 
 Packages: `Cargo:zerocopy-derive@0.8.47`, `Cargo:zerocopy@0.8.47`
 
@@ -12445,7 +12379,7 @@ Apache License
    limitations under the License.
 ````
 
-### Notice group 200 (997aa5213699)
+### Notice group 198 (997aa5213699)
 
 Packages: `Cargo:email_address@0.2.9`
 
@@ -12475,7 +12409,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 201 (99afaa30c178)
+### Notice group 199 (99afaa30c178)
 
 Packages: `Cargo:autocfg@1.5.0`
 
@@ -12509,7 +12443,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 202 (9c5127ab88e8)
+### Notice group 200 (9c5127ab88e8)
 
 Packages: `Cargo:digest@0.10.7`
 
@@ -12543,7 +12477,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 203 (9d00baf34d17)
+### Notice group 201 (9d00baf34d17)
 
 Packages: `npm:d3-fetch@3.0.1`
 
@@ -12565,7 +12499,7 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 ````
 
-### Notice group 204 (9d8e882729a5)
+### Notice group 202 (9d8e882729a5)
 
 Packages: `Cargo:ipnet@2.12.0`
 
@@ -12775,7 +12709,7 @@ Apache License
    limitations under the License.
 ````
 
-### Notice group 205 (9dde4a6ad496)
+### Notice group 203 (9dde4a6ad496)
 
 Packages: `Cargo:hex@0.4.3`
 
@@ -12804,7 +12738,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 206 (9e0027807b0c)
+### Notice group 204 (9e0027807b0c)
 
 Packages: `Cargo:lazy_static@1.5.0`
 
@@ -12838,7 +12772,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 207 (9f5ea8f5a268)
+### Notice group 205 (9f5ea8f5a268)
 
 Packages: `npm:cytoscape-fcose@2.2.0`
 
@@ -12866,7 +12800,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 208 (9fa38f610a00)
+### Notice group 206 (9fa38f610a00)
 
 Packages: `Cargo:fluent-uri@0.3.2`
 
@@ -12896,7 +12830,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 209 (9fe3e95ca3e8)
+### Notice group 207 (9fe3e95ca3e8)
 
 Packages: `npm:d3-format@3.1.2`
 
@@ -12918,7 +12852,7 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 ````
 
-### Notice group 210 (a00511478c83)
+### Notice group 208 (a00511478c83)
 
 Packages: `Cargo:outref@0.5.2`
 
@@ -12948,7 +12882,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 211 (a03d4daa4f46)
+### Notice group 209 (a03d4daa4f46)
 
 Packages: `Cargo:zerocopy-derive@0.8.47`, `Cargo:zerocopy@0.8.47`
 
@@ -12982,7 +12916,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 212 (a21c914647d3)
+### Notice group 210 (a21c914647d3)
 
 Packages: `Cargo:adler2@2.0.1`
 
@@ -13003,7 +12937,7 @@ AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT
 OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 ````
 
-### Notice group 213 (a29c4d8a8e7c)
+### Notice group 211 (a29c4d8a8e7c)
 
 Packages: `Cargo:embed_plist@1.2.2`
 
@@ -13033,7 +12967,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 214 (a2c382fbddcc)
+### Notice group 212 (a2c382fbddcc)
 
 Packages: `Cargo:tauri-winres@0.3.5`
 
@@ -13070,7 +13004,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 215 (a302dc760d97)
+### Notice group 213 (a302dc760d97)
 
 Packages: `Cargo:mime@0.3.17`
 
@@ -13098,7 +13032,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ````
 
-### Notice group 216 (a734fd0e3f64)
+### Notice group 214 (a734fd0e3f64)
 
 Packages: `npm:path-data-parser@0.1.0`, `npm:points-on-curve@0.2.0`
 
@@ -13128,7 +13062,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 217 (a759ce38c686)
+### Notice group 215 (a759ce38c686)
 
 Packages: `Cargo:shlex@1.3.0`
 
@@ -13150,37 +13084,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ````
 
-### Notice group 218 (a80c79b8f80e)
-
-Packages: `npm:react-dom@18.3.1`, `npm:react@18.3.1`, `npm:scheduler@0.23.2`
-
-Source filenames: `LICENSE`
-
-````text
-MIT License
-
-Copyright (c) Facebook, Inc. and its affiliates.
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-````
-
-### Notice group 219 (a86793ac0231)
+### Notice group 216 (a86793ac0231)
 
 Packages: `npm:@iconify/utils@3.1.0`
 
@@ -13210,7 +13114,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 220 (a8d7d8157c71)
+### Notice group 217 (a8d7d8157c71)
 
 Packages: `Cargo:combine@4.6.7`
 
@@ -13240,7 +13144,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ````
 
-### Notice group 221 (aa407ee69b3f)
+### Notice group 218 (aa407ee69b3f)
 
 Packages: `npm:fast-deep-equal@3.1.3`, `npm:json-schema-traverse@1.0.0`
 
@@ -13270,7 +13174,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 222 (aa69fda6dd94)
+### Notice group 219 (aa69fda6dd94)
 
 Packages: `Cargo:raw-window-handle@0.6.2`
 
@@ -13300,7 +13204,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 223 (aa72fb6117e4)
+### Notice group 220 (aa72fb6117e4)
 
 Packages: `npm:safer-buffer@2.1.2`
 
@@ -13330,7 +13234,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 224 (aaac889d0a4a)
+### Notice group 221 (aaac889d0a4a)
 
 Packages: `Cargo:signal-hook-registry@1.4.8`, `Cargo:signal-hook@0.3.18`
 
@@ -13364,7 +13268,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 225 (ac1f2978a646)
+### Notice group 222 (ac1f2978a646)
 
 Packages: `npm:package-manager-detector@1.6.0`
 
@@ -13394,7 +13298,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 226 (ac9859ce4e9a)
+### Notice group 223 (ac9859ce4e9a)
 
 Packages: `Cargo:miniz_oxide@0.8.9`
 
@@ -13427,7 +13331,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 227 (ad4fcfaf8d5b)
+### Notice group 224 (ad4fcfaf8d5b)
 
 Packages: `Cargo:generic-array@0.14.7`
 
@@ -13457,7 +13361,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 228 (ae61683b7dd6)
+### Notice group 225 (ae61683b7dd6)
 
 Packages: `Cargo:http-body@1.0.1`
 
@@ -13491,7 +13395,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 229 (ae9791f02f2b)
+### Notice group 226 (ae9791f02f2b)
 
 Packages: `Cargo:hashbrown@0.12.3`, `Cargo:hashbrown@0.15.5`, `Cargo:hashbrown@0.16.1`
 
@@ -13525,7 +13429,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 230 (af6e2a74133b)
+### Notice group 227 (af6e2a74133b)
 
 Packages: `Cargo:android_system_properties@0.1.5`
 
@@ -13554,7 +13458,7 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 231 (b010b0dfdfdb)
+### Notice group 228 (b010b0dfdfdb)
 
 Packages: `npm:fast-uri@3.1.4`
 
@@ -13593,7 +13497,7 @@ The complete list of contributors can be found at:
 - https://github.com/garycourt/uri-js/graphs/contributors
 ````
 
-### Notice group 232 (b1181a40b2a7)
+### Notice group 229 (b1181a40b2a7)
 
 Packages: `Cargo:foldhash@0.1.5`, `Cargo:foldhash@0.2.0`
 
@@ -13621,7 +13525,7 @@ the following restrictions:
 3. This notice may not be removed or altered from any source distribution.
 ````
 
-### Notice group 233 (b1d6d97b0476)
+### Notice group 230 (b1d6d97b0476)
 
 Packages: `Cargo:encoding_rs@0.8.35`
 
@@ -13656,7 +13560,7 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ````
 
-### Notice group 234 (b2a541f10560)
+### Notice group 231 (b2a541f10560)
 
 Packages: `Cargo:ppv-lite86@0.2.21`
 
@@ -13690,7 +13594,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 235 (b420d8add23b)
+### Notice group 232 (b420d8add23b)
 
 Packages: `Cargo:futures-channel@0.3.32`, `Cargo:futures-core@0.3.32`, `Cargo:futures-executor@0.3.32`, `Cargo:futures-io@0.3.32`, `Cargo:futures-macro@0.3.32`, `Cargo:futures-sink@0.3.32`, `Cargo:futures-task@0.3.32`, `Cargo:futures-util@0.3.32`
 
@@ -13725,7 +13629,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 236 (b46700117441)
+### Notice group 233 (b46700117441)
 
 Packages: `Cargo:window-vibrancy@0.6.0`
 
@@ -13755,7 +13659,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 237 (b4839ecf405b)
+### Notice group 234 (b4839ecf405b)
 
 Packages: `Cargo:deranged@0.5.8`
 
@@ -13965,7 +13869,7 @@ Apache License
    limitations under the License.
 ````
 
-### Notice group 238 (b801c8d677ef)
+### Notice group 235 (b801c8d677ef)
 
 Packages: `Cargo:os_pipe@1.2.3`, `Cargo:shared_child@1.1.1`
 
@@ -13993,7 +13897,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ````
 
-### Notice group 239 (b9720ca7a91f)
+### Notice group 236 (b9720ca7a91f)
 
 Packages: `Cargo:vswhom-sys@0.1.3`, `Cargo:vswhom@0.1.0`
 
@@ -14023,7 +13927,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 240 (b99f9d43803f)
+### Notice group 237 (b99f9d43803f)
 
 Packages: `Cargo:muda@0.19.3`
 
@@ -14051,7 +13955,7 @@ PackageDownloadLocation: git+ssh://github.com/tauri-apps/muda.git
 Creator: Person: Daniel Thompson-Yvetot
 ````
 
-### Notice group 241 (bb62e07404e8)
+### Notice group 238 (bb62e07404e8)
 
 Packages: `npm:roughjs@4.6.6`
 
@@ -14081,7 +13985,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 242 (bb8278137f73)
+### Notice group 239 (bb8278137f73)
 
 Packages: `Cargo:window-vibrancy@0.6.0`
 
@@ -14109,7 +14013,7 @@ PackageDownloadLocation: git+ssh://github.com/tauri-apps/window-vibrancy.git
 Creator: Person: Daniel Thompson-Yvetot
 ````
 
-### Notice group 243 (bbf1ea3140c4)
+### Notice group 240 (bbf1ea3140c4)
 
 Packages: `Cargo:libloading@0.7.4`
 
@@ -14130,7 +14034,7 @@ NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE US
 THIS SOFTWARE.
 ````
 
-### Notice group 244 (bccaa8b6c09f)
+### Notice group 241 (bccaa8b6c09f)
 
 Packages: `Cargo:ctor-proc-macro@0.0.7`, `Cargo:ctor@0.8.0`, `Cargo:dtor-proc-macro@0.0.6`, `Cargo:dtor@0.3.0`, `Cargo:tinyvec@1.12.0`
 
@@ -14144,7 +14048,7 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 245 (bde59a7e336f)
+### Notice group 242 (bde59a7e336f)
 
 Packages: `Cargo:reqwest@0.13.2`
 
@@ -14172,7 +14076,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ````
 
-### Notice group 246 (c0e4b0b30217)
+### Notice group 243 (c0e4b0b30217)
 
 Packages: `npm:fast-equals@5.4.0`
 
@@ -14202,7 +14106,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 247 (c1e08ee9a728)
+### Notice group 244 (c1e08ee9a728)
 
 Packages: `Cargo:tracing-core@0.1.36`, `Cargo:tracing@0.1.44`
 
@@ -14236,7 +14140,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 248 (c3ca23514163)
+### Notice group 245 (c3ca23514163)
 
 Packages: `Cargo:open@5.4.0`
 
@@ -14270,7 +14174,7 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 OTHER DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 249 (c3df7fccc8e5)
+### Notice group 246 (c3df7fccc8e5)
 
 Packages: `Cargo:rand_pcg@0.2.1`
 
@@ -14305,7 +14209,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 250 (c48b7333c00b)
+### Notice group 247 (c48b7333c00b)
 
 Packages: `Cargo:fnv@1.0.7`
 
@@ -14339,7 +14243,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 251 (c4be15bd543a)
+### Notice group 248 (c4be15bd543a)
 
 Packages: `Cargo:embed-resource@3.0.8`
 
@@ -14369,7 +14273,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 252 (c7495b7b3a52)
+### Notice group 249 (c7495b7b3a52)
 
 Packages: `Cargo:proc-macro-error-attr@1.0.4`, `Cargo:proc-macro-error@1.0.4`
 
@@ -14399,7 +14303,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 253 (c804065b0956)
+### Notice group 250 (c804065b0956)
 
 Packages: `Cargo:mio@1.1.1`
 
@@ -14427,7 +14331,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ````
 
-### Notice group 254 (c859d211879e)
+### Notice group 251 (c859d211879e)
 
 Packages: `Cargo:cookie@0.18.1`
 
@@ -14638,7 +14542,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ````
 
-### Notice group 255 (c8ea45f591c2)
+### Notice group 252 (c8ea45f591c2)
 
 Packages: `npm:d3-contour@4.0.2`
 
@@ -14660,7 +14564,7 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 ````
 
-### Notice group 256 (c9067b1cc20b)
+### Notice group 253 (c9067b1cc20b)
 
 Packages: `Cargo:foreign-types-macros@0.2.3`, `Cargo:foreign-types-shared@0.3.1`, `Cargo:foreign-types@0.5.0`
 
@@ -14688,7 +14592,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 257 (c935506fff2e)
+### Notice group 254 (c935506fff2e)
 
 Packages: `Cargo:ipnet@2.12.0`
 
@@ -14704,7 +14608,7 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 258 (c96302294382)
+### Notice group 255 (c96302294382)
 
 Packages: `Cargo:libc@0.2.183`
 
@@ -14738,7 +14642,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 259 (ca3fa8a8a3d5)
+### Notice group 256 (ca3fa8a8a3d5)
 
 Packages: `Cargo:deunicode@1.6.2`
 
@@ -14773,7 +14677,7 @@ ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ````
 
-### Notice group 260 (cc367a7134c2)
+### Notice group 257 (cc367a7134c2)
 
 Packages: `Cargo:getrandom@0.1.16`, `Cargo:rand@0.7.3`, `Cargo:rand@0.8.6`, `Cargo:rand_chacha@0.2.2`, `Cargo:rand_chacha@0.3.1`, `Cargo:rand_core@0.5.1`, `Cargo:rand_core@0.6.4`
 
@@ -14808,7 +14712,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 261 (cc5ba5589dfb)
+### Notice group 258 (cc5ba5589dfb)
 
 Packages: `Cargo:shlex@1.3.0`
 
@@ -14838,7 +14742,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ````
 
-### Notice group 262 (cc8f3c8ab396)
+### Notice group 259 (cc8f3c8ab396)
 
 Packages: `Cargo:darling@0.23.0`, `Cargo:darling_core@0.23.0`, `Cargo:darling_macro@0.23.0`
 
@@ -14868,7 +14772,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 263 (cde87abe221f)
+### Notice group 260 (cde87abe221f)
 
 Packages: `Cargo:icu_collections@2.1.1`, `Cargo:icu_locale_core@2.1.1`, `Cargo:icu_normalizer@2.1.1`, `Cargo:icu_normalizer_data@2.1.1`, `Cargo:icu_properties@2.1.2`, `Cargo:icu_properties_data@2.1.2`, `Cargo:icu_provider@2.1.1`, `Cargo:litemap@0.8.1`, `Cargo:potential_utf@0.1.4`, `Cargo:tinystr@0.8.2`, `Cargo:writeable@0.6.2`, `Cargo:yoke-derive@0.8.1`, `Cargo:yoke@0.8.1`, `Cargo:zerofrom-derive@0.1.6`, `Cargo:zerofrom@0.1.6`, `Cargo:zerotrie@0.2.3`, `Cargo:zerovec-derive@0.11.2`, `Cargo:zerovec@0.11.5`
 
@@ -14923,7 +14827,7 @@ Portions of ICU4X may have been adapted from ICU4C and/or ICU4J.
 ICU 1.8.1 to ICU 57.1 © 1995-2016 International Business Machines Corporation and others.
 ````
 
-### Notice group 264 (cdf8603d8d39)
+### Notice group 261 (cdf8603d8d39)
 
 Packages: `npm:acorn@8.17.0`
 
@@ -14953,7 +14857,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ````
 
-### Notice group 265 (ce4a94c006fa)
+### Notice group 262 (ce4a94c006fa)
 
 Packages: `Cargo:chrono@0.4.45`
 
@@ -15201,7 +15105,7 @@ limitations under the License.
 ~~~~
 ````
 
-### Notice group 266 (cf9b17822d1f)
+### Notice group 263 (cf9b17822d1f)
 
 Packages: `npm:react-dom@19.2.7`, `npm:react@19.2.7`, `npm:scheduler@0.27.0`, `npm:use-sync-external-store@1.6.0`
 
@@ -15231,7 +15135,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 267 (d03325792f3d)
+### Notice group 264 (d03325792f3d)
 
 Packages: `Cargo:ahash@0.8.12`
 
@@ -15265,7 +15169,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 268 (d0a8e5996a99)
+### Notice group 265 (d0a8e5996a99)
 
 Packages: `npm:dequal@2.0.3`
 
@@ -15295,7 +15199,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ````
 
-### Notice group 269 (d10fa7c720bc)
+### Notice group 266 (d10fa7c720bc)
 
 Packages: `Cargo:crossbeam-channel@0.5.15`
 
@@ -15897,7 +15801,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ````
 
-### Notice group 270 (d2c4a2667e88)
+### Notice group 267 (d2c4a2667e88)
 
 Packages: `Cargo:libappindicator@0.9.0`
 
@@ -15928,7 +15832,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 271 (d3c8c167dfa0)
+### Notice group 268 (d3c8c167dfa0)
 
 Packages: `npm:katex@0.16.47`, `npm:katex@0.18.1`
 
@@ -15958,7 +15862,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 272 (d3de97fbfe54)
+### Notice group 269 (d3de97fbfe54)
 
 Packages: `npm:hachure-fill@0.5.2`
 
@@ -15988,7 +15892,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 273 (d4317f690ad0)
+### Notice group 270 (d4317f690ad0)
 
 Packages: `npm:cytoscape@3.34.0`
 
@@ -16029,7 +15933,7 @@ SOFTWARE.`;
 fs.writeFileSync(path.join(__dirname, 'LICENSE'), license);
 ````
 
-### Notice group 274 (d588236a8ad8)
+### Notice group 271 (d588236a8ad8)
 
 Packages: `Cargo:swift-rs@1.0.7`
 
@@ -16239,7 +16143,7 @@ Apache License
    limitations under the License.
 ````
 
-### Notice group 275 (d785edfd5a8f)
+### Notice group 272 (d785edfd5a8f)
 
 Packages: `npm:pathe@2.0.3`
 
@@ -16318,7 +16222,7 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 276 (d872b89e34b7)
+### Notice group 273 (d872b89e34b7)
 
 Packages: `npm:@mermaid-js/parser@1.2.0`
 
@@ -16348,7 +16252,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 277 (d9ba37d9bbdf)
+### Notice group 274 (d9ba37d9bbdf)
 
 Packages: `Cargo:winreg@0.55.0`
 
@@ -16376,7 +16280,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ````
 
-### Notice group 278 (d9da1a97dd07)
+### Notice group 275 (d9da1a97dd07)
 
 Packages: `Cargo:is-docker@0.2.0`, `Cargo:is-wsl@0.4.0`
 
@@ -16406,7 +16310,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 279 (d9ec1d89801f)
+### Notice group 276 (d9ec1d89801f)
 
 Packages: `Cargo:tinyvec_macros@0.1.1`
 
@@ -16436,7 +16340,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 280 (da6b30502bad)
+### Notice group 277 (da6b30502bad)
 
 Packages: `Cargo:tower-layer@0.3.3`, `Cargo:tower-service@0.3.3`, `Cargo:tower@0.5.3`
 
@@ -16470,7 +16374,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 281 (db11fec99467)
+### Notice group 278 (db11fec99467)
 
 Packages: `Cargo:typenum@1.19.0`
 
@@ -16480,7 +16384,7 @@ Source filenames: `LICENSE`
 MIT OR Apache-2.0
 ````
 
-### Notice group 282 (dd0815108f8e)
+### Notice group 279 (dd0815108f8e)
 
 Packages: `Cargo:android_system_properties@0.1.5`
 
@@ -16502,7 +16406,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ````
 
-### Notice group 283 (dd923de97698)
+### Notice group 280 (dd923de97698)
 
 Packages: `npm:marked@16.4.2`
 
@@ -16555,7 +16459,7 @@ Redistribution and use in source and binary forms, with or without modification,
 This software is provided by the copyright holders and contributors “as is” and any express or implied warranties, including, but not limited to, the implied warranties of merchantability and fitness for a particular purpose are disclaimed. In no event shall the copyright owner or contributors be liable for any direct, indirect, incidental, special, exemplary, or consequential damages (including, but not limited to, procurement of substitute goods or services; loss of use, data, or profits; or business interruption) however caused and on any theory of liability, whether in contract, strict liability, or tort (including negligence or otherwise) arising in any way out of the use of this software, even if advised of the possibility of such damage.
 ````
 
-### Notice group 284 (de3911c2d98c)
+### Notice group 281 (de3911c2d98c)
 
 Packages: `Cargo:dbus@0.9.12`, `Cargo:libdbus-sys@0.2.7`
 
@@ -16583,7 +16487,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 285 (dfa7fbad0178)
+### Notice group 282 (dfa7fbad0178)
 
 Packages: `Cargo:futf@0.1.5`, `Cargo:tendril@0.4.3`, `Cargo:tendril@0.5.0`
 
@@ -16617,7 +16521,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 286 (dfbd1c2a36dc)
+### Notice group 283 (dfbd1c2a36dc)
 
 Packages: `Cargo:bytemuck@1.25.0`
 
@@ -16635,7 +16539,7 @@ The above copyright notice and this permission notice (including the next paragr
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 287 (e07664cb9e31)
+### Notice group 284 (e07664cb9e31)
 
 Packages: `Cargo:dpi@0.1.2`
 
@@ -16695,7 +16599,7 @@ have been licensed under extremely permissive terms.
 ------------------------------------------------------------------------------
 ````
 
-### Notice group 288 (e7330bf53074)
+### Notice group 285 (e7330bf53074)
 
 Packages: `Cargo:getrandom@0.1.16`, `Cargo:getrandom@0.2.17`, `Cargo:getrandom@0.3.4`, `Cargo:getrandom@0.4.2`, `Cargo:rand@0.7.3`, `Cargo:rand_chacha@0.2.2`, `Cargo:rand_chacha@0.3.1`, `Cargo:rand_core@0.5.1`, `Cargo:rand_hc@0.2.0`, `Cargo:rand_pcg@0.2.1`
 
@@ -16905,7 +16809,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ````
 
-### Notice group 289 (e768d9875925)
+### Notice group 286 (e768d9875925)
 
 Packages: `Cargo:pin-utils@0.1.0`
 
@@ -16939,7 +16843,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 290 (e7d622e4783e)
+### Notice group 287 (e7d622e4783e)
 
 Packages: `Cargo:hyper-util@0.1.20`
 
@@ -16967,7 +16871,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ````
 
-### Notice group 291 (e8541ea93f02)
+### Notice group 288 (e8541ea93f02)
 
 Packages: `Cargo:block-buffer@0.10.4`, `Cargo:cpufeatures@0.2.17`, `Cargo:crypto-common@0.1.7`, `Cargo:digest@0.10.7`, `Cargo:sha2@0.10.9`
 
@@ -17177,7 +17081,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ````
 
-### Notice group 292 (e87ae4ac338d)
+### Notice group 289 (e87ae4ac338d)
 
 Packages: `npm:d3-geo@3.1.1`
 
@@ -17220,7 +17124,7 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 293 (ea559213e0e9)
+### Notice group 290 (ea559213e0e9)
 
 Packages: `npm:lowlight@3.3.0`
 
@@ -17251,7 +17155,7 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 294 (eabb8d3cadaf)
+### Notice group 291 (eabb8d3cadaf)
 
 Packages: `npm:highlight.js@11.11.1`
 
@@ -17289,7 +17193,7 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ````
 
-### Notice group 295 (eac3911cc3d4)
+### Notice group 292 (eac3911cc3d4)
 
 Packages: `Cargo:miniz_oxide@0.8.9`
 
@@ -17312,7 +17216,7 @@ Permission is granted to anyone to use this software for any purpose, including 
 3. This notice may not be removed or altered from any source distribution.
 ````
 
-### Notice group 296 (eb319c6e6f23)
+### Notice group 293 (eb319c6e6f23)
 
 Packages: `npm:cytoscape@3.34.0`
 
@@ -17340,7 +17244,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 297 (eb8a6c846304)
+### Notice group 294 (eb8a6c846304)
 
 Packages: `Cargo:tauri-plugin-dialog@2.7.2`, `Cargo:tauri-plugin-fs@2.5.1`, `Cargo:tauri-plugin-process@2.3.1`, `Cargo:tauri-plugin-shell@2.3.5`, `npm:@tauri-apps/plugin-dialog@2.7.2`, `npm:@tauri-apps/plugin-fs@2.5.1`, `npm:@tauri-apps/plugin-process@2.3.1`, `npm:@tauri-apps/plugin-shell@2.3.5`
 
@@ -17369,7 +17273,7 @@ PackageDownloadLocation: git+ssh://github.com/tauri-apps/tauri.git
 Creator: Person: Daniel Thompson-Yvetot
 ````
 
-### Notice group 298 (ec5d7c323662)
+### Notice group 295 (ec5d7c323662)
 
 Packages: `Cargo:phf@0.11.3`, `Cargo:phf@0.13.1`, `Cargo:phf_codegen@0.11.3`, `Cargo:phf_codegen@0.13.1`, `Cargo:phf_generator@0.11.3`, `Cargo:phf_generator@0.13.1`, `Cargo:phf_macros@0.13.1`, `Cargo:phf_shared@0.11.3`, `Cargo:phf_shared@0.13.1`
 
@@ -17398,7 +17302,7 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 299 (ed2fda479dac)
+### Notice group 296 (ed2fda479dac)
 
 Packages: `Cargo:version_check@0.9.5`
 
@@ -17426,7 +17330,7 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 300 (edd4b164997f)
+### Notice group 297 (edd4b164997f)
 
 Packages: `Cargo:tower-http@0.6.8`
 
@@ -17460,7 +17364,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 301 (ee35498e6684)
+### Notice group 298 (ee35498e6684)
 
 Packages: `npm:lucide-react@1.25.0`
 
@@ -17512,7 +17416,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 302 (f0a559a11420)
+### Notice group 299 (f0a559a11420)
 
 Packages: `Cargo:ppv-lite86@0.2.21`
 
@@ -17722,7 +17626,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ````
 
-### Notice group 303 (f2459c4b106b)
+### Notice group 300 (f2459c4b106b)
 
 Packages: `Cargo:urlpattern@0.3.0`
 
@@ -17752,7 +17656,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 304 (f25a5b606859)
+### Notice group 301 (f25a5b606859)
 
 Packages: `Cargo:dirs-sys@0.5.0`, `Cargo:dirs@6.0.0`
 
@@ -17780,7 +17684,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 305 (f2fde84e6c1f)
+### Notice group 302 (f2fde84e6c1f)
 
 Packages: `npm:ajv@8.20.0`
 
@@ -17810,7 +17714,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 306 (f47894ff9c86)
+### Notice group 303 (f47894ff9c86)
 
 Packages: `Cargo:http@1.4.0`
 
@@ -17844,7 +17748,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 307 (f4bb8f655fdb)
+### Notice group 304 (f4bb8f655fdb)
 
 Packages: `npm:internmap@1.0.1`, `npm:internmap@2.0.3`
 
@@ -17866,7 +17770,7 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 ````
 
-### Notice group 308 (f4bc3f3c5bfd)
+### Notice group 305 (f4bc3f3c5bfd)
 
 Packages: `Cargo:field-offset@0.3.6`
 
@@ -17896,7 +17800,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 309 (f57e3a2cabf2)
+### Notice group 306 (f57e3a2cabf2)
 
 Packages: `npm:d3-array@3.2.4`, `npm:d3@7.9.0`
 
@@ -17918,7 +17822,7 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 ````
 
-### Notice group 310 (f68878c9ca61)
+### Notice group 307 (f68878c9ca61)
 
 Packages: `Cargo:inotify-sys@0.1.8`, `Cargo:inotify@0.11.4`
 
@@ -17940,7 +17844,7 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 ````
 
-### Notice group 311 (f7673e959327)
+### Notice group 308 (f7673e959327)
 
 Packages: `npm:mlly@1.8.2`, `npm:ufo@1.6.3`
 
@@ -17970,7 +17874,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 312 (f7dfffe03f9f)
+### Notice group 309 (f7dfffe03f9f)
 
 Packages: `Cargo:want@0.3.1`
 
@@ -17998,7 +17902,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ````
 
-### Notice group 313 (f8babf2965a4)
+### Notice group 310 (f8babf2965a4)
 
 Packages: `Cargo:softbuffer@0.4.8`
 
@@ -18026,7 +17930,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ````
 
-### Notice group 314 (fa4363848a0f)
+### Notice group 311 (fa4363848a0f)
 
 Packages: `Cargo:cargo_toml@0.22.3`
 
@@ -18237,7 +18141,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 315 (fdd1c2117bcf)
+### Notice group 312 (fdd1c2117bcf)
 
 Packages: `Cargo:serde_with@3.21.0`, `Cargo:serde_with_macros@3.21.0`
 
@@ -18271,7 +18175,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 316 (fde59e25bf53)
+### Notice group 313 (fde59e25bf53)
 
 Packages: `Cargo:redox_syscall@0.5.18`
 
@@ -18302,7 +18206,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ````
 
-### Notice group 317 (fe1c9e29858f)
+### Notice group 314 (fe1c9e29858f)
 
 Packages: `Cargo:tinyvec_macros@0.1.1`
 
@@ -18512,7 +18416,7 @@ Apache License
    limitations under the License.
 ````
 
-### Notice group 318 (fee4d7ce394c)
+### Notice group 315 (fee4d7ce394c)
 
 Packages: `Cargo:rand@0.8.6`
 
@@ -18697,9 +18601,9 @@ TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
 END OF TERMS AND CONDITIONS
 ````
 
-### Notice group 319 (ff82c90f8494)
+### Notice group 316 (ff82c90f8494)
 
-Packages: `Cargo:windows-collections@0.2.0`, `Cargo:windows-core@0.56.0`, `Cargo:windows-core@0.61.2`, `Cargo:windows-future@0.2.1`, `Cargo:windows-implement@0.56.0`, `Cargo:windows-implement@0.60.2`, `Cargo:windows-interface@0.56.0`, `Cargo:windows-interface@0.59.3`, `Cargo:windows-link@0.1.3`, `Cargo:windows-link@0.2.1`, `Cargo:windows-numerics@0.2.0`, `Cargo:windows-result@0.1.2`, `Cargo:windows-result@0.3.4`, `Cargo:windows-strings@0.4.2`, `Cargo:windows-sys@0.45.0`, `Cargo:windows-sys@0.59.0`, `Cargo:windows-sys@0.60.2`, `Cargo:windows-sys@0.61.2`, `Cargo:windows-targets@0.42.2`, `Cargo:windows-targets@0.52.6`, `Cargo:windows-targets@0.53.5`, `Cargo:windows-threading@0.1.0`, `Cargo:windows-version@0.1.7`, `Cargo:windows@0.56.0`, `Cargo:windows@0.61.3`, `Cargo:windows_aarch64_gnullvm@0.42.2`, `Cargo:windows_aarch64_gnullvm@0.52.6`, `Cargo:windows_aarch64_gnullvm@0.53.1`, `Cargo:windows_aarch64_msvc@0.42.2`, `Cargo:windows_aarch64_msvc@0.52.6`, `Cargo:windows_aarch64_msvc@0.53.1`, `Cargo:windows_i686_gnu@0.42.2`, `Cargo:windows_i686_gnu@0.52.6`, `Cargo:windows_i686_gnu@0.53.1`, `Cargo:windows_i686_gnullvm@0.52.6`, `Cargo:windows_i686_gnullvm@0.53.1`, `Cargo:windows_i686_msvc@0.42.2`, `Cargo:windows_i686_msvc@0.52.6`, `Cargo:windows_i686_msvc@0.53.1`, `Cargo:windows_x86_64_gnu@0.42.2`, `Cargo:windows_x86_64_gnu@0.52.6`, `Cargo:windows_x86_64_gnu@0.53.1`, `Cargo:windows_x86_64_gnullvm@0.42.2`, `Cargo:windows_x86_64_gnullvm@0.52.6`, `Cargo:windows_x86_64_gnullvm@0.53.1`, `Cargo:windows_x86_64_msvc@0.42.2`, `Cargo:windows_x86_64_msvc@0.52.6`, `Cargo:windows_x86_64_msvc@0.53.1`, `npm:@types/d3-array@3.2.2`, `npm:@types/d3-axis@3.0.6`, `npm:@types/d3-brush@3.0.6`, `npm:@types/d3-chord@3.0.6`, `npm:@types/d3-color@3.1.3`, `npm:@types/d3-contour@3.0.6`, `npm:@types/d3-delaunay@6.0.4`, `npm:@types/d3-dispatch@3.0.7`, `npm:@types/d3-drag@3.0.7`, `npm:@types/d3-dsv@3.0.7`, `npm:@types/d3-ease@3.0.2`, `npm:@types/d3-fetch@3.0.7`, `npm:@types/d3-force@3.0.10`, `npm:@types/d3-format@3.0.4`, `npm:@types/d3-geo@3.1.0`, `npm:@types/d3-hierarchy@3.1.7`, `npm:@types/d3-interpolate@3.0.4`, `npm:@types/d3-path@3.1.1`, `npm:@types/d3-polygon@3.0.2`, `npm:@types/d3-quadtree@3.0.6`, `npm:@types/d3-random@3.0.3`, `npm:@types/d3-scale-chromatic@3.1.0`, `npm:@types/d3-scale@4.0.9`, `npm:@types/d3-selection@3.0.11`, `npm:@types/d3-shape@3.1.8`, `npm:@types/d3-time-format@4.0.3`, `npm:@types/d3-time@3.0.4`, `npm:@types/d3-timer@3.0.2`, `npm:@types/d3-transition@3.0.9`, `npm:@types/d3-zoom@3.0.8`, `npm:@types/d3@7.4.3`, `npm:@types/geojson@7946.0.16`, `npm:@types/hast@3.0.4`, `npm:@types/prop-types@15.7.15`, `npm:@types/react-dom@18.3.7`, `npm:@types/react@18.3.28`, `npm:@types/trusted-types@2.0.7`, `npm:@types/unist@3.0.3`, `npm:@types/use-sync-external-store@0.0.6`
+Packages: `Cargo:windows-collections@0.2.0`, `Cargo:windows-core@0.56.0`, `Cargo:windows-core@0.61.2`, `Cargo:windows-future@0.2.1`, `Cargo:windows-implement@0.56.0`, `Cargo:windows-implement@0.60.2`, `Cargo:windows-interface@0.56.0`, `Cargo:windows-interface@0.59.3`, `Cargo:windows-link@0.1.3`, `Cargo:windows-link@0.2.1`, `Cargo:windows-numerics@0.2.0`, `Cargo:windows-result@0.1.2`, `Cargo:windows-result@0.3.4`, `Cargo:windows-strings@0.4.2`, `Cargo:windows-sys@0.45.0`, `Cargo:windows-sys@0.59.0`, `Cargo:windows-sys@0.60.2`, `Cargo:windows-sys@0.61.2`, `Cargo:windows-targets@0.42.2`, `Cargo:windows-targets@0.52.6`, `Cargo:windows-targets@0.53.5`, `Cargo:windows-threading@0.1.0`, `Cargo:windows-version@0.1.7`, `Cargo:windows@0.56.0`, `Cargo:windows@0.61.3`, `Cargo:windows_aarch64_gnullvm@0.42.2`, `Cargo:windows_aarch64_gnullvm@0.52.6`, `Cargo:windows_aarch64_gnullvm@0.53.1`, `Cargo:windows_aarch64_msvc@0.42.2`, `Cargo:windows_aarch64_msvc@0.52.6`, `Cargo:windows_aarch64_msvc@0.53.1`, `Cargo:windows_i686_gnu@0.42.2`, `Cargo:windows_i686_gnu@0.52.6`, `Cargo:windows_i686_gnu@0.53.1`, `Cargo:windows_i686_gnullvm@0.52.6`, `Cargo:windows_i686_gnullvm@0.53.1`, `Cargo:windows_i686_msvc@0.42.2`, `Cargo:windows_i686_msvc@0.52.6`, `Cargo:windows_i686_msvc@0.53.1`, `Cargo:windows_x86_64_gnu@0.42.2`, `Cargo:windows_x86_64_gnu@0.52.6`, `Cargo:windows_x86_64_gnu@0.53.1`, `Cargo:windows_x86_64_gnullvm@0.42.2`, `Cargo:windows_x86_64_gnullvm@0.52.6`, `Cargo:windows_x86_64_gnullvm@0.53.1`, `Cargo:windows_x86_64_msvc@0.42.2`, `Cargo:windows_x86_64_msvc@0.52.6`, `Cargo:windows_x86_64_msvc@0.53.1`, `npm:@types/d3-array@3.2.2`, `npm:@types/d3-axis@3.0.6`, `npm:@types/d3-brush@3.0.6`, `npm:@types/d3-chord@3.0.6`, `npm:@types/d3-color@3.1.3`, `npm:@types/d3-contour@3.0.6`, `npm:@types/d3-delaunay@6.0.4`, `npm:@types/d3-dispatch@3.0.7`, `npm:@types/d3-drag@3.0.7`, `npm:@types/d3-dsv@3.0.7`, `npm:@types/d3-ease@3.0.2`, `npm:@types/d3-fetch@3.0.7`, `npm:@types/d3-force@3.0.10`, `npm:@types/d3-format@3.0.4`, `npm:@types/d3-geo@3.1.0`, `npm:@types/d3-hierarchy@3.1.7`, `npm:@types/d3-interpolate@3.0.4`, `npm:@types/d3-path@3.1.1`, `npm:@types/d3-polygon@3.0.2`, `npm:@types/d3-quadtree@3.0.6`, `npm:@types/d3-random@3.0.3`, `npm:@types/d3-scale-chromatic@3.1.0`, `npm:@types/d3-scale@4.0.9`, `npm:@types/d3-selection@3.0.11`, `npm:@types/d3-shape@3.1.8`, `npm:@types/d3-time-format@4.0.3`, `npm:@types/d3-time@3.0.4`, `npm:@types/d3-timer@3.0.2`, `npm:@types/d3-transition@3.0.9`, `npm:@types/d3-zoom@3.0.8`, `npm:@types/d3@7.4.3`, `npm:@types/geojson@7946.0.16`, `npm:@types/hast@3.0.4`, `npm:@types/react-dom@19.2.3`, `npm:@types/react@19.2.17`, `npm:@types/trusted-types@2.0.7`, `npm:@types/unist@3.0.3`, `npm:@types/use-sync-external-store@0.0.6`
 
 Source filenames: `LICENSE`, `license-mit`
 
@@ -18727,7 +18631,7 @@ MIT License
     SOFTWARE
 ````
 
-### Notice group 320 (ffaf97e3da9e)
+### Notice group 317 (ffaf97e3da9e)
 
 Packages: `Cargo:fancy-regex@0.16.2`
 

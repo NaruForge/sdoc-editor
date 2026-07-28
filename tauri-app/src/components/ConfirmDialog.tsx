@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { AlertTriangle } from 'lucide-react';
+import { useEditorI18n } from '@shared/editor/i18n';
 
 interface ConfirmDialogProps {
   title: string;
@@ -20,12 +21,13 @@ interface ConfirmDialogProps {
 export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   title,
   message,
-  confirmLabel = '확인',
-  cancelLabel = '취소',
+  confirmLabel,
+  cancelLabel,
   danger = false,
   onConfirm,
   onCancel,
 }) => {
+  const { t } = useEditorI18n();
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onCancel();
@@ -36,18 +38,25 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
 
   return (
     <div className="modal-overlay" onClick={onCancel}>
-      <div className="modal-content modal-content--md" onClick={(e) => e.stopPropagation()}>
-        <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <div
+        className="modal-content modal-content--md"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="confirm-dialog-title"
+        aria-describedby="confirm-dialog-message"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 id="confirm-dialog-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           {danger && <AlertTriangle size={18} />}
           {title}
         </h3>
-        <p style={{ lineHeight: 1.5, whiteSpace: 'pre-line' }}>{message}</p>
+        <p id="confirm-dialog-message" style={{ lineHeight: 1.5, whiteSpace: 'pre-line' }}>{message}</p>
         <div className="modal-actions">
           <button type="button" onClick={onCancel} className="btn-secondary" autoFocus>
-            {cancelLabel}
+            {cancelLabel ?? t('common.cancel')}
           </button>
           <button type="button" onClick={onConfirm} className={danger ? 'btn-danger' : 'btn-primary'}>
-            {confirmLabel}
+            {confirmLabel ?? t('common.ok')}
           </button>
         </div>
       </div>

@@ -5,6 +5,12 @@ import '@shared/editor/styles/fonts.css';
 import '@shared/editor/styles/editor.css';
 import './styles/tauri-theme.css';
 import 'katex/dist/katex.min.css';
+import { initializeSystemTheme } from './theme';
+
+const disposeTheme = initializeSystemTheme();
+window.addEventListener('beforeunload', () => {
+  void disposeTheme.then((dispose) => dispose());
+}, { once: true });
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

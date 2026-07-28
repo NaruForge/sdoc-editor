@@ -4,6 +4,7 @@ import {
   MessageSquareWarning, Hash, ChevronRight, Minus,
 } from 'lucide-react';
 import { Editor as TiptapEditor } from '@tiptap/react';
+import { useEditorI18n } from '../i18n';
 
 type CalloutVariant = 'note' | 'info' | 'tip' | 'warning' | 'danger';
 
@@ -46,6 +47,7 @@ export const EditorContextMenu: React.FC<EditorContextMenuProps> = ({
   isLinkActive,
   onClose,
 }) => {
+  const { t } = useEditorI18n();
   const menuRef = useRef<HTMLDivElement>(null);
   const [subMenu, setSubMenu] = useState<'table' | 'callout' | null>(null);
   const [customRows, setCustomRows] = useState('3');
@@ -138,7 +140,9 @@ export const EditorContextMenu: React.FC<EditorContextMenuProps> = ({
     onMouseEnter?: () => void;
     onMouseLeave?: () => void;
   }> = ({ icon, label, onClick, hasArrow, onMouseEnter, onMouseLeave }) => (
-    <div
+    <button
+      type="button"
+      role="menuitem"
       style={itemBase}
       onMouseEnter={e => {
         e.currentTarget.style.background = 'var(--vscode-menu-selectionBackground, #094771)';
@@ -156,7 +160,7 @@ export const EditorContextMenu: React.FC<EditorContextMenuProps> = ({
       {icon}
       <span style={{ flex: 1 }}>{label}</span>
       {hasArrow && <ChevronRight size={12} style={{ opacity: 0.7 }} />}
-    </div>
+    </button>
   );
 
   // Submenu flyout positioned to the right of the main menu
@@ -183,14 +187,14 @@ export const EditorContextMenu: React.FC<EditorContextMenuProps> = ({
 
   return (
     <>
-      <div ref={menuRef} style={menuStyle}>
+      <div ref={menuRef} style={menuStyle} role="menu" aria-label={t('context.insert')}>
         {/* ── 편집 영역 ── */}
         {isLinkActive && onRemoveLink && (
           <>
-            {sectionLabel('편집')}
+            {sectionLabel(t('context.edit'))}
             <Item
               icon={<Unlink size={14} />}
-              label="링크 제거"
+              label={t('context.removeLink')}
               onClick={() => handleItem(onRemoveLink)}
             />
             {separator}
@@ -198,12 +202,12 @@ export const EditorContextMenu: React.FC<EditorContextMenuProps> = ({
         )}
 
         {/* ── 삽입 영역 ── */}
-        {sectionLabel('삽입')}
+        {sectionLabel(t('context.insert'))}
 
         {/* 표 — 서브메뉴 */}
         <Item
           icon={<Table2 size={14} />}
-          label="표"
+          label={t('toolbar.table')}
           hasArrow
           onClick={() => setSubMenu(subMenu === 'table' ? null : 'table')}
           onMouseEnter={() => { setSubMenu('table'); setShowCustomSize(false); }}
@@ -212,7 +216,7 @@ export const EditorContextMenu: React.FC<EditorContextMenuProps> = ({
         {onInsertLink && (
           <Item
             icon={<Link2 size={14} />}
-            label="링크"
+            label={t('context.link')}
             onClick={() => handleItem(onInsertLink)}
             onMouseEnter={() => setSubMenu(null)}
           />
@@ -220,32 +224,32 @@ export const EditorContextMenu: React.FC<EditorContextMenuProps> = ({
 
         <Item
           icon={<Image size={14} />}
-          label="이미지"
+          label={t('toolbar.image')}
           onClick={() => handleItem(onInsertImage)}
           onMouseEnter={() => setSubMenu(null)}
         />
         <Item
           icon={<Box size={14} />}
-          label="Draw.io 다이어그램"
+          label={t('context.drawio')}
           onClick={() => handleItem(onInsertDrawio)}
           onMouseEnter={() => setSubMenu(null)}
         />
         <Item
           icon={<Sigma size={14} />}
-          label="수식"
+          label={t('toolbar.math')}
           onClick={() => handleItem(onInsertEquation)}
           onMouseEnter={() => setSubMenu(null)}
         />
         <Item
           icon={<Code size={14} />}
-          label="코드 블록"
+          label={t('toolbar.codeBlock')}
           onClick={() => handleItem(() => editor.chain().focus().toggleCodeBlock().run())}
           onMouseEnter={() => setSubMenu(null)}
         />
         {onInsertDiagram && (
           <Item
             icon={<GitGraph size={14} />}
-            label="다이어그램 (Mermaid)"
+            label={t('context.mermaid')}
             onClick={() => handleItem(onInsertDiagram)}
             onMouseEnter={() => setSubMenu(null)}
           />
@@ -254,7 +258,7 @@ export const EditorContextMenu: React.FC<EditorContextMenuProps> = ({
         {/* 콜아웃 — 서브메뉴 */}
         <Item
           icon={<MessageSquareWarning size={14} />}
-          label="콜아웃"
+          label={t('toolbar.callout')}
           hasArrow
           onClick={() => setSubMenu(subMenu === 'callout' ? null : 'callout')}
           onMouseEnter={() => setSubMenu('callout')}
@@ -262,7 +266,7 @@ export const EditorContextMenu: React.FC<EditorContextMenuProps> = ({
 
         <Item
           icon={<Minus size={14} />}
-          label="수평선"
+          label={t('toolbar.horizontalRule')}
           onClick={() => handleItem(() => editor.chain().focus().setHorizontalRule().run())}
           onMouseEnter={() => setSubMenu(null)}
         />
@@ -270,7 +274,7 @@ export const EditorContextMenu: React.FC<EditorContextMenuProps> = ({
         {onInsertCrossRef && (
           <Item
             icon={<Hash size={14} />}
-            label="교차 참조"
+            label={t('toolbar.crossReference')}
             onClick={() => handleItem(onInsertCrossRef)}
             onMouseEnter={() => setSubMenu(null)}
           />
@@ -280,7 +284,7 @@ export const EditorContextMenu: React.FC<EditorContextMenuProps> = ({
         {subMenu === 'table' && (
           <SubMenuFlyout>
             <div style={{ padding: '2px 10px 4px', fontSize: '11px', color: 'var(--vscode-descriptionForeground, #888)', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-              크기 선택
+              {t('context.tableSize')}
             </div>
             {TABLE_PRESETS.map(size => (
               <Item
@@ -292,7 +296,7 @@ export const EditorContextMenu: React.FC<EditorContextMenuProps> = ({
             ))}
             <Item
               icon={<Table2 size={13} />}
-              label="사용자 정의..."
+              label={t('context.customSize')}
               onClick={() => setShowCustomSize(v => !v)}
             />
             {showCustomSize && (
@@ -303,7 +307,8 @@ export const EditorContextMenu: React.FC<EditorContextMenuProps> = ({
                     value={customRows}
                     onChange={e => setCustomRows(e.target.value)}
                     style={{ width: '44px', padding: '3px 6px', fontSize: '12px', background: 'var(--vscode-input-background)', border: '1px solid var(--vscode-input-border)', color: 'var(--vscode-input-foreground)', borderRadius: '3px' }}
-                    placeholder="행"
+                    placeholder={t('context.rowsPlaceholder')}
+                    aria-label={t('toolbar.rows')}
                     onClick={e => e.stopPropagation()}
                   />
                   <span style={{ fontSize: '12px' }}>×</span>
@@ -312,11 +317,13 @@ export const EditorContextMenu: React.FC<EditorContextMenuProps> = ({
                     value={customCols}
                     onChange={e => setCustomCols(e.target.value)}
                     style={{ width: '44px', padding: '3px 6px', fontSize: '12px', background: 'var(--vscode-input-background)', border: '1px solid var(--vscode-input-border)', color: 'var(--vscode-input-foreground)', borderRadius: '3px' }}
-                    placeholder="열"
+                    placeholder={t('context.columnsPlaceholder')}
+                    aria-label={t('toolbar.columns')}
                     onClick={e => e.stopPropagation()}
                   />
                 </div>
-                <div
+                <button
+                  type="button"
                   style={{ ...itemBase, justifyContent: 'center', fontWeight: 600, fontSize: '12px', padding: '4px 6px' }}
                   onMouseEnter={e => { e.currentTarget.style.background = 'var(--vscode-menu-selectionBackground, #094771)'; e.currentTarget.style.color = 'var(--vscode-menu-selectionForeground, #fff)'; }}
                   onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'inherit'; }}
@@ -329,8 +336,8 @@ export const EditorContextMenu: React.FC<EditorContextMenuProps> = ({
                     }
                   }}
                 >
-                  삽입
-                </div>
+                  {t('common.insert')}
+                </button>
               </div>
             )}
           </SubMenuFlyout>

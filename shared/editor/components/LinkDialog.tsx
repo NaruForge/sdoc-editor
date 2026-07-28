@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import type { SdocFileBrowseResultMessage } from '../../types/messages';
+import { useEditorI18n } from '../i18n';
 
 interface ExternalTarget {
   id: string;
@@ -22,6 +23,7 @@ export const LinkDialog: React.FC<LinkDialogProps> = ({
   onCancel,
   onBrowseSdoc,
 }) => {
+  const { t } = useEditorI18n();
   const [url, setUrl] = useState(defaultUrl);
   const [text, setText] = useState(defaultText);
   const [sdocPath, setSdocPath] = useState('');
@@ -79,8 +81,8 @@ export const LinkDialog: React.FC<LinkDialogProps> = ({
 
   return (
     <div className="modal-overlay" onClick={onCancel}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-        <h3>Insert Link</h3>
+      <div className="modal-content" role="dialog" aria-modal="true" aria-labelledby="link-dialog-title" onClick={(e) => e.stopPropagation()}>
+        <h3 id="link-dialog-title">{t('link.insertTitle')}</h3>
         <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label htmlFor="link-url" className="form-label">URL:</label>
@@ -97,7 +99,7 @@ export const LinkDialog: React.FC<LinkDialogProps> = ({
                 placeholder="https://... or ./other.sdoc#id"
               />
               {onBrowseSdoc && (
-                <button type="button" onClick={onBrowseSdoc} className="btn-secondary" title="Browse .sdoc files">
+                <button type="button" onClick={onBrowseSdoc} className="btn-secondary" title={t('link.browseSdoc')} aria-label={t('link.browseSdoc')}>
                   📄
                 </button>
               )}
@@ -106,16 +108,18 @@ export const LinkDialog: React.FC<LinkDialogProps> = ({
 
           {showTargets && sdocTargets.length > 0 && (
             <div className="form-group">
-              <label className="form-label">Link to a section in {sdocPath}:</label>
+              <label className="form-label">{t('link.sectionIn', { path: sdocPath })}:</label>
               <div className="target-list">
-                <div
+                <button
+                  type="button"
                   className="target-list__item target-list__item--header"
                   onClick={() => { setUrl(sdocPath); setText(sdocPath.replace(/\.sdoc$/, '').split('/').pop() || sdocPath); setShowTargets(false); }}
                 >
-                  📄 Document (no specific section)
-                </div>
+                  📄 {t('link.wholeDocument')}
+                </button>
                 {sdocTargets.map(t => (
-                  <div
+                  <button
+                    type="button"
                     key={t.id}
                     className="target-list__item"
                     onClick={() => handleSelectTarget(t)}
@@ -124,14 +128,14 @@ export const LinkDialog: React.FC<LinkDialogProps> = ({
                       {t.type === 'heading' ? '§' : t.type === 'figure' ? '🖼' : '▦'}
                     </span>
                     {t.label}
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>
           )}
 
           <div className="form-group">
-            <label htmlFor="link-text" className="form-label">Link Text (optional):</label>
+            <label htmlFor="link-text" className="form-label">{t('link.textOptional')}:</label>
             <input
               id="link-text"
               type="text"
@@ -139,17 +143,17 @@ export const LinkDialog: React.FC<LinkDialogProps> = ({
               onChange={(e) => setText(e.target.value)}
               onKeyDown={handleKeyDown}
               className="form-input"
-              placeholder="Click here"
+              placeholder={t('link.textPlaceholder')}
             />
           </div>
           <div className="modal-actions">
-            <button type="button" onClick={onCancel} className="btn-secondary">Cancel</button>
+            <button type="button" onClick={onCancel} className="btn-secondary">{t('common.cancel')}</button>
             <button
               type="submit"
               disabled={!url.trim()}
               className="btn-primary"
             >
-              Insert
+              {t('common.insert')}
             </button>
           </div>
         </form>

@@ -35,6 +35,7 @@ import {
   type WorkspaceTemplateDiscovery,
 } from '../templateService';
 import { classifyTauriSaveError } from './tauriPersistenceErrors';
+import { DEFAULT_EDITOR_TRANSLATOR, type EditorTranslator } from '@shared/editor/i18n';
 
 type SettingsChangedPayload = Partial<ResolvedEditorSettings>;
 interface DrawioFileUpdatedPayload {
@@ -82,7 +83,7 @@ export interface TauriAdapter extends EditorHostBridge {
   acceptExternalChange(): Promise<{ revision: number; snapshot: DocumentMutation }>;
 }
 
-export function createTauriAdapter(): TauriAdapter {
+export function createTauriAdapter(translate: EditorTranslator = DEFAULT_EDITOR_TRANSLATOR): TauriAdapter {
   const listeners: TauriMessageHandler[] = [];
   const unlistenFns: UnlistenFn[] = [];
   let disposed = false;
@@ -180,9 +181,9 @@ export function createTauriAdapter(): TauriAdapter {
   ): { name: string; description?: string; category?: string } | undefined => {
     const name = window.prompt(title, current.name);
     if (name === null) return undefined;
-    const description = window.prompt('템플릿 설명(선택)', current.description ?? '');
+    const description = window.prompt(translate('template.descriptionPrompt'), current.description ?? '');
     if (description === null) return undefined;
-    const category = window.prompt('템플릿 분류(선택)', current.category ?? '');
+    const category = window.prompt(translate('template.categoryPrompt'), current.category ?? '');
     if (category === null) return undefined;
     return {
       name,
@@ -566,9 +567,7 @@ export function createTauriAdapter(): TauriAdapter {
               },
               getIdentity: requireIdentity,
               readSnapshot,
-              confirm: async () => window.confirm(
-                '이 템플릿을 적용하면 현재 본문과 문서 설정이 교체됩니다. 계속하시겠습니까?',
-              ),
+              confirm: async () => window.confirm(translate('template.applyConfirm')),
               save: async (request) => {
                 const saved = await invoke<TauriDocumentIdentity>('save_document', request);
                 if (session) session = { ...session, ...saved };
@@ -616,8 +615,8 @@ export function createTauriAdapter(): TauriAdapter {
               && typeof snapshot.envelope.meta === 'object' && snapshot.envelope.meta !== null
               && 'title' in snapshot.envelope.meta && typeof snapshot.envelope.meta.title === 'string'
               ? snapshot.envelope.meta.title
-              : '새 템플릿';
-            const metadata = promptMetadata('개인 템플릿 이름', { name: contractTitle });
+              : translate('template.untitled');
+            const metadata = promptMetadata(translate('template.personalNamePrompt'), { name: contractTitle });
             if (!metadata) {
               finishOperation(msg.requestId, 'save', false);
               break;
@@ -645,7 +644,7 @@ export function createTauriAdapter(): TauriAdapter {
           try {
             const template = availableTemplates.get(msg.templateId);
             if (!template) throw new Error('Selected personal template no longer exists.');
-            const metadata = promptMetadata('개인 템플릿 이름 수정', template.descriptor);
+            const metadata = promptMetadata(translate('template.editNamePrompt'), template.descriptor);
             if (!metadata) {
               finishOperation(msg.requestId, 'update', false, msg.templateId);
               break;
@@ -673,8 +672,8 @@ export function createTauriAdapter(): TauriAdapter {
               || personalTemplateFingerprints.get(msg.templateId) !== msg.revisionToken) {
               throw new Error('Selected personal template changed. Refresh and try again.');
             }
-            const metadata = promptMetadata('복제할 템플릿 이름', {
-              name: `${template.descriptor.name} 복사본`,
+            const metadata = promptMetadata(translate('template.duplicateNamePrompt'), {
+              name: translate('template.copySuffix', { name: template.descriptor.name }),
               description: template.descriptor.description,
               category: template.descriptor.category,
             });
@@ -687,7 +686,7 @@ export function createTauriAdapter(): TauriAdapter {
               id: duplicateId,
               ...metadata,
               titleNodeId: template.descriptor.titleNodeId,
-              sourceLabel: '이 PC의 공유 저장소',
+              sourceLabel: '.sdoc/templates',
             });
             await invoke('create_personal_template', {
               templateId: duplicateId,
@@ -705,7 +704,7 @@ export function createTauriAdapter(): TauriAdapter {
           try {
             const template = availableTemplates.get(msg.templateId);
             if (!template) throw new Error('Selected personal template no longer exists.');
-            if (!window.confirm(`'${template.descriptor.name}' 템플릿을 삭제하시겠습니까?`)) {
+            if (!window.confirm(translate('template.deleteConfirm', { name: template.descriptor.name }))) {
               finishOperation(msg.requestId, 'delete', false, msg.templateId);
               break;
             }

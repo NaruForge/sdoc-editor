@@ -13,6 +13,7 @@ import type {
   SlideBreakLevel,
   SlideTransition,
 } from '@shared/types';
+import { useEditorI18n, type EditorTranslationKey } from '../i18n';
 export interface DocumentSettingsPanelProps {
   onUpdateSettings: (settings: Partial<DocumentSettings> | null) => void;
   onSelectCssFile?: (target: CssTarget) => void;
@@ -31,7 +32,7 @@ const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({ title, defaultO
   const [open, setOpen] = React.useState(defaultOpen);
   return (
     <div className="settings-section">
-      <button className="settings-section-header" onClick={() => setOpen(v => !v)}>
+      <button type="button" className="settings-section-header" aria-expanded={open} onClick={() => setOpen(v => !v)}>
         <span className={`settings-chevron ${open ? 'open' : ''}`}>▶</span>
         <span>{title}</span>
       </button>
@@ -40,11 +41,11 @@ const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({ title, defaultO
   );
 };
 
-const CAPTION_STYLE_OPTIONS: { value: CaptionStyleName; label: string; description: string }[] = [
-  { value: 'ieee', label: 'IEEE (간결형)', description: 'Fig. 1, Table I, (1)' },
-  { value: 'iso', label: 'ISO/IEC (정석형)', description: 'Figure 1, Table 1, Equation (1)' },
-  { value: 'modern', label: 'Modern (현대형)', description: 'Figure 1, Table 1, Equation 1' },
-  { value: 'korean', label: 'Korean (한국형)', description: '그림 1, 표 1, 식 (1)' },
+const CAPTION_STYLE_OPTIONS: { value: CaptionStyleName; labelKey: EditorTranslationKey; description: string }[] = [
+  { value: 'ieee', labelKey: 'settings.captionIeee', description: 'Fig. 1, Table I, (1)' },
+  { value: 'iso', labelKey: 'settings.captionIso', description: 'Figure 1, Table 1, Equation (1)' },
+  { value: 'modern', labelKey: 'settings.captionModern', description: 'Figure 1, Table 1, Equation 1' },
+  { value: 'korean', labelKey: 'settings.captionKorean', description: '그림 1, 표 1, 식 (1)' },
 ];
 
 interface CssFileTargetOption {
@@ -59,21 +60,19 @@ const CSS_FILE_TARGET_OPTIONS: CssFileTargetOption[] = [
   { target: 'html', label: 'HTML CSS', pathKey: 'htmlCssPath', placeholder: './theme/html.css' },
 ];
 
-const UNSET_CSS_PATH_LABEL = '(설정 안됨)';
-
-const SELF_CONTAINED_OPTIONS: { value: SelfContainedMode; label: string }[] = [
-  { value: 'none', label: '외부 파일 참조' },
-  { value: 'images-only', label: '이미지만 포함' },
-  { value: 'full', label: '완전 포함' },
+const SELF_CONTAINED_OPTIONS: { value: SelfContainedMode; labelKey: EditorTranslationKey }[] = [
+  { value: 'none', labelKey: 'settings.embedExternal' },
+  { value: 'images-only', labelKey: 'settings.embedImages' },
+  { value: 'full', labelKey: 'settings.embedFull' },
 ];
 
-const SLIDE_BREAK_OPTIONS: { value: SlideBreakLevel; label: string }[] = [
-  { value: 'h1-only', label: 'H1마다 새 슬라이드' },
-  { value: 'h1-h2-vertical', label: 'H1 수평 / H2 수직' },
+const SLIDE_BREAK_OPTIONS: { value: SlideBreakLevel; labelKey: EditorTranslationKey }[] = [
+  { value: 'h1-only', labelKey: 'settings.splitH1' },
+  { value: 'h1-h2-vertical', labelKey: 'settings.splitH1H2' },
 ];
 
 const SLIDE_TRANSITION_OPTIONS: { value: SlideTransition; label: string }[] = [
-  { value: 'none', label: '없음' },
+  { value: 'none', label: 'None' },
   { value: 'fade', label: 'Fade' },
   { value: 'slide', label: 'Slide' },
   { value: 'convex', label: 'Convex' },
@@ -93,7 +92,14 @@ const toNativeColorValue = (value: string): string => {
   return short ? `#${short[1]}${short[1]}${short[2]}${short[2]}${short[3]}${short[3]}` : '#2563EB';
 };
 
+const HEADING_PRESET_LABEL_KEYS: Readonly<Record<string, EditorTranslationKey>> = {
+  '#2563eb': 'settings.presetBlue',
+  '#a50034': 'settings.presetHeritageRed',
+  '#000000': 'settings.presetBlack',
+};
+
 const HeadingColorControl: React.FC<HeadingColorControlProps> = ({ level, value, onChange }) => {
+  const { t } = useEditorI18n();
   const nativePickerRef = React.useRef<HTMLInputElement>(null);
   const normalizedValue = value.toLowerCase();
   const isPresetValue = HEADING_COLOR_PRESETS.some(
@@ -102,25 +108,28 @@ const HeadingColorControl: React.FC<HeadingColorControlProps> = ({ level, value,
 
   return (
     <div className="settings-heading-color-control">
-      <div className="settings-heading-color-presets" role="group" aria-label={`H${level} 대표 색상`}>
-        {HEADING_COLOR_PRESETS.map(({ label, value: preset }) => (
+      <div className="settings-heading-color-presets" role="group" aria-label={t('settings.headingColorPresets', { level })}>
+        {HEADING_COLOR_PRESETS.map(({ value: preset }) => {
+          const presetLabel = t(HEADING_PRESET_LABEL_KEYS[preset.toLowerCase()]);
+          return (
           <button
             key={preset}
             type="button"
             className={`settings-heading-color-swatch settings-heading-color-preset${normalizedValue === preset.toLowerCase() ? ' is-active' : ''}`}
             style={{ backgroundColor: preset }}
-            aria-label={`H${level} ${label}`}
+            aria-label={`H${level} ${presetLabel}`}
             aria-pressed={normalizedValue === preset.toLowerCase()}
-            title={label}
+            title={presetLabel}
             onClick={() => onChange(preset)}
           />
-        ))}
+          );
+        })}
         <button
           type="button"
           className={`settings-heading-color-swatch settings-heading-color-custom-button${isPresetValue ? '' : ' is-active'}`}
-          aria-label={`H${level} 사용자 지정 색상`}
+          aria-label={t('settings.customHeadingColor', { level })}
           aria-pressed={!isPresetValue}
-          title="사용자 지정 색상 선택"
+          title={t('settings.chooseCustomColor')}
           onClick={() => nativePickerRef.current?.click()}
         />
       </div>
@@ -129,7 +138,7 @@ const HeadingColorControl: React.FC<HeadingColorControlProps> = ({ level, value,
         type="color"
         className="settings-heading-color-native-picker"
         value={toNativeColorValue(value)}
-        aria-label={`H${level} RGB Color Picker`}
+        aria-label={t('settings.customHeadingColor', { level })}
         tabIndex={-1}
         onChange={(event) => onChange(event.target.value)}
       />
@@ -214,6 +223,7 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
   onSelectCssFile,
   onClearCssFile,
 }) => {
+  const { t } = useEditorI18n();
   const { state } = useEditorContext();
   const docSettings = state.docSettings;
   const mergedSettings = state.settings;
@@ -266,11 +276,11 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
 
   return (
     <div className="settings-panel">
-      <div className="settings-panel-title">문서 설정</div>
+      <div className="settings-panel-title">{t('settings.title')}</div>
 
-      <CollapsibleSection title="제목 / 번호">
+      <CollapsibleSection title={t('settings.headingNumbering')}>
         <div className="settings-row">
-          <label className="settings-label">번호 매김</label>
+          <label className="settings-label">{t('settings.headingNumbering')}</label>
           <input
             type="checkbox"
             className="settings-toggle"
@@ -279,7 +289,7 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
           />
         </div>
         <div className="settings-row">
-          <label className="settings-label">데코레이션</label>
+          <label className="settings-label">{t('settings.decoration')}</label>
           <input
             type="checkbox"
             className="settings-toggle"
@@ -291,7 +301,7 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
           const key = headingColorKey(level);
           return (
             <div className="settings-row settings-heading-color-row" key={key}>
-              <label className="settings-label">H{level} 색상</label>
+              <label className="settings-label">{t('settings.headingColor', { level })}</label>
               <HeadingColorControl
                 level={level}
                 value={displaySettings[key]}
@@ -302,16 +312,16 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
         })}
       </CollapsibleSection>
 
-      <CollapsibleSection title="캡션 / 번호">
+      <CollapsibleSection title={t('settings.captionsNumbering')}>
         <div className="settings-row">
-          <label className="settings-label">캡션 스타일</label>
+          <label className="settings-label">{t('settings.captionStyle')}</label>
           <select
             className="settings-select"
             value={displaySettings.captionStyle}
             onChange={(e) => updateField('captionStyle', e.target.value as CaptionStyleName)}
           >
             {CAPTION_STYLE_OPTIONS.map(opt => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
+              <option key={opt.value} value={opt.value}>{t(opt.labelKey)}</option>
             ))}
           </select>
         </div>
@@ -319,7 +329,7 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
           {CAPTION_STYLE_OPTIONS.find(o => o.value === displaySettings.captionStyle)?.description}
         </div>
         <div className="settings-row">
-          <label className="settings-label">번호 방식</label>
+          <label className="settings-label">{t('settings.numberingStyle')}</label>
           <div className="settings-radio-group">
             <label className="settings-radio-label">
               <input
@@ -329,7 +339,7 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
                 checked={displaySettings.captionNumbering !== 'hierarchical'}
                 onChange={() => handleNumberingModeChange('sequential')}
               />
-              Sequential
+              {t('settings.numberingSequential')}
             </label>
             <label className="settings-radio-label">
               <input
@@ -339,12 +349,12 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
                 checked={displaySettings.captionNumbering === 'hierarchical'}
                 onChange={() => handleNumberingModeChange('hierarchical')}
               />
-              Hierarchical
+              {t('settings.numberingHierarchical')}
             </label>
           </div>
         </div>
         <div className="settings-row">
-          <label className="settings-label">CrossRef에 캡션 포함</label>
+          <label className="settings-label">{t('settings.includeCaptionCrossRef')}</label>
           <input
             type="checkbox"
             className="settings-toggle"
@@ -354,7 +364,7 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
         </div>
       </CollapsibleSection>
 
-      <CollapsibleSection title="스타일 (Export CSS)">
+      <CollapsibleSection title={t('settings.exportCss')}>
         {CSS_FILE_TARGET_OPTIONS.map(({ target, label, pathKey, placeholder }) => {
           const cssPath = draftDocSettings?.[pathKey];
           const hasPath = typeof cssPath === 'string' && cssPath.length > 0;
@@ -363,14 +373,15 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
             <div className="settings-row" key={target}>
               <label className="settings-label">{label}</label>
               {onSelectCssFile ? <div className="settings-file-picker">
-                <span className="settings-file-path" title={hasPath ? cssPath : UNSET_CSS_PATH_LABEL}>
-                  {hasPath ? cssPath : UNSET_CSS_PATH_LABEL}
+                <span className="settings-file-path" title={hasPath ? cssPath : t('settings.notSet')}>
+                  {hasPath ? cssPath : t('settings.notSet')}
                 </span>
                 <button
                   type="button"
                   className="settings-file-btn"
                   onClick={() => onSelectCssFile(target)}
-                  title={`${label} 선택`}
+                  title={t('settings.chooseFile', { label })}
+                  aria-label={t('settings.chooseFile', { label })}
                 >
                   📁
                 </button>
@@ -379,7 +390,8 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
                     type="button"
                     className="settings-file-clear-btn"
                     onClick={() => onClearCssFile(target)}
-                    title={`${label} 지우기`}
+                    title={t('settings.clearFile', { label })}
+                    aria-label={t('settings.clearFile', { label })}
                   >
                     ✕
                   </button>
@@ -394,9 +406,9 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
         })}
       </CollapsibleSection>
 
-      <CollapsibleSection title="내보내기 (Export)">
+      <CollapsibleSection title={t('settings.export')}>
         <div className="settings-row">
-          <label className="settings-label">PDF 배율</label>
+          <label className="settings-label">{t('settings.pdfScale')}</label>
           <input
             type="number"
             className="settings-number-input"
@@ -408,19 +420,19 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
           />
         </div>
         <div className="settings-row">
-          <label className="settings-label">HTML 포함 수준</label>
+          <label className="settings-label">{t('settings.htmlEmbedding')}</label>
           <select
             className="settings-select"
             value={draftDocSettings?.selfContained ?? displaySettings.selfContained}
             onChange={(e) => updateField('selfContained', e.target.value as SelfContainedMode)}
           >
             {SELF_CONTAINED_OPTIONS.map(opt => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
+              <option key={opt.value} value={opt.value}>{t(opt.labelKey)}</option>
             ))}
           </select>
         </div>
         <div className="settings-row">
-          <label className="settings-label">출력 폴더</label>
+          <label className="settings-label">{t('settings.outputFolder')}</label>
           <DeferredTextInput
             value={draftDocSettings?.outputDir ?? displaySettings.outputDir}
             placeholder="./export"
@@ -428,22 +440,22 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
           />
         </div>
         <div className="settings-hint">
-          비워두면 문서와 같은 폴더에 저장합니다. 상대 경로는 워크스페이스 기준입니다.
+          {t('settings.outputFolderHint')}
         </div>
         <div className="settings-row">
-          <label className="settings-label">슬라이드 분리</label>
+          <label className="settings-label">{t('settings.slideSplit')}</label>
           <select
             className="settings-select"
             value={draftDocSettings?.slideBreakLevel ?? displaySettings.slideBreakLevel}
             onChange={(e) => updateField('slideBreakLevel', e.target.value as SlideBreakLevel)}
           >
             {SLIDE_BREAK_OPTIONS.map(opt => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
+              <option key={opt.value} value={opt.value}>{t(opt.labelKey)}</option>
             ))}
           </select>
         </div>
         <div className="settings-row">
-          <label className="settings-label">타이틀 슬라이드</label>
+          <label className="settings-label">{t('settings.titleSlide')}</label>
           <input
             type="checkbox"
             className="settings-toggle"
@@ -452,14 +464,16 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
           />
         </div>
         <div className="settings-row">
-          <label className="settings-label">전환 효과</label>
+          <label className="settings-label">{t('settings.transition')}</label>
           <select
             className="settings-select"
             value={draftDocSettings?.slideTransition ?? displaySettings.slideTransition}
             onChange={(e) => updateField('slideTransition', e.target.value as SlideTransition)}
           >
             {SLIDE_TRANSITION_OPTIONS.map(opt => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
+              <option key={opt.value} value={opt.value}>
+                {opt.value === 'none' ? t('common.none') : opt.label}
+              </option>
             ))}
           </select>
         </div>
@@ -467,11 +481,12 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
 
       <div className="settings-footer">
         <button
+          type="button"
           className="settings-reset-btn"
           onClick={handleResetAll}
-          title="문서별 설정을 삭제하고 VS Code 전역 설정으로 복원합니다"
+          title={t('settings.resetTitle')}
         >
-          🔄 기본값 불러오기
+          🔄 {t('settings.reset')}
         </button>
       </div>
     </div>
