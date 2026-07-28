@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-07-28
+
+### Added
+- Added Korean and English editor localization across the shared editor, VS Code webview, and Tauri desktop host
+- Added Playwright visual, responsive, keyboard, real-table, and WCAG A/AA regression coverage to CI
+
+### Changed
+- Reworked the formatting toolbar into a single-row responsive layout with grouped overflow menus down to 320px
+- Improved editor contrast, focus states, metadata density, table scrolling, and system light/dark theme integration
+- Changed narrow side panels into accessible modal overlays with focus trapping and Escape-key dismissal
+
 ## [0.6.0] - 2026-07-28
 
 ### Added
