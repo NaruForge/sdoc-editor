@@ -1,0 +1,15 @@
+{
+  "contract": "sdoc.operations/1",
+  "expected": {
+    "revision": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "operations": [
+    {
+      "op": "updateDocumentMetadata",
+      "patch": {
+        "author": "SDOC Agent",
+        "version": "1.0"
+      }
+    }
+  ]
+}

@@ -10,8 +10,28 @@ export type BlockDestination =
   | { position: 'before' | 'after'; target: NodeTarget }
   | { position: 'section-end'; target: NodeTarget };
 
+export type PortableDocumentSettingKey = Exclude<
+keyof DocumentSettings,
+  'slideCssPath' | 'htmlCssPath' | 'outputDir'
+>;
+
+export type DocumentSettingsPatch = Partial<{
+  [Key in PortableDocumentSettingKey]: DocumentSettings[Key] | null;
+}>;
+
 export type SdocOperation =
   | { op: 'renameHeading'; target: NodeTarget; title: string; discardFormatting?: boolean }
+  | {
+    op: 'setDocumentTitle';
+    title: string;
+    headingTarget?: NodeTarget;
+    discardFormatting?: boolean;
+  }
+  | {
+    op: 'updateDocumentMetadata';
+    patch: { author?: string | null; version?: string | null };
+  }
+  | { op: 'updateDocumentSettings'; patch: DocumentSettingsPatch }
   | { op: 'insertBlock'; destination: BlockDestination; block: TiptapNode }
   | { op: 'insertSection'; target: NodeTarget; title: string; id?: string; blocks?: TiptapNode[] }
   | { op: 'replaceBlock'; target: NodeTarget; block: TiptapNode }
@@ -41,9 +61,19 @@ export interface InspectBlock {
   type: string;
   path: number[];
   summary: string;
+  operationTarget: NodeTarget;
   id?: string;
   provisionalId?: string;
   digest?: Sha256Digest;
+}
+
+export interface InspectMetadata {
+  title?: string;
+  author?: string;
+  version?: string;
+  created?: string;
+  modified?: string;
+  settings?: Partial<DocumentSettings>;
 }
 
 export interface InspectResult {
@@ -52,11 +82,19 @@ export interface InspectResult {
   legacy: boolean;
   needsIdNormalization: boolean;
   documentId?: string;
+  metadata: InspectMetadata;
   outline: Array<{ id?: string; provisionalId?: string; level: number; text: string; path: number[] }>;
   references: Array<{ href: string; targetExists: boolean; path: number[] }>;
   referenceables: Array<{ type: string; id?: string; provisionalId?: string; path: number[] }>;
   blocks: InspectBlock[];
-  target?: { path: number[]; node: TiptapNode; digest: Sha256Digest };
+  blockCount: number;
+  blocksTruncated: boolean;
+  target?: {
+    path: number[];
+    node: TiptapNode;
+    digest: Sha256Digest;
+    operationTarget: NodeTarget;
+  };
   warnings: OperationDiagnostic[];
 }
 
@@ -73,7 +111,9 @@ export interface SemanticDiffEvent {
     | 'heading-renamed' | 'block-inserted' | 'section-inserted' | 'block-replaced'
     | 'block-attrs-updated' | 'block-moved' | 'block-deleted' | 'section-moved'
     | 'section-deleted' | 'id-assigned' | 'reference-label-updated'
-    | 'numbering-updated' | 'metadata-updated';
+    | 'numbering-updated' | 'metadata-updated'
+    | 'document-title-updated' | 'document-metadata-updated'
+    | 'document-settings-updated';
   before?: string;
   after?: string;
   indirectChanges?: number;
@@ -106,6 +146,7 @@ export type ApplyOperationResult = ApplySuccess | OperationFailure;
 
 export interface InspectOptions {
   target?: NodeTarget;
+  targetPath?: number[];
   maxBlocks?: number;
   maxSummaryLength?: number;
 }

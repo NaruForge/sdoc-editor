@@ -577,6 +577,347 @@ describe('document operations core', () => {
     }
   });
 
+  it('updates the document title alone or synchronizes an explicit plain H1', () => {
+    const value = envelope([
+      heading(1, 'document-title', 'Old heading'),
+      heading(2, 'section', 'Section'),
+    ]);
+    value.meta.title = 'Old metadata';
+    const text = JSON.stringify(value);
+
+    const metadataOnly = apply(text, [{
+      op: 'setDocumentTitle',
+      title: '  New metadata title  ',
+    }]);
+    expect(metadataOnly.ok).toBe(true);
+    if (!metadataOnly.ok) return;
+    expect(metadataOnly.envelope.meta.title).toBe('New metadata title');
+    expect(metadataOnly.envelope.doc.content?.[0].content?.[0].text).toBe('Old heading');
+    expect(metadataOnly.diff.map(({ kind }) => kind)).toContain('document-title-updated');
+
+    const synchronized = apply(text, [{
+      op: 'setDocumentTitle',
+      title: '  Synchronized title  ',
+      headingTarget: target('document-title'),
+    }]);
+    expect(synchronized.ok).toBe(true);
+    if (!synchronized.ok) return;
+    expect(synchronized.envelope.meta.title).toBe('Synchronized title');
+    expect(synchronized.envelope.doc.content?.[0]).toMatchObject({
+      attrs: { id: 'document-title', level: 1 },
+      content: [{ type: 'text', text: 'Synchronized title' }],
+    });
+  });
+
+  it('requires a plain H1 for title synchronization unless formatting discard is explicit', () => {
+    const value = envelope([
+      {
+        type: 'heading',
+        attrs: { level: 1, id: 'document-title' },
+        content: [{ type: 'text', text: 'Rich title', marks: [{ type: 'bold' }] }],
+      },
+      heading(2, 'section', 'Section'),
+    ]);
+    value.meta.title = 'Original title';
+    const text = JSON.stringify(value);
+
+    const formatted = apply(text, [{
+      op: 'setDocumentTitle',
+      title: 'Replacement',
+      headingTarget: target('document-title'),
+    }]);
+    expect(formatted).toMatchObject({
+      ok: false,
+      category: 'conflict',
+      diagnostics: [{ code: 'FORMATTED_HEADING', operationIndex: 0 }],
+    });
+
+    const discarded = apply(text, [{
+      op: 'setDocumentTitle',
+      title: 'Replacement',
+      headingTarget: target('document-title'),
+      discardFormatting: true,
+    }]);
+    expect(discarded.ok).toBe(true);
+    if (!discarded.ok) return;
+    expect(discarded.envelope.doc.content?.[0].content).toEqual([
+      { type: 'text', text: 'Replacement' },
+    ]);
+
+    const h2 = apply(text, [{
+      op: 'setDocumentTitle',
+      title: 'Replacement',
+      headingTarget: target('section'),
+    }]);
+    expect(h2).toMatchObject({
+      ok: false,
+      category: 'argument',
+      diagnostics: [{ code: 'TITLE_H1_TARGET_REQUIRED', operationIndex: 0 }],
+    });
+  });
+
+  it('validates title and metadata patches and protects all other metadata', () => {
+    const value = envelope([heading(1, 'title', 'Title')]);
+    Object.assign(value.meta, {
+      title: 'Protected title',
+      author: 'Old author',
+      version: '1.0',
+      created: '2024-01-01T00:00:00.000Z',
+      template: { name: 'Protected template' },
+      review: { status: 'draft' },
+    });
+    const text = JSON.stringify(value);
+
+    for (const operation of [
+      { op: 'setDocumentTitle', title: ' \r\n ' },
+      { op: 'setDocumentTitle', title: 'x'.repeat(201) },
+      { op: 'updateDocumentMetadata', patch: {} },
+      { op: 'updateDocumentMetadata', patch: { author: 'x'.repeat(201) } },
+      { op: 'updateDocumentMetadata', patch: { created: null } },
+    ]) {
+      const result = applyOperationRequest(text, {
+        contract: 'sdoc.operations/1',
+        expected: { revision: computeRevision(text) },
+        operations: [operation],
+      });
+      expect(result).toMatchObject({ ok: false, category: 'argument' });
+    }
+
+    const result = apply(text, [{
+      op: 'updateDocumentMetadata',
+      patch: { author: null, version: '2.0' },
+    }]);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.envelope.meta).not.toHaveProperty('author');
+    expect(result.envelope.meta.version).toBe('2.0');
+    expect(result.envelope.meta).toMatchObject({
+      title: 'Protected title',
+      created: '2024-01-01T00:00:00.000Z',
+      documentId: 'doc-1',
+      template: { name: 'Protected template' },
+      review: { status: 'draft' },
+    });
+    expect(result.diff.map(({ kind }) => kind)).toContain('document-metadata-updated');
+  });
+
+  it('uses JSON Schema code-point length semantics for document text metadata', () => {
+    const text = source([heading(1, 'document-title', 'Title')]);
+    const boundary = '😀'.repeat(200);
+    const accepted = apply(text, [
+      {
+        op: 'setDocumentTitle',
+        title: boundary,
+        headingTarget: target('document-title'),
+      },
+      {
+        op: 'updateDocumentMetadata',
+        patch: { author: boundary, version: boundary },
+      },
+    ]);
+    expect(accepted.ok).toBe(true);
+    if (!accepted.ok) return;
+    expect(accepted.envelope.meta.title).toBe(boundary);
+    expect(accepted.envelope.meta.author).toBe(boundary);
+    expect(accepted.envelope.meta.version).toBe(boundary);
+
+    for (const operation of [
+      { op: 'setDocumentTitle', title: `${boundary}😀` },
+      { op: 'setDocumentTitle', title: ` ${'x'.repeat(200)}` },
+      { op: 'updateDocumentMetadata', patch: { author: `${boundary}😀` } },
+      { op: 'updateDocumentMetadata', patch: { version: `${boundary}😀` } },
+    ]) {
+      const rejected = applyOperationRequest(text, {
+        contract: 'sdoc.operations/1',
+        expected: { revision: computeRevision(text) },
+        operations: [operation],
+      });
+      expect(rejected).toMatchObject({ ok: false, category: 'argument' });
+    }
+  });
+
+  it('merge-patches only portable document settings and removes an empty override object', () => {
+    const text = source([heading(1, 'title', 'Title')]);
+    const updated = apply(text, [{
+      op: 'updateDocumentSettings',
+      patch: { captionStyle: null, pdfScale: 85 },
+    }]);
+    expect(updated.ok).toBe(true);
+    if (!updated.ok) return;
+    expect(updated.envelope.meta.settings).toEqual({
+      headingNumbering: true,
+      pdfScale: 85,
+    });
+    expect(updated.diff.map(({ kind }) => kind)).toContain('document-settings-updated');
+
+    const removed = apply(text, [{
+      op: 'updateDocumentSettings',
+      patch: { captionStyle: null, headingNumbering: null },
+    }]);
+    expect(removed.ok).toBe(true);
+    if (!removed.ok) return;
+    expect(removed.envelope.meta).not.toHaveProperty('settings');
+
+    for (const patch of [
+      {},
+      { slideCssPath: './theme.css' },
+      { htmlCssPath: null },
+      { outputDir: './output' },
+      { unknownSetting: true },
+      { captionStyle: 'invalid' },
+      { headingNumbering: 'yes' },
+    ]) {
+      const result = applyOperationRequest(text, {
+        contract: 'sdoc.operations/1',
+        expected: { revision: computeRevision(text) },
+        operations: [{ op: 'updateDocumentSettings', patch }],
+      });
+      expect(result).toMatchObject({ ok: false, category: 'argument' });
+    }
+  });
+
+  it('preserves exact bytes and modified time for document-level semantic no-ops', () => {
+    const value = envelope([heading(1, 'document-title', 'Same title')]);
+    Object.assign(value.meta, { title: 'Same title', author: 'Same author' });
+    const text = JSON.stringify(value, null, 4);
+    const result = apply(text, [
+      {
+        op: 'setDocumentTitle',
+        title: 'Same title',
+        headingTarget: target('document-title'),
+      },
+      { op: 'updateDocumentMetadata', patch: { author: 'Same author' } },
+      { op: 'updateDocumentSettings', patch: { captionStyle: 'korean' } },
+    ]);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.changed).toBe(false);
+    expect(result.outputText).toBe(text);
+    expect(result.outputRevision).toBe(computeRevision(text));
+    expect(result.envelope.meta.modified).toBe('2025-01-01T00:00:00.000Z');
+    expect(result.diff).toEqual([]);
+  });
+
+  it('pre-resolves title heading targets and keeps stale and legacy guards unchanged', () => {
+    const text = source([heading(1, 'root', 'Root')]);
+    const createdWithinBatch = apply(text, [
+      { op: 'insertSection', target: target('root'), title: 'Created', id: 'created' },
+      {
+        op: 'setDocumentTitle',
+        title: 'New title',
+        headingTarget: target('created'),
+      },
+    ]);
+    expect(createdWithinBatch).toMatchObject({
+      ok: false,
+      category: 'conflict',
+      diagnostics: [{ code: 'TARGET_NOT_FOUND' }],
+    });
+
+    const stale = applyOperationRequest(text, {
+      contract: 'sdoc.operations/1',
+      expected: { revision: `sha256:${'0'.repeat(64)}` },
+      operations: [{ op: 'setDocumentTitle', title: 'New title' }],
+    });
+    expect(stale).toMatchObject({
+      ok: false,
+      category: 'conflict',
+      diagnostics: [{ code: 'STALE_REVISION' }],
+    });
+
+    const legacy = JSON.stringify({ type: 'doc', content: [heading(1, 'root', 'Root')] });
+    const legacyResult = applyOperationRequest(legacy, {
+      contract: 'sdoc.operations/1',
+      expected: { revision: computeRevision(legacy) },
+      operations: [{ op: 'setDocumentTitle', title: 'New title' }],
+    });
+    expect(legacyResult).toMatchObject({
+      ok: false,
+      category: 'document',
+      diagnostics: [{ code: 'LEGACY_UPGRADE_REQUIRED' }],
+    });
+  });
+
+  it('inspects known metadata, canonical operation targets, truncation, and target paths', () => {
+    const value = envelope([
+      heading(1, 'persistent-heading', 'Heading'),
+      paragraph('Body'),
+      { type: 'image', attrs: { src: 'data:image/png;base64,AA==' } },
+    ]);
+    Object.assign(value.meta, {
+      title: 'Document title',
+      author: 'Author',
+      version: '3.1',
+      created: '2024-01-01T00:00:00.000Z',
+      privateMetadata: 'must not be inspected',
+    });
+    const text = JSON.stringify(value);
+    const inspected = inspectDocumentBytes(text, { maxBlocks: 2, targetPath: [1] });
+    expect(inspected.ok).toBe(true);
+    if (!inspected.ok) return;
+
+    expect(inspected.metadata).toEqual({
+      title: 'Document title',
+      author: 'Author',
+      version: '3.1',
+      created: '2024-01-01T00:00:00.000Z',
+      modified: '2025-01-01T00:00:00.000Z',
+      settings: { captionStyle: 'korean', headingNumbering: true },
+    });
+    expect(inspected.blockCount).toBe(3);
+    expect(inspected.blocksTruncated).toBe(true);
+    expect(inspected.blocks[0].operationTarget).toEqual({
+      kind: 'id',
+      id: 'persistent-heading',
+      expectedType: 'heading',
+    });
+    expect(inspected.blocks[1].operationTarget).toMatchObject({
+      kind: 'snapshot',
+      path: [1],
+      nodeType: 'paragraph',
+    });
+    expect(inspected.target).toMatchObject({
+      path: [1],
+      operationTarget: {
+        kind: 'snapshot',
+        path: [1],
+        nodeType: 'paragraph',
+      },
+    });
+
+    const all = inspectDocumentBytes(text);
+    expect(all.ok).toBe(true);
+    if (!all.ok) return;
+    expect(all.blocks[2]).toMatchObject({
+      type: 'image',
+      operationTarget: {
+        kind: 'id',
+        id: expect.stringMatching(/^provisional:/),
+        expectedType: 'image',
+      },
+    });
+
+    expect(inspectDocumentBytes(text, { targetPath: [99] })).toMatchObject({
+      ok: false,
+      category: 'conflict',
+      diagnostics: [{ code: 'TARGET_NOT_FOUND' }],
+    });
+    expect(inspectDocumentBytes(text, { targetPath: [1, 0] })).toMatchObject({
+      ok: false,
+      category: 'argument',
+      diagnostics: [{ code: 'TARGET_NOT_BLOCK' }],
+    });
+    expect(inspectDocumentBytes(text, {
+      target: target('persistent-heading'),
+      targetPath: [0],
+    })).toMatchObject({
+      ok: false,
+      category: 'argument',
+      diagnostics: [{ code: 'INVALID_INSPECT_OPTIONS' }],
+    });
+  });
+
   it('keeps the #40 payload comparison fixture reproducible', () => {
     const content: TiptapNode[] = [heading(
       1,

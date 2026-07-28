@@ -34,8 +34,18 @@ interface CoreApi {
 
 const core = operationsCore as unknown as CoreApi;
 
-export function inspect(bytes: Uint8Array, targetId?: string): CoreResult {
-  return core.inspectDocumentBytes(bytes, targetId ? { target: { kind: 'id', id: targetId } } : undefined);
+export interface InspectSelection {
+  targetId?: string;
+  targetPath?: number[];
+}
+
+export function inspect(bytes: Uint8Array, selection: InspectSelection = {}): CoreResult {
+  const options = selection.targetId
+    ? { target: { kind: 'id', id: selection.targetId } }
+    : selection.targetPath
+      ? { targetPath: selection.targetPath }
+      : undefined;
+  return core.inspectDocumentBytes(bytes, options);
 }
 
 export function validate(bytes: Uint8Array): CoreResult {

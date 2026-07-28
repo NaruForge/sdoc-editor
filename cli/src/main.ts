@@ -28,7 +28,7 @@ import { createDocumentPlan } from './templateAdapter.js';
 
 declare const __CLI_VERSION__: string | undefined;
 
-const VERSION = typeof __CLI_VERSION__ === 'string' ? __CLI_VERSION__ : '0.5.0';
+const VERSION = typeof __CLI_VERSION__ === 'string' ? __CLI_VERSION__ : '0.6.0';
 
 interface OutputRecord {
   ok: boolean;
@@ -99,7 +99,24 @@ async function readRequest(args: CliArguments): Promise<unknown> {
     return {
       contract: 'sdoc.operations/1',
       expected: { revision: args.expectedRevision },
-      operations: [{ op: 'renameHeading', target: { kind: 'id', id: args.id }, title: args.title }],
+      operations: [{
+        op: 'renameHeading',
+        target: { kind: 'id', id: args.id },
+        title: args.title,
+        ...(args.discardFormatting ? { discardFormatting: true } : {}),
+      }],
+    };
+  }
+  if (args.command === 'set-document-title') {
+    return {
+      contract: 'sdoc.operations/1',
+      expected: { revision: args.expectedRevision },
+      operations: [{
+        op: 'setDocumentTitle',
+        title: args.title,
+        headingTarget: { kind: 'id', id: args.id, expectedType: 'heading' },
+        ...(args.discardFormatting ? { discardFormatting: true } : {}),
+      }],
     };
   }
   const bytes =
@@ -115,7 +132,9 @@ function outputDocument(result: CoreResult): unknown {
 }
 
 async function runReadCommand(args: CliArguments, path: string, bytes: Uint8Array): Promise<number> {
-  const result = args.command === 'inspect' ? inspect(bytes, args.targetId) : validate(bytes);
+  const result = args.command === 'inspect'
+    ? inspect(bytes, { targetId: args.targetId, targetPath: args.targetPath })
+    : validate(bytes);
   if (!result.ok) {
     writeRecord(process.stderr, result as unknown as OutputRecord, args.output, true);
     return exitForResult(result);

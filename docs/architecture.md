@@ -118,10 +118,19 @@ previews mutations unless `--write` is supplied. A no-op does not update
 `meta.modified` or write bytes. Writes acquire a sibling lock, re-read and
 verify the byte revision inside the lock, then use a synced sibling temporary
 file and atomic rename. The shared operations core itself performs no file or
-network access. The CLI package includes the public operation schema and nine
+network access. The CLI package includes the public operation schema and twelve
 minimal examples. It also creates new documents from bundled or explicitly
 named templates through the shared template core, using atomic no-replace
 publication. See [ADR 0009](adr/0009-use-versioned-semantic-document-operations.md).
+
+Document-level operations expose separate contracts for title synchronization,
+author/version metadata, and portable settings. Title-heading synchronization
+always receives an explicit H1 target; template metadata is never inferred as
+live document authority. Created/modified timestamps, document identity,
+template metadata, arbitrary extensions, and filesystem-bearing settings remain
+protected. Inspection returns ready-to-copy operation targets for every block,
+and an explicit content path can request the complete node without weakening
+snapshot digest or exact-byte revision checks.
 
 ### Path and runtime boundaries
 

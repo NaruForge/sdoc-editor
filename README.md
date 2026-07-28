@@ -61,7 +61,48 @@ An authenticated GitHub CLI can discover the current release and asset URL:
 gh release view --repo NaruForge/sdoc-editor --json tagName,assets
 ```
 
-Set `SDOC_CLI_TGZ_URL` to the `url` of the matching CLI asset returned above.
+Without `gh` or authentication, use the anonymous Releases REST API. Both
+examples require exactly one strict `sdoc-editor-cli-*.tgz` match and select
+its `browser_download_url`.
+
+```powershell
+$release = Invoke-RestMethod `
+  -Headers @{
+    Accept = 'application/vnd.github+json'
+    'X-GitHub-Api-Version' = '2022-11-28'
+  } `
+  -Uri 'https://api.github.com/repos/NaruForge/sdoc-editor/releases/latest'
+$assets = @($release.assets | Where-Object {
+  $_.name -match '^sdoc-editor-cli-[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?\.tgz$'
+})
+if ($assets.Count -ne 1) {
+  throw "Expected exactly one sdoc-editor-cli-*.tgz asset, found $($assets.Count)."
+}
+$env:SDOC_CLI_TGZ_URL = $assets[0].browser_download_url
+```
+
+```bash
+SDOC_CLI_TGZ_URL="$(
+  curl -fsSL \
+    -H 'Accept: application/vnd.github+json' \
+    -H 'X-GitHub-Api-Version: 2022-11-28' \
+    https://api.github.com/repos/NaruForge/sdoc-editor/releases/latest |
+  jq -er '
+    [.assets[] | select(.name | test("^sdoc-editor-cli-[0-9]+[.][0-9]+[.][0-9]+(-[0-9A-Za-z.-]+)?[.]tgz$"))]
+    | if length == 1 then .[0].browser_download_url
+      else error("expected exactly one sdoc-editor-cli-*.tgz asset")
+      end
+  '
+)"
+export SDOC_CLI_TGZ_URL
+```
+
+Anonymous GitHub REST requests are rate-limited (typically 60 requests per
+hour per source IP), so authenticate requests from busy shared runners. The
+CLI is not published to npm and there is no unversioned `latest` asset alias;
+always install the discovered versioned `browser_download_url`.
+
+Set `SDOC_CLI_TGZ_URL` to the download URL discovered by either method above.
 For a project-local installation:
 
 ```bash
@@ -78,11 +119,9 @@ sdoc --version
 npm list --global sdoc-editor-cli --depth=0
 ```
 
-If `gh` is unavailable, inspect the repository's Releases page through another
-available GitHub client and use the matching asset's HTTPS download URL. Do not
-silently switch from a local installation to a global installation. If the
-current directory has no `package.json`, ask the user where the CLI should be
-installed instead of creating a project or changing global state without
+Do not silently switch from a local installation to a global installation. If
+the current directory has no `package.json`, ask the user where the CLI should
+be installed instead of creating a project or changing global state without
 confirmation.
 
 Clone and build the repository only when the user explicitly wants a
@@ -116,18 +155,27 @@ npx --no-install sdoc validate document.sdoc --json
 ```powershell
 sdoc inspect document.sdoc --json
 sdoc inspect document.sdoc --json --target-id intro
+sdoc inspect document.sdoc --json --target-path /1/0
 sdoc validate document.sdoc --json
-sdoc apply document.sdoc --operations operations.json
-sdoc apply document.sdoc --operations operations.json --write
-Get-Content operations.json | sdoc apply document.sdoc --operations - --write
+sdoc apply document.sdoc --operations operations.json --json
+sdoc apply document.sdoc --operations operations.json --write --json
+Get-Content -Raw -Encoding utf8 operations.json |
+  sdoc apply document.sdoc --operations - --write --json
 sdoc rename-heading document.sdoc --id intro --title "시험 결과" `
-  --expected-revision sha256:...
+  --expected-revision sha256:... --json
+sdoc set-document-title document.sdoc --id title-h1 --title "한글 제목" `
+  --expected-revision sha256:... --write --json
 ```
 
 The installable package contains the document schema, the public
-`sdoc.operations/1` schema, and one JSON request example for each of the nine
+`sdoc.operations/1` schema, and one JSON request example for each of the 12
 semantic operations. See the [complete CLI manual](cli/README.md) for command
-help, targets, placeholders, legacy upgrades, output modes, and exit codes.
+help, `operationTarget`, supported nodes and attrs, atomic batch construction,
+diagnostic recovery, legacy upgrades, and exit codes. The document-level
+operations are `setDocumentTitle`, `updateDocumentMetadata`, and
+`updateDocumentSettings`. One `inspect --json` revision can guard a multi-op
+batch; re-inspect after a successful write, not between operations in that
+batch.
 
 Use `--dry-run` as an explicit preview alias. Legacy raw `.tiptap.json`
 documents can be inspected and validated, but every mutation requires

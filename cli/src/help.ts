@@ -16,10 +16,15 @@ const COMMAND_HELP: Record<CommandName, CommandHelp> = {
   inspect: {
     usage: 'sdoc inspect <document.sdoc|document.tiptap.json> [options]',
     description: 'Inspect a document revision, outline, references, and targetable blocks.',
-    options: [...COMMON_OUTPUT, '  --target-id <id>       Include the complete node for one persistent ID'],
+    options: [
+      ...COMMON_OUTPUT,
+      '  --target-id <id>       Select one block by persistent ID',
+      '  --target-path </1/0>   Select one block by slash-separated content indexes',
+    ],
     examples: [
       'sdoc inspect report.sdoc --json',
       'sdoc inspect report.sdoc --target-id intro --human',
+      'sdoc inspect report.sdoc --target-path /1/0 --json',
     ],
   },
   validate: {
@@ -54,9 +59,27 @@ const COMMAND_HELP: Record<CommandName, CommandHelp> = {
       '  --write                       Persist the change (preview is the default)',
       '  --dry-run                     Explicitly request preview mode',
       '  --upgrade-legacy              Permit conversion of a legacy raw Tiptap document',
+      '  --discard-formatting          Replace formatted heading content with plain text',
     ],
     examples: [
       'sdoc rename-heading report.sdoc --id intro --title "Results" --expected-revision sha256:...',
+    ],
+  },
+  'set-document-title': {
+    usage: 'sdoc set-document-title <document> --id <id> --title <text> --expected-revision <sha256:...> [options]',
+    description: 'Preview or atomically update document metadata and its explicitly identified title H1.',
+    options: [
+      ...COMMON_OUTPUT,
+      '  --id <id>                    Title H1 persistent ID',
+      '  --title <text>                Replacement document title',
+      '  --expected-revision <digest>  Exact revision returned by inspect',
+      '  --write                       Persist the change (preview is the default)',
+      '  --dry-run                     Explicitly request preview mode',
+      '  --upgrade-legacy              Permit conversion of a legacy raw Tiptap document',
+      '  --discard-formatting          Replace formatted heading content with plain text',
+    ],
+    examples: [
+      'sdoc set-document-title report.sdoc --id document-title --title "Results" --expected-revision sha256:...',
     ],
   },
   create: {
@@ -85,6 +108,7 @@ export function renderHelp(command?: CommandName): string {
       '  validate         Validate a document',
       '  apply            Preview or apply semantic operations',
       '  rename-heading   Rename one heading by persistent ID',
+      '  set-document-title  Update metadata and an explicit title H1',
       '  create           Create a new document from a built-in or file template',
       '',
       'Use "sdoc help <command>" or "sdoc <command> --help" for command details.',
