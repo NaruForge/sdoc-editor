@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-07-28
+
+### Added
+- Added Workspace, Navigate, Design, and Publish activity hubs with responsive docked and overlay side panels
+- Added shared task-oriented Templates and Files panels for VS Code and Tauri
+- Added opt-in PlantUML, D2, and Graphviz rendering through host-side Kroki adapters with source-only fallback
+- Added deterministic cross-host UI, accessibility, package activation, and native renderer security regression coverage
+
+### Changed
+- Reorganized document appearance, numbering, references, import, export, and template workflows around the new activity hubs
+- Unified shared editor panels, file operation state, template diagnostics, request correlation, and focus restoration across both hosts
+- Pre-rendered non-Mermaid diagrams in host adapters before HTML, PDF, and Slides conversion
+
+### Security
+- Kept remote diagram rendering disabled by default and outside the persisted `.sdoc` document contract
+- Added endpoint trust validation, SSRF and redirect blocking, timeouts, response limits, PNG validation, bounded concurrency, and memory-only caching
+
+### Fixed
+- Activated packaged `.sdoc` and `.sdocbook` custom editors through explicit VS Code activation events
+- Preserved selection, preview, cancellation, fallback, and stale-response behavior across template, file, and diagram operations
+
 ## [0.6.1] - 2026-07-28
 
 ### Added
