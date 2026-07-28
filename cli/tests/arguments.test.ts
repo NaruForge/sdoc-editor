@@ -19,6 +19,90 @@ describe('parseArguments', () => {
     expect(result.write).toBe(false);
   });
 
+  it('parses document-title updates and discard-formatting without changing Korean text', () => {
+    const result = parseArguments([
+      'set-document-title',
+      '문서.sdoc',
+      '--id',
+      'document-title',
+      '--title',
+      '시험 결과',
+      '--expected-revision',
+      'sha256:abc',
+      '--discard-formatting',
+      '--dry-run',
+    ]);
+    expect(result).toMatchObject({
+      kind: 'command',
+      command: 'set-document-title',
+      title: '시험 결과',
+      discardFormatting: true,
+      dryRun: true,
+      write: false,
+    });
+  });
+
+  it('exposes discard-formatting on rename-heading', () => {
+    expect(parseArguments([
+      'rename-heading',
+      'document.sdoc',
+      '--id',
+      'intro',
+      '--title',
+      'Plain title',
+      '--expected-revision',
+      'sha256:abc',
+      '--discard-formatting',
+    ])).toMatchObject({
+      kind: 'command',
+      command: 'rename-heading',
+      discardFormatting: true,
+    });
+  });
+
+  it('parses canonical slash target paths and rejects conflicts', () => {
+    expect(parseArguments([
+      'inspect',
+      'document.sdoc',
+      '--target-path',
+      '/1/0',
+    ])).toMatchObject({
+      kind: 'command',
+      targetPath: [1, 0],
+    });
+    expect(() => parseArguments([
+      'inspect',
+      'document.sdoc',
+      '--target-id',
+      'intro',
+      '--target-path',
+      '/1',
+    ])).toThrowError(/cannot be used together/);
+  });
+
+  it.each(['1/0', '/', '/1/', '/1//0', '/-1', '/01', '/a', '/9007199254740992'])(
+    'rejects malformed target path %s with the stable diagnostic',
+    (targetPath) => {
+      try {
+        parseArguments(['inspect', 'document.sdoc', '--target-path', targetPath]);
+        throw new Error('expected parseArguments to throw');
+      } catch (error) {
+        expect(error).toBeInstanceOf(ArgumentError);
+        expect((error as ArgumentError).code).toBe('CLI_INVALID_TARGET_PATH');
+      }
+    },
+  );
+
+  it('requires the title command identity, title, and revision arguments', () => {
+    try {
+      parseArguments(['set-document-title', 'document.sdoc', '--title', 'Title']);
+      throw new Error('expected parseArguments to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(ArgumentError);
+      expect((error as ArgumentError).code).toBe('CLI_MISSING_SET_DOCUMENT_TITLE_ARGUMENT');
+    }
+  });
+
   it('requires operation input for apply', () => {
     expect(() => parseArguments(['apply', 'a.sdoc'])).toThrowError(ArgumentError);
   });

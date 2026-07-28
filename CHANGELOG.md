@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-07-28
+
+### Added
+- Added semantic operations for document titles, author/version metadata, and portable document settings
+- Added `sdoc set-document-title` for atomic metadata and explicit H1 synchronization
+- Added canonical operation targets and content-path detail inspection for AI-authored operation batches
+- Added installed-package Unicode smoke coverage for PowerShell 7, Windows PowerShell 5.1, and cmd.exe
+
+### Changed
+- Expanded the packaged CLI contract to twelve operation examples and documented supported nodes, diagnostics, batch authoring, and anonymous release discovery
+- Exposed formatted-heading replacement explicitly through CLI convenience commands while retaining preview-first and exact-revision safeguards
+
 ## [0.5.0] - 2026-07-27
 
 ### Added

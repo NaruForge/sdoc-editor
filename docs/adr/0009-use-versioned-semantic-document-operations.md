@@ -28,6 +28,10 @@ failures are returned as discriminated diagnostics with stable codes.
 The public request contract is also described by
 `sdoc.operations.schema.json`; the packaged CLI includes that schema, the
 referenced document schema, and one example for each supported operation.
+Adding a new discriminated operation is an additive `sdoc.operations/1`
+extension. Existing producers remain valid, while older consumers may reject an
+operation they do not implement. Breaking envelope, target, or existing
+operation semantics require a new contract version.
 
 Every mutation request supplies the SHA-256 revision of the exact source
 bytes. Those bytes include a UTF-8 BOM when one is present. A caller may also
@@ -77,6 +81,22 @@ Normalization resolves `meta.settings` over the defaults in
 `meta.modified` is updated through an injected clock only when the normalized
 document has a semantic change. A no-op does not update metadata and is never
 written.
+
+Document metadata changes are allowlisted rather than accepting the persisted
+schema's open-ended metadata object. A document title may optionally update one
+explicitly targeted H1 in the same atomic operation; the core never guesses a
+title heading or treats template-only `titleNodeId` as live authority.
+Author/version changes are bounded, and portable document-setting patches use
+`null` to remove an override. Created/modified timestamps, identity, template
+metadata, arbitrary extensions, and filesystem-bearing CSS/output paths are
+not mutable through this contract.
+
+Inspection supplies a canonical operation target for each returned block.
+Persistent and provisional IDs are preferred where available; ordinary blocks
+receive the complete revision-scoped snapshot locator. A caller may also select
+a block by an explicit content-index path to obtain its full node and canonical
+target. This is request-authoring assistance only and does not introduce fuzzy
+selection or bypass revision checks.
 
 ### Preview-first CLI and persistence boundary
 

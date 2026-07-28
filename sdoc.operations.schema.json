@@ -91,7 +91,10 @@
         { "$ref": "#/definitions/moveBlock" },
         { "$ref": "#/definitions/deleteBlock" },
         { "$ref": "#/definitions/moveSection" },
-        { "$ref": "#/definitions/deleteSection" }
+        { "$ref": "#/definitions/deleteSection" },
+        { "$ref": "#/definitions/setDocumentTitle" },
+        { "$ref": "#/definitions/updateDocumentMetadata" },
+        { "$ref": "#/definitions/updateDocumentSettings" }
       ]
     },
     "renameHeading": {
@@ -185,6 +188,166 @@
       "properties": {
         "op": { "const": "deleteSection" },
         "target": { "$ref": "#/definitions/target" }
+      },
+      "additionalProperties": false
+    },
+    "setDocumentTitle": {
+      "type": "object",
+      "required": ["op", "title"],
+      "properties": {
+        "op": { "const": "setDocumentTitle" },
+        "title": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "\\S"
+        },
+        "headingTarget": { "$ref": "#/definitions/target" },
+        "discardFormatting": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "updateDocumentMetadata": {
+      "type": "object",
+      "required": ["op", "patch"],
+      "properties": {
+        "op": { "const": "updateDocumentMetadata" },
+        "patch": {
+          "type": "object",
+          "minProperties": 1,
+          "properties": {
+            "author": {
+              "oneOf": [
+                { "type": "string", "maxLength": 200 },
+                { "type": "null" }
+              ]
+            },
+            "version": {
+              "oneOf": [
+                { "type": "string", "maxLength": 200 },
+                { "type": "null" }
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "updateDocumentSettings": {
+      "type": "object",
+      "required": ["op", "patch"],
+      "properties": {
+        "op": { "const": "updateDocumentSettings" },
+        "patch": { "$ref": "#/definitions/portableSettingsPatch" }
+      },
+      "additionalProperties": false
+    },
+    "portableSettingsPatch": {
+      "type": "object",
+      "minProperties": 1,
+      "properties": {
+        "headingNumbering": {
+          "oneOf": [
+            { "$ref": "https://sdoc.dev/schema/v1.0.json#/definitions/documentSettings/properties/headingNumbering" },
+            { "type": "null" }
+          ]
+        },
+        "headingDecoration": {
+          "oneOf": [
+            { "$ref": "https://sdoc.dev/schema/v1.0.json#/definitions/documentSettings/properties/headingDecoration" },
+            { "type": "null" }
+          ]
+        },
+        "headingH1Color": {
+          "oneOf": [
+            { "$ref": "https://sdoc.dev/schema/v1.0.json#/definitions/documentSettings/properties/headingH1Color" },
+            { "type": "null" }
+          ]
+        },
+        "headingH2Color": {
+          "oneOf": [
+            { "$ref": "https://sdoc.dev/schema/v1.0.json#/definitions/documentSettings/properties/headingH2Color" },
+            { "type": "null" }
+          ]
+        },
+        "headingH3Color": {
+          "oneOf": [
+            { "$ref": "https://sdoc.dev/schema/v1.0.json#/definitions/documentSettings/properties/headingH3Color" },
+            { "type": "null" }
+          ]
+        },
+        "headingH4Color": {
+          "oneOf": [
+            { "$ref": "https://sdoc.dev/schema/v1.0.json#/definitions/documentSettings/properties/headingH4Color" },
+            { "type": "null" }
+          ]
+        },
+        "headingH5Color": {
+          "oneOf": [
+            { "$ref": "https://sdoc.dev/schema/v1.0.json#/definitions/documentSettings/properties/headingH5Color" },
+            { "type": "null" }
+          ]
+        },
+        "headingH6Color": {
+          "oneOf": [
+            { "$ref": "https://sdoc.dev/schema/v1.0.json#/definitions/documentSettings/properties/headingH6Color" },
+            { "type": "null" }
+          ]
+        },
+        "captionStyle": {
+          "oneOf": [
+            { "$ref": "https://sdoc.dev/schema/v1.0.json#/definitions/documentSettings/properties/captionStyle" },
+            { "type": "null" }
+          ]
+        },
+        "captionNumbering": {
+          "oneOf": [
+            { "$ref": "https://sdoc.dev/schema/v1.0.json#/definitions/documentSettings/properties/captionNumbering" },
+            { "type": "null" }
+          ]
+        },
+        "equationNumbering": {
+          "oneOf": [
+            { "$ref": "https://sdoc.dev/schema/v1.0.json#/definitions/documentSettings/properties/equationNumbering" },
+            { "type": "null" }
+          ]
+        },
+        "crossRefIncludeCaption": {
+          "oneOf": [
+            { "$ref": "https://sdoc.dev/schema/v1.0.json#/definitions/documentSettings/properties/crossRefIncludeCaption" },
+            { "type": "null" }
+          ]
+        },
+        "pdfScale": {
+          "oneOf": [
+            { "$ref": "https://sdoc.dev/schema/v1.0.json#/definitions/documentSettings/properties/pdfScale" },
+            { "type": "null" }
+          ]
+        },
+        "selfContained": {
+          "oneOf": [
+            { "$ref": "https://sdoc.dev/schema/v1.0.json#/definitions/documentSettings/properties/selfContained" },
+            { "type": "null" }
+          ]
+        },
+        "slideBreakLevel": {
+          "oneOf": [
+            { "$ref": "https://sdoc.dev/schema/v1.0.json#/definitions/documentSettings/properties/slideBreakLevel" },
+            { "type": "null" }
+          ]
+        },
+        "slideTransition": {
+          "oneOf": [
+            { "$ref": "https://sdoc.dev/schema/v1.0.json#/definitions/documentSettings/properties/slideTransition" },
+            { "type": "null" }
+          ]
+        },
+        "showTitleSlide": {
+          "oneOf": [
+            { "$ref": "https://sdoc.dev/schema/v1.0.json#/definitions/documentSettings/properties/showTitleSlide" },
+            { "type": "null" }
+          ]
+        }
       },
       "additionalProperties": false
     }

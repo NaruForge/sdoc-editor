@@ -1,6 +1,11 @@
-import type { SdocEnvelope, TiptapNode } from '../../types';
+import type { DocumentSettings, SdocEnvelope, TiptapNode } from '../../types';
 import { resolveSettings } from '../../settingsResolver';
-import { assertPersistedDocument, parseDocumentContract } from '../documentContract';
+import {
+  assertPersistedDocument,
+  parseDocumentContract,
+  validateDocumentSettings,
+} from '../documentContract';
+import { normalizeDocumentTitle, unicodeCodePointLength } from '../title';
 import { normalizeDocument, queryDocumentStructure } from '../sdocUtils';
 import { walkDocument } from '../walker';
 import { parsePortableAssetPath } from '../../security/portableAssets';
@@ -22,6 +27,25 @@ const MAX_TARGET_DETAIL_BYTES = 256 * 1024;
 const REFERENCEABLE = new Set(['heading', 'image', 'table', 'mathBlock']);
 const NON_BLOCK = new Set([
   'doc', 'text', 'mathInline', 'tableRow', 'listItem',
+]);
+const PORTABLE_SETTING_KEYS = new Set<keyof DocumentSettings>([
+  'headingNumbering',
+  'headingDecoration',
+  'headingH1Color',
+  'headingH2Color',
+  'headingH3Color',
+  'headingH4Color',
+  'headingH5Color',
+  'headingH6Color',
+  'captionStyle',
+  'captionNumbering',
+  'equationNumbering',
+  'crossRefIncludeCaption',
+  'pdfScale',
+  'selfContained',
+  'slideBreakLevel',
+  'slideTransition',
+  'showTitleSlide',
 ]);
 const ATTR_ALLOWLIST: Record<string, ReadonlySet<string>> = {
   heading: new Set(['textAlign', 'numbered']),
@@ -249,6 +273,19 @@ const nodeAt = (root: TiptapNode, path: readonly number[]): TiptapNode | undefin
 const provisionalId = (revision: Sha256Digest, path: readonly number[], node: TiptapNode): string =>
   `provisional:${computeRevision(`${revision}:${pathKey(path)}:${node.type}`).slice(7, 23)}`;
 
+const operationTargetFor = (
+  revision: Sha256Digest,
+  path: readonly number[],
+  node: TiptapNode,
+): NodeTarget => {
+  const id = typeof node.attrs?.id === 'string' && node.attrs.id
+    ? node.attrs.id
+    : REFERENCEABLE.has(node.type) ? provisionalId(revision, path, node) : undefined;
+  return id
+    ? { kind: 'id', id, expectedType: node.type }
+    : { kind: 'snapshot', path: [...path], nodeType: node.type, digest: nodeDigest(node) };
+};
+
 interface TargetIndex {
   byId: Map<string, TiptapNode>;
   paths: Map<TiptapNode, number[]>;
@@ -369,6 +406,9 @@ function narrowOperation(value: unknown): SdocOperation | undefined {
   if (!isRecord(value) || typeof value.op !== 'string') return undefined;
   const allowedKeys: Record<string, ReadonlySet<string>> = {
     renameHeading: new Set(['op', 'target', 'title', 'discardFormatting']),
+    setDocumentTitle: new Set(['op', 'title', 'headingTarget', 'discardFormatting']),
+    updateDocumentMetadata: new Set(['op', 'patch']),
+    updateDocumentSettings: new Set(['op', 'patch']),
     insertBlock: new Set(['op', 'destination', 'block']),
     insertSection: new Set(['op', 'target', 'title', 'id', 'blocks']),
     replaceBlock: new Set(['op', 'target', 'block']),
@@ -384,6 +424,42 @@ function narrowOperation(value: unknown): SdocOperation | undefined {
   if (value.op === 'renameHeading' && target && typeof value.title === 'string'
     && (value.discardFormatting === undefined || typeof value.discardFormatting === 'boolean')) {
     return { op: value.op, target, title: value.title, discardFormatting: value.discardFormatting === true };
+  }
+  if (value.op === 'setDocumentTitle' && typeof value.title === 'string'
+    && (value.headingTarget === undefined || narrowTarget(value.headingTarget))
+    && (value.discardFormatting === undefined || typeof value.discardFormatting === 'boolean')) {
+    const normalized = normalizeDocumentTitle(value.title);
+    if (!normalized.ok) return undefined;
+    const headingTarget = value.headingTarget === undefined
+      ? undefined : narrowTarget(value.headingTarget);
+    return {
+      op: value.op,
+      title: normalized.title,
+      ...(headingTarget ? { headingTarget } : {}),
+      ...(value.discardFormatting === true ? { discardFormatting: true } : {}),
+    };
+  }
+  if (value.op === 'updateDocumentMetadata' && isRecord(value.patch)
+    && hasOnlyKeys(value.patch, new Set(['author', 'version']))
+    && Object.keys(value.patch).length > 0
+    && Object.values(value.patch).every((entry) =>
+      entry === null || (typeof entry === 'string' && unicodeCodePointLength(entry) <= 200))) {
+    return {
+      op: value.op,
+      patch: {
+        ...(Object.prototype.hasOwnProperty.call(value.patch, 'author')
+          ? { author: value.patch.author as string | null } : {}),
+        ...(Object.prototype.hasOwnProperty.call(value.patch, 'version')
+          ? { version: value.patch.version as string | null } : {}),
+      },
+    };
+  }
+  if (value.op === 'updateDocumentSettings' && isRecord(value.patch)
+    && Object.keys(value.patch).length > 0
+    && Object.keys(value.patch).every((key) => PORTABLE_SETTING_KEYS.has(key as keyof DocumentSettings))
+    && Object.entries(value.patch).every(([key, entry]) =>
+      entry === null || validateDocumentSettings({ [key]: entry }))) {
+    return { op: value.op, patch: clone(value.patch) };
   }
   if (value.op === 'insertBlock') {
     const destination = narrowDestination(value.destination);
@@ -493,6 +569,9 @@ function destinationIndex(
 function operationEvent(op: SdocOperation, before?: string, after?: string): SemanticDiffEvent {
   const kinds: Record<SdocOperation['op'], SemanticDiffEvent['kind']> = {
     renameHeading: 'heading-renamed', insertBlock: 'block-inserted',
+    setDocumentTitle: 'document-title-updated',
+    updateDocumentMetadata: 'document-metadata-updated',
+    updateDocumentSettings: 'document-settings-updated',
     insertSection: 'section-inserted', replaceBlock: 'block-replaced',
     updateBlockAttrs: 'block-attrs-updated', moveBlock: 'block-moved',
     deleteBlock: 'block-deleted', moveSection: 'section-moved', deleteSection: 'section-deleted',
@@ -501,8 +580,9 @@ function operationEvent(op: SdocOperation, before?: string, after?: string): Sem
 }
 
 function applyOne(
-  root: TiptapNode, op: SdocOperation, targets: Map<NodeTarget, TiptapNode>,
+  envelope: SdocEnvelope, op: SdocOperation, targets: Map<NodeTarget, TiptapNode>,
 ): SemanticDiffEvent | OperationFailure {
+  const root = envelope.doc;
   const target = 'target' in op ? targets.get(op.target) : undefined;
   if ('target' in op && !target) return failure('conflict', 'TARGET_REMOVED', 'target is unavailable');
   if (target && !findCurrent(root, target)) {
@@ -518,6 +598,56 @@ function applyOne(
     const before = summary(target);
     target.content = op.title ? [{ type: 'text', text: op.title }] : [];
     return operationEvent(op, before, summary(target));
+  }
+  if (op.op === 'setDocumentTitle') {
+    const heading = op.headingTarget ? targets.get(op.headingTarget) : undefined;
+    if (op.headingTarget && !heading) {
+      return failure('conflict', 'TARGET_REMOVED', 'title heading is unavailable');
+    }
+    if (heading && !findCurrent(root, heading)) {
+      return failure('conflict', 'TARGET_REMOVED', 'title heading was removed by an earlier operation');
+    }
+    if (heading && (heading.type !== 'heading' || Number(heading.attrs?.level) !== 1)) {
+      return failure('argument', 'TITLE_H1_TARGET_REQUIRED',
+        'setDocumentTitle headingTarget must be an H1 heading');
+    }
+    if (heading) {
+      const complex = (heading.content ?? []).some((node) =>
+        node.type !== 'text' || (node.marks?.length ?? 0) > 0);
+      if (complex && !op.discardFormatting) {
+        return failure('conflict', 'FORMATTED_HEADING',
+          'title heading contains marks or non-text inline content');
+      }
+      heading.content = [{ type: 'text', text: op.title }];
+    }
+    const before = typeof envelope.meta.title === 'string' ? envelope.meta.title : undefined;
+    envelope.meta.title = op.title;
+    return operationEvent(op, before, op.title);
+  }
+  if (op.op === 'updateDocumentMetadata') {
+    const keys = Object.keys(op.patch).sort();
+    const before = attributeDiffSummary(envelope.meta, keys);
+    for (const key of keys as Array<'author' | 'version'>) {
+      const value = op.patch[key];
+      if (value === null) delete envelope.meta[key];
+      else if (value !== undefined) envelope.meta[key] = value;
+    }
+    return operationEvent(op, before, attributeDiffSummary(envelope.meta, keys));
+  }
+  if (op.op === 'updateDocumentSettings') {
+    const keys = Object.keys(op.patch).sort();
+    const settings: Partial<DocumentSettings> = { ...envelope.meta.settings };
+    const before = attributeDiffSummary(settings, keys);
+    for (const key of keys as Array<keyof typeof op.patch>) {
+      const value = op.patch[key];
+      if (value === null) delete settings[key];
+      else if (value !== undefined) {
+        (settings as Record<string, unknown>)[key] = clone(value);
+      }
+    }
+    if (Object.keys(settings).length === 0) delete envelope.meta.settings;
+    else envelope.meta.settings = settings;
+    return operationEvent(op, before, attributeDiffSummary(envelope.meta.settings, keys));
   }
   if (op.op === 'insertBlock') {
     const destinationTarget = targets.get(op.destination.target);
@@ -628,6 +758,16 @@ function applyOne(
 export function inspectDocumentBytes(
   bytes: Uint8Array | string, options: InspectOptions = {},
 ): InspectDocumentResult {
+  if (options.target !== undefined && options.targetPath !== undefined) {
+    return failure('argument', 'INVALID_INSPECT_OPTIONS',
+      'target and targetPath are mutually exclusive');
+  }
+  if (options.targetPath !== undefined
+    && (!Array.isArray(options.targetPath)
+      || !options.targetPath.every((item) => Number.isInteger(item) && item >= 0))) {
+    return failure('argument', 'INVALID_TARGET_PATH',
+      'targetPath must contain only non-negative integer indexes');
+  }
   const loaded = load(bytes);
   if (isFailure(loaded)) return loaded;
   const state = analyze(loaded.envelope.doc);
@@ -640,6 +780,7 @@ export function inspectDocumentBytes(
   const references: Extract<InspectDocumentResult, { ok: true }>['references'] = [];
   const referenceables: Extract<InspectDocumentResult, { ok: true }>['referenceables'] = [];
   const blocks: Extract<InspectDocumentResult, { ok: true }>['blocks'] = [];
+  let blockCount = 0;
   const ids = new Set<string>();
   for (const { node } of walkDocument(loaded.envelope.doc)) {
     const id = node.attrs?.id;
@@ -663,31 +804,70 @@ export function inspectDocumentBytes(
         references.push({ href, targetExists: ids.has(href.slice(1)), path: [...path] });
       }
     }
-    if (!NON_BLOCK.has(node.type) && blocks.length < maxBlocks) {
-      blocks.push({
-        type: node.type, path: [...path], summary: summary(node, maxSummary),
-        ...(id ? { id } : {}),
-        ...(provisional ? { provisionalId: provisional } : {}),
-        ...(!id ? { digest: nodeDigest(node) } : {}),
-      });
+    if (!NON_BLOCK.has(node.type)) {
+      blockCount += 1;
+      if (blocks.length < maxBlocks) {
+        blocks.push({
+          type: node.type,
+          path: [...path],
+          summary: summary(node, maxSummary),
+          operationTarget: operationTargetFor(loaded.revision, path, node),
+          ...(id ? { id } : {}),
+          ...(provisional ? { provisionalId: provisional } : {}),
+          ...(!id ? { digest: nodeDigest(node) } : {}),
+        });
+      }
     }
   }
   let selected: Extract<InspectDocumentResult, { ok: true }>['target'];
-  if (options.target) {
+  if (options.target || options.targetPath) {
     const index = indexTargets(loaded.envelope.doc, loaded.revision);
-    const node = resolveTarget(loaded.envelope.doc, options.target, index);
+    const node = options.target
+      ? resolveTarget(loaded.envelope.doc, options.target, index)
+      : nodeAt(loaded.envelope.doc, options.targetPath ?? [])
+        ?? failure('conflict', 'TARGET_NOT_FOUND',
+          `target path ${pathKey(options.targetPath ?? [])} was not found`);
     if ('ok' in node) return node;
+    if (options.targetPath !== undefined && NON_BLOCK.has(node.type)) {
+      return failure('argument', 'TARGET_NOT_BLOCK',
+        `target path ${pathKey(index.paths.get(node) ?? options.targetPath ?? [])} does not select a block`);
+    }
     if (encodeUtf8(JSON.stringify(node)).byteLength > MAX_TARGET_DETAIL_BYTES) {
       return failure('argument', 'TARGET_DETAIL_TOO_LARGE', 'target detail exceeds 256 KiB');
     }
+    const path = index.paths.get(node) ?? [];
     selected = {
-      path: index.paths.get(node) ?? [], node: clone(node), digest: nodeDigest(node),
+      path,
+      node: clone(node),
+      digest: nodeDigest(node),
+      operationTarget: operationTargetFor(loaded.revision, path, node),
     };
   }
+  const metadata = {
+    ...(typeof loaded.envelope.meta.title === 'string'
+      ? { title: loaded.envelope.meta.title } : {}),
+    ...(typeof loaded.envelope.meta.author === 'string'
+      ? { author: loaded.envelope.meta.author } : {}),
+    ...(typeof loaded.envelope.meta.version === 'string'
+      ? { version: loaded.envelope.meta.version } : {}),
+    ...(typeof loaded.envelope.meta.created === 'string'
+      ? { created: loaded.envelope.meta.created } : {}),
+    ...(typeof loaded.envelope.meta.modified === 'string'
+      ? { modified: loaded.envelope.meta.modified } : {}),
+    ...(loaded.envelope.meta.settings
+      ? { settings: clone(loaded.envelope.meta.settings) } : {}),
+  };
   return {
     ok: true, revision: loaded.revision, legacy: loaded.legacy,
     needsIdNormalization: state.missingIds, documentId: documentId(loaded.envelope),
-    outline, references, referenceables, blocks, ...(selected ? { target: selected } : {}),
+    metadata,
+    outline,
+    references,
+    referenceables,
+    blocks,
+    blockCount,
+    blocksTruncated: blocks.length < blockCount,
+    ...(selected ? { target: selected } : {}),
     warnings: state.warnings,
   };
 }
@@ -746,6 +926,9 @@ export function applyOperationRequest(
   for (const op of request.operations) {
     const requestedTargets: NodeTarget[] = [];
     if ('target' in op) requestedTargets.push(op.target);
+    if (op.op === 'setDocumentTitle' && op.headingTarget) {
+      requestedTargets.push(op.headingTarget);
+    }
     if ('destination' in op) requestedTargets.push(op.destination.target);
     for (const target of requestedTargets) {
       const resolved = resolveTarget(envelope.doc, target, index);
@@ -755,7 +938,7 @@ export function applyOperationRequest(
   }
   const diff: SemanticDiffEvent[] = [];
   for (const [operationIndex, op] of request.operations.entries()) {
-    const event = applyOne(envelope.doc, op, targets);
+    const event = applyOne(envelope, op, targets);
     if ('ok' in event) {
       event.diagnostics.forEach((item) => { item.operationIndex = operationIndex; });
       return event;

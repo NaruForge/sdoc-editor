@@ -1,4 +1,10 @@
-export type CommandName = 'inspect' | 'validate' | 'apply' | 'rename-heading' | 'create';
+export type CommandName =
+  | 'inspect'
+  | 'validate'
+  | 'apply'
+  | 'rename-heading'
+  | 'set-document-title'
+  | 'create';
 
 export interface HelpArguments {
   kind: 'help';
@@ -13,8 +19,10 @@ export interface CliArguments {
   write: boolean;
   dryRun: boolean;
   upgradeLegacy: boolean;
+  discardFormatting: boolean;
   operationsPath?: string;
   targetId?: string;
+  targetPath?: number[];
   id?: string;
   title?: string;
   expectedRevision?: string;
@@ -37,6 +45,7 @@ const COMMANDS = new Set<CommandName>([
   'validate',
   'apply',
   'rename-heading',
+  'set-document-title',
   'create',
 ]);
 
@@ -48,14 +57,17 @@ const OPTIONS = new Set([
   '--upgrade-legacy',
   '--operations',
   '--target-id',
+  '--target-path',
   '--id',
   '--title',
   '--expected-revision',
   '--template',
+  '--discard-formatting',
 ]);
 const VALUE_OPTIONS = new Set([
   '--operations',
   '--target-id',
+  '--target-path',
   '--id',
   '--title',
   '--expected-revision',
@@ -63,7 +75,7 @@ const VALUE_OPTIONS = new Set([
 ]);
 
 const ALLOWED_OPTIONS: Record<CommandName, ReadonlySet<string>> = {
-  inspect: new Set(['--json', '--human', '--target-id']),
+  inspect: new Set(['--json', '--human', '--target-id', '--target-path']),
   validate: new Set(['--json', '--human']),
   apply: new Set(['--json', '--human', '--write', '--dry-run', '--upgrade-legacy', '--operations']),
   'rename-heading': new Set([
@@ -75,6 +87,18 @@ const ALLOWED_OPTIONS: Record<CommandName, ReadonlySet<string>> = {
     '--id',
     '--title',
     '--expected-revision',
+    '--discard-formatting',
+  ]),
+  'set-document-title': new Set([
+    '--json',
+    '--human',
+    '--write',
+    '--dry-run',
+    '--upgrade-legacy',
+    '--id',
+    '--title',
+    '--expected-revision',
+    '--discard-formatting',
   ]),
   create: new Set(['--json', '--human', '--dry-run', '--title', '--template']),
 };
@@ -89,6 +113,23 @@ function valueAfter(args: string[], index: number, flag: string): string {
     throw new ArgumentError('CLI_MISSING_OPTION_VALUE', `${flag} requires a value`);
   }
   return value;
+}
+
+function parseTargetPath(value: string): number[] {
+  if (!/^\/(?:0|[1-9]\d*)(?:\/(?:0|[1-9]\d*))*$/.test(value)) {
+    throw new ArgumentError(
+      'CLI_INVALID_TARGET_PATH',
+      '--target-path must use slash-separated non-negative content indexes, for example /1/0',
+    );
+  }
+  const path = value.slice(1).split('/').map(Number);
+  if (!path.every(Number.isSafeInteger)) {
+    throw new ArgumentError(
+      'CLI_INVALID_TARGET_PATH',
+      '--target-path content indexes must be safe non-negative integers',
+    );
+  }
+  return path;
 }
 
 function helpArguments(argv: string[]): HelpArguments | undefined {
@@ -148,6 +189,7 @@ export function parseArguments(argv: string[]): ParsedArguments {
     write: false,
     dryRun: false,
     upgradeLegacy: false,
+    discardFormatting: false,
   };
   const seen = new Set<string>();
 
@@ -180,12 +222,19 @@ export function parseArguments(argv: string[]): ParsedArguments {
       case '--upgrade-legacy':
         parsed.upgradeLegacy = true;
         break;
+      case '--discard-formatting':
+        parsed.discardFormatting = true;
+        break;
       case '--operations':
         parsed.operationsPath = valueAfter(rest, index, flag);
         index += 1;
         break;
       case '--target-id':
         parsed.targetId = valueAfter(rest, index, flag);
+        index += 1;
+        break;
+      case '--target-path':
+        parsed.targetPath = parseTargetPath(valueAfter(rest, index, flag));
         index += 1;
         break;
       case '--id':
@@ -213,6 +262,12 @@ export function parseArguments(argv: string[]): ParsedArguments {
   if (parsed.write && parsed.dryRun) {
     throw new ArgumentError('CLI_CONFLICTING_OPTIONS', '--write and --dry-run cannot be used together');
   }
+  if (seen.has('--target-id') && seen.has('--target-path')) {
+    throw new ArgumentError(
+      'CLI_CONFLICTING_OPTIONS',
+      '--target-id and --target-path cannot be used together',
+    );
+  }
   if (parsed.command === 'apply' && !parsed.operationsPath) {
     throw new ArgumentError('CLI_MISSING_OPERATIONS', 'apply requires --operations <file|->');
   }
@@ -221,6 +276,14 @@ export function parseArguments(argv: string[]): ParsedArguments {
       throw new ArgumentError(
         'CLI_MISSING_RENAME_ARGUMENT',
         'rename-heading requires --id, --title, and --expected-revision',
+      );
+    }
+  }
+  if (parsed.command === 'set-document-title') {
+    if (!parsed.id || parsed.title === undefined || !parsed.expectedRevision) {
+      throw new ArgumentError(
+        'CLI_MISSING_SET_DOCUMENT_TITLE_ARGUMENT',
+        'set-document-title requires --id, --title, and --expected-revision',
       );
     }
   }

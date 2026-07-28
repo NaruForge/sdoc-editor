@@ -17,6 +17,7 @@ async function fixture(): Promise<{ directory: string; documentPath: string; byt
     sdoc: '1.0',
     meta: {
       documentId: 'doc-1',
+      title: '소개',
       modified: '2025-01-01T00:00:00.000Z',
     },
     doc: {
@@ -25,6 +26,9 @@ async function fixture(): Promise<{ directory: string; documentPath: string; byt
         type: 'heading',
         attrs: { level: 1, id: 'intro' },
         content: [{ type: 'text', text: '소개' }],
+      }, {
+        type: 'paragraph',
+        content: [{ type: 'text', text: 'Body' }],
       }],
     },
   };
@@ -257,6 +261,12 @@ describe('CLI integration', () => {
     expect(await run(['inspect', '--help'])).toBe(0);
     expect(stdout).toContain('Usage: sdoc inspect');
     expect(stdout).toContain('--target-id');
+    expect(stdout).toContain('--target-path');
+
+    stdout = '';
+    expect(await run(['set-document-title', '--help'])).toBe(0);
+    expect(stdout).toContain('Usage: sdoc set-document-title');
+    expect(stdout).toContain('--discard-formatting');
   });
 
   it('keeps JSON as the default and supports human inspection output', async () => {
@@ -268,11 +278,238 @@ describe('CLI integration', () => {
     });
 
     expect(await run(['inspect', documentPath])).toBe(0);
-    expect(JSON.parse(stdout)).toMatchObject({ ok: true, command: 'inspect' });
+    expect(JSON.parse(stdout)).toMatchObject({
+      ok: true,
+      command: 'inspect',
+      metadata: { title: '소개' },
+    });
     stdout = '';
     expect(await run(['inspect', documentPath, '--human'])).toBe(0);
     expect(stdout).toContain('SDOC inspection');
+    expect(stdout).toContain('Title: 소개');
     expect(stdout).toContain('Revision: sha256:');
+  });
+
+  it('selects canonical operation targets by ID or content path', async () => {
+    const { documentPath } = await fixture();
+    let stdout = '';
+    vi.spyOn(process.stdout, 'write').mockImplementation((chunk) => {
+      stdout += String(chunk);
+      return true;
+    });
+
+    expect(await run(['inspect', documentPath, '--target-id', 'intro'])).toBe(0);
+    expect(JSON.parse(stdout)).toMatchObject({
+      target: {
+        path: [0],
+        operationTarget: {
+          kind: 'id',
+          id: 'intro',
+          expectedType: 'heading',
+        },
+      },
+    });
+
+    stdout = '';
+    expect(await run(['inspect', documentPath, '--target-path', '/1'])).toBe(0);
+    expect(JSON.parse(stdout)).toMatchObject({
+      target: {
+        path: [1],
+        node: { type: 'paragraph' },
+        operationTarget: {
+          kind: 'snapshot',
+          path: [1],
+          nodeType: 'paragraph',
+          digest: expect.stringMatching(/^sha256:/),
+        },
+      },
+    });
+
+    stdout = '';
+    expect(await run(['inspect', documentPath, '--target-path', '/1', '--human'])).toBe(0);
+    expect(stdout).toContain('Selected target: paragraph at /1');
+  });
+
+  it('distinguishes malformed, missing, and non-block target paths', async () => {
+    const { documentPath } = await fixture();
+    let stderr = '';
+    vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+      stderr += String(chunk);
+      return true;
+    });
+
+    expect(await run(['inspect', documentPath, '--target-path', '1/0'])).toBe(2);
+    expect(JSON.parse(stderr)).toMatchObject({
+      diagnostics: [{ code: 'CLI_INVALID_TARGET_PATH' }],
+    });
+
+    stderr = '';
+    expect(await run([
+      'inspect',
+      documentPath,
+      '--target-id',
+      'intro',
+      '--target-path',
+      '/1',
+    ])).toBe(2);
+    expect(JSON.parse(stderr)).toMatchObject({
+      diagnostics: [{ code: 'CLI_CONFLICTING_OPTIONS' }],
+    });
+
+    stderr = '';
+    expect(await run(['inspect', documentPath, '--target-path', '/9'])).toBe(4);
+    expect(JSON.parse(stderr)).toMatchObject({
+      diagnostics: [{ code: 'TARGET_NOT_FOUND' }],
+    });
+
+    stderr = '';
+    expect(await run(['inspect', documentPath, '--target-path', '/1/0'])).toBe(2);
+    expect(JSON.parse(stderr)).toMatchObject({
+      diagnostics: [{ code: 'TARGET_NOT_BLOCK' }],
+    });
+  });
+
+  it('previews a document-title update without changing bytes', async () => {
+    const { documentPath, bytes } = await fixture();
+    let stdout = '';
+    vi.spyOn(process.stdout, 'write').mockImplementation((chunk) => {
+      stdout += String(chunk);
+      return true;
+    });
+
+    expect(await run([
+      'set-document-title',
+      documentPath,
+      '--id',
+      'intro',
+      '--title',
+      '시험 결과',
+      '--expected-revision',
+      computeRevision(bytes),
+    ])).toBe(0);
+
+    expect(JSON.parse(stdout)).toMatchObject({
+      ok: true,
+      command: 'set-document-title',
+      changed: true,
+      preview: true,
+      written: false,
+    });
+    expect(await readFile(documentPath)).toEqual(bytes);
+  });
+
+  it('writes a Korean document title to metadata and the explicit H1', async () => {
+    const { documentPath, bytes } = await fixture();
+    vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+
+    expect(await run([
+      'set-document-title',
+      documentPath,
+      '--id',
+      'intro',
+      '--title',
+      '한글 시험 결과',
+      '--expected-revision',
+      computeRevision(bytes),
+      '--write',
+    ])).toBe(0);
+
+    const text = (await readFile(documentPath, 'utf8')).replace(/^\uFEFF/, '');
+    const written = JSON.parse(text) as {
+      meta: { title: string };
+      doc: { content: Array<{ content?: Array<{ text?: string }> }> };
+    };
+    expect(written.meta.title).toBe('한글 시험 결과');
+    expect(written.doc.content[0]?.content?.[0]?.text).toBe('한글 시험 결과');
+  });
+
+  it('rejects a stale document-title revision without writing', async () => {
+    const { documentPath, bytes } = await fixture();
+    let stderr = '';
+    vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+      stderr += String(chunk);
+      return true;
+    });
+
+    expect(await run([
+      'set-document-title',
+      documentPath,
+      '--id',
+      'intro',
+      '--title',
+      'Stale title',
+      '--expected-revision',
+      `sha256:${'0'.repeat(64)}`,
+      '--write',
+    ])).toBe(4);
+    expect(JSON.parse(stderr)).toMatchObject({
+      diagnostics: [{ code: 'STALE_REVISION' }],
+    });
+    expect(await readFile(documentPath)).toEqual(bytes);
+    expect(await readFile(`${documentPath}.lock`).catch(() => undefined)).toBeUndefined();
+  });
+
+  it('requires explicit formatting discard for a formatted title H1', async () => {
+    const { documentPath } = await fixture();
+    const formatted = {
+      sdoc: '1.0',
+      meta: {
+        title: 'Formatted',
+        modified: '2025-01-01T00:00:00.000Z',
+      },
+      doc: {
+        type: 'doc',
+        content: [{
+          type: 'heading',
+          attrs: { level: 1, id: 'intro' },
+          content: [{ type: 'text', text: 'Formatted', marks: [{ type: 'bold' }] }],
+        }],
+      },
+    };
+    const formattedBytes = Buffer.from(JSON.stringify(formatted));
+    await writeFile(documentPath, formattedBytes);
+    let stderr = '';
+    vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+      stderr += String(chunk);
+      return true;
+    });
+    vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    const baseArguments = [
+      'set-document-title',
+      documentPath,
+      '--id',
+      'intro',
+      '--title',
+      'Plain title',
+      '--expected-revision',
+      computeRevision(formattedBytes),
+    ];
+
+    expect(await run(baseArguments)).toBe(4);
+    expect(JSON.parse(stderr)).toMatchObject({
+      diagnostics: [{ code: 'FORMATTED_HEADING' }],
+    });
+
+    expect(await run([
+      'rename-heading',
+      documentPath,
+      '--id',
+      'intro',
+      '--title',
+      'Plain heading',
+      '--expected-revision',
+      computeRevision(formattedBytes),
+      '--discard-formatting',
+    ])).toBe(0);
+    expect(await readFile(documentPath)).toEqual(formattedBytes);
+
+    expect(await run([...baseArguments, '--discard-formatting', '--write'])).toBe(0);
+    const written = JSON.parse(await readFile(documentPath, 'utf8')) as {
+      meta: { title: string };
+      doc: { content: Array<{ content?: Array<Record<string, unknown>> }> };
+    };
+    expect(written.meta.title).toBe('Plain title');
+    expect(written.doc.content[0]?.content).toEqual([{ type: 'text', text: 'Plain title' }]);
   });
 
   it('creates a valid blank document immediately and previews without writing', async () => {

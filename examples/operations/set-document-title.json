@@ -1,0 +1,17 @@
+{
+  "contract": "sdoc.operations/1",
+  "expected": {
+    "revision": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "operations": [
+    {
+      "op": "setDocumentTitle",
+      "title": "Updated document title",
+      "headingTarget": {
+        "kind": "id",
+        "id": "document-title-from-inspect",
+        "expectedType": "heading"
+      }
+    }
+  ]
+}

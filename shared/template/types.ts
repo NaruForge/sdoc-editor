@@ -1,4 +1,5 @@
 import type { SdocEnvelope } from '../types';
+export type { DocumentTitleValidationResult } from '../document/title';
 
 export type TemplateSource = 'builtin' | 'workspace' | 'user';
 
@@ -63,10 +64,6 @@ export interface InstantiateTemplateOptions {
   title: string;
   now?: () => Date;
 }
-
-export type DocumentTitleValidationResult =
-  | { ok: true; title: string }
-  | { ok: false; reason: 'empty' | 'too-long' };
 
 export interface CreatePersonalTemplateSnapshotOptions {
   id: string;

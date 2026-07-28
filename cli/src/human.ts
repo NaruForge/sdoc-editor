@@ -27,6 +27,26 @@ function diffLines(value: Record<string, unknown>): string[] {
   });
 }
 
+function selectedTargetLine(value: Record<string, unknown>): string | undefined {
+  if (typeof value.target !== 'object' || value.target === null) return undefined;
+  const selected = value.target as Record<string, unknown>;
+  const node = typeof selected.node === 'object' && selected.node !== null
+    ? selected.node as Record<string, unknown>
+    : {};
+  const type = stringValue(node.type) ?? 'block';
+  const path = Array.isArray(selected.path) && selected.path.every(
+    (item): item is number => Number.isSafeInteger(item) && Number(item) >= 0,
+  )
+    ? `/${selected.path.join('/')}`
+    : undefined;
+  const operationTarget = typeof selected.operationTarget === 'object'
+    && selected.operationTarget !== null
+    ? selected.operationTarget as Record<string, unknown>
+    : undefined;
+  const id = operationTarget?.kind === 'id' ? stringValue(operationTarget.id) : undefined;
+  return `Selected target: ${type}${id ? ` #${id}` : ''}${path ? ` at ${path}` : ''}`;
+}
+
 export function renderHumanSuccess(value: Record<string, unknown>): string {
   const command = stringValue(value.command) ?? 'command';
   const lines: string[] = [];
@@ -38,6 +58,13 @@ export function renderHumanSuccess(value: Record<string, unknown>): string {
   } else if (command === 'inspect') {
     lines.push('SDOC inspection');
     lines.push(`Path: ${String(value.path ?? '')}`);
+    if (typeof value.metadata === 'object' && value.metadata !== null) {
+      const metadata = value.metadata as Record<string, unknown>;
+      const title = stringValue(metadata.title);
+      if (title) lines.push(`Title: ${title}`);
+    }
+    const selectedTarget = selectedTargetLine(value);
+    if (selectedTarget) lines.push(selectedTarget);
     if (Array.isArray(value.outline) && value.outline.length > 0) {
       lines.push('Outline:');
       for (const item of value.outline) {

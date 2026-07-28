@@ -58,16 +58,65 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $package = Get-ChildItem output -Filter '*.tgz' |
-            Select-Object -First 1
-          if (-not $package) {
-            throw 'package:cli did not create a .tgz file.'
+          $packages = @(Get-ChildItem output -Filter 'sdoc-editor-cli-*.tgz')
+          if ($packages.Count -ne 1) {
+            throw "Expected exactly one CLI package, found $($packages.Count)."
           }
           $prefix = Join-Path $env:RUNNER_TEMP 'sdoc-cli'
-          npm install --global --prefix $prefix $package.FullName
+          npm install --global --prefix $prefix $packages[0].FullName
+          $prefix | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
           $env:PATH = "$prefix;$env:PATH"
           sdoc --version
           sdoc.cmd --version
+      - name: Create Korean document through PowerShell 7 shim
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $expected = '한글 제목'
+          $documentPath = Join-Path $env:RUNNER_TEMP 'sdoc-pwsh-utf8.sdoc'
+          sdoc create $documentPath --title $expected --json
+          if ($LASTEXITCODE -ne 0) {
+            throw "sdoc create failed with exit code $LASTEXITCODE."
+          }
+          $document = Get-Content -Raw -Encoding utf8 $documentPath |
+            ConvertFrom-Json
+          $h1 = @($document.doc.content | Where-Object {
+            $_.type -eq 'heading' -and $_.attrs.level -eq 1
+          })[0]
+          $h1Text = (($h1.content | ForEach-Object { $_.text }) -join '')
+          if ($document.meta.title -cne $expected -or $h1Text -cne $expected) {
+            throw "PowerShell 7 did not preserve the exact UTF-8 title."
+          }
+      - name: Create Korean document through Windows PowerShell 5.1 shim
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          $expected = '한글 제목'
+          $documentPath = Join-Path $env:RUNNER_TEMP 'sdoc-windows-powershell-utf8.sdoc'
+          sdoc create $documentPath --title $expected --json
+          if ($LASTEXITCODE -ne 0) {
+            throw "sdoc create failed with exit code $LASTEXITCODE."
+          }
+          $document = Get-Content -Raw -Encoding utf8 $documentPath |
+            ConvertFrom-Json
+          $h1 = @($document.doc.content | Where-Object {
+            $_.type -eq 'heading' -and $_.attrs.level -eq 1
+          })[0]
+          $h1Text = (($h1.content | ForEach-Object { $_.text }) -join '')
+          if ($document.meta.title -cne $expected -or $h1Text -cne $expected) {
+            throw "Windows PowerShell 5.1 did not preserve the exact UTF-8 title."
+          }
+      - name: Create Korean document through cmd shim
+        if: runner.os == 'Windows'
+        shell: cmd
+        env:
+          SDOC_TEST_TITLE: 한글 제목
+        run: |
+          @echo off
+          set "DOCUMENT_PATH=%RUNNER_TEMP%\sdoc-cmd-utf8.sdoc"
+          call sdoc.cmd create "%DOCUMENT_PATH%" --title "%SDOC_TEST_TITLE%" --json
+          if errorlevel 1 exit /b %errorlevel%
+          node -e "const fs=require('node:fs');const doc=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));const expected=process.env.SDOC_TEST_TITLE;const h1=doc.doc.content.find(node=>node.type==='heading'&&node.attrs.level===1);const h1Text=(h1?.content??[]).map(node=>node.text??'').join('');if(doc.meta.title!==expected||h1Text!==expected)throw new Error('cmd.exe did not preserve the exact UTF-8 title.');" "%DOCUMENT_PATH%"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: cli-package-${{ matrix.os }}
