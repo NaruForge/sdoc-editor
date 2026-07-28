@@ -7,12 +7,14 @@ use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
 mod assets;
+mod diagram;
 mod file_io;
 mod personal_templates;
 mod settings_commands;
 mod watchers;
 mod workspace;
 pub use assets::*;
+pub use diagram::*;
 pub use file_io::*;
 pub use personal_templates::*;
 pub use settings_commands::*;

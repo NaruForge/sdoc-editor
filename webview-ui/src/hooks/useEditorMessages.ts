@@ -5,6 +5,23 @@ import { useVSCodeMessaging } from './useVSCodeMessaging';
 import { preprocessImportedHtml } from '@shared/editor/utils/preprocessImportedHtml';
 import { isUpdatedDrawioAsset } from '@shared/editor/drawioUpdates';
 import type { ManagedTemplateDescriptor } from '@shared/types/messages';
+import type { TemplateCatalogDiagnosticView } from '@shared/template/catalogView';
+import {
+  createFileOperationControllerState,
+  fileOperationReducer,
+  tryStartFileOperation,
+  type FileOperationControllerState,
+  type FileOperationKind,
+} from '@shared/editor/fileOperations';
+import type { FileExportFormat, FileImportFormat } from '@shared/editor/components/FilesPanel';
+import {
+  DiagramRenderError,
+  type HostDiagramRenderer,
+} from '@shared/editor/diagram';
+import {
+  DEFAULT_DIAGRAM_RENDERER_SETTINGS,
+  type DiagramRendererSettings,
+} from '@shared/diagramRenderer';
 import type { SdocMeta } from '@shared/types';
 import {
   DocumentSyncCoordinator,
@@ -69,14 +86,24 @@ export function useEditorMessages({
   const flushPendingRef = useRef(flushPendingUpdate);
   flushPendingRef.current = flushPendingUpdate;
 
-  const [isExporting, setIsExporting] = useState(false);
   const [templates, setTemplates] = useState<ManagedTemplateDescriptor[]>([]);
-  const [templateDiagnosticCount, setTemplateDiagnosticCount] = useState(0);
+  const [templateDiagnostics, setTemplateDiagnostics] = useState<TemplateCatalogDiagnosticView[]>([]);
   const [isTemplateCatalogLoading, setIsTemplateCatalogLoading] = useState(true);
   const [isApplyingTemplate, setIsApplyingTemplate] = useState(false);
   const [isManagingTemplate, setIsManagingTemplate] = useState(false);
-  const [personalTemplateRootPath, setPersonalTemplateRootPath] = useState('');
   const [personalTemplateRootScope, setPersonalTemplateRootScope] = useState<'local' | 'remote'>('local');
+  const [fileController, setFileController] = useState<FileOperationControllerState>(
+    () => createFileOperationControllerState('pending'),
+  );
+  const [diagramRendererSettings, setDiagramRendererSettings] =
+    useState<DiagramRendererSettings>({ ...DEFAULT_DIAGRAM_RENDERER_SETTINGS });
+  const catalogRequestRef = useRef<string | null>(null);
+  const applyRequestRef = useRef<string | null>(null);
+  const personalRequestRef = useRef<string | null>(null);
+  const diagramRequestsRef = useRef(new Map<string, {
+    resolve: (value: Awaited<ReturnType<HostDiagramRenderer>>) => void;
+    reject: (reason: unknown) => void;
+  }>());
   const [externalChange, setExternalChange] = useState<{
     revision: number;
     snapshot: DocumentMutation;
@@ -96,6 +123,7 @@ export function useEditorMessages({
           documentId: message.documentId,
           revision: message.revision,
         };
+        setFileController(createFileOperationControllerState(message.sessionId));
         syncCoordinatorRef.current = new DocumentSyncCoordinator({
           identity: {
             sessionId: message.sessionId,
@@ -120,17 +148,21 @@ export function useEditorMessages({
         }
         break;
       case 'templateCatalog':
+        if (message.requestId !== catalogRequestRef.current) break;
         setTemplates(message.templates);
-        setTemplateDiagnosticCount(message.diagnosticCount);
-        setPersonalTemplateRootPath(message.personalRootPath);
+        setTemplateDiagnostics(message.diagnostics);
         setPersonalTemplateRootScope(message.personalRootScope);
         setIsTemplateCatalogLoading(false);
         break;
       case 'templateApplicationFinished':
+        if (message.requestId !== applyRequestRef.current) break;
+        applyRequestRef.current = null;
         setIsApplyingTemplate(false);
         ed?.setEditable(true);
         break;
       case 'templateOperationFinished':
+        if (message.requestId !== personalRequestRef.current) break;
+        personalRequestRef.current = null;
         setIsManagingTemplate(false);
         break;
       case 'externalChange':
@@ -228,16 +260,58 @@ export function useEditorMessages({
         setMeta(prev => ({ ...prev, ...message.meta }));
         break;
       case 'importContent':
-        if (ed) {
+        if (ed
+          && persistenceSessionRef.current?.sessionId === message.sessionId
+          && persistenceSessionRef.current.documentId === message.documentId
+          && fileController.operationState.phase === 'running'
+          && fileController.operationState.requestId === message.requestId) {
+          if (!window.confirm('Importing this file will replace the current document. Continue?')) {
+            postMessage({
+              type: 'fileOperationApplied',
+              requestId: message.requestId,
+              sessionId: message.sessionId,
+              documentId: message.documentId,
+              applied: false,
+            });
+            break;
+          }
           replaceEditorDocumentRef.current?.('user-import', message.content);
           flush();
+          postMessage({
+            type: 'fileOperationApplied',
+            requestId: message.requestId,
+            sessionId: message.sessionId,
+            documentId: message.documentId,
+            applied: true,
+          });
         }
         break;
       case 'importHtml':
-        if (ed) {
+        if (ed
+          && persistenceSessionRef.current?.sessionId === message.sessionId
+          && persistenceSessionRef.current.documentId === message.documentId
+          && fileController.operationState.phase === 'running'
+          && fileController.operationState.requestId === message.requestId) {
+          if (!window.confirm('Importing this file will replace the current document. Continue?')) {
+            postMessage({
+              type: 'fileOperationApplied',
+              requestId: message.requestId,
+              sessionId: message.sessionId,
+              documentId: message.documentId,
+              applied: false,
+            });
+            break;
+          }
           const cleaned = preprocessImportedHtml(message.html);
           replaceEditorDocumentRef.current?.('user-import', cleaned as unknown as JSONContent);
           flush();
+          postMessage({
+            type: 'fileOperationApplied',
+            requestId: message.requestId,
+            sessionId: message.sessionId,
+            documentId: message.documentId,
+            applied: true,
+          });
         }
         break;
       case 'imageSaved':
@@ -295,11 +369,55 @@ export function useEditorMessages({
           flush();
         }
         break;
-      case 'exportStarted':
-        setIsExporting(true);
+      case 'fileOperationStatus':
+        setFileController((current) => {
+          if (current.sessionId !== message.sessionId
+            || message.state.phase === 'idle'
+            || message.state.phase === 'running') {
+            return current;
+          }
+          if (message.state.phase === 'succeeded') {
+            return fileOperationReducer(current, {
+              type: 'succeeded',
+              sessionId: message.sessionId,
+              requestId: message.state.requestId,
+              result: message.state.result,
+            });
+          }
+          if (message.state.phase === 'failed') {
+            return fileOperationReducer(current, {
+              type: 'failed',
+              sessionId: message.sessionId,
+              requestId: message.state.requestId,
+              error: message.state.error,
+            });
+          }
+          return fileOperationReducer(current, {
+            type: 'cancelled',
+            sessionId: message.sessionId,
+            requestId: message.state.requestId,
+          });
+        });
         break;
-      case 'exportDone':
-        setIsExporting(false);
+      case 'diagramRenderResult': {
+        const pending = diagramRequestsRef.current.get(message.requestId);
+        if (!pending) break;
+        diagramRequestsRef.current.delete(message.requestId);
+        if (message.result.status === 'ready') {
+          pending.resolve({
+            kind: 'png',
+            dataUrl: message.result.dataUrl,
+          });
+        } else {
+          pending.reject(new DiagramRenderError(
+            message.result.message,
+            message.result.retryable,
+          ));
+        }
+        break;
+      }
+      case 'diagramRendererSettings':
+        setDiagramRendererSettings(message.settings);
         break;
     }
   });
@@ -308,12 +426,38 @@ export function useEditorMessages({
     postMessage({ type: 'viewJson' });
   };
 
-  const handleExport = (format: 'html' | 'adoc' | 'markdown' | 'pdf' | 'slides') => {
-    postMessage({ type: 'export', format });
-  };
-
-  const handleImport = (format: 'markdown' | 'html') => {
-    postMessage({ type: format === 'markdown' ? 'importMarkdown' : 'importHtml' });
+  const handleFileOperation = (
+    kind: FileOperationKind,
+    format: FileExportFormat | FileImportFormat,
+  ) => {
+    const session = persistenceSessionRef.current;
+    if (!session) return;
+    const requestId = crypto.randomUUID();
+    const start = tryStartFileOperation(fileController, {
+      sessionId: session.sessionId,
+      requestId,
+      kind,
+      format,
+      stage: kind === 'export' ? 'Preparing export...' : 'Choose a file...',
+    });
+    if (!start.accepted) return;
+    setFileController(start.state);
+    if (kind === 'export') {
+      postMessage({
+        type: 'export',
+        requestId,
+        sessionId: session.sessionId,
+        documentId: session.documentId,
+        format: format as FileExportFormat,
+      });
+    } else {
+      postMessage({
+        type: format === 'markdown' ? 'importMarkdown' : 'importHtml',
+        requestId,
+        sessionId: session.sessionId,
+        documentId: session.documentId,
+      });
+    }
   };
 
   const handleMetaChange = (field: string, value: string) => {
@@ -328,8 +472,10 @@ export function useEditorMessages({
   };
 
   const handleRequestTemplateCatalog = () => {
+    const requestId = crypto.randomUUID();
+    catalogRequestRef.current = requestId;
     setIsTemplateCatalogLoading(true);
-    postMessage({ type: 'requestTemplateCatalog' });
+    postMessage({ type: 'requestTemplateCatalog', requestId });
   };
 
   const handleApplyTemplate = (templateId: string) => {
@@ -339,10 +485,14 @@ export function useEditorMessages({
     const sync = syncCoordinatorRef.current;
     if (!session || !sync) return;
     setIsApplyingTemplate(true);
+    const requestId = crypto.randomUUID();
+    applyRequestRef.current = requestId;
+    catalogRequestRef.current = `apply-refresh-${requestId}`;
     editorRef.current?.setEditable(false);
     void new SaveCoordinator(sync).afterAcknowledged(() => {
       postMessage({
         type: 'applyTemplate',
+        requestId,
         templateId,
         sessionId: session.sessionId,
         documentId: session.documentId,
@@ -367,9 +517,12 @@ export function useEditorMessages({
     setIsManagingTemplate(true);
     void new SaveCoordinator(sync).afterAcknowledged(() => {
       if (type === 'savePersonalTemplate') {
+        const requestId = crypto.randomUUID();
+        personalRequestRef.current = requestId;
+        catalogRequestRef.current = `operation-${requestId}`;
         postMessage({
           type,
-          requestId: crypto.randomUUID(),
+          requestId,
           sessionId: session.sessionId,
           documentId: session.documentId,
           baseRevision: sync.state.acknowledgedRevision,
@@ -377,9 +530,12 @@ export function useEditorMessages({
         return;
       }
       if (!template?.revisionToken) return;
+      const requestId = crypto.randomUUID();
+      personalRequestRef.current = requestId;
+      catalogRequestRef.current = `operation-${requestId}`;
       postMessage({
         type,
-        requestId: crypto.randomUUID(),
+        requestId,
         sessionId: session.sessionId,
         documentId: session.documentId,
         baseRevision: sync.state.acknowledgedRevision,
@@ -400,9 +556,12 @@ export function useEditorMessages({
   const handleDeletePersonalTemplate = (template: ManagedTemplateDescriptor) => {
     if (isManagingTemplate || !template.revisionToken) return;
     setIsManagingTemplate(true);
+    const requestId = crypto.randomUUID();
+    personalRequestRef.current = requestId;
+    catalogRequestRef.current = `operation-${requestId}`;
     postMessage({
       type: 'deletePersonalTemplate',
-      requestId: crypto.randomUUID(),
+      requestId,
       templateId: template.id,
       revisionToken: template.revisionToken,
     });
@@ -410,7 +569,52 @@ export function useEditorMessages({
   const handleOpenPersonalTemplateFolder = () => {
     if (isManagingTemplate) return;
     setIsManagingTemplate(true);
-    postMessage({ type: 'openPersonalTemplateFolder', requestId: crypto.randomUUID() });
+    const requestId = crypto.randomUUID();
+    personalRequestRef.current = requestId;
+    catalogRequestRef.current = `operation-${requestId}`;
+    postMessage({ type: 'openPersonalTemplateFolder', requestId });
+  };
+
+  const renderDiagram: HostDiagramRenderer = ({ language, code, signal }) => {
+    if (language === 'mermaid') return Promise.resolve({ kind: 'source-only' });
+    const requestId = crypto.randomUUID();
+    return new Promise((resolve, reject) => {
+      const cancel = () => {
+        diagramRequestsRef.current.delete(requestId);
+        postMessage({ type: 'cancelDiagramRender', requestId });
+        reject(new DOMException('Aborted', 'AbortError'));
+      };
+      if (signal.aborted) {
+        cancel();
+        return;
+      }
+      signal.addEventListener('abort', cancel, { once: true });
+      diagramRequestsRef.current.set(requestId, {
+        resolve: (value) => {
+          signal.removeEventListener('abort', cancel);
+          resolve(value);
+        },
+        reject: (reason) => {
+          signal.removeEventListener('abort', cancel);
+          reject(reason);
+        },
+      });
+      postMessage({ type: 'renderDiagram', requestId, language, source: code });
+    });
+  };
+
+  const handleDiagramRendererSettingsChange = (settings: DiagramRendererSettings) => {
+    postMessage({ type: 'updateDiagramRendererSettings', settings });
+  };
+  const handleTestDiagramRenderer = (settings: DiagramRendererSettings) => {
+    const requestId = crypto.randomUUID();
+    return new Promise<void>((resolve, reject) => {
+      diagramRequestsRef.current.set(requestId, {
+        resolve: () => resolve(),
+        reject,
+      });
+      postMessage({ type: 'testDiagramRendererConnection', requestId, settings });
+    });
   };
 
   const handleKeepLocal = () => {
@@ -439,8 +643,12 @@ export function useEditorMessages({
   return {
     postMessage,
     handleViewJson,
-    handleExport,
-    handleImport,
+    handleFileOperation,
+    fileOperationState: fileController.operationState,
+    renderDiagram,
+    diagramRendererSettings,
+    handleDiagramRendererSettingsChange,
+    handleTestDiagramRenderer,
     handleMetaChange,
     handleRequestTemplateCatalog,
     handleApplyTemplate,
@@ -450,13 +658,11 @@ export function useEditorMessages({
     handleDeletePersonalTemplate,
     handleOpenPersonalTemplateFolder,
     templates,
-    templateDiagnosticCount,
+    templateDiagnostics,
     isTemplateCatalogLoading,
     isApplyingTemplate,
     isManagingTemplate,
-    personalTemplateRootPath,
     personalTemplateRootScope,
-    isExporting,
     externalChange,
     showExternalComparison,
     setShowExternalComparison,

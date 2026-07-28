@@ -12,11 +12,18 @@ import type {
   TiptapNode,
 } from '../types';
 import type { TemplateDescriptor, TemplateStructuralPreview } from '../template';
+import type { TemplateCatalogDiagnosticView } from '../template/catalogView';
 import type {
   DocumentMutation,
   DocumentMutationErrorCode,
 } from '../persistence/DocumentSyncCoordinator';
 import type { EditorLocale } from '../editor/i18n/locale';
+import type { FileOperationState } from '../editor/fileOperations';
+import type { KnownDiagramLanguage } from '../editor/diagram/languages';
+import type {
+  DiagramRenderFailureCode,
+  DiagramRendererSettings,
+} from '../diagramRenderer';
 
 // ─── Editor Settings (Extension → Webview) ─────────────────────
 
@@ -72,9 +79,9 @@ export interface InitMessage {
 
 export interface TemplateCatalogMessage {
   type: 'templateCatalog';
+  requestId: string;
   templates: ManagedTemplateDescriptor[];
-  diagnosticCount: number;
-  personalRootPath: string;
+  diagnostics: TemplateCatalogDiagnosticView[];
   personalRootScope: 'local' | 'remote';
 }
 
@@ -96,7 +103,8 @@ export interface TemplateOperationFinishedMessage {
 
 export interface TemplateApplicationFinishedMessage {
   type: 'templateApplicationFinished';
-  applied: boolean;
+  requestId: string;
+  result: 'applied' | 'cancelled' | 'failed';
 }
 
 export interface ExternalChangeMessage {
@@ -158,11 +166,17 @@ export interface MetaUpdateMessage {
 
 export interface ImportContentMessage {
   type: 'importContent';
+  requestId: string;
+  sessionId: string;
+  documentId: string;
   content: TiptapNode;
 }
 
 export interface ImportHtmlToWebviewMessage {
   type: 'importHtml';
+  requestId: string;
+  sessionId: string;
+  documentId: string;
   html: string;
 }
 
@@ -205,6 +219,9 @@ export interface DrawioFileUpdatedMessage {
 
 export interface ImportMarkdownTextMessage {
   type: 'importMarkdownText';
+  requestId: string;
+  sessionId: string;
+  documentId: string;
   text: string;
 }
 
@@ -218,13 +235,37 @@ export interface RequestFlushMessage {
   requestId: string;
 }
 
-export interface ExportStartedMessage {
-  type: 'exportStarted';
-  format: 'html' | 'adoc' | 'markdown' | 'pdf' | 'slides';
+export interface FileOperationStatusMessage {
+  type: 'fileOperationStatus';
+  sessionId: string;
+  state: FileOperationState;
 }
 
-export interface ExportDoneMessage {
-  type: 'exportDone';
+export interface DiagramRenderReadyMessage {
+  type: 'diagramRenderResult';
+  requestId: string;
+  result: {
+    status: 'ready';
+    dataUrl: string;
+    width: number;
+    height: number;
+  };
+}
+
+export interface DiagramRenderFailedMessage {
+  type: 'diagramRenderResult';
+  requestId: string;
+  result: {
+    status: 'error';
+    code: DiagramRenderFailureCode;
+    message: string;
+    retryable: boolean;
+  };
+}
+
+export interface DiagramRendererSettingsMessage {
+  type: 'diagramRendererSettings';
+  settings: DiagramRendererSettings;
 }
 
 export interface SdocFileBrowseResultMessage {
@@ -255,8 +296,10 @@ export type ExtensionToWebviewMessage =
   | ImageReplacedMessage
   | DrawioFileUpdatedMessage
   | RequestFlushMessage
-  | ExportStartedMessage
-  | ExportDoneMessage
+  | FileOperationStatusMessage
+  | DiagramRenderReadyMessage
+  | DiagramRenderFailedMessage
+  | DiagramRendererSettingsMessage
   | SdocFileBrowseResultMessage
   | ImportMarkdownTextMessage
   | ShowJsonViewerMessage;
@@ -269,10 +312,12 @@ export interface ReadyMessage {
 
 export interface RequestTemplateCatalogMessage {
   type: 'requestTemplateCatalog';
+  requestId: string;
 }
 
 export interface ApplyTemplateMessage {
   type: 'applyTemplate';
+  requestId: string;
   templateId: string;
   sessionId: string;
   documentId: string;
@@ -367,6 +412,9 @@ export interface ReplaceImageMessage {
 
 export interface ExportMessage {
   type: 'export';
+  requestId: string;
+  sessionId: string;
+  documentId: string;
   format: 'html' | 'adoc' | 'markdown' | 'pdf' | 'slides';
 }
 
@@ -382,10 +430,47 @@ export interface BrowseSdocFilesMessage {
 
 export interface ImportMarkdownMessage {
   type: 'importMarkdown';
+  requestId: string;
+  sessionId: string;
+  documentId: string;
 }
 
 export interface ImportHtmlFromWebviewMessage {
   type: 'importHtml';
+  requestId: string;
+  sessionId: string;
+  documentId: string;
+}
+
+export interface RenderDiagramMessage {
+  type: 'renderDiagram';
+  requestId: string;
+  language: Exclude<KnownDiagramLanguage, 'mermaid'>;
+  source: string;
+}
+
+export interface CancelDiagramRenderMessage {
+  type: 'cancelDiagramRender';
+  requestId: string;
+}
+
+export interface UpdateDiagramRendererSettingsMessage {
+  type: 'updateDiagramRendererSettings';
+  settings: DiagramRendererSettings;
+}
+
+export interface TestDiagramRendererConnectionMessage {
+  type: 'testDiagramRendererConnection';
+  requestId: string;
+  settings: DiagramRendererSettings;
+}
+
+export interface FileOperationAppliedMessage {
+  type: 'fileOperationApplied';
+  requestId: string;
+  sessionId: string;
+  documentId: string;
+  applied: boolean;
 }
 
 export interface FlushCompleteMessage {
@@ -434,6 +519,11 @@ export type WebviewToExtensionMessage =
   | BrowseSdocFilesMessage
   | ImportMarkdownMessage
   | ImportHtmlFromWebviewMessage
+  | RenderDiagramMessage
+  | CancelDiagramRenderMessage
+  | UpdateDiagramRendererSettingsMessage
+  | TestDiagramRendererConnectionMessage
+  | FileOperationAppliedMessage
   | FlushCompleteMessage
   | FlushFailedMessage
   | SelectCssFileMessage

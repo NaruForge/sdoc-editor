@@ -1,6 +1,7 @@
 import hljs from 'highlight.js';
 import { escapeHtml, formatDate } from './utils';
 import { buildNumberingIndex, type NumberingIndex } from '../document/numbering';
+import { resolveDiagramLanguage } from '../editor/diagram/languages';
 import type {
   HtmlExportSettings as ExportSettings,
   HtmlTheme,
@@ -12,12 +13,33 @@ import type {
 interface ConvertContext {
   settings: ExportSettings;
   numbering: NumberingIndex;
+  diagramOptions?: HtmlDiagramConversionOptions;
+}
+
+export interface PreparedDiagramPng {
+  dataUrl: string;
+  alt?: string;
+}
+
+export interface DiagramExportSource {
+  language: string;
+  code: string;
+}
+
+export interface HtmlDiagramConversionOptions {
+  resolveDiagramImage?: (source: DiagramExportSource) => PreparedDiagramPng | undefined;
 }
 
 /**
  * Converts Tiptap JSON to HTML format
  */
-export function convertJsonToHtml(json: TiptapNode, theme?: HtmlTheme, settings?: ExportSettings, meta?: SdocMeta): string {
+export function convertJsonToHtml(
+  json: TiptapNode,
+  theme?: HtmlTheme,
+  settings?: ExportSettings,
+  meta?: SdocMeta,
+  diagramOptions?: HtmlDiagramConversionOptions,
+): string {
   const resolved = settings || {};
   const ctx: ConvertContext = {
     settings: resolved,
@@ -29,6 +51,7 @@ export function convertJsonToHtml(json: TiptapNode, theme?: HtmlTheme, settings?
       crossRefIncludeCaption: false,
       counterResetPaths: resolved.counterResetPaths,
     }),
+    diagramOptions,
   };
   const bodyContent = convertNode(json, ctx);
   return generateHtmlDocument(bodyContent, theme, meta, ctx);
@@ -128,7 +151,7 @@ function convertNode(node: TiptapNode, ctx: ConvertContext): string {
     }
 
     case 'diagram':
-      return `<pre class="mermaid">${escapeHtml((node.attrs?.code as string) || '')}</pre>`;
+      return convertDiagram(node, ctx);
 
     case 'blockquote': {
       const bqContent = node.content ? node.content.map(n => convertNode(n, ctx)).join('') : '';
@@ -163,6 +186,22 @@ function convertNode(node: TiptapNode, ctx: ConvertContext): string {
     default:
       return node.content ? node.content.map(n => convertNode(n, ctx)).join('') : '';
   }
+}
+
+function convertDiagram(node: TiptapNode, ctx: ConvertContext): string {
+  const language = resolveDiagramLanguage(node.attrs?.language);
+  const code = typeof node.attrs?.code === 'string' ? node.attrs.code : '';
+  if (language === 'mermaid') {
+    return `<pre class="mermaid">${escapeHtml(code)}</pre>`;
+  }
+
+  const prepared = ctx.diagramOptions?.resolveDiagramImage?.({ language, code });
+  const image = prepared?.dataUrl.startsWith('data:image/png;base64,')
+    ? `<img src="${escapeHtml(prepared.dataUrl)}" alt="${escapeHtml(prepared.alt ?? `${language} diagram`)}">\n`
+    : '';
+  return `<figure class="diagram diagram-source" data-language="${escapeHtml(language)}">\n`
+    + `${image}<pre><code>${escapeHtml(code)}</code></pre>\n`
+    + '</figure>';
 }
 
 function convertInlineContent(content: TiptapNode[], ctx: ConvertContext): string {

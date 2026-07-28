@@ -5,6 +5,7 @@ import {
   Copy,
   Trash2
 } from 'lucide-react';
+import { Menu } from './ui/Menu';
 
 interface ImageContextMenuProps {
   position: { x: number; y: number };
@@ -14,6 +15,7 @@ interface ImageContextMenuProps {
   onCopyPath: () => void;
   onDelete: () => void;
   isDrawio: boolean;
+  returnFocusRef?: React.RefObject<HTMLElement | null>;
 }
 
 export const ImageContextMenu: React.FC<ImageContextMenuProps> = ({
@@ -23,22 +25,18 @@ export const ImageContextMenu: React.FC<ImageContextMenuProps> = ({
   onReplaceImage,
   onCopyPath,
   onDelete,
-  isDrawio
+  isDrawio,
+  returnFocusRef,
 }) => {
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = () => onClose();
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
 
     document.addEventListener('click', handleClickOutside);
-    document.addEventListener('keydown', handleEscape);
 
     return () => {
       document.removeEventListener('click', handleClickOutside);
-      document.removeEventListener('keydown', handleEscape);
     };
   }, [onClose]);
 
@@ -63,6 +61,9 @@ export const ImageContextMenu: React.FC<ImageContextMenuProps> = ({
     danger?: boolean;
   }> = ({ icon, label, onClick, danger }) => (
     <button
+      type="button"
+      role="menuitem"
+      tabIndex={-1}
       className={`context-menu-item ${danger ? 'danger' : ''}`}
       onMouseDown={(e) => {
         e.preventDefault();
@@ -77,8 +78,12 @@ export const ImageContextMenu: React.FC<ImageContextMenuProps> = ({
   );
 
   return (
-    <div
+    <Menu
       ref={menuRef}
+      label="Image actions"
+      autoFocus
+      onClose={onClose}
+      returnFocusRef={returnFocusRef}
       className="table-context-menu"
       style={{
         position: 'fixed',
@@ -105,13 +110,13 @@ export const ImageContextMenu: React.FC<ImageContextMenuProps> = ({
         label="Copy Path"
         onClick={onCopyPath}
       />
-      <div className="context-menu-separator" />
+      <div role="separator" className="context-menu-separator" />
       <MenuItem
         icon={<Trash2 size={14} />}
         label="Delete Image"
         onClick={onDelete}
         danger
       />
-    </div>
+    </Menu>
   );
 };

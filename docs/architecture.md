@@ -94,6 +94,13 @@ repair.
 
 `shared/converter/` contains host-neutral import/export conversion. `shared/settingsResolver.ts` owns defaults, caption presets, and document-over-workspace setting resolution. Neither layer may access VS Code, Tauri, or the filesystem.
 
+Mermaid diagrams render locally. Opt-in PlantUML, D2, and Graphviz rendering is
+performed only by host adapters and uses a bounded in-memory cache; converters
+never access the network. Hosts prepare PNG assets before export, while
+converters preserve a source-only fallback when rendering is disabled or
+unavailable. Renderer trust settings are global and never enter `.sdoc` or
+`DocumentSettings`. See [ADR 0011](adr/0011-use-opt-in-host-diagram-rendering.md).
+
 `shared/document/numbering.ts` is the single numbering index for editor previews, lists, cross-references, and HTML, Markdown, AsciiDoc, and Slides output. Export services flush host editors first and pass current in-memory documents to shared converters.
 
 ### Semantic document operations

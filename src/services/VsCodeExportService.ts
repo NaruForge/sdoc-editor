@@ -16,6 +16,17 @@ import { withTemporaryDirectory } from '../utils/temporaryDirectory';
 import { loadCachedCdnAssets } from './CdnAssetService';
 
 export type ExportFormat = 'html' | 'adoc' | 'markdown' | 'pdf' | 'slides';
+export type ExportOperationResult = 'completed' | 'cancelled' | 'fallback';
+
+type ExportSuccess = {
+  outcome: 'completed';
+  successMsg: string;
+  actionLabel: string;
+  openUri: vscode.Uri;
+  openKind: 'external' | 'html' | 'text';
+};
+
+type ExportResult = ExportSuccess | { outcome: 'cancelled' | 'fallback' };
 
 export class VsCodeExportService {
   private readonly exportQueue = new DocumentExportQueue();
@@ -25,50 +36,36 @@ export class VsCodeExportService {
   async exportDocument(
     document: vscode.TextDocument,
     format: ExportFormat,
-    webview?: vscode.Webview
-  ): Promise<void> {
+    diagramImages?: ReadonlyMap<string, string>,
+  ): Promise<ExportOperationResult> {
     const docKey = document.uri.toString();
-    return this.exportQueue.run(docKey, () => this.exportNow(document, format, webview));
+    return this.exportQueue.run(
+      docKey,
+      () => this.exportNow(document, format, diagramImages),
+    );
   }
 
   private async exportNow(
     document: vscode.TextDocument,
     format: ExportFormat,
-    webview?: vscode.Webview,
-  ): Promise<void> {
+    diagramImages?: ReadonlyMap<string, string>,
+  ): Promise<ExportOperationResult> {
     const formatLabels: Record<string, string> = {
       html: 'HTML', pdf: 'PDF', markdown: 'Markdown', adoc: 'AsciiDoc', slides: 'Slides',
     };
     const label = formatLabels[format] ?? format.toUpperCase();
 
-    await webview?.postMessage({ type: 'exportStarted', format });
-
-    // ExportResult: info needed to show completion message AFTER withProgress closes
-    type ExportResult = {
-      successMsg: string;
-      actionLabel: string;
-      openUri: vscode.Uri;
-      openKind: 'external' | 'html' | 'text';
-    } | null;
-
-    let result: ExportResult = null;
-    try {
-      result = await vscode.window.withProgress(
-        {
-          location: vscode.ProgressLocation.Notification,
-          title: `내보내기 중 (${label})`,
-          cancellable: false,
-        },
-        async (progress) => {
-          return await this._doExport(document, format, label, progress);
-        }
-      );
-    } finally {
-      await webview?.postMessage({ type: 'exportDone' });
-    }
+    const result = await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: `내보내기 중 (${label})`,
+        cancellable: false,
+      },
+      async (progress) => this._doExport(document, format, label, progress, diagramImages),
+    );
 
     // Show success notification AFTER progress notification has closed
-    if (result) {
+    if (result.outcome === 'completed') {
       const action = await vscode.window.showInformationMessage(
         result.successMsg,
         result.actionLabel,
@@ -87,19 +84,16 @@ export class VsCodeExportService {
         await vscode.commands.executeCommand('revealFileInOS', result.openUri);
       }
     }
+    return result.outcome;
   }
 
   private async _doExport(
     document: vscode.TextDocument,
     format: ExportFormat,
     label: string,
-    progress: vscode.Progress<{ message?: string; increment?: number }>
-  ): Promise<{
-    successMsg: string;
-    actionLabel: string;
-    openUri: vscode.Uri;
-    openKind: 'external' | 'html' | 'text';
-  } | null> {
+    progress: vscode.Progress<{ message?: string; increment?: number }>,
+    diagramImages?: ReadonlyMap<string, string>,
+  ): Promise<ExportResult> {
       progress.report({ message: '문서 읽는 중...', increment: 5 });
       const text = document.getText();
       const parsed: unknown = text.trim() ? JSON.parse(text) : { sdoc: '1.0', meta: {}, doc: { type: 'doc', content: [] } };
@@ -185,7 +179,18 @@ export class VsCodeExportService {
             config.get<string>('theme.customStyles') || '',
           );
 
-          content = convertJsonToHtml(convertedDoc, { ...theme, customStyles }, exportSettings, meta);
+          content = convertJsonToHtml(
+            convertedDoc,
+            { ...theme, customStyles },
+            exportSettings,
+            meta,
+            {
+              resolveDiagramImage: ({ language, code }) => {
+                const dataUrl = diagramImages?.get(`${language}\0${code}`);
+                return dataUrl ? { dataUrl } : undefined;
+              },
+            },
+          );
 
           if (format === 'pdf') {
             // PDF: generate via headless browser
@@ -198,7 +203,7 @@ export class VsCodeExportService {
                 resolved.outputDir,
                 progress,
               );
-              if (!fallbackUri) return null;
+              if (!fallbackUri) return { outcome: 'cancelled' };
               const action = await vscode.window.showWarningMessage(
                 `PDF 내보내기에 필요한 Chrome/Edge/Chromium을 찾지 못해 HTML로 대신 내보냈습니다: ${fallbackUri.fsPath}`,
                 'Open HTML',
@@ -212,7 +217,7 @@ export class VsCodeExportService {
               } else if (action === 'Install Guide') {
                 await vscode.env.openExternal(vscode.Uri.parse('https://www.google.com/chrome/'));
               }
-              return null;
+              return { outcome: 'fallback' };
             }
 
           // Inject zoom CSS for PDF scale
@@ -221,7 +226,7 @@ export class VsCodeExportService {
 
           const pdfUri = this.buildExportUri(document, '.pdf', resolved.outputDir);
           const shouldOverwritePdf = await this.confirmOverwrite(pdfUri);
-          if (!shouldOverwritePdf) return null;
+          if (!shouldOverwritePdf) return { outcome: 'cancelled' };
           await vscode.workspace.fs.createDirectory(vscode.Uri.file(path.dirname(pdfUri.fsPath)));
 
           progress.report({ message: 'PDF 인쇄 중...', increment: 40 });
@@ -232,6 +237,7 @@ export class VsCodeExportService {
           });
 
           return {
+            outcome: 'completed',
             successMsg: `PDF exported: ${pdfUri.fsPath}`,
             actionLabel: 'Open PDF',
               openUri: pdfUri,
@@ -271,7 +277,18 @@ export class VsCodeExportService {
             slideTransition: resolved.slideTransition,
           };
 
-          content = convertJsonToSlides(convertedDoc, slideTheme, slideSettings, meta);
+          content = convertJsonToSlides(
+            convertedDoc,
+            slideTheme,
+            slideSettings,
+            meta,
+            {
+              resolveDiagramImage: ({ language, code }) => {
+                const dataUrl = diagramImages?.get(`${language}\0${code}`);
+                return dataUrl ? { dataUrl } : undefined;
+              },
+            },
+          );
 
           const slideUri = await this.writeExportFile(
             document,
@@ -280,9 +297,10 @@ export class VsCodeExportService {
             resolved.outputDir,
             progress,
           );
-          if (!slideUri) return null;
+          if (!slideUri) return { outcome: 'cancelled' };
 
           return {
+            outcome: 'completed',
             successMsg: `Slides exported: ${slideUri.fsPath}`,
             actionLabel: 'Open in Browser',
             openUri: slideUri,
@@ -309,9 +327,10 @@ export class VsCodeExportService {
         resolved.outputDir,
         progress,
       );
-      if (!outputUri) return null;
+      if (!outputUri) return { outcome: 'cancelled' };
 
       return {
+        outcome: 'completed',
         successMsg: `${label} exported: ${outputUri.fsPath}`,
         actionLabel: 'Open File',
         openUri: outputUri,

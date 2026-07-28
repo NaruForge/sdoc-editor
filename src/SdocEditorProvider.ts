@@ -47,7 +47,21 @@ import {
   updatePersonalTemplateMetadata,
   type SdocTemplate,
   type TemplateDescriptor,
+  type TemplateDiagnostic,
 } from '../shared/template';
+import {
+  projectTemplateCatalogDiagnostic,
+  projectTemplateCatalogDiagnostics,
+} from '../shared/template/catalogView';
+import { createFileOperationError } from '../shared/editor/fileOperations';
+import {
+  DEFAULT_DIAGRAM_RENDERER_SETTINGS,
+  type DiagramRendererSettings,
+} from '../shared/diagramRenderer';
+import {
+  KrokiDiagramService,
+  KrokiRenderError,
+} from './services/KrokiDiagramService';
 import { resolveEditorLocale } from '../shared/editor/i18n/locale';
 
 export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
@@ -101,6 +115,22 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     this.exportService = new VsCodeExportService(context);
   }
 
+  private readDiagramRendererSettings(): DiagramRendererSettings {
+    const config = vscode.workspace.getConfiguration('structuredDocEditor.diagramRenderer');
+    const userValue = <T,>(key: string, fallback: T): T => {
+      const inspected = config.inspect<T>(key);
+      return inspected?.globalValue ?? fallback;
+    };
+    return {
+      enabled: userValue('enabled', DEFAULT_DIAGRAM_RENDERER_SETTINGS.enabled),
+      endpoint: userValue('endpoint', DEFAULT_DIAGRAM_RENDERER_SETTINGS.endpoint),
+      allowPrivateNetwork: userValue(
+        'allowPrivateNetwork',
+        DEFAULT_DIAGRAM_RENDERER_SETTINGS.allowPrivateNetwork,
+      ),
+    };
+  }
+
   public async resolveCustomTextEditor(
     document: vscode.TextDocument,
     webviewPanel: vscode.WebviewPanel,
@@ -127,6 +157,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     let readOnlyWarningShown = false;
     let templateApplicationPending = false;
     let templateManagementPending = false;
+    let fileOperationPending = false;
     let availableTemplates = new Map<string, SdocTemplate>();
     let personalTemplateFingerprints = new Map<string, string>();
     const personalRootScope = vscode.env.remoteName ? 'remote' : 'local';
@@ -135,6 +166,56 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         ? `Remote (${vscode.env.remoteName}) · extension host home`
         : 'Local · shared with the desktop app',
     });
+    const diagramService = new KrokiDiagramService(this.readDiagramRendererSettings());
+    const diagramRequests = new Map<string, AbortController>();
+    const pendingImportAcks = new Map<string, {
+      resolve: (applied: boolean) => void;
+      timer: NodeJS.Timeout;
+    }>();
+    const waitForImportApplied = (requestId: string): Promise<boolean> =>
+      new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+          pendingImportAcks.delete(requestId);
+          reject(new Error('Timed out waiting for the imported document to be applied.'));
+        }, 10_000);
+        pendingImportAcks.set(requestId, { resolve, timer });
+      });
+    const prepareDiagramImages = async (
+      format: ExportFormat,
+    ): Promise<{ images: Map<string, string>; usedFallback: boolean }> => {
+      const images = new Map<string, string>();
+      if (format !== 'html' && format !== 'pdf' && format !== 'slides') {
+        return { images, usedFallback: false };
+      }
+      const sources = new Map<string, { language: 'plantuml' | 'd2' | 'graphviz'; code: string }>();
+      let usedFallback = false;
+      const visit = (node: TiptapNode): void => {
+        if (node.type === 'diagram') {
+          const language = typeof node.attrs?.language === 'string'
+            ? node.attrs.language.toLowerCase()
+            : 'mermaid';
+          const code = typeof node.attrs?.code === 'string' ? node.attrs.code : '';
+          if (language !== 'mermaid') {
+            if (language === 'plantuml' || language === 'd2' || language === 'graphviz') {
+              sources.set(`${language}\0${code}`, { language, code });
+            } else {
+              usedFallback = true;
+            }
+          }
+        }
+        node.content?.forEach(visit);
+      };
+      visit(readCurrentMutation().content);
+      await Promise.all([...sources.entries()].map(async ([key, source]) => {
+        try {
+          const rendered = await diagramService.render(source.language, source.code);
+          images.set(key, rendered.dataUrl);
+        } catch {
+          usedFallback = true;
+        }
+      }));
+      return { images, usedFallback };
+    };
 
     // Read and send editor settings to webview
     const readVscodeDocDefaults = (): Partial<DocumentSettings> => {
@@ -325,7 +406,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
           rootPath: folder.uri.fsPath,
         }));
 
-    const sendTemplateCatalog = async (): Promise<void> => {
+    const sendTemplateCatalog = async (requestId: string): Promise<void> => {
       const discovery = await templateService.discover(workspaceTemplateRoots());
       availableTemplates = new Map(
         discovery.catalog.templates.map((template) => [template.descriptor.id, template]),
@@ -340,15 +421,36 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       }
       webviewPanel.webview.postMessage({
         type: 'templateCatalog',
+        requestId,
         templates: discovery.catalog.templates.map((template) => ({
           ...template.descriptor,
+          sourceLabel: template.descriptor.source === 'builtin'
+            ? 'Structured Doc Editor'
+            : template.descriptor.source === 'workspace'
+              ? 'Workspace templates'
+              : `${personalRootScope === 'remote' ? 'Remote' : 'Local'} · ~/.sdoc/templates`,
           preview: buildTemplateStructuralPreview(template),
           ...(discovery.personalFingerprints.has(template.descriptor.id)
             ? { revisionToken: discovery.personalFingerprints.get(template.descriptor.id) }
             : {}),
         })),
-        diagnosticCount,
-        personalRootPath: discovery.personalRootPath,
+        diagnostics: [
+          ...projectTemplateCatalogDiagnostics(discovery.catalog.diagnostics, 'catalog'),
+          ...discovery.hostDiagnostics.map((diagnostic, index) => {
+            const code: TemplateDiagnostic['code'] =
+              diagnostic.code === 'invalid-json' ? 'malformed-document'
+                : diagnostic.code === 'file-too-large' ? 'file-too-large'
+                  : diagnostic.code === 'candidate-limit-exceeded' ? 'candidate-limit-exceeded'
+                    : diagnostic.code === 'read-failed' ? 'read-failed'
+                      : diagnostic.code === 'unsupported-file-type' ? 'unsupported-filesystem'
+                        : 'unsafe-path';
+            return projectTemplateCatalogDiagnostic({
+              code,
+              targetPath: diagnostic.targetPath,
+              message: 'Template discovery failed.',
+            }, 'catalog', index);
+          }),
+        ],
         personalRootScope,
       });
     };
@@ -356,6 +458,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     const applyTemplateToCurrentDocument = async (
       templateId: string,
       expected: CurrentDocumentIdentity,
+      requestId: string,
     ): Promise<boolean> => {
       if (!canApplyTemplateToCurrentDocument(
         document.getText(), document.getText(), expected, currentDocumentIdentity(),
@@ -369,7 +472,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       const template = availableTemplates.get(templateId);
       if (!template) {
         await vscode.window.showWarningMessage('선택한 템플릿이 더 이상 없습니다. 목록을 새로 고친 뒤 다시 시도하세요.');
-        await sendTemplateCatalog();
+        await sendTemplateCatalog(`apply-refresh-${requestId}`);
         return false;
       }
       const defaultTitle = path.basename(document.uri.fsPath, path.extname(document.uri.fsPath))
@@ -508,14 +611,14 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
           );
           if (selected !== 'Move to Trash') return;
           await templateService.trashPersonalTemplate(request.templateId, request.revisionToken);
-          await sendTemplateCatalog();
+          await sendTemplateCatalog(`operation-${request.requestId}`);
           succeeded = true;
           resultTemplateId = request.templateId;
           return;
         }
         if (request.type === 'updatePersonalTemplate' || request.type === 'duplicatePersonalTemplate') {
           if (request.type === 'duplicatePersonalTemplate') {
-            await sendTemplateCatalog();
+            await sendTemplateCatalog(`operation-${request.requestId}`);
           }
           const template = availableTemplates.get(request.templateId);
           const currentFingerprint = personalTemplateFingerprints.get(request.templateId);
@@ -546,7 +649,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
             await templateService.createPersonalTemplate(newTemplateId, duplicate.envelope);
             resultTemplateId = newTemplateId;
           }
-          await sendTemplateCatalog();
+          await sendTemplateCatalog(`operation-${request.requestId}`);
           succeeded = true;
           return;
         }
@@ -582,7 +685,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
           sourceLabel: templateService.personalTemplateRootPath,
         });
         await templateService.createPersonalTemplate(newTemplateId, snapshot.envelope);
-        await sendTemplateCatalog();
+        await sendTemplateCatalog(`operation-${request.requestId}`);
         succeeded = true;
         resultTemplateId = newTemplateId;
       } catch (error) {
@@ -596,7 +699,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
           operation,
           succeeded,
           ...(resultTemplateId ? { templateId: resultTemplateId } : {}),
-          ...(resultMessage ? { message: resultMessage } : {}),
+          ...(resultMessage ? { message: 'The template operation could not be completed.' } : {}),
         });
       }
     };
@@ -610,9 +713,12 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       }
       const readOnlySafeMessages = new Set([
         'ready', 'flushComplete', 'viewJson', 'export', 'openDocument', 'browseSdocFiles',
+        'importMarkdown', 'importHtml', 'fileOperationApplied',
         'requestTemplateCatalog',
         'savePersonalTemplate', 'updatePersonalTemplate', 'duplicatePersonalTemplate',
         'deletePersonalTemplate', 'openPersonalTemplateFolder',
+        'renderDiagram', 'cancelDiagramRender', 'updateDiagramRendererSettings',
+        'testDiagramRendererConnection',
       ]);
       if (writeBlockedReason && !readOnlySafeMessages.has(message.type)) {
         if (message.type === 'edit') {
@@ -633,20 +739,180 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         }
         vscode.window.showErrorMessage(`Document is read-only because it is invalid: ${writeBlockedReason}`);
         if (message.type === 'applyTemplate') {
-          webviewPanel.webview.postMessage({ type: 'templateApplicationFinished', applied: false });
+          webviewPanel.webview.postMessage({
+            type: 'templateApplicationFinished',
+            requestId: message.requestId,
+            result: 'failed',
+          });
         }
         return;
       }
       // Export must stay outside the serial message queue: its flush response is itself
       // an editor message and would otherwise wait behind the export that is awaiting it.
       if (message.type === 'export') {
+        if (fileOperationPending || message.sessionId !== sessionId || message.documentId !== documentId) {
+          webviewPanel.webview.postMessage({
+            type: 'fileOperationStatus',
+            sessionId: message.sessionId,
+            state: {
+              phase: 'failed',
+              requestId: message.requestId,
+              error: createFileOperationError(
+                'FILE_OPERATION_BUSY',
+                'Another file operation is already running.',
+                false,
+              ),
+            },
+          });
+          return;
+        }
+        fileOperationPending = true;
+        let usedDiagramFallback = false;
+        let exportResult: 'completed' | 'cancelled' | 'fallback' = 'completed';
         void runExportAfterFlush(
           () => this.flushEditor(webviewPanel.webview, sessionId),
-          () => this.exportService.exportDocument(document, message.format, webviewPanel.webview),
-        ).catch((error: unknown) => {
+          async () => {
+            const prepared = await prepareDiagramImages(message.format);
+            usedDiagramFallback = prepared.usedFallback;
+            exportResult = await this.exportService.exportDocument(
+              document,
+              message.format,
+              prepared.images,
+            );
+          },
+        ).then(() => {
+          if (exportResult === 'cancelled') {
+            webviewPanel.webview.postMessage({
+              type: 'fileOperationStatus',
+              sessionId,
+              state: { phase: 'cancelled', requestId: message.requestId },
+            });
+            return;
+          }
+          webviewPanel.webview.postMessage({
+            type: 'fileOperationStatus',
+            sessionId,
+            state: {
+              phase: 'succeeded',
+              requestId: message.requestId,
+              result: usedDiagramFallback || exportResult === 'fallback'
+                ? 'fallback'
+                : 'completed',
+            },
+          });
+        }).catch((error: unknown) => {
           const detail = error instanceof Error ? error.message : String(error);
           vscode.window.showErrorMessage(`Structured Doc export failed: ${detail}`);
+          webviewPanel.webview.postMessage({
+            type: 'fileOperationStatus',
+            sessionId,
+            state: {
+              phase: 'failed',
+              requestId: message.requestId,
+              error: createFileOperationError(
+                'EXPORT_FAILED',
+                'The document could not be exported.',
+                true,
+              ),
+            },
+          });
+        }).finally(() => {
+          fileOperationPending = false;
         });
+        return;
+      }
+      if (message.type === 'renderDiagram') {
+        const controller = new AbortController();
+        diagramRequests.get(message.requestId)?.abort();
+        diagramRequests.set(message.requestId, controller);
+        void diagramService.render(message.language, message.source, {
+          signal: controller.signal,
+        }).then((result) => {
+          webviewPanel.webview.postMessage({
+            type: 'diagramRenderResult',
+            requestId: message.requestId,
+            result: {
+              status: 'ready',
+              dataUrl: result.dataUrl,
+              width: result.width,
+              height: result.height,
+            },
+          });
+        }).catch((error: unknown) => {
+          const renderError = error instanceof KrokiRenderError
+            ? error
+            : new KrokiRenderError(
+              'offline',
+              'The diagram renderer could not be reached.',
+              true,
+            );
+          webviewPanel.webview.postMessage({
+            type: 'diagramRenderResult',
+            requestId: message.requestId,
+            result: {
+              status: 'error',
+              code: renderError.code,
+              message: renderError.message,
+              retryable: renderError.retryable,
+            },
+          });
+        }).finally(() => {
+          diagramRequests.delete(message.requestId);
+        });
+        return;
+      }
+      if (message.type === 'cancelDiagramRender') {
+        diagramRequests.get(message.requestId)?.abort();
+        diagramRequests.delete(message.requestId);
+        return;
+      }
+      if (message.type === 'updateDiagramRendererSettings') {
+        const config = vscode.workspace.getConfiguration('structuredDocEditor.diagramRenderer');
+        void Promise.all([
+          config.update('enabled', message.settings.enabled, vscode.ConfigurationTarget.Global),
+          config.update('endpoint', message.settings.endpoint, vscode.ConfigurationTarget.Global),
+          config.update(
+            'allowPrivateNetwork',
+            message.settings.allowPrivateNetwork,
+            vscode.ConfigurationTarget.Global,
+          ),
+        ]).then(() => {
+          diagramService.updateSettings(message.settings);
+          webviewPanel.webview.postMessage({
+            type: 'diagramRendererSettings',
+            settings: message.settings,
+          });
+        });
+        return;
+      }
+      if (message.type === 'testDiagramRendererConnection') {
+        const testService = new KrokiDiagramService({ ...message.settings, enabled: true });
+        void testService.render('graphviz', 'digraph { ready }', { timeoutMs: 3_000 })
+          .then((result) => webviewPanel.webview.postMessage({
+            type: 'diagramRenderResult',
+            requestId: message.requestId,
+            result: {
+              status: 'ready',
+              dataUrl: result.dataUrl,
+              width: result.width,
+              height: result.height,
+            },
+          }))
+          .catch((error: unknown) => {
+            const renderError = error instanceof KrokiRenderError
+              ? error
+              : new KrokiRenderError('offline', 'The endpoint could not be reached.', true);
+            webviewPanel.webview.postMessage({
+              type: 'diagramRenderResult',
+              requestId: message.requestId,
+              result: {
+                status: 'error',
+                code: renderError.code,
+                message: renderError.message,
+                retryable: renderError.retryable,
+              },
+            });
+          });
         return;
       }
       if (message.type === 'flushComplete') {
@@ -656,6 +922,17 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       if (message.type === 'flushFailed') {
         if (message.sessionId === sessionId) {
           this.rejectFlush(message.requestId, new Error(message.message));
+        }
+        return;
+      }
+      if (message.type === 'fileOperationApplied') {
+        if (message.sessionId === sessionId && message.documentId === documentId) {
+          const pending = pendingImportAcks.get(message.requestId);
+          if (pending) {
+            clearTimeout(pending.timer);
+            pendingImportAcks.delete(message.requestId);
+            pending.resolve(message.applied);
+          }
         }
         return;
       }
@@ -683,17 +960,47 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         return;
       }
       if (message.type === 'applyTemplate') {
-        if (templateApplicationPending) return;
+        if (templateApplicationPending) {
+          webviewPanel.webview.postMessage({
+            type: 'templateApplicationFinished',
+            requestId: message.requestId,
+            result: 'failed',
+          });
+          return;
+        }
         templateApplicationPending = true;
+      }
+      if (message.type === 'importMarkdown' || message.type === 'importHtml') {
+        if (fileOperationPending || message.sessionId !== sessionId || message.documentId !== documentId) {
+          webviewPanel.webview.postMessage({
+            type: 'fileOperationStatus',
+            sessionId: message.sessionId,
+            state: {
+              phase: 'failed',
+              requestId: message.requestId,
+              error: createFileOperationError(
+                'FILE_OPERATION_BUSY',
+                'Another file operation is already running.',
+                false,
+              ),
+            },
+          });
+          return;
+        }
+        fileOperationPending = true;
       }
       messageQueue.enqueue(async () => {
         switch (message.type) {
           case 'ready':
             sendUpdate();
-            await sendTemplateCatalog();
+            await sendTemplateCatalog('initial');
+            webviewPanel.webview.postMessage({
+              type: 'diagramRendererSettings',
+              settings: this.readDiagramRendererSettings(),
+            });
             break;
           case 'requestTemplateCatalog':
-            await sendTemplateCatalog();
+            await sendTemplateCatalog(message.requestId);
             break;
           case 'applyTemplate': {
             let applied = false;
@@ -702,10 +1009,14 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
                 sessionId: message.sessionId,
                 documentId: message.documentId,
                 revision: message.baseRevision,
-              });
+              }, message.requestId);
             } finally {
               templateApplicationPending = false;
-              webviewPanel.webview.postMessage({ type: 'templateApplicationFinished', applied });
+              webviewPanel.webview.postMessage({
+                type: 'templateApplicationFinished',
+                requestId: message.requestId,
+                result: applied ? 'applied' : 'cancelled',
+              });
             }
             break;
           }
@@ -784,10 +1095,28 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
             await this.browseSdocFiles(document, webviewPanel.webview);
             break;
           case 'importMarkdown':
-            await this.importMarkdown(document, webviewPanel);
+            try {
+              await this.importMarkdown(
+                document,
+                webviewPanel,
+                message,
+                () => waitForImportApplied(message.requestId),
+              );
+            } finally {
+              fileOperationPending = false;
+            }
             break;
           case 'importHtml':
-            await this.importHtml(document, webviewPanel);
+            try {
+              await this.importHtml(
+                document,
+                webviewPanel,
+                message,
+                () => waitForImportApplied(message.requestId),
+              );
+            } finally {
+              fileOperationPending = false;
+            }
             break;
           case 'selectCssFile': {
             const selectedPath = await this.selectCssFile(document);
@@ -1014,7 +1343,9 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       ?? await vscode.workspace.openTextDocument(uri);
     await runExportAfterFlush(
       session ? () => this.flushEditor(session.panel.webview, session.sessionId) : undefined,
-      () => this.exportService.exportDocument(document, format, session?.panel.webview),
+      async () => {
+        await this.exportService.exportDocument(document, format);
+      },
     );
   }
 
@@ -1082,7 +1413,9 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
 
   private async importMarkdown(
     document: vscode.TextDocument,
-    webviewPanel: vscode.WebviewPanel
+    webviewPanel: vscode.WebviewPanel,
+    request: Extract<EditorToHostMessage, { type: 'importMarkdown' }>,
+    waitUntilApplied: () => Promise<boolean>,
   ): Promise<void> {
     try {
       const fileUris = await vscode.window.showOpenDialog({
@@ -1090,7 +1423,14 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         openLabel: 'Import Markdown',
         filters: { 'Markdown Files': ['md', 'markdown'] },
       });
-      if (!fileUris || fileUris.length === 0) return;
+      if (!fileUris || fileUris.length === 0) {
+        await webviewPanel.webview.postMessage({
+          type: 'fileOperationStatus',
+          sessionId: request.sessionId,
+          state: { phase: 'cancelled', requestId: request.requestId },
+        });
+        return;
+      }
 
       const mdBytes = await vscode.workspace.fs.readFile(fileUris[0]);
       const mdText = new TextDecoder('utf-8').decode(mdBytes);
@@ -1100,9 +1440,42 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       const documentDir = vscode.Uri.joinPath(document.uri, '..');
       const convertedDoc = convertImagePathsToWebviewUris(doc, documentDir, webviewPanel.webview);
 
-      webviewPanel.webview.postMessage({ type: 'importContent', content: convertedDoc });
+      const applied = waitUntilApplied();
+      await webviewPanel.webview.postMessage({
+        type: 'importContent',
+        requestId: request.requestId,
+        sessionId: request.sessionId,
+        documentId: request.documentId,
+        content: convertedDoc,
+      });
+      if (!await applied) {
+        await webviewPanel.webview.postMessage({
+          type: 'fileOperationStatus',
+          sessionId: request.sessionId,
+          state: { phase: 'cancelled', requestId: request.requestId },
+        });
+        return;
+      }
+      await webviewPanel.webview.postMessage({
+        type: 'fileOperationStatus',
+        sessionId: request.sessionId,
+        state: { phase: 'succeeded', requestId: request.requestId, result: 'completed' },
+      });
       vscode.window.showInformationMessage('Markdown imported successfully');
     } catch (error) {
+      await webviewPanel.webview.postMessage({
+        type: 'fileOperationStatus',
+        sessionId: request.sessionId,
+        state: {
+          phase: 'failed',
+          requestId: request.requestId,
+          error: createFileOperationError(
+            'IMPORT_FAILED',
+            'The Markdown file could not be imported.',
+            true,
+          ),
+        },
+      });
       vscode.window.showErrorMessage(
         `Failed to import Markdown: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
@@ -1111,7 +1484,9 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
 
   private async importHtml(
     _document: vscode.TextDocument,
-    webviewPanel: vscode.WebviewPanel
+    webviewPanel: vscode.WebviewPanel,
+    request: Extract<EditorToHostMessage, { type: 'importHtml' }>,
+    waitUntilApplied: () => Promise<boolean>,
   ): Promise<void> {
     try {
       const fileUris = await vscode.window.showOpenDialog({
@@ -1119,15 +1494,55 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         openLabel: 'Import HTML',
         filters: { 'HTML Files': ['html', 'htm'] },
       });
-      if (!fileUris || fileUris.length === 0) return;
+      if (!fileUris || fileUris.length === 0) {
+        await webviewPanel.webview.postMessage({
+          type: 'fileOperationStatus',
+          sessionId: request.sessionId,
+          state: { phase: 'cancelled', requestId: request.requestId },
+        });
+        return;
+      }
 
       const htmlBytes = await vscode.workspace.fs.readFile(fileUris[0]);
       const htmlText = new TextDecoder('utf-8').decode(htmlBytes);
+      const applied = waitUntilApplied();
 
       // Send raw HTML to webview — Tiptap's setContent(htmlString) will parse it
-      webviewPanel.webview.postMessage({ type: 'importHtml', html: htmlText });
+      await webviewPanel.webview.postMessage({
+        type: 'importHtml',
+        requestId: request.requestId,
+        sessionId: request.sessionId,
+        documentId: request.documentId,
+        html: htmlText,
+      });
+      if (!await applied) {
+        await webviewPanel.webview.postMessage({
+          type: 'fileOperationStatus',
+          sessionId: request.sessionId,
+          state: { phase: 'cancelled', requestId: request.requestId },
+        });
+        return;
+      }
+      await webviewPanel.webview.postMessage({
+        type: 'fileOperationStatus',
+        sessionId: request.sessionId,
+        state: { phase: 'succeeded', requestId: request.requestId, result: 'completed' },
+      });
       vscode.window.showInformationMessage('HTML imported successfully');
     } catch (error) {
+      await webviewPanel.webview.postMessage({
+        type: 'fileOperationStatus',
+        sessionId: request.sessionId,
+        state: {
+          phase: 'failed',
+          requestId: request.requestId,
+          error: createFileOperationError(
+            'IMPORT_FAILED',
+            'The HTML file could not be imported.',
+            true,
+          ),
+        },
+      });
       vscode.window.showErrorMessage(
         `Failed to import HTML: ${error instanceof Error ? error.message : 'Unknown error'}`
       );

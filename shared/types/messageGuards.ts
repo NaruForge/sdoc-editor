@@ -9,6 +9,13 @@ const hasString = (value: Record<string, unknown>, key: string): boolean =>
 const hasNumber = (value: Record<string, unknown>, key: string): boolean =>
   typeof value[key] === 'number' && Number.isFinite(value[key]);
 
+const isDiagramRendererSettings = (value: unknown): boolean =>
+  isRecord(value)
+  && typeof value.enabled === 'boolean'
+  && typeof value.endpoint === 'string'
+  && value.endpoint.length <= 2048
+  && typeof value.allowPrivateNetwork === 'boolean';
+
 const hasTemplateRequestIdentity = (value: Record<string, unknown>): boolean =>
   hasString(value, 'requestId')
   && hasString(value, 'sessionId')
@@ -52,19 +59,70 @@ const isTemplateDescriptor = (value: unknown): boolean => {
     && (value.preview === undefined || isTemplatePreview(value.preview));
 };
 
+const TEMPLATE_DIAGNOSTIC_CODES = [
+  'malformed-document', 'unsupported-version', 'legacy-document',
+  'invalid-template-metadata', 'invalid-template-id', 'duplicate-template-id',
+  'invalid-title-node', 'unsupported-assets', 'read-failed', 'unsafe-path',
+  'file-too-large', 'candidate-limit-exceeded', 'unsupported-filesystem',
+] as const;
+
+const isTemplateCatalogDiagnosticView = (value: unknown): boolean =>
+  isRecord(value)
+  && hasString(value, 'id')
+  && TEMPLATE_DIAGNOSTIC_CODES.includes(String(value.code) as typeof TEMPLATE_DIAGNOSTIC_CODES[number])
+  && ['builtin', 'workspace', 'user', 'catalog'].includes(String(value.source))
+  && (value.severity === 'warning' || value.severity === 'error')
+  && hasString(value, 'targetLabel')
+  && !/^(?:[A-Za-z]:[\\/]|\\\\|\/(?:Users|home|tmp|var|etc|mnt|opt|private)\/)/i
+    .test(String(value.targetLabel))
+  && (value.jsonPath === undefined || (typeof value.jsonPath === 'string' && value.jsonPath.startsWith('/')))
+  && (value.detail === undefined || typeof value.detail === 'string')
+  && ['retry', 'fix-source', 'resolve-duplicate', 'none'].includes(String(value.recovery));
+
+const isFileOperationError = (value: unknown): boolean =>
+  isRecord(value) && hasString(value, 'code') && hasString(value, 'message')
+  && typeof value.retryable === 'boolean';
+
+const isFileOperationState = (value: unknown): boolean => {
+  if (!isRecord(value) || typeof value.phase !== 'string') return false;
+  switch (value.phase) {
+    case 'idle':
+      return true;
+    case 'running':
+      return hasString(value, 'requestId')
+        && (value.kind === 'export' || value.kind === 'import')
+        && hasString(value, 'format') && hasString(value, 'stage');
+    case 'succeeded':
+      return hasString(value, 'requestId')
+        && (value.result === 'completed' || value.result === 'fallback');
+    case 'failed':
+      return hasString(value, 'requestId') && isFileOperationError(value.error);
+    case 'cancelled':
+      return hasString(value, 'requestId');
+    default:
+      return false;
+  }
+};
+
+const isDiagramFailureCode = (value: unknown): boolean =>
+  [
+    'disabled', 'invalid-endpoint', 'blocked-address', 'source-too-large',
+    'timeout', 'offline', 'rate-limited', 'server-error', 'redirect',
+    'response-too-large', 'invalid-response', 'cancelled',
+  ].includes(String(value));
+
 export function isEditorToHostMessage(value: unknown): value is EditorToHostMessage {
   if (!isRecord(value) || typeof value.type !== 'string') return false;
 
   switch (value.type) {
     case 'ready':
-    case 'requestTemplateCatalog':
     case 'viewJson':
     case 'importDrawio':
     case 'insertExistingImage':
     case 'browseSdocFiles':
-    case 'importMarkdown':
-    case 'importHtml':
       return true;
+    case 'requestTemplateCatalog':
+      return hasString(value, 'requestId');
     case 'flushComplete':
       return hasString(value, 'sessionId') && hasString(value, 'requestId');
     case 'flushFailed':
@@ -80,6 +138,7 @@ export function isEditorToHostMessage(value: unknown): value is EditorToHostMess
         && (value.flushRequestId === undefined || hasString(value, 'flushRequestId'));
     case 'applyTemplate':
       return typeof value.templateId === 'string' && value.templateId.length > 0
+        && hasString(value, 'requestId')
         && hasString(value, 'sessionId') && hasString(value, 'documentId')
         && hasNumber(value, 'baseRevision');
     case 'savePersonalTemplate':
@@ -104,7 +163,29 @@ export function isEditorToHostMessage(value: unknown): value is EditorToHostMess
     case 'replaceImage':
       return hasNumber(value, 'pos');
     case 'export':
-      return ['html', 'adoc', 'markdown', 'pdf', 'slides'].includes(String(value.format));
+      return hasString(value, 'requestId')
+        && hasString(value, 'sessionId')
+        && hasString(value, 'documentId')
+        && ['html', 'adoc', 'markdown', 'pdf', 'slides'].includes(String(value.format));
+    case 'importMarkdown':
+    case 'importHtml':
+      return hasString(value, 'requestId')
+        && hasString(value, 'sessionId')
+        && hasString(value, 'documentId');
+    case 'renderDiagram':
+      return hasString(value, 'requestId')
+        && ['plantuml', 'd2', 'graphviz'].includes(String(value.language))
+        && hasString(value, 'source')
+        && new TextEncoder().encode(value.source as string).byteLength <= 100 * 1024;
+    case 'cancelDiagramRender':
+      return hasString(value, 'requestId');
+    case 'updateDiagramRendererSettings':
+      return isDiagramRendererSettings(value.settings);
+    case 'testDiagramRendererConnection':
+      return hasString(value, 'requestId') && isDiagramRendererSettings(value.settings);
+    case 'fileOperationApplied':
+      return hasString(value, 'requestId') && hasString(value, 'sessionId')
+        && hasString(value, 'documentId') && typeof value.applied === 'boolean';
     case 'openDocument':
       return hasString(value, 'path') && (value.anchor === undefined || typeof value.anchor === 'string');
     case 'selectCssFile':
@@ -119,11 +200,11 @@ export function isHostToEditorMessage(value: unknown): value is HostToEditorMess
   if (!isRecord(value) || typeof value.type !== 'string') return false;
 
   switch (value.type) {
-    case 'exportDone':
     case 'showJsonViewer':
       return true;
     case 'templateApplicationFinished':
-      return typeof value.applied === 'boolean';
+      return hasString(value, 'requestId')
+        && ['applied', 'cancelled', 'failed'].includes(String(value.result));
     case 'templateOperationFinished':
       return hasString(value, 'requestId')
         && ['save', 'update', 'duplicate', 'delete', 'open-folder'].includes(String(value.operation))
@@ -148,9 +229,9 @@ export function isHostToEditorMessage(value: unknown): value is HostToEditorMess
         && isDocumentMutation(value.snapshot);
     case 'templateCatalog':
       return Array.isArray(value.templates) && value.templates.every(isTemplateDescriptor)
-        && typeof value.diagnosticCount === 'number'
-        && Number.isFinite(value.diagnosticCount) && value.diagnosticCount >= 0
-        && hasString(value, 'personalRootPath')
+        && hasString(value, 'requestId')
+        && Array.isArray(value.diagnostics)
+        && value.diagnostics.every(isTemplateCatalogDiagnosticView)
         && (value.personalRootScope === 'local' || value.personalRootScope === 'remote');
     case 'editAcknowledged':
       return hasString(value, 'sessionId') && hasString(value, 'documentId')
@@ -161,7 +242,9 @@ export function isHostToEditorMessage(value: unknown): value is HostToEditorMess
         && isMutationErrorCode(value.code) && hasString(value, 'message')
         && (value.hostSnapshot === undefined || isDocumentMutation(value.hostSnapshot));
     case 'importContent':
-      return isRecord(value.content) && value.content.type === 'doc';
+      return hasString(value, 'requestId') && hasString(value, 'sessionId')
+        && hasString(value, 'documentId')
+        && isRecord(value.content) && value.content.type === 'doc';
     case 'settingsChanged':
       return isRecord(value.settings);
     case 'docSettingsChanged':
@@ -172,7 +255,8 @@ export function isHostToEditorMessage(value: unknown): value is HostToEditorMess
     case 'metaUpdate':
       return isRecord(value.meta);
     case 'importHtml':
-      return hasString(value, 'html');
+      return hasString(value, 'requestId') && hasString(value, 'sessionId')
+        && hasString(value, 'documentId') && hasString(value, 'html');
     case 'imageSaved':
       return hasString(value, 'imagePath') && hasString(value, 'webviewUri') && hasString(value, 'imageName');
     case 'drawioCreated':
@@ -184,12 +268,26 @@ export function isHostToEditorMessage(value: unknown): value is HostToEditorMess
     case 'drawioFileUpdated':
       return hasString(value, 'documentId') && hasNumber(value, 'generation')
         && hasString(value, 'relativePath') && hasString(value, 'newWebviewUri');
-    case 'exportStarted':
-      return ['html', 'adoc', 'markdown', 'pdf', 'slides'].includes(String(value.format));
+    case 'fileOperationStatus':
+      return hasString(value, 'sessionId') && isFileOperationState(value.state);
+    case 'diagramRenderResult':
+      if (!hasString(value, 'requestId') || !isRecord(value.result)) return false;
+      if (value.result.status === 'ready') {
+        return hasString(value.result, 'dataUrl')
+          && /^data:image\/png;base64,[A-Za-z0-9+/=\r\n]+$/.test(String(value.result.dataUrl))
+          && hasNumber(value.result, 'width') && hasNumber(value.result, 'height');
+      }
+      return value.result.status === 'error'
+        && isDiagramFailureCode(value.result.code)
+        && hasString(value.result, 'message')
+        && typeof value.result.retryable === 'boolean';
+    case 'diagramRendererSettings':
+      return isDiagramRendererSettings(value.settings);
     case 'sdocFileBrowseResult':
       return hasString(value, 'path') && hasString(value, 'fileName') && Array.isArray(value.targets);
     case 'importMarkdownText':
-      return hasString(value, 'text');
+      return hasString(value, 'requestId') && hasString(value, 'sessionId')
+        && hasString(value, 'documentId') && hasString(value, 'text');
     default:
       return false;
   }

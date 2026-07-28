@@ -1,5 +1,14 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { getMermaid } from '../utils/mermaid';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  createEditorDiagramRendererResolver,
+  DiagramRenderCoordinator,
+  getKnownDiagramLanguage,
+  KNOWN_DIAGRAM_LANGUAGES,
+  resolveDiagramLanguage,
+  type DiagramRenderState,
+  type HostDiagramRenderer,
+  type KnownDiagramLanguage,
+} from '../diagram';
 import { useEditorI18n, type EditorTranslationKey } from '../i18n';
 
 interface DiagramDialogProps {
@@ -8,9 +17,15 @@ interface DiagramDialogProps {
   pos: number | null;
   onConfirm: (code: string, language: string, pos: number | null) => void;
   onCancel: () => void;
+  renderDiagram?: HostDiagramRenderer;
 }
 
-const EXAMPLES: ReadonlyArray<{ labelKey: EditorTranslationKey; code: string }> = [
+interface DiagramExample {
+  labelKey: EditorTranslationKey;
+  code: string;
+}
+
+const MERMAID_EXAMPLES: ReadonlyArray<DiagramExample> = [
   {
     labelKey: 'diagram.exampleFlowchart',
     code: `graph TD
@@ -72,7 +87,43 @@ const EXAMPLES: ReadonlyArray<{ labelKey: EditorTranslationKey; code: string }> 
   },
 ];
 
-let previewCounter = 0;
+const EXAMPLES_BY_LANGUAGE: Readonly<
+  Partial<Record<KnownDiagramLanguage, ReadonlyArray<DiagramExample>>>
+> = {
+  mermaid: MERMAID_EXAMPLES,
+  plantuml: [{
+    labelKey: 'diagram.exampleSequence',
+    code: `@startuml
+Alice -> Bob: Request
+Bob --> Alice: Response
+@enduml`,
+  }],
+  d2: [{
+    labelKey: 'diagram.exampleFlowchart',
+    code: `Start -> Decision
+Decision -> Process: Yes
+Decision -> End: No
+Process -> End`,
+  }],
+  graphviz: [{
+    labelKey: 'diagram.exampleFlowchart',
+    code: `digraph G {
+  Start -> Decision
+  Decision -> Process [label="Yes"]
+  Decision -> End [label="No"]
+  Process -> End
+}`,
+  }],
+};
+
+function initialRenderState(language: string, code: string): DiagramRenderState {
+  return {
+    language,
+    code,
+    status: 'source-only',
+    reason: code.trim() ? 'renderer-unavailable' : 'empty-source',
+  };
+}
 
 export const DiagramDialog: React.FC<DiagramDialogProps> = ({
   initialCode = '',
@@ -80,55 +131,36 @@ export const DiagramDialog: React.FC<DiagramDialogProps> = ({
   pos,
   onConfirm,
   onCancel,
+  renderDiagram,
 }) => {
   const { t } = useEditorI18n();
+  const initialResolvedLanguage = resolveDiagramLanguage(initialLanguage);
   const [code, setCode] = useState(initialCode);
-  const [language] = useState(initialLanguage);
-  const [error, setError] = useState<string | null>(null);
-  const previewRef = useRef<HTMLDivElement>(null);
+  const [language, setLanguage] = useState(initialResolvedLanguage);
+  const [renderState, setRenderState] = useState<DiagramRenderState>(
+    () => initialRenderState(initialResolvedLanguage, initialCode),
+  );
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const coordinator = useMemo(() => new DiagramRenderCoordinator({
+    resolveRenderer: createEditorDiagramRendererResolver(renderDiagram),
+    onStateChange: setRenderState,
+  }), [renderDiagram]);
+  const knownLanguage = getKnownDiagramLanguage(language);
+  const examples = knownLanguage ? EXAMPLES_BY_LANGUAGE[knownLanguage] ?? [] : [];
 
   useEffect(() => {
     textareaRef.current?.focus();
   }, []);
 
-  const renderPreview = useCallback(async (src: string) => {
-    if (!previewRef.current) return;
-    if (!src.trim()) {
-      previewRef.current.textContent = t('diagram.codePlaceholder');
-      setError(null);
-      return;
-    }
-    if (language === 'mermaid') {
-      const id = `mermaid-preview-${Date.now()}-${previewCounter++}`;
-      try {
-        const mermaid = await getMermaid();
-        const { svg } = await mermaid.render(id, src);
-        if (previewRef.current) {
-          previewRef.current.innerHTML = svg;
-        }
-        setError(null);
-      } catch (e: unknown) {
-        const errEl = document.getElementById(id);
-        if (errEl) errEl.remove();
-        if (previewRef.current) {
-          previewRef.current.innerHTML = '';
-        }
-        setError(e instanceof Error ? e.message : t('diagram.syntaxError'));
-      }
-    }
-  }, [language, t]);
-
   useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => renderPreview(code), 500);
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [code, renderPreview]);
+    coordinator.setInput(language, code);
+  }, [code, coordinator, language]);
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') onCancel();
-    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) handleSubmit();
+  useEffect(() => () => coordinator.dispose(), [coordinator]);
+
+  const handleKeyDown = (event: React.KeyboardEvent) => {
+    if (event.key === 'Escape') onCancel();
+    if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) handleSubmit();
   };
 
   const handleSubmit = () => {
@@ -143,62 +175,124 @@ export const DiagramDialog: React.FC<DiagramDialogProps> = ({
         role="dialog"
         aria-modal="true"
         aria-labelledby="diagram-dialog-title"
-        onClick={(e) => e.stopPropagation()}
+        onClick={(event) => event.stopPropagation()}
         onKeyDown={handleKeyDown}
       >
         <h3 id="diagram-dialog-title">
           {pos !== null ? t('diagram.editTitle') : t('diagram.insertTitle')}
-          <span className="kbd-hint" style={{ marginLeft: '8px', fontSize: '12px', fontWeight: 'normal' }}>
-            ({language})
-          </span>
         </h3>
 
-        {/* Examples */}
         <div className="form-group">
-          <label className="form-label form-label--sm">{t('diagram.templates')}:</label>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-            {EXAMPLES.map((ex) => (
-              <button
-                key={ex.labelKey}
-                type="button"
-                onClick={() => { setCode(ex.code); textareaRef.current?.focus(); }}
-                className="btn-secondary chip-btn"
-              >
-                {t(ex.labelKey)}
-              </button>
+          <label htmlFor="diagram-language" className="form-label form-label--sm">
+            Language:
+          </label>
+          <select
+            id="diagram-language"
+            className="form-select"
+            value={language}
+            onChange={(event) => setLanguage(event.target.value)}
+          >
+            {!knownLanguage && (
+              <option value={language}>{language} (source only)</option>
+            )}
+            {KNOWN_DIAGRAM_LANGUAGES.map((candidate) => (
+              <option key={candidate} value={candidate}>{candidate}</option>
             ))}
-          </div>
+          </select>
         </div>
 
-        {/* Editor + Preview split */}
+        {examples.length > 0 && (
+          <div className="form-group">
+            <label className="form-label form-label--sm">{t('diagram.templates')}:</label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+              {examples.map((example) => (
+                <button
+                  key={`${language}-${example.labelKey}`}
+                  type="button"
+                  onClick={() => {
+                    setCode(example.code);
+                    textareaRef.current?.focus();
+                  }}
+                  className="btn-secondary chip-btn"
+                >
+                  {t(example.labelKey)}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="dialog-split">
-          {/* Code editor */}
           <div className="dialog-split__pane">
-            <label htmlFor="diagram-code" className="form-label form-label--sm">{t('diagram.code')}:</label>
+            <label htmlFor="diagram-code" className="form-label form-label--sm">
+              {t('diagram.code')}:
+            </label>
             <textarea
               id="diagram-code"
               ref={textareaRef}
               value={code}
-              onChange={(e) => setCode(e.target.value)}
+              onChange={(event) => setCode(event.target.value)}
               rows={15}
               spellCheck={false}
               placeholder="graph TD&#10;    A[Start] --> B[End]"
-              className={`form-textarea form-textarea--code ${error ? 'form-input--error' : ''}`}
+              className="form-textarea form-textarea--code"
             />
-            {error && <div className="form-error">{error}</div>}
           </div>
 
-          {/* Live Preview */}
           <div className="dialog-split__pane">
             <label className="form-label form-label--sm">{t('diagram.preview')}:</label>
             <div
-              ref={previewRef}
               className="diagram-preview-area dialog-preview dialog-preview--grow"
-            />
+              role="status"
+              aria-live="polite"
+              aria-busy={renderState.status === 'loading'}
+            >
+              {renderState.status === 'loading' && (
+                <div className="diagram-placeholder">{t('diagram.preview')}…</div>
+              )}
+              {renderState.status === 'ready' && renderState.output.kind === 'svg' && (
+                <div dangerouslySetInnerHTML={{ __html: renderState.output.markup }} />
+              )}
+              {renderState.status === 'ready' && renderState.output.kind === 'png' && (
+                <img
+                  src={renderState.output.dataUrl}
+                  alt={renderState.output.alt ?? `${language} diagram preview`}
+                />
+              )}
+              {renderState.status === 'error' && (
+                <div className="diagram-error">
+                  <div>{renderState.message || t('diagram.syntaxError')}</div>
+                  {renderState.retryable && (
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={() => coordinator.retry()}
+                    >
+                      Retry
+                    </button>
+                  )}
+                  <pre data-language={language}><code>{code}</code></pre>
+                </div>
+              )}
+              {renderState.status === 'source-only' && (
+                <div>
+                  <div className="diagram-placeholder">
+                    {renderState.reason === 'empty-source'
+                      ? t('diagram.codePlaceholder')
+                      : renderState.reason === 'unsupported-language'
+                        ? `${language}: source only. You can edit and save the source.`
+                        : renderState.detail
+                          ?? t('diagram.unsupportedRenderer', { language })}
+                  </div>
+                  {code.trim() && (
+                    <pre data-language={language}><code>{code}</code></pre>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Actions */}
         <div className="modal-actions modal-actions--bordered">
           <button type="button" onClick={onCancel} className="btn-secondary">
             {t('common.cancel')}

@@ -8,7 +8,8 @@ export default defineConfig({
   snapshotPathTemplate: '{testDir}/__screenshots__/{testFilePath}/{arg}{ext}',
   fullyParallel: true,
   forbidOnly: isCi,
-  retries: isCi ? 2 : 0,
+  retries: isCi ? 1 : 0,
+  failOnFlakyTests: isCi,
   workers: isCi ? 2 : undefined,
   reporter: [
     ['list'],

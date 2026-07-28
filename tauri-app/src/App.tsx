@@ -21,6 +21,10 @@ import {
   type PersonalTemplateDiscovery,
   type WorkspaceTemplateDiscovery,
 } from './templateService';
+import {
+  projectTemplateCatalogDiagnostic,
+  projectTemplateCatalogDiagnostics,
+} from '@shared/template/catalogView';
 
 type AppView = 'welcome' | 'editor' | 'json';
 
@@ -88,6 +92,7 @@ const AppContent: React.FC = () => {
   const [undoInfo, setUndoInfo] = useState<{ message: string } | null>(null);
   const [hasDeletionHistory, setHasDeletionHistory] = useState(false);
   const [templateDialog, setTemplateDialog] = useState<TemplateDialogState | null>(null);
+  const templateDialogRequestRef = useRef(0);
 
   // loadDocument 내부에서 최신 workspaceFolder 값을 참조하기 위한 ref.
   // loadDocument의 useCallback deps에 workspaceFolder를 직접 넣으면 폴더 전환마다
@@ -234,6 +239,7 @@ const AppContent: React.FC = () => {
     mode: TemplateDialogState['mode'],
     folder?: string,
   ) => {
+    const requestId = ++templateDialogRequestRef.current;
     setTemplateDialog({ mode, folder, templates: [], diagnostics: [], loading: true });
     try {
       const result = await loadTauriTemplateCatalog(
@@ -242,25 +248,60 @@ const AppContent: React.FC = () => {
         async () => invoke<PersonalTemplateDiscovery>('list_personal_template_candidates'),
       );
       const diagnostics = [
-        ...result.catalog.diagnostics.map((item) => `${item.targetPath}: ${item.message}`),
-        ...result.nativeDiagnostics.map((item) => `${item.path}: ${item.message}`),
+        ...projectTemplateCatalogDiagnostics(result.catalog.diagnostics, 'catalog')
+          .map((item) => `${item.targetLabel}: ${item.detail ?? item.code}`),
+        ...result.nativeDiagnostics.map((item, index) => {
+          const safe = projectTemplateCatalogDiagnostic({
+            code: 'read-failed',
+            targetPath: item.path,
+            message: 'Template discovery failed.',
+          }, 'catalog', index);
+          return `${safe.targetLabel}: ${safe.detail ?? safe.code}`;
+        }),
       ];
-      setTemplateDialog((current) => current && current.mode === mode && current.folder === folder
-        ? { ...current, templates: result.catalog.templates, diagnostics, loading: false }
+      setTemplateDialog((current) => requestId === templateDialogRequestRef.current
+        && current && current.mode === mode && current.folder === folder
+        ? {
+          ...current,
+          templates: result.catalog.templates.map((template) => ({
+            ...template,
+            descriptor: {
+              ...template.descriptor,
+              sourceLabel: template.descriptor.source === 'builtin'
+                ? 'Structured Doc Editor'
+                : template.descriptor.source === 'workspace'
+                  ? 'Workspace templates'
+                  : 'Local · ~/.sdoc/templates',
+            },
+          })),
+          diagnostics,
+          loading: false,
+        }
         : current);
-    } catch (error: unknown) {
+    } catch {
       const fallback = await loadTauriTemplateCatalog(
         null,
         async () => ({ candidates: [], diagnostics: [] }),
         async () => invoke<PersonalTemplateDiscovery>('list_personal_template_candidates'),
       );
-      setTemplateDialog((current) => current && current.mode === mode && current.folder === folder
+      setTemplateDialog((current) => requestId === templateDialogRequestRef.current
+        && current && current.mode === mode && current.folder === folder
         ? {
           ...current,
-          templates: fallback.catalog.templates,
+          templates: fallback.catalog.templates.map((template) => ({
+            ...template,
+            descriptor: {
+              ...template.descriptor,
+              sourceLabel: template.descriptor.source === 'builtin'
+                ? 'Structured Doc Editor'
+                : template.descriptor.source === 'workspace'
+                  ? 'Workspace templates'
+                  : 'Local · ~/.sdoc/templates',
+            },
+          })),
           diagnostics: [],
           loading: false,
-          error: t('app.workspaceTemplatesFailed', { message: String(error) }),
+          error: t('app.workspaceTemplatesFailed', { message: 'Template discovery failed.' }),
         }
         : current);
     }

@@ -5,17 +5,22 @@ import { TableOfContents } from '@shared/editor/components/TableOfContents';
 import { ListOfFigures } from '@shared/editor/components/ListOfFigures';
 import { ListOfTables } from '@shared/editor/components/ListOfTables';
 import { DocumentSettingsPanel } from '@shared/editor/components/DocumentSettingsPanel';
-import { PanelEmptyState } from '@shared/editor/components/PanelEmptyState';
 import { TemplatePanel } from '@shared/editor/components/TemplatePanel';
+import { FilesPanel, type FileExportFormat, type FileImportFormat } from '@shared/editor/components/FilesPanel';
+import { SidePanelTabs } from '@shared/editor/components/SidePanelTabs';
+import { DiagramRendererSettingsPanel } from '@shared/editor/components/DiagramRendererSettingsPanel';
 import type { DocumentSettings, ResolvedEditorSettings } from '@shared/types';
 import type { ManagedTemplateDescriptor } from '@shared/types/messages';
-import { FileJson, Download, Upload, Loader2, FolderOpen, RefreshCw, FilePlus, FileText, FileImage, Folder, ChevronRight, ChevronDown } from 'lucide-react';
+import type { TemplateCatalogDiagnosticView } from '@shared/template/catalogView';
+import type { FileOperationKind, FileOperationState } from '@shared/editor/fileOperations';
+import { FolderOpen, RefreshCw, FilePlus, FileText, FileImage, Folder, ChevronRight, ChevronDown } from 'lucide-react';
 import type { ExplorerEntry } from '../App';
 import { ExplorerContextMenu, type ExplorerContextMenuTarget } from './ExplorerContextMenu';
 import { open as openWithSystemApp } from '@tauri-apps/plugin-shell';
-import type { ActivityTab } from '@shared/editor/components/ActivityBar';
+import type { SidePanelSelection } from '@shared/editor/activityState';
 import { ResponsiveSidePanel } from '@shared/editor/components/ResponsiveSidePanel';
-import { useEditorI18n, type EditorTranslationKey } from '@shared/editor/i18n';
+import { useEditorI18n } from '@shared/editor/i18n';
+import type { DiagramRendererSettings } from '@shared/diagramRenderer';
 
 const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'];
 
@@ -27,11 +32,10 @@ function isImageLikeEntry(name: string): boolean {
   return IMAGE_EXTENSIONS.includes(ext) || ext === 'svg';
 }
 
-// Legacy alias kept for any other imports that still reference SidePanelTab
-export type SidePanelTab = ActivityTab;
-
 interface SidePanelProps {
-  activeTab: ActivityTab;
+  selection: SidePanelSelection;
+  onSelectionChange: (selection: SidePanelSelection) => void;
+  returnFocusRef: React.RefObject<HTMLElement | null>;
   editor: TiptapEditor | null;
   settings: ResolvedEditorSettings;
   showNumbering: boolean;
@@ -40,9 +44,14 @@ interface SidePanelProps {
   onToggleDecoration: () => void;
   onUpdateDocSettings: (settings: Partial<DocumentSettings> | null) => void;
   onViewJson?: () => void;
-  onExport?: (format: 'html' | 'adoc' | 'markdown' | 'pdf' | 'slides') => void;
-  onImport?: (format: 'markdown' | 'html') => void;
-  isExporting?: boolean;
+  onFileOperation: (
+    kind: FileOperationKind,
+    format: FileExportFormat | FileImportFormat,
+  ) => void;
+  fileOperationState: FileOperationState;
+  diagramRendererSettings: DiagramRendererSettings;
+  onDiagramRendererSettingsChange: (settings: DiagramRendererSettings) => void;
+  onTestDiagramRenderer?: (settings: DiagramRendererSettings) => Promise<void>;
   workspaceFolder?: string | null;
   workspaceEntries?: ExplorerEntry[];
   currentPath?: string | null;
@@ -57,11 +66,10 @@ interface SidePanelProps {
   hasDeletionHistory?: boolean;
   onHoverPath?: (path: string | null) => void;
   templates?: readonly ManagedTemplateDescriptor[];
-  templateDiagnosticCount?: number;
+  templateDiagnostics?: readonly TemplateCatalogDiagnosticView[];
   isTemplateCatalogLoading?: boolean;
   isApplyingTemplate?: boolean;
   isManagingTemplate?: boolean;
-  personalTemplateRootPath?: string;
   onRefreshTemplates?: () => void;
   onApplyTemplate?: (templateId: string) => void;
   onSavePersonalTemplate?: () => void;
@@ -72,19 +80,10 @@ interface SidePanelProps {
   onClose: () => void;
 }
 
-const PANEL_TITLE_KEYS: Record<ActivityTab, EditorTranslationKey> = {
-  explorer: 'panel.explorer',
-  view: 'panel.view',
-  toc: 'panel.contents',
-  lof: 'panel.figures',
-  lot: 'panel.tables',
-  settings: 'panel.settings',
-  file: 'panel.files',
-  template: 'panel.templates',
-};
-
 export const SidePanel: React.FC<SidePanelProps> = ({
-  activeTab,
+  selection,
+  onSelectionChange,
+  returnFocusRef,
   editor,
   settings,
   showNumbering,
@@ -93,9 +92,11 @@ export const SidePanel: React.FC<SidePanelProps> = ({
   onToggleDecoration,
   onUpdateDocSettings,
   onViewJson,
-  onExport,
-  onImport,
-  isExporting = false,
+  onFileOperation,
+  fileOperationState,
+  diagramRendererSettings,
+  onDiagramRendererSettingsChange,
+  onTestDiagramRenderer,
   workspaceFolder,
   workspaceEntries = [],
   currentPath,
@@ -110,11 +111,10 @@ export const SidePanel: React.FC<SidePanelProps> = ({
   hasDeletionHistory,
   onHoverPath,
   templates = [],
-  templateDiagnosticCount = 0,
+  templateDiagnostics = [],
   isTemplateCatalogLoading = false,
   isApplyingTemplate = false,
   isManagingTemplate = false,
-  personalTemplateRootPath = '',
   onRefreshTemplates,
   onApplyTemplate,
   onSavePersonalTemplate,
@@ -125,13 +125,28 @@ export const SidePanel: React.FC<SidePanelProps> = ({
   onClose,
 }) => {
   const { t } = useEditorI18n();
+  const title = selection.destination === 'workspace'
+    ? 'Workspace'
+    : selection.destination === 'navigate'
+      ? 'Navigate'
+      : selection.destination === 'design'
+        ? 'Design'
+        : 'Publish';
   return (
     <ResponsiveSidePanel
-      title={t(PANEL_TITLE_KEYS[activeTab])}
+      title={title}
       closeLabel={t('panel.close')}
       onClose={onClose}
+      returnFocusRef={returnFocusRef}
     >
-        {activeTab === 'view' && (
+        {selection.destination !== 'workspace' && (
+          <SidePanelTabs
+            selection={selection}
+            showTemplates
+            onSelectionChange={onSelectionChange}
+          />
+        )}
+        {selection.destination === 'design' && selection.tab === 'view' && (
           <ViewControlPanel
             showNumbering={showNumbering}
             onToggleNumbering={onToggleNumbering}
@@ -139,7 +154,7 @@ export const SidePanel: React.FC<SidePanelProps> = ({
             onToggleDecoration={onToggleDecoration}
           />
         )}
-        {activeTab === 'explorer' && (
+        {selection.destination === 'workspace' && (
           <ExplorerPanel
             key={workspaceFolder ?? 'no-workspace'}
             workspaceFolder={workspaceFolder}
@@ -157,36 +172,63 @@ export const SidePanel: React.FC<SidePanelProps> = ({
             onHoverPath={onHoverPath}
           />
         )}
-        {activeTab === 'toc' && (
+        {selection.destination === 'navigate' && selection.tab === 'toc' && (
           <TableOfContents editor={editor} showNumbering={showNumbering} settings={settings} />
         )}
-        {activeTab === 'lof' && (
+        {selection.destination === 'navigate' && selection.tab === 'figures' && (
           <ListOfFigures editor={editor} settings={settings} />
         )}
-        {activeTab === 'lot' && (
+        {selection.destination === 'navigate' && selection.tab === 'tables' && (
           <ListOfTables editor={editor} settings={settings} />
         )}
-        {activeTab === 'settings' && (
-          <DocumentSettingsPanel onUpdateSettings={onUpdateDocSettings} />
+        {selection.destination === 'design' && selection.tab === 'document' && (
+          <DocumentSettingsPanel exportMode="settings" onUpdateSettings={onUpdateDocSettings} />
         )}
-        {activeTab === 'file' && (
-          <FilePanel
+        {selection.destination === 'publish' && selection.tab === 'export' && (
+          <>
+          <DocumentSettingsPanel exportMode="export" onUpdateSettings={onUpdateDocSettings} />
+          <DiagramRendererSettingsPanel
+            settings={diagramRendererSettings}
+            onChange={onDiagramRendererSettingsChange}
+            onTest={onTestDiagramRenderer}
+          />
+          <FilesPanel
             onViewJson={onViewJson}
-            onExport={onExport}
-            onImport={onImport}
-            isExporting={isExporting}
+            exportFormats={[
+              { format: 'html', available: true },
+              { format: 'markdown', available: true },
+              { format: 'adoc', available: true },
+              { format: 'pdf', available: false, unavailableReason: 'PDF export is available in the VS Code host.' },
+              { format: 'slides', available: false, unavailableReason: 'Slides export is available in the VS Code host.' },
+            ]}
+            importFormats={[]}
+            operationState={fileOperationState}
+            onStart={onFileOperation}
+          />
+          </>
+        )}
+        {selection.destination === 'publish' && selection.tab === 'import' && (
+          <FilesPanel
+            onViewJson={onViewJson}
+            exportFormats={[]}
+            importFormats={[
+              { format: 'markdown', available: true },
+              { format: 'html', available: true },
+            ]}
+            operationState={fileOperationState}
+            onStart={onFileOperation}
           />
         )}
-        {activeTab === 'template' && onRefreshTemplates && onApplyTemplate
+        {selection.destination === 'publish' && selection.tab === 'templates'
+          && onRefreshTemplates && onApplyTemplate
           && onSavePersonalTemplate && onUpdatePersonalTemplate && onDuplicatePersonalTemplate
           && onDeletePersonalTemplate && onOpenPersonalTemplateFolder && (
           <TemplatePanel
             templates={templates}
-            diagnosticCount={templateDiagnosticCount}
+            diagnostics={templateDiagnostics}
             isLoading={isTemplateCatalogLoading}
             isApplying={isApplyingTemplate}
             isManaging={isManagingTemplate}
-            personalRootPath={personalTemplateRootPath}
             personalRootScope="local"
             onRefresh={onRefreshTemplates}
             onApply={onApplyTemplate}
@@ -252,103 +294,6 @@ const ViewControlPanel: React.FC<ViewControlPanelProps> = ({
 };
 
 // ─── File Panel ──────────────────────────────────────────────────
-
-interface FilePanelProps {
-  onViewJson?: () => void;
-  onExport?: (format: 'html' | 'adoc' | 'markdown' | 'pdf' | 'slides') => void;
-  onImport?: (format: 'markdown' | 'html') => void;
-  isExporting?: boolean;
-}
-
-const EXPORT_FORMATS: { format: 'html' | 'adoc' | 'markdown' | 'pdf' | 'slides'; label: string; supported: boolean }[] = [
-  { format: 'html', label: 'HTML', supported: true },
-  { format: 'pdf', label: 'PDF', supported: false },
-  { format: 'markdown', label: 'Markdown', supported: true },
-  { format: 'adoc', label: 'AsciiDoc', supported: true },
-  { format: 'slides', label: 'Slides', supported: false },
-];
-
-const IMPORT_FORMATS: { format: 'markdown' | 'html'; label: string }[] = [
-  { format: 'markdown', label: 'Markdown' },
-  { format: 'html', label: 'HTML' },
-];
-
-const FilePanel: React.FC<FilePanelProps> = ({ onViewJson, onExport, onImport, isExporting = false }) => {
-  const { t } = useEditorI18n();
-  if (!onExport && !onImport && !onViewJson) {
-    return (
-      <div className="side-panel-section">
-        <PanelEmptyState
-          icon={<FolderOpen size={22} />}
-          title={t('panel.fileUnavailableTitle')}
-          message={t('panel.fileUnavailableMessage')}
-          hint={t('panel.restartApp')}
-        />
-      </div>
-    );
-  }
-
-  return (
-  <div className="side-panel-section">
-    {onExport && (
-      <>
-        <div className="side-panel-section-title">
-          <Download size={13} style={{ marginRight: 4, flexShrink: 0 }} />
-          {t('panel.export')}
-          {isExporting && (
-            <Loader2 size={12} style={{ marginLeft: 'auto', animation: 'spin 1s linear infinite', flexShrink: 0 }} />
-          )}
-        </div>
-        <div className="side-panel-section-desc">{t('panel.exportDescription')}</div>
-        {EXPORT_FORMATS.map(({ format, label, supported }) => {
-          const disabled = isExporting || !supported;
-          return (
-          <button
-            key={format}
-            className={`side-panel-file-btn${disabled ? ' is-disabled' : ''}`}
-            onClick={() => !disabled && onExport(format)}
-            disabled={disabled}
-            title={supported ? undefined : t('panel.unsupportedTauri')}
-          >
-            {supported ? label : `${label} (${t('panel.unsupportedTauri')})`}
-          </button>
-        );})}
-      </>
-    )}
-
-    {onImport && (
-      <>
-        <div className="side-panel-section-title" style={{ marginTop: 12 }}>
-          <Upload size={13} style={{ marginRight: 4, flexShrink: 0 }} />
-          {t('panel.import')}
-        </div>
-        <div className="side-panel-section-desc">{t('panel.importDescription')}</div>
-        {IMPORT_FORMATS.map(({ format, label }) => (
-          <button
-            key={format}
-            className="side-panel-file-btn"
-            onClick={() => onImport(format)}
-          >
-            {label}
-          </button>
-        ))}
-      </>
-    )}
-
-    {onViewJson && (
-      <>
-        <div className="side-panel-section-title" style={{ marginTop: 12 }}>
-          <FileJson size={13} style={{ marginRight: 4, flexShrink: 0 }} />
-          {t('panel.development')}
-        </div>
-        <button className="side-panel-file-btn" onClick={onViewJson}>
-          {t('panel.jsonSource')}
-        </button>
-      </>
-    )}
-  </div>
-  );
-};
 
 interface ExplorerPanelProps {
   workspaceFolder?: string | null;

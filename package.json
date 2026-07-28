@@ -29,6 +29,10 @@
     "Other"
   ],
   "main": "./dist/extension.js",
+  "activationEvents": [
+    "onCustomEditor:structuredDocEditor.sdoc",
+    "onCustomEditor:structuredDocEditor.sdocBook"
+  ],
   "contributes": {
     "customEditors": [
       {
@@ -90,6 +94,24 @@
     "configuration": {
       "title": "Structured Doc Editor",
       "properties": {
+        "structuredDocEditor.diagramRenderer.enabled": {
+          "type": "boolean",
+          "default": false,
+          "scope": "window",
+          "description": "Enable PlantUML, D2, and Graphviz rendering. Diagram source is sent to the configured Kroki server."
+        },
+        "structuredDocEditor.diagramRenderer.endpoint": {
+          "type": "string",
+          "default": "https://kroki.io",
+          "scope": "window",
+          "description": "Global Kroki endpoint used by the extension host. Workspace overrides are ignored."
+        },
+        "structuredDocEditor.diagramRenderer.allowPrivateNetwork": {
+          "type": "boolean",
+          "default": false,
+          "scope": "window",
+          "description": "Allow HTTPS Kroki endpoints on private networks. Link-local and metadata addresses remain blocked."
+        },
         "structuredDocEditor.caption.style": {
           "type": "string",
           "default": "modern",

@@ -3,7 +3,7 @@ mod commands;
 mod document;
 mod settings;
 
-use commands::DocState;
+use commands::{DiagramState, DocState};
 use settings::load_settings;
 use std::sync::Mutex;
 
@@ -41,6 +41,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_process::init())
+        .manage(DiagramState::default())
         .manage(DocState {
             file_path: Mutex::new(initial_file),
             document_id: Mutex::new(None),
@@ -90,6 +91,9 @@ pub fn run() {
             commands::update_settings,
             commands::get_recent_files,
             commands::get_recent_folders,
+            commands::render_diagram,
+            commands::cancel_diagram_render,
+            commands::test_diagram_renderer,
             commands::write_export_file,
             commands::read_import_file,
             commands::resolve_asset_path,

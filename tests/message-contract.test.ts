@@ -17,6 +17,17 @@ describe('editor host message boundary', () => {
       },
     })).toBe(true);
     expect(isEditorToHostMessage({ type: 'selectCssFile', target: 'html' })).toBe(true);
+    expect(isEditorToHostMessage({
+      type: 'requestTemplateCatalog',
+      requestId: 'catalog-1',
+    })).toBe(true);
+    expect(isEditorToHostMessage({
+      type: 'export',
+      requestId: 'file-1',
+      sessionId: 'session-1',
+      documentId: 'doc-a',
+      format: 'html',
+    })).toBe(true);
     expect(isHostToEditorMessage({
       type: 'drawioFileUpdated', documentId: 'doc-a', generation: 2,
       relativePath: './drawio/a.drawio.svg', newWebviewUri: 'asset://a',
@@ -32,6 +43,98 @@ describe('editor host message boundary', () => {
     expect(isEditorToHostMessage({ type: 'retiredAiSupport' })).toBe(false);
     expect(isHostToEditorMessage({ type: 'settingsChanged', settings: null })).toBe(false);
     expect(isHostToEditorMessage({ type: 'drawioFileUpdated', relativePath: './a.svg' })).toBe(false);
+    expect(isEditorToHostMessage({ type: 'requestTemplateCatalog' })).toBe(false);
+    expect(isEditorToHostMessage({ type: 'export', format: 'html' })).toBe(false);
+  });
+
+  it('narrows request-correlated template, file, and diagram messages', () => {
+    expect(isHostToEditorMessage({
+      type: 'templateCatalog',
+      requestId: 'catalog-1',
+      templates: [],
+      diagnostics: [{
+        id: 'diagnostic-1',
+        code: 'read-failed',
+        source: 'workspace',
+        severity: 'error',
+        targetLabel: 'broken.sdoc',
+        recovery: 'retry',
+      }],
+      personalRootScope: 'local',
+    })).toBe(true);
+    expect(isHostToEditorMessage({
+      type: 'templateCatalog',
+      requestId: 'catalog-1',
+      templates: [],
+      diagnostics: [{
+        id: 'diagnostic-1',
+        code: 'read-failed',
+        source: 'workspace',
+        severity: 'error',
+        targetLabel: 'C:\\Users\\secret\\broken.sdoc',
+        recovery: 'retry',
+      }],
+      personalRootScope: 'local',
+    })).toBe(false);
+    expect(isHostToEditorMessage({
+      type: 'templateApplicationFinished',
+      requestId: 'apply-1',
+      result: 'cancelled',
+    })).toBe(true);
+    expect(isHostToEditorMessage({
+      type: 'fileOperationStatus',
+      sessionId: 'session-1',
+      state: {
+        phase: 'running',
+        requestId: 'file-1',
+        kind: 'export',
+        format: 'html',
+        stage: 'rendering',
+      },
+    })).toBe(true);
+    expect(isHostToEditorMessage({
+      type: 'fileOperationStatus',
+      sessionId: 'session-1',
+      state: { phase: 'failed', requestId: 'file-1', error: 'raw error' },
+    })).toBe(false);
+    expect(isEditorToHostMessage({
+      type: 'renderDiagram',
+      requestId: 'diagram-1',
+      language: 'plantuml',
+      source: '@startuml\nA -> B\n@enduml',
+    })).toBe(true);
+    expect(isEditorToHostMessage({
+      type: 'renderDiagram',
+      requestId: 'diagram-2',
+      language: 'mermaid',
+      source: 'graph TD',
+    })).toBe(false);
+    expect(isHostToEditorMessage({
+      type: 'diagramRenderResult',
+      requestId: 'diagram-1',
+      result: {
+        status: 'error',
+        code: 'timeout',
+        message: 'The renderer timed out.',
+        retryable: true,
+      },
+    })).toBe(true);
+    expect(isEditorToHostMessage({
+      type: 'updateDiagramRendererSettings',
+      settings: {
+        enabled: true,
+        endpoint: 'https://kroki.io',
+        allowPrivateNetwork: false,
+      },
+    })).toBe(true);
+    expect(isEditorToHostMessage({
+      type: 'updateDiagramRendererSettings',
+      settings: {
+        enabled: 'yes',
+        endpoint: 'https://kroki.io',
+        allowPrivateNetwork: false,
+      },
+    })).toBe(false);
   });
 
   it('requires identity and revision on persistence updates', () => {

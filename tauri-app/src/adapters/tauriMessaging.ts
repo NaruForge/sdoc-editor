@@ -36,6 +36,38 @@ import {
 } from '../templateService';
 import { classifyTauriSaveError } from './tauriPersistenceErrors';
 import { DEFAULT_EDITOR_TRANSLATOR, type EditorTranslator } from '@shared/editor/i18n';
+import {
+  projectTemplateCatalogDiagnostics,
+  projectTemplateCatalogDiagnostic,
+} from '@shared/template/catalogView';
+import type { TemplateDiagnostic } from '@shared/template';
+import { createFileOperationError } from '@shared/editor/fileOperations';
+import {
+  DEFAULT_DIAGRAM_RENDERER_SETTINGS,
+  type DiagramRenderFailureCode,
+} from '@shared/diagramRenderer';
+
+const DIAGRAM_FAILURE_CODES: readonly DiagramRenderFailureCode[] = [
+  'disabled',
+  'invalid-endpoint',
+  'blocked-address',
+  'source-too-large',
+  'timeout',
+  'offline',
+  'rate-limited',
+  'server-error',
+  'redirect',
+  'response-too-large',
+  'invalid-response',
+  'cancelled',
+];
+
+function diagramFailureCode(value: unknown): DiagramRenderFailureCode {
+  return typeof value === 'string'
+    && DIAGRAM_FAILURE_CODES.includes(value as DiagramRenderFailureCode)
+    ? value as DiagramRenderFailureCode
+    : 'offline';
+}
 
 type SettingsChangedPayload = Partial<ResolvedEditorSettings>;
 interface DrawioFileUpdatedPayload {
@@ -134,7 +166,7 @@ export function createTauriAdapter(translate: EditorTranslator = DEFAULT_EDITOR_
     return readSnapshot(requireIdentity());
   };
 
-  const refreshTemplateCatalog = async (): Promise<void> => {
+  const refreshTemplateCatalog = async (requestId: string): Promise<void> => {
     const discovery = await loadTauriTemplateCatalog(
       workspaceFolder,
       () => invoke<WorkspaceTemplateDiscovery>('list_workspace_template_candidates'),
@@ -146,6 +178,11 @@ export function createTauriAdapter(translate: EditorTranslator = DEFAULT_EDITOR_
     personalTemplateFingerprints = new Map(discovery.personalFingerprints);
     const templates: ManagedTemplateDescriptor[] = discovery.catalog.templates.map((template) => ({
       ...template.descriptor,
+      sourceLabel: template.descriptor.source === 'builtin'
+        ? 'Structured Doc Editor'
+        : template.descriptor.source === 'workspace'
+          ? 'Workspace templates'
+          : 'Local · ~/.sdoc/templates',
       preview: buildTemplateStructuralPreview(template),
       ...(discovery.personalFingerprints.has(template.descriptor.id)
         ? { revisionToken: discovery.personalFingerprints.get(template.descriptor.id) }
@@ -153,9 +190,17 @@ export function createTauriAdapter(translate: EditorTranslator = DEFAULT_EDITOR_
     }));
     emit({
       type: 'templateCatalog',
+      requestId,
       templates,
-      diagnosticCount: discovery.nativeDiagnostics.length + discovery.catalog.diagnostics.length,
-      personalRootPath: discovery.personalRootPath,
+      diagnostics: [
+        ...projectTemplateCatalogDiagnostics(discovery.catalog.diagnostics, 'catalog'),
+        ...discovery.nativeDiagnostics.map((diagnostic, index) =>
+          projectTemplateCatalogDiagnostic({
+            code: 'read-failed',
+            targetPath: diagnostic.path,
+            message: 'Template discovery failed.',
+          } satisfies TemplateDiagnostic, 'catalog', index)),
+      ],
       personalRootScope: 'local',
     });
   };
@@ -295,7 +340,29 @@ export function createTauriAdapter(translate: EditorTranslator = DEFAULT_EDITOR_
       // Route messages to appropriate Tauri commands
       switch (msg.type) {
         case 'ready':
-          await refreshTemplateCatalog();
+          await refreshTemplateCatalog('initial');
+          {
+            const rawSettings = await invoke<unknown>('get_settings');
+            const record = typeof rawSettings === 'object' && rawSettings !== null
+              ? rawSettings as Record<string, unknown>
+              : {};
+            const rawDiagram = typeof record.diagramRenderer === 'object'
+              && record.diagramRenderer !== null
+              ? record.diagramRenderer as Record<string, unknown>
+              : {};
+            emit({
+              type: 'diagramRendererSettings',
+              settings: {
+                enabled: typeof rawDiagram.enabled === 'boolean'
+                  ? rawDiagram.enabled : DEFAULT_DIAGRAM_RENDERER_SETTINGS.enabled,
+                endpoint: typeof rawDiagram.endpoint === 'string'
+                  ? rawDiagram.endpoint : DEFAULT_DIAGRAM_RENDERER_SETTINGS.endpoint,
+                allowPrivateNetwork: typeof rawDiagram.allowPrivateNetwork === 'boolean'
+                  ? rawDiagram.allowPrivateNetwork
+                  : DEFAULT_DIAGRAM_RENDERER_SETTINGS.allowPrivateNetwork,
+              },
+            });
+          }
           break;
 
         case 'edit':
@@ -490,34 +557,103 @@ export function createTauriAdapter(translate: EditorTranslator = DEFAULT_EDITOR_
         }
 
         case 'importMarkdown': {
-          const selected = await open({
-            multiple: false,
-            filters: [{ name: 'Markdown', extensions: ['md', 'markdown'] }],
-          });
-          if (selected) {
+          try {
+            const selected = await open({
+              multiple: false,
+              filters: [{ name: 'Markdown', extensions: ['md', 'markdown'] }],
+            });
+            if (!selected) {
+              emit({
+                type: 'fileOperationStatus',
+                sessionId: msg.sessionId,
+                state: { phase: 'cancelled', requestId: msg.requestId },
+              });
+              break;
+            }
             const text: string = await invoke('read_import_file', {
               path: typeof selected === 'string' ? selected : selected,
             });
-            // Import is handled on the frontend side using shared converter
-            for (const handler of listeners) {
-              handler({ type: 'importMarkdownText', text });
+            if (!window.confirm('Importing this file will replace the current document. Continue?')) {
+              emit({
+                type: 'fileOperationStatus',
+                sessionId: msg.sessionId,
+                state: { phase: 'cancelled', requestId: msg.requestId },
+              });
+              break;
             }
+            emit({
+              type: 'importMarkdownText',
+              requestId: msg.requestId,
+              sessionId: msg.sessionId,
+              documentId: msg.documentId,
+              text,
+            });
+            emit({
+              type: 'fileOperationStatus',
+              sessionId: msg.sessionId,
+              state: { phase: 'succeeded', requestId: msg.requestId, result: 'completed' },
+            });
+          } catch {
+            emit({
+              type: 'fileOperationStatus',
+              sessionId: msg.sessionId,
+              state: {
+                phase: 'failed',
+                requestId: msg.requestId,
+                error: createFileOperationError('IMPORT_FAILED', 'The Markdown file could not be imported.', true),
+              },
+            });
           }
           break;
         }
 
         case 'importHtml': {
-          const selected = await open({
-            multiple: false,
-            filters: [{ name: 'HTML', extensions: ['html', 'htm'] }],
-          });
-          if (selected) {
+          try {
+            const selected = await open({
+              multiple: false,
+              filters: [{ name: 'HTML', extensions: ['html', 'htm'] }],
+            });
+            if (!selected) {
+              emit({
+                type: 'fileOperationStatus',
+                sessionId: msg.sessionId,
+                state: { phase: 'cancelled', requestId: msg.requestId },
+              });
+              break;
+            }
             const text: string = await invoke('read_import_file', {
               path: typeof selected === 'string' ? selected : selected,
             });
-            for (const handler of listeners) {
-              handler({ type: 'importHtml', html: text });
+            if (!window.confirm('Importing this file will replace the current document. Continue?')) {
+              emit({
+                type: 'fileOperationStatus',
+                sessionId: msg.sessionId,
+                state: { phase: 'cancelled', requestId: msg.requestId },
+              });
+              break;
             }
+            emit({
+              type: 'importHtml',
+              requestId: msg.requestId,
+              sessionId: msg.sessionId,
+              documentId: msg.documentId,
+              html: text,
+            });
+            emit({
+              type: 'fileOperationStatus',
+              sessionId: msg.sessionId,
+              state: { phase: 'succeeded', requestId: msg.requestId, result: 'completed' },
+            });
+          } catch {
+            emit({
+              type: 'fileOperationStatus',
+              sessionId: msg.sessionId,
+              state: {
+                phase: 'failed',
+                requestId: msg.requestId,
+                error: createFileOperationError('IMPORT_FAILED', 'The HTML file could not be imported.', true),
+              },
+            });
           }
           break;
         }
@@ -533,6 +669,7 @@ export function createTauriAdapter(translate: EditorTranslator = DEFAULT_EDITOR_
 
         case 'flushComplete':
         case 'flushFailed':
+        case 'fileOperationApplied':
           break;
 
         case 'openDocument':
@@ -544,19 +681,19 @@ export function createTauriAdapter(translate: EditorTranslator = DEFAULT_EDITOR_
           break;
 
         case 'requestTemplateCatalog':
-          await refreshTemplateCatalog();
+          await refreshTemplateCatalog(msg.requestId);
           break;
 
         case 'applyTemplate': {
           if (!session || msg.sessionId !== session.sessionId
             || msg.documentId !== session.documentId || msg.baseRevision !== session.revision) {
-            emit({ type: 'templateApplicationFinished', applied: false });
+            emit({ type: 'templateApplicationFinished', requestId: msg.requestId, result: 'failed' });
             break;
           }
           const template = availableTemplates.get(msg.templateId);
           if (!template) {
-            await refreshTemplateCatalog();
-            emit({ type: 'templateApplicationFinished', applied: false });
+            await refreshTemplateCatalog(`apply-refresh-${msg.requestId}`);
+            emit({ type: 'templateApplicationFinished', requestId: msg.requestId, result: 'failed' });
             break;
           }
           try {
@@ -593,10 +730,14 @@ export function createTauriAdapter(translate: EditorTranslator = DEFAULT_EDITOR_
                 docSettings: documentSettings ?? null,
               });
             }
-            emit({ type: 'templateApplicationFinished', applied: result.applied });
+            emit({
+              type: 'templateApplicationFinished',
+              requestId: msg.requestId,
+              result: result.applied ? 'applied' : 'cancelled',
+            });
           } catch (error: unknown) {
-            emit({ type: 'templateApplicationFinished', applied: false });
-            throw error;
+            emit({ type: 'templateApplicationFinished', requestId: msg.requestId, result: 'failed' });
+            console.error('Template application failed', error);
           }
           break;
         }
@@ -632,10 +773,10 @@ export function createTauriAdapter(translate: EditorTranslator = DEFAULT_EDITOR_
               }).then(() => undefined),
             });
             templateId = template.descriptor.id;
-            await refreshTemplateCatalog();
+            await refreshTemplateCatalog(`operation-${msg.requestId}`);
             finishOperation(msg.requestId, 'save', true, templateId);
-          } catch (error: unknown) {
-            finishOperation(msg.requestId, 'save', false, templateId, String(error));
+          } catch {
+            finishOperation(msg.requestId, 'save', false, templateId, 'The template could not be saved.');
           }
           break;
         }
@@ -655,10 +796,10 @@ export function createTauriAdapter(translate: EditorTranslator = DEFAULT_EDITOR_
               expectedFingerprint: msg.revisionToken,
               envelope: updated.envelope,
             });
-            await refreshTemplateCatalog();
+            await refreshTemplateCatalog(`operation-${msg.requestId}`);
             finishOperation(msg.requestId, 'update', true, msg.templateId);
-          } catch (error: unknown) {
-            finishOperation(msg.requestId, 'update', false, msg.templateId, String(error));
+          } catch {
+            finishOperation(msg.requestId, 'update', false, msg.templateId, 'The template could not be updated.');
           }
           break;
         }
@@ -666,7 +807,7 @@ export function createTauriAdapter(translate: EditorTranslator = DEFAULT_EDITOR_
         case 'duplicatePersonalTemplate': {
           let duplicateId: string | undefined;
           try {
-            await refreshTemplateCatalog();
+            await refreshTemplateCatalog(`operation-${msg.requestId}`);
             const template = availableTemplates.get(msg.templateId);
             if (!template
               || personalTemplateFingerprints.get(msg.templateId) !== msg.revisionToken) {
@@ -692,10 +833,10 @@ export function createTauriAdapter(translate: EditorTranslator = DEFAULT_EDITOR_
               templateId: duplicateId,
               envelope: duplicate.envelope,
             });
-            await refreshTemplateCatalog();
+            await refreshTemplateCatalog(`operation-${msg.requestId}`);
             finishOperation(msg.requestId, 'duplicate', true, duplicateId);
-          } catch (error: unknown) {
-            finishOperation(msg.requestId, 'duplicate', false, duplicateId, String(error));
+          } catch {
+            finishOperation(msg.requestId, 'duplicate', false, duplicateId, 'The template could not be duplicated.');
           }
           break;
         }
@@ -712,10 +853,10 @@ export function createTauriAdapter(translate: EditorTranslator = DEFAULT_EDITOR_
               templateId: msg.templateId,
               expectedFingerprint: msg.revisionToken,
             });
-            await refreshTemplateCatalog();
+            await refreshTemplateCatalog(`operation-${msg.requestId}`);
             finishOperation(msg.requestId, 'delete', true, msg.templateId);
-          } catch (error: unknown) {
-            finishOperation(msg.requestId, 'delete', false, msg.templateId, String(error));
+          } catch {
+            finishOperation(msg.requestId, 'delete', false, msg.templateId, 'The template could not be deleted.');
           }
           break;
         }
@@ -724,14 +865,90 @@ export function createTauriAdapter(translate: EditorTranslator = DEFAULT_EDITOR_
           try {
             await invoke('reveal_personal_template_library');
             finishOperation(msg.requestId, 'open-folder', true);
-          } catch (error: unknown) {
-            finishOperation(msg.requestId, 'open-folder', false, undefined, String(error));
+          } catch {
+            finishOperation(msg.requestId, 'open-folder', false, undefined, 'The template folder could not be opened.');
           }
           break;
 
         case 'export':
           console.warn('Tauri exports are handled by the editor export service.');
           break;
+
+        case 'renderDiagram': {
+          try {
+            const result = await invoke<{
+              dataUrl: string;
+              width: number;
+              height: number;
+            }>('render_diagram', {
+              requestId: msg.requestId,
+              language: msg.language,
+              source: msg.source,
+            });
+            emit({
+              type: 'diagramRenderResult',
+              requestId: msg.requestId,
+              result: { status: 'ready', ...result },
+            });
+          } catch (error: unknown) {
+            const value = typeof error === 'object' && error !== null
+              ? error as Record<string, unknown>
+              : {};
+            emit({
+              type: 'diagramRenderResult',
+              requestId: msg.requestId,
+              result: {
+                status: 'error',
+                code: diagramFailureCode(value.code),
+                message: 'The diagram renderer could not complete the request.',
+                retryable: value.retryable === true,
+              },
+            });
+          }
+          break;
+        }
+
+        case 'cancelDiagramRender':
+          await invoke('cancel_diagram_render', { requestId: msg.requestId });
+          break;
+
+        case 'updateDiagramRendererSettings':
+          await invoke('update_settings', { updates: { diagramRenderer: msg.settings } });
+          emit({ type: 'diagramRendererSettings', settings: msg.settings });
+          break;
+
+        case 'testDiagramRendererConnection': {
+          try {
+            const result = await invoke<{
+              dataUrl: string;
+              width: number;
+              height: number;
+            }>('test_diagram_renderer', {
+              requestId: msg.requestId,
+              settings: msg.settings,
+            });
+            emit({
+              type: 'diagramRenderResult',
+              requestId: msg.requestId,
+              result: { status: 'ready', ...result },
+            });
+          } catch (error: unknown) {
+            const value = typeof error === 'object' && error !== null
+              ? error as Record<string, unknown>
+              : {};
+            emit({
+              type: 'diagramRenderResult',
+              requestId: msg.requestId,
+              result: {
+                status: 'error',
+                code: diagramFailureCode(value.code),
+                message: 'The diagram renderer connection test failed.',
+                retryable: value.retryable === true,
+              },
+            });
+          }
+          break;
+        }
 
         case 'selectCssFile':
         case 'clearCssFile':

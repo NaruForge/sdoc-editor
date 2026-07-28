@@ -10,34 +10,32 @@ import {
   Hash,
   ToggleLeft,
 } from 'lucide-react';
+import { Menu } from './ui/Menu';
 
 interface TableContextMenuProps {
   editor: Editor;
   position: { x: number; y: number };
   onClose: () => void;
   onOpenProperties: () => void;
+  returnFocusRef?: React.RefObject<HTMLElement | null>;
 }
 
 export const TableContextMenu: React.FC<TableContextMenuProps> = ({
   editor,
   position,
   onClose,
-  onOpenProperties
+  onOpenProperties,
+  returnFocusRef,
 }) => {
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = () => onClose();
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
 
     document.addEventListener('click', handleClickOutside);
-    document.addEventListener('keydown', handleEscape);
 
     return () => {
       document.removeEventListener('click', handleClickOutside);
-      document.removeEventListener('keydown', handleEscape);
     };
   }, [onClose]);
 
@@ -62,6 +60,9 @@ export const TableContextMenu: React.FC<TableContextMenuProps> = ({
     danger?: boolean;
   }> = ({ icon, label, onClick, danger }) => (
     <button
+      type="button"
+      role="menuitem"
+      tabIndex={-1}
       className={`context-menu-item ${danger ? 'danger' : ''}`}
       onMouseDown={(e) => {
         e.preventDefault();
@@ -76,8 +77,12 @@ export const TableContextMenu: React.FC<TableContextMenuProps> = ({
   );
 
   return (
-    <div
+    <Menu
       ref={menuRef}
+      label="Table actions"
+      autoFocus
+      onClose={onClose}
+      returnFocusRef={returnFocusRef}
       className="table-context-menu"
       style={{
         position: 'fixed',
@@ -107,7 +112,7 @@ export const TableContextMenu: React.FC<TableContextMenuProps> = ({
         label="Toggle Header Row"
         onClick={() => editor.chain().focus().toggleHeaderRow().run()}
       />
-      <div className="context-menu-separator" />
+      <div role="separator" className="context-menu-separator" />
       <MenuItem
         icon={<ArrowUpToLine size={14} />}
         label="Add Row Above"
@@ -118,7 +123,7 @@ export const TableContextMenu: React.FC<TableContextMenuProps> = ({
         label="Add Row Below"
         onClick={() => editor.chain().focus().addRowAfter().run()}
       />
-      <div className="context-menu-separator" />
+      <div role="separator" className="context-menu-separator" />
       <MenuItem
         icon={<ArrowLeftToLine size={14} />}
         label="Add Column Before"
@@ -129,7 +134,7 @@ export const TableContextMenu: React.FC<TableContextMenuProps> = ({
         label="Add Column After"
         onClick={() => editor.chain().focus().addColumnAfter().run()}
       />
-      <div className="context-menu-separator" />
+      <div role="separator" className="context-menu-separator" />
       <MenuItem
         icon={<Trash2 size={14} />}
         label="Delete Row"
@@ -148,6 +153,6 @@ export const TableContextMenu: React.FC<TableContextMenuProps> = ({
         onClick={() => editor.chain().focus().deleteTable().run()}
         danger
       />
-    </div>
+    </Menu>
   );
 };

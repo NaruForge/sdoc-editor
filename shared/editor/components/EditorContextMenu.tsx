@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { Editor as TiptapEditor } from '@tiptap/react';
 import { useEditorI18n } from '../i18n';
+import { Menu } from './ui/Menu';
 
 type CalloutVariant = 'note' | 'info' | 'tip' | 'warning' | 'danger';
 
@@ -31,6 +32,7 @@ interface EditorContextMenuProps {
   onRemoveLink?: () => void;
   isLinkActive?: boolean;
   onClose: () => void;
+  returnFocusRef?: React.RefObject<HTMLElement | null>;
 }
 
 export const EditorContextMenu: React.FC<EditorContextMenuProps> = ({
@@ -46,9 +48,14 @@ export const EditorContextMenu: React.FC<EditorContextMenuProps> = ({
   onRemoveLink,
   isLinkActive,
   onClose,
+  returnFocusRef,
 }) => {
   const { t } = useEditorI18n();
   const menuRef = useRef<HTMLDivElement>(null);
+  const tableTriggerRef = useRef<HTMLButtonElement>(null);
+  const tableSubmenuRef = useRef<HTMLDivElement>(null);
+  const calloutTriggerRef = useRef<HTMLButtonElement>(null);
+  const calloutSubmenuRef = useRef<HTMLDivElement>(null);
   const [subMenu, setSubMenu] = useState<'table' | 'callout' | null>(null);
   const [customRows, setCustomRows] = useState('3');
   const [customCols, setCustomCols] = useState('3');
@@ -60,14 +67,9 @@ export const EditorContextMenu: React.FC<EditorContextMenuProps> = ({
         onClose();
       }
     };
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
     document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('keydown', handleEscape);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleEscape);
     };
   }, [onClose]);
 
@@ -123,7 +125,10 @@ export const EditorContextMenu: React.FC<EditorContextMenuProps> = ({
   };
 
   const separator = (
-    <div style={{ height: '1px', background: 'var(--vscode-menu-separatorBackground, #454545)', margin: '4px 0' }} />
+    <div
+      role="separator"
+      style={{ height: '1px', background: 'var(--vscode-menu-separatorBackground, #454545)', margin: '4px 0' }}
+    />
   );
 
   const sectionLabel = (label: string) => (
@@ -137,13 +142,31 @@ export const EditorContextMenu: React.FC<EditorContextMenuProps> = ({
     label: string;
     onClick: () => void;
     hasArrow?: boolean;
+    expanded?: boolean;
+    buttonRef?: React.Ref<HTMLButtonElement>;
+    onKeyDown?: React.KeyboardEventHandler<HTMLButtonElement>;
     onMouseEnter?: () => void;
     onMouseLeave?: () => void;
-  }> = ({ icon, label, onClick, hasArrow, onMouseEnter, onMouseLeave }) => (
+  }> = ({
+    icon,
+    label,
+    onClick,
+    hasArrow,
+    expanded,
+    buttonRef,
+    onKeyDown,
+    onMouseEnter,
+    onMouseLeave,
+  }) => (
     <button
+      ref={buttonRef}
       type="button"
       role="menuitem"
+      tabIndex={-1}
+      aria-haspopup={hasArrow ? 'menu' : undefined}
+      aria-expanded={hasArrow ? expanded : undefined}
       style={itemBase}
+      onKeyDown={onKeyDown}
       onMouseEnter={e => {
         e.currentTarget.style.background = 'var(--vscode-menu-selectionBackground, #094771)';
         e.currentTarget.style.color = 'var(--vscode-menu-selectionForeground, #fff)';
@@ -164,8 +187,16 @@ export const EditorContextMenu: React.FC<EditorContextMenuProps> = ({
   );
 
   // Submenu flyout positioned to the right of the main menu
-  const SubMenuFlyout: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-    <div
+  const SubMenuFlyout: React.FC<{
+    label: string;
+    menuRef: React.Ref<HTMLDivElement>;
+    onEscape: () => void;
+    children: React.ReactNode;
+  }> = ({ label, menuRef: flyoutRef, onEscape, children }) => (
+    <Menu
+      ref={flyoutRef}
+      label={label}
+      onEscape={onEscape}
       style={{
         position: 'fixed',
         top: position.y,
@@ -182,12 +213,19 @@ export const EditorContextMenu: React.FC<EditorContextMenuProps> = ({
       }}
     >
       {children}
-    </div>
+    </Menu>
   );
 
   return (
     <>
-      <div ref={menuRef} style={menuStyle} role="menu" aria-label={t('context.insert')}>
+      <Menu
+        ref={menuRef}
+        style={menuStyle}
+        label={t('context.insert')}
+        autoFocus
+        onClose={onClose}
+        returnFocusRef={returnFocusRef}
+      >
         {/* ── 편집 영역 ── */}
         {isLinkActive && onRemoveLink && (
           <>
@@ -206,10 +244,21 @@ export const EditorContextMenu: React.FC<EditorContextMenuProps> = ({
 
         {/* 표 — 서브메뉴 */}
         <Item
+          buttonRef={tableTriggerRef}
           icon={<Table2 size={14} />}
           label={t('toolbar.table')}
           hasArrow
+          expanded={subMenu === 'table'}
           onClick={() => setSubMenu(subMenu === 'table' ? null : 'table')}
+          onKeyDown={(event) => {
+            if (event.key !== 'ArrowRight') return;
+            event.preventDefault();
+            setSubMenu('table');
+            setShowCustomSize(false);
+            requestAnimationFrame(() => {
+              tableSubmenuRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+            });
+          }}
           onMouseEnter={() => { setSubMenu('table'); setShowCustomSize(false); }}
         />
 
@@ -257,10 +306,20 @@ export const EditorContextMenu: React.FC<EditorContextMenuProps> = ({
 
         {/* 콜아웃 — 서브메뉴 */}
         <Item
+          buttonRef={calloutTriggerRef}
           icon={<MessageSquareWarning size={14} />}
           label={t('toolbar.callout')}
           hasArrow
+          expanded={subMenu === 'callout'}
           onClick={() => setSubMenu(subMenu === 'callout' ? null : 'callout')}
+          onKeyDown={(event) => {
+            if (event.key !== 'ArrowRight') return;
+            event.preventDefault();
+            setSubMenu('callout');
+            requestAnimationFrame(() => {
+              calloutSubmenuRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+            });
+          }}
           onMouseEnter={() => setSubMenu('callout')}
         />
 
@@ -282,7 +341,15 @@ export const EditorContextMenu: React.FC<EditorContextMenuProps> = ({
 
         {/* 표 서브메뉴 — menuRef 내부에 포함시켜 handleClickOutside 오동작 방지 */}
         {subMenu === 'table' && (
-          <SubMenuFlyout>
+          <SubMenuFlyout
+            label={t('toolbar.table')}
+            menuRef={tableSubmenuRef}
+            onEscape={() => {
+              setSubMenu(null);
+              setShowCustomSize(false);
+              tableTriggerRef.current?.focus();
+            }}
+          >
             <div style={{ padding: '2px 10px 4px', fontSize: '11px', color: 'var(--vscode-descriptionForeground, #888)', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
               {t('context.tableSize')}
             </div>
@@ -324,6 +391,8 @@ export const EditorContextMenu: React.FC<EditorContextMenuProps> = ({
                 </div>
                 <button
                   type="button"
+                  role="menuitem"
+                  tabIndex={-1}
                   style={{ ...itemBase, justifyContent: 'center', fontWeight: 600, fontSize: '12px', padding: '4px 6px' }}
                   onMouseEnter={e => { e.currentTarget.style.background = 'var(--vscode-menu-selectionBackground, #094771)'; e.currentTarget.style.color = 'var(--vscode-menu-selectionForeground, #fff)'; }}
                   onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'inherit'; }}
@@ -345,7 +414,14 @@ export const EditorContextMenu: React.FC<EditorContextMenuProps> = ({
 
         {/* 콜아웃 서브메뉴 — menuRef 내부에 포함시켜 handleClickOutside 오동작 방지 */}
         {subMenu === 'callout' && (
-          <SubMenuFlyout>
+          <SubMenuFlyout
+            label={t('toolbar.callout')}
+            menuRef={calloutSubmenuRef}
+            onEscape={() => {
+              setSubMenu(null);
+              calloutTriggerRef.current?.focus();
+            }}
+          >
             {CALLOUT_ITEMS.map(({ variant, icon, label }) => (
               <Item
                 key={variant}
@@ -358,7 +434,7 @@ export const EditorContextMenu: React.FC<EditorContextMenuProps> = ({
             ))}
           </SubMenuFlyout>
         )}
-      </div>
+      </Menu>
     </>
   );
 };

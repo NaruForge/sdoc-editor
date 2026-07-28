@@ -245,10 +245,11 @@ VS Code Explorer에서 0바이트 또는 공백뿐인 `.sdoc` 파일을 만들�
 
 ## 문서 작성
 
-- 왼쪽 Activity Bar에서 목차, 그림 목록, 표 목록, 문서 설정, 파일 작업을 전환합니다.
+- 왼쪽 Activity Bar의 Navigate, Design, Publish 허브에서 목차·그림·표, 화면·문서 설정, 가져오기·내보내기·템플릿을 전환합니다. 데스크톱 앱은 Workspace 허브도 제공합니다.
 - `@`를 입력해 제목·그림·표·수식에 대한 교차 참조를 삽입합니다.
 - 이미지는 클립보드에서 바로 붙여 넣고 캡션·정렬을 지정할 수 있습니다.
-- Mermaid는 에디터 안에서 작성하고 미리 볼 수 있습니다. Draw.io 편집에는 [Draw.io Integration](https://marketplace.visualstudio.com/items?itemName=hediet.vscode-drawio)이 필요합니다.
+- Mermaid는 에디터 안에서 로컬로 작성하고 미리 볼 수 있습니다. PlantUML, D2, Graphviz 미리보기는 기본적으로 꺼져 있으며, Kroki 렌더링을 켜면 다이어그램 소스가 설정한 서버로 전송됩니다. 서버를 사용할 수 없을 때는 소스를 보존한 형태로 표시하고 내보냅니다.
+- Draw.io 편집에는 [Draw.io Integration](https://marketplace.visualstudio.com/items?itemName=hediet.vscode-drawio)이 필요합니다.
 - `Alt+←` / `Alt+→` 또는 마우스 탐색 버튼으로 이전·다음 커서 위치로 이동합니다.
 
 ## `.sdoc` 형식

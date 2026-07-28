@@ -1,43 +1,47 @@
 import React from 'react';
-import { ListOrdered as NumberIcon, BookOpen, Settings, FolderOpen, Image, Table2, Files, LayoutTemplate } from 'lucide-react';
-import { useEditorI18n, type EditorTranslationKey } from '../i18n';
-export type ActivityTab = 'explorer' | 'view' | 'toc' | 'lof' | 'lot' | 'settings' | 'file' | 'template';
+import {
+  Compass,
+  Files,
+  Palette,
+  Send,
+} from 'lucide-react';
+import type { ActivityDestination } from '../activityState';
+
+export type { ActivityDestination, SidePanelSelection } from '../activityState';
 
 interface ActivityBarProps {
-  activeTab: ActivityTab | null;
-  onTabClick: (tab: ActivityTab) => void;
-  showExplorer?: boolean;
-  showTemplates?: boolean;
+  activeDestination: ActivityDestination | null;
+  onDestinationClick: (destination: ActivityDestination) => void;
+  showWorkspace?: boolean;
 }
 
-const TABS: { id: ActivityTab; icon: React.ReactNode; labelKey: EditorTranslationKey }[] = [
-  { id: 'explorer', icon: <Files size={18} />, labelKey: 'panel.explorer' },
-  { id: 'view', icon: <NumberIcon size={18} />, labelKey: 'panel.view' },
-  { id: 'toc', icon: <BookOpen size={18} />, labelKey: 'panel.contents' },
-  { id: 'lof', icon: <Image size={18} />, labelKey: 'panel.figures' },
-  { id: 'lot', icon: <Table2 size={18} />, labelKey: 'panel.tables' },
-  { id: 'settings', icon: <Settings size={18} />, labelKey: 'panel.settings' },
-  { id: 'file', icon: <FolderOpen size={18} />, labelKey: 'panel.files' },
-  { id: 'template', icon: <LayoutTemplate size={18} />, labelKey: 'panel.templates' },
+const DESTINATIONS: ReadonlyArray<{
+  id: ActivityDestination;
+  icon: React.ReactNode;
+  label: string;
+}> = [
+  { id: 'workspace', icon: <Files size={18} />, label: 'Workspace' },
+  { id: 'navigate', icon: <Compass size={18} />, label: 'Navigate' },
+  { id: 'design', icon: <Palette size={18} />, label: 'Design' },
+  { id: 'publish', icon: <Send size={18} />, label: 'Publish' },
 ];
 
 export const ActivityBar: React.FC<ActivityBarProps> = ({
-  activeTab,
-  onTabClick,
-  showExplorer = false,
-  showTemplates = false,
-}) => {
-  const { t } = useEditorI18n();
-  return (
-  <nav className="activity-bar" aria-label={t('panel.documentPanels')}>
-    {TABS.filter(({ id }) => (showExplorer || id !== 'explorer')
-      && (showTemplates || id !== 'template')).map(({ id, icon, labelKey }) => {
-      const isActive = activeTab === id;
-      const label = t(labelKey);
+  activeDestination,
+  onDestinationClick,
+  showWorkspace = false,
+}) => (
+  <nav className="activity-bar" aria-label="Document activities">
+    {DESTINATIONS.filter(({ id }) => showWorkspace || id !== 'workspace').map(({
+      id,
+      icon,
+      label,
+    }) => {
+      const isActive = activeDestination === id;
       return (
         <button
           key={id}
-          id={`activity-tab-${id}`}
+          id={`activity-destination-${id}`}
           type="button"
           className={`activity-bar-icon${isActive ? ' is-active' : ''}`}
           title={label}
@@ -45,7 +49,7 @@ export const ActivityBar: React.FC<ActivityBarProps> = ({
           aria-pressed={isActive}
           aria-controls={isActive ? 'editor-side-panel' : undefined}
           aria-expanded={isActive}
-          onClick={() => onTabClick(id)}
+          onClick={() => onDestinationClick(id)}
         >
           <span aria-hidden="true">{icon}</span>
           <span className="activity-bar-label">{label}</span>
@@ -53,5 +57,4 @@ export const ActivityBar: React.FC<ActivityBarProps> = ({
       );
     })}
   </nav>
-  );
-};
+);

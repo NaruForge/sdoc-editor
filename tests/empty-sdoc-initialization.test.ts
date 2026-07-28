@@ -181,6 +181,7 @@ describe('Explorer-created empty SDOC initialization', () => {
   it('accepts only fully identified template application messages', () => {
     expect(isEditorToHostMessage({
       type: 'applyTemplate',
+      requestId: 'apply-1',
       templateId: 'builtin:technical-report',
       sessionId: identity.sessionId,
       documentId: identity.documentId,
@@ -189,12 +190,16 @@ describe('Explorer-created empty SDOC initialization', () => {
     expect(isEditorToHostMessage({ type: 'applyTemplate', templateId: 'builtin:technical-report' })).toBe(false);
     expect(isEditorToHostMessage({
       type: 'applyTemplate',
+      requestId: 'apply-2',
       templateId: '',
       sessionId: identity.sessionId,
       documentId: identity.documentId,
       baseRevision: identity.revision,
     })).toBe(false);
-    expect(isEditorToHostMessage({ type: 'requestTemplateCatalog' })).toBe(true);
+    expect(isEditorToHostMessage({
+      type: 'requestTemplateCatalog',
+      requestId: 'catalog-1',
+    })).toBe(true);
     expect(isEditorToHostMessage({
       type: 'savePersonalTemplate',
       requestId: 'request-1',
@@ -218,8 +223,8 @@ describe('Explorer-created empty SDOC initialization', () => {
     })).toBe(false);
     expect(isHostToEditorMessage({
       type: 'templateCatalog',
-      diagnosticCount: 0,
-      personalRootPath: 'C:\\Users\\test\\.sdoc\\templates',
+      requestId: 'catalog-1',
+      diagnostics: [],
       personalRootScope: 'local',
       templates: [{
         id: 'builtin:technical-report',
@@ -230,8 +235,8 @@ describe('Explorer-created empty SDOC initialization', () => {
     })).toBe(true);
     expect(isHostToEditorMessage({
       type: 'templateCatalog',
-      diagnosticCount: 0,
-      personalRootPath: '/home/test/.sdoc/templates',
+      requestId: 'catalog-2',
+      diagnostics: [],
       personalRootScope: 'remote',
       templates: [{ id: 42, name: 'Broken', source: 'builtin', sourceLabel: 'Built-in' }],
     })).toBe(false);

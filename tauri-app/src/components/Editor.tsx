@@ -29,7 +29,14 @@ import { MathDialog } from '@shared/editor/components/MathDialog';
 import { DiagramDialog } from '@shared/editor/components/DiagramDialog';
 import { EditorContextMenu } from '@shared/editor/components/EditorContextMenu';
 import { CrossReferenceDialog } from '@shared/editor/components/CrossReferenceDialog';
-import { ActivityBar, type ActivityTab } from '@shared/editor/components/ActivityBar';
+import { ActivityBar } from '@shared/editor/components/ActivityBar';
+import {
+  createActivitySessionState,
+  selectSidePanel,
+  transitionActivityDestination,
+  type ActivityDestination,
+  type SidePanelSelection,
+} from '@shared/editor/activityState';
 import { SidePanel } from './SidePanel';
 import { MenuBar, type MenuDef } from './MenuBar';
 import { ZoomBar } from '@shared/editor/components/ZoomBar';
@@ -60,6 +67,24 @@ import {
 } from '@shared/editor/externalChanges';
 import { useEditorI18n } from '@shared/editor/i18n';
 import type { EditorExtensionRuntime } from '@shared/editor/extensionRuntime';
+import type {
+  HostDiagramRenderer,
+} from '@shared/editor/diagram';
+import { DiagramRenderError } from '@shared/editor/diagram';
+import type { TemplateCatalogDiagnosticView } from '@shared/template/catalogView';
+import {
+  createFileOperationControllerState,
+  createFileOperationError,
+  fileOperationReducer,
+  tryStartFileOperation,
+  type FileOperationControllerState,
+  type FileOperationKind,
+} from '@shared/editor/fileOperations';
+import type { FileExportFormat, FileImportFormat } from '@shared/editor/components/FilesPanel';
+import {
+  DEFAULT_DIAGRAM_RENDERER_SETTINGS,
+  type DiagramRendererSettings,
+} from '@shared/diagramRenderer';
 
 /**
  * `setImage`'s TipTap-generated type only knows about `src`/`alt`/`title`. `relativePath` is a
@@ -146,16 +171,39 @@ export const Editor: React.FC<EditorProps> = ({
   const translatorRef = useRef(t);
   translatorRef.current = t;
   const [showNumbering, setShowNumbering] = useState(true);
-  const [showSidePanel, setShowSidePanel] = useState(true);
-  const [sidePanelTab, setSidePanelTab] = useState<ActivityTab>('explorer');
+  const [activityState, setActivityState] = useState(
+    () => createActivitySessionState(
+      { destination: 'workspace' },
+      { showWorkspace: true, showTemplates: true },
+    ),
+  );
+  const activityTriggerRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    const destination = activityState.selection?.destination;
+    if (destination && !activityTriggerRef.current) {
+      activityTriggerRef.current = document.getElementById(`activity-destination-${destination}`);
+    }
+  }, [activityState.selection]);
+  const editorAreaRef = useRef<HTMLDivElement | null>(null);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved');
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [templates, setTemplates] = useState<ManagedTemplateDescriptor[]>([]);
-  const [templateDiagnosticCount, setTemplateDiagnosticCount] = useState(0);
+  const [templateDiagnostics, setTemplateDiagnostics] = useState<TemplateCatalogDiagnosticView[]>([]);
   const [isTemplateCatalogLoading, setIsTemplateCatalogLoading] = useState(true);
   const [isApplyingTemplate, setIsApplyingTemplate] = useState(false);
   const [isManagingTemplate, setIsManagingTemplate] = useState(false);
-  const [personalTemplateRootPath, setPersonalTemplateRootPath] = useState('');
+  const [fileController, setFileController] = useState<FileOperationControllerState>(
+    () => createFileOperationControllerState(adapter.getDocumentSession()?.sessionId ?? 'pending'),
+  );
+  const [diagramRendererSettings, setDiagramRendererSettings] =
+    useState<DiagramRendererSettings>({ ...DEFAULT_DIAGRAM_RENDERER_SETTINGS });
+  const catalogRequestRef = useRef<string | null>(null);
+  const applyRequestRef = useRef<string | null>(null);
+  const personalRequestRef = useRef<string | null>(null);
+  const diagramRequestsRef = useRef(new Map<string, {
+    resolve: (value: Awaited<ReturnType<HostDiagramRenderer>>) => void;
+    reject: (reason: unknown) => void;
+  }>());
   const [externalChange, setExternalChange] = useState<{
     revision: number;
     snapshot: DocumentMutation;
@@ -197,6 +245,9 @@ export const Editor: React.FC<EditorProps> = ({
   const [meta, setMeta] = useState<EditorMetaState>(() => replaceMetaState(initialMeta));
   const initDoneRef = useRef(false);
   const postMessageRef = useRef<(msg: EditorToHostMessage) => Promise<void>>(() => Promise.resolve());
+  const diagramRendererRef = useRef<HostDiagramRenderer>(
+    async () => ({ kind: 'source-only' }),
+  );
   const syncCoordinatorRef = useRef<DocumentSyncCoordinator | null>(null);
   const hydrationCoordinatorRef = useRef(new DocumentHydrationCoordinator<TiptapNode>());
   const replacementHydrationRef = useRef<string | null>(null);
@@ -228,6 +279,7 @@ export const Editor: React.FC<EditorProps> = ({
     },
     openMathDialog: (latex: string, isBlock: boolean, pos: number) => setMathDialog({ latex, isBlock, pos }),
     openDiagramDialog: (code: string, language: string, pos: number) => setDiagramDialog({ code, language, pos }),
+    renderDiagram: (request) => diagramRendererRef.current(request),
   }), [setDiagramDialog, setImageContextMenu, setMathDialog]);
 
   const session = adapter.getDocumentSession();
@@ -301,17 +353,39 @@ export const Editor: React.FC<EditorProps> = ({
     if (dispatchTauriSettingsMessage(message, dispatch)) return;
     switch (message.type) {
       case 'importMarkdownText':
-        if (editor) {
+        if (editor
+          && session?.sessionId === message.sessionId
+          && session.documentId === message.documentId
+          && fileController.operationState.phase === 'running'
+          && fileController.operationState.requestId === message.requestId) {
           const converted = convertMarkdownToJson(message.text);
           replaceEditorDocument('user-import', converted);
           flushUpdate();
+          void postMessageRef.current({
+            type: 'fileOperationApplied',
+            requestId: message.requestId,
+            sessionId: message.sessionId,
+            documentId: message.documentId,
+            applied: true,
+          });
         }
         break;
       case 'importHtml':
-        if (editor) {
+        if (editor
+          && session?.sessionId === message.sessionId
+          && session.documentId === message.documentId
+          && fileController.operationState.phase === 'running'
+          && fileController.operationState.requestId === message.requestId) {
           const cleaned = preprocessImportedHtml(message.html);
           replaceEditorDocument('user-import', cleaned as unknown as TiptapNode);
           flushUpdate();
+          void postMessageRef.current({
+            type: 'fileOperationApplied',
+            requestId: message.requestId,
+            sessionId: message.sessionId,
+            documentId: message.documentId,
+            applied: true,
+          });
         }
         break;
       case 'imageSaved':
@@ -363,22 +437,71 @@ export const Editor: React.FC<EditorProps> = ({
         onJsonView?.();
         break;
       case 'templateCatalog':
+        if (message.requestId !== catalogRequestRef.current) break;
         setTemplates(message.templates);
-        setTemplateDiagnosticCount(message.diagnosticCount);
-        setPersonalTemplateRootPath(message.personalRootPath);
+        setTemplateDiagnostics(message.diagnostics);
         setIsTemplateCatalogLoading(false);
         break;
       case 'templateApplicationFinished':
+        if (message.requestId !== applyRequestRef.current) break;
+        applyRequestRef.current = null;
         setIsApplyingTemplate(false);
-        if (!message.applied || replacementHydrationRef.current === null) {
+        if (message.result !== 'applied' || replacementHydrationRef.current === null) {
           editor?.setEditable(true);
         }
         break;
       case 'templateOperationFinished':
+        if (message.requestId !== personalRequestRef.current) break;
+        personalRequestRef.current = null;
         setIsManagingTemplate(false);
         if (!message.succeeded && message.message) {
           window.alert(t('template.operationFailed', { message: message.message }));
         }
+        break;
+      case 'fileOperationStatus':
+        setFileController((current) => {
+          if (current.sessionId !== message.sessionId
+            || message.state.phase === 'idle'
+            || message.state.phase === 'running') return current;
+          if (message.state.phase === 'succeeded') {
+            return fileOperationReducer(current, {
+              type: 'succeeded',
+              sessionId: message.sessionId,
+              requestId: message.state.requestId,
+              result: message.state.result,
+            });
+          }
+          if (message.state.phase === 'failed') {
+            return fileOperationReducer(current, {
+              type: 'failed',
+              sessionId: message.sessionId,
+              requestId: message.state.requestId,
+              error: message.state.error,
+            });
+          }
+          return fileOperationReducer(current, {
+            type: 'cancelled',
+            sessionId: message.sessionId,
+            requestId: message.state.requestId,
+          });
+        });
+        break;
+      case 'diagramRenderResult': {
+        const pending = diagramRequestsRef.current.get(message.requestId);
+        if (!pending) break;
+        diagramRequestsRef.current.delete(message.requestId);
+        if (message.result.status === 'ready') {
+          pending.resolve({ kind: 'png', dataUrl: message.result.dataUrl });
+        } else {
+          pending.reject(new DiagramRenderError(
+            message.result.message,
+            message.result.retryable,
+          ));
+        }
+        break;
+      }
+      case 'diagramRendererSettings':
+        setDiagramRendererSettings(message.settings);
         break;
       case 'editAcknowledged':
         if (syncCoordinatorRef.current?.acknowledge(message)) {
@@ -446,25 +569,173 @@ export const Editor: React.FC<EditorProps> = ({
   });
   postMessageRef.current = postMessage;
 
+  const renderDiagram: HostDiagramRenderer = ({ language, code, signal }) => {
+    if (language === 'mermaid') return Promise.resolve({ kind: 'source-only' });
+    const requestId = crypto.randomUUID();
+    return new Promise((resolve, reject) => {
+      const cancel = () => {
+        diagramRequestsRef.current.delete(requestId);
+        void postMessage({ type: 'cancelDiagramRender', requestId });
+        reject(new DOMException('Aborted', 'AbortError'));
+      };
+      if (signal.aborted) {
+        cancel();
+        return;
+      }
+      signal.addEventListener('abort', cancel, { once: true });
+      diagramRequestsRef.current.set(requestId, {
+        resolve: (value) => {
+          signal.removeEventListener('abort', cancel);
+          resolve(value);
+        },
+        reject: (reason) => {
+          signal.removeEventListener('abort', cancel);
+          reject(reason);
+        },
+      });
+      void postMessage({ type: 'renderDiagram', requestId, language, source: code });
+    });
+  };
+  diagramRendererRef.current = renderDiagram;
+  const handleDiagramRendererSettingsChange = (settings: DiagramRendererSettings) => {
+    void postMessage({ type: 'updateDiagramRendererSettings', settings });
+  };
+  const handleTestDiagramRenderer = (settings: DiagramRendererSettings) => {
+    const requestId = crypto.randomUUID();
+    return new Promise<void>((resolve, reject) => {
+      diagramRequestsRef.current.set(requestId, {
+        resolve: () => resolve(),
+        reject,
+      });
+      void postMessage({
+        type: 'testDiagramRendererConnection',
+        requestId,
+        settings,
+      });
+    });
+  };
+
   useEffect(() => {
-    void postMessage({ type: 'requestTemplateCatalog' });
+    const requestId = crypto.randomUUID();
+    catalogRequestRef.current = requestId;
+    void postMessage({ type: 'requestTemplateCatalog', requestId });
   }, [postMessage]);
 
+  useEffect(() => {
+    const currentSessionId = adapter.getDocumentSession()?.sessionId ?? 'pending';
+    setFileController((current) => fileOperationReducer(current, {
+      type: 'session-changed',
+      sessionId: currentSessionId,
+    }));
+  }, [adapter, session?.sessionId]);
+
   const handleViewJson = () => { postMessage({ type: 'viewJson' }); };
-  const handleExport = async (format: ExportFormat) => {
-    if (editor) {
-      flushUpdate();
-      const sync = syncCoordinatorRef.current;
-      if (sync) {
-        await new SaveCoordinator(sync).afterAcknowledged(() => adapter.flushAndWait());
-      } else {
-        await adapter.flushAndWait();
-      }
-      await exportDocument(format, editor.getJSON() as TiptapNode, state.settings, state.docSettings, meta);
+  const handleFileOperation = (
+    kind: FileOperationKind,
+    format: FileExportFormat | FileImportFormat,
+  ) => {
+    const currentSession = adapter.getDocumentSession();
+    if (!currentSession) return;
+    const requestId = crypto.randomUUID();
+    const start = tryStartFileOperation(fileController, {
+      sessionId: currentSession.sessionId,
+      requestId,
+      kind,
+      format,
+      stage: kind === 'export' ? 'Preparing export...' : 'Choose a file...',
+    });
+    if (!start.accepted) return;
+    setFileController(start.state);
+    if (kind === 'import') {
+      void postMessage({
+        type: format === 'markdown' ? 'importMarkdown' : 'importHtml',
+        requestId,
+        sessionId: currentSession.sessionId,
+        documentId: currentSession.documentId,
+      });
+      return;
     }
-  };
-  const handleImport = (format: 'markdown' | 'html') => {
-    postMessage({ type: format === 'markdown' ? 'importMarkdown' : 'importHtml' });
+    if (!editor) return;
+    void (async () => {
+      try {
+        flushUpdate();
+        const sync = syncCoordinatorRef.current;
+        if (sync) {
+          await new SaveCoordinator(sync).afterAcknowledged(() => adapter.flushAndWait());
+        } else {
+          await adapter.flushAndWait();
+        }
+        const exportDoc = editor.getJSON() as TiptapNode;
+        const diagramSources = new Map<string, {
+          language: 'plantuml' | 'd2' | 'graphviz';
+          code: string;
+        }>();
+        let usedDiagramFallback = false;
+        const collectDiagrams = (node: TiptapNode): void => {
+          if (node.type === 'diagram') {
+            const language = typeof node.attrs?.language === 'string'
+              ? node.attrs.language.toLowerCase()
+              : 'mermaid';
+            const code = typeof node.attrs?.code === 'string' ? node.attrs.code : '';
+            if (language !== 'mermaid') {
+              if (language === 'plantuml' || language === 'd2' || language === 'graphviz') {
+                diagramSources.set(`${language}\0${code}`, { language, code });
+              } else {
+                usedDiagramFallback = true;
+              }
+            }
+          }
+          node.content?.forEach(collectDiagrams);
+        };
+        if (format === 'html') collectDiagrams(exportDoc);
+        const diagramImages = new Map<string, string>();
+        await Promise.all([...diagramSources.entries()].map(async ([key, source]) => {
+          try {
+            const controller = new AbortController();
+            const rendered = await renderDiagram({
+              language: source.language,
+              code: source.code,
+              signal: controller.signal,
+            });
+            if (rendered.kind === 'png') diagramImages.set(key, rendered.dataUrl);
+            else usedDiagramFallback = true;
+          } catch {
+            usedDiagramFallback = true;
+          }
+        }));
+        const outcome = await exportDocument(
+          format as ExportFormat,
+          exportDoc,
+          state.settings,
+          state.docSettings,
+          meta,
+          diagramImages,
+        );
+        setFileController((current) => fileOperationReducer(current, outcome === 'cancelled'
+          ? {
+            type: 'cancelled',
+            sessionId: currentSession.sessionId,
+            requestId,
+          }
+          : {
+            type: 'succeeded',
+            sessionId: currentSession.sessionId,
+            requestId,
+            result: usedDiagramFallback ? 'fallback' : outcome,
+          }));
+      } catch (error: unknown) {
+        setFileController((current) => fileOperationReducer(current, {
+          type: 'failed',
+          sessionId: currentSession.sessionId,
+          requestId,
+          error: createFileOperationError(
+            'EXPORT_FAILED',
+            error instanceof Error ? error.message : 'Export failed.',
+            true,
+          ),
+        }));
+      }
+    })();
   };
   const handleMetaChange = (field: string, value: string) => {
     setMeta(prev => ({ ...prev, [field]: value }));
@@ -483,18 +754,24 @@ export const Editor: React.FC<EditorProps> = ({
   };
 
   const handleRefreshTemplates = useCallback(() => {
+    const requestId = crypto.randomUUID();
+    catalogRequestRef.current = requestId;
     setIsTemplateCatalogLoading(true);
-    void postMessage({ type: 'requestTemplateCatalog' });
+    void postMessage({ type: 'requestTemplateCatalog', requestId });
   }, [postMessage]);
 
   const currentTemplateIdentity = useCallback(() => adapter.getDocumentSession(), [adapter]);
   const handleApplyTemplate = useCallback((templateId: string) => {
     const session = currentTemplateIdentity();
     if (!session || isApplyingTemplate) return;
+    const requestId = crypto.randomUUID();
+    applyRequestRef.current = requestId;
+    catalogRequestRef.current = `apply-refresh-${requestId}`;
     setIsApplyingTemplate(true);
     editor?.setEditable(false);
     void postMessage({
       type: 'applyTemplate',
+      requestId,
       templateId,
       sessionId: session.sessionId,
       documentId: session.documentId,
@@ -512,10 +789,13 @@ export const Editor: React.FC<EditorProps> = ({
   ) => {
     const session = currentTemplateIdentity();
     if (!session || isManagingTemplate || (template && !template.revisionToken)) return;
+    const requestId = crypto.randomUUID();
+    personalRequestRef.current = requestId;
+    catalogRequestRef.current = `operation-${requestId}`;
     setIsManagingTemplate(true);
     void postMessage({
       type,
-      requestId: crypto.randomUUID(),
+      requestId,
       sessionId: session.sessionId,
       documentId: session.documentId,
       baseRevision: session.revision,
@@ -528,10 +808,13 @@ export const Editor: React.FC<EditorProps> = ({
 
   const handleDeletePersonalTemplate = useCallback((template: ManagedTemplateDescriptor) => {
     if (isManagingTemplate || !template.revisionToken) return;
+    const requestId = crypto.randomUUID();
+    personalRequestRef.current = requestId;
+    catalogRequestRef.current = `operation-${requestId}`;
     setIsManagingTemplate(true);
     void postMessage({
       type: 'deletePersonalTemplate',
-      requestId: crypto.randomUUID(),
+      requestId,
       templateId: template.id,
       revisionToken: template.revisionToken,
     });
@@ -539,26 +822,37 @@ export const Editor: React.FC<EditorProps> = ({
 
   const handleOpenPersonalTemplateFolder = useCallback(() => {
     if (isManagingTemplate) return;
+    const requestId = crypto.randomUUID();
+    personalRequestRef.current = requestId;
+    catalogRequestRef.current = `operation-${requestId}`;
     setIsManagingTemplate(true);
-    void postMessage({ type: 'openPersonalTemplateFolder', requestId: crypto.randomUUID() });
+    void postMessage({ type: 'openPersonalTemplateFolder', requestId });
   }, [isManagingTemplate, postMessage]);
 
-  const handleActivityTabClick = useCallback((tab: ActivityTab) => {
-    if (showSidePanel && sidePanelTab === tab) {
-      setShowSidePanel(false);
-    } else {
-      setSidePanelTab(tab);
-      setShowSidePanel(true);
-    }
-  }, [showSidePanel, sidePanelTab]);
+  const handleActivityDestinationClick = useCallback((destination: ActivityDestination) => {
+    activityTriggerRef.current = document.getElementById(`activity-destination-${destination}`);
+    setActivityState((current) => transitionActivityDestination(
+      current,
+      destination,
+      { showWorkspace: true, showTemplates: true },
+    ));
+  }, []);
 
   const handleCloseSidePanel = useCallback(() => {
-    const triggerId = `activity-tab-${sidePanelTab}`;
-    setShowSidePanel(false);
-    requestAnimationFrame(() => {
-      document.getElementById(triggerId)?.focus();
-    });
-  }, [sidePanelTab]);
+    setActivityState((current) => selectSidePanel(
+      current,
+      null,
+      { showWorkspace: true, showTemplates: true },
+    ));
+  }, []);
+
+  const handleSidePanelSelection = useCallback((selection: SidePanelSelection) => {
+    setActivityState((current) => selectSidePanel(
+      current,
+      selection,
+      { showWorkspace: true, showTemplates: true },
+    ));
+  }, []);
 
   const handleZoomChange = useCallback((value: number) => {
     const clamped = Math.min(200, Math.max(60, value));
@@ -850,14 +1144,12 @@ export const Editor: React.FC<EditorProps> = ({
         { separator: true },
         { label: t('common.save'), shortcut: 'Ctrl+S', onClick: () => flushUpdate() },
         { separator: true },
-        { label: t('menu.exportAs', { format: 'HTML' }), onClick: () => handleExport('html') },
-        { label: t('menu.exportAs', { format: 'Markdown' }), onClick: () => handleExport('markdown') },
-        { label: t('menu.exportAs', { format: 'AsciiDoc' }), onClick: () => handleExport('adoc') },
+        { label: t('menu.exportAs', { format: 'HTML' }), onClick: () => handleFileOperation('export', 'html') },
+        { label: t('menu.exportAs', { format: 'Markdown' }), onClick: () => handleFileOperation('export', 'markdown') },
+        { label: t('menu.exportAs', { format: 'AsciiDoc' }), onClick: () => handleFileOperation('export', 'adoc') },
         { separator: true },
-        { label: t('menu.importFrom', { format: 'Markdown' }), onClick: () => handleImport('markdown') },
-        { label: t('menu.importFrom', { format: 'HTML' }), onClick: () => handleImport('html') },
-        { separator: true },
-        { label: t('panel.jsonSource'), onClick: handleViewJson },
+        { label: t('menu.importFrom', { format: 'Markdown' }), onClick: () => handleFileOperation('import', 'markdown') },
+        { label: t('menu.importFrom', { format: 'HTML' }), onClick: () => handleFileOperation('import', 'html') },
         { separator: true },
         { label: t('menu.exit'), onClick: onExit, disabled: !onExit },
       ],
@@ -872,7 +1164,12 @@ export const Editor: React.FC<EditorProps> = ({
     {
       label: t('menu.view'),
       items: [
-        { label: t(showSidePanel ? 'menu.hideSidebar' : 'menu.showSidebar'), onClick: () => setShowSidePanel(!showSidePanel) },
+        {
+          label: t(activityState.selection ? 'menu.hideSidebar' : 'menu.showSidebar'),
+          onClick: () => setActivityState((current) => current.selection
+            ? selectSidePanel(current, null, { showWorkspace: true, showTemplates: true })
+            : selectSidePanel(current, { destination: 'workspace' }, { showWorkspace: true, showTemplates: true })),
+        },
         { separator: true },
         { label: t('menu.zoomIn'), shortcut: 'Ctrl++', onClick: () => handleZoomChange(zoom + 10) },
         { label: t('menu.zoomOut'), shortcut: 'Ctrl+-', onClick: () => handleZoomChange(zoom - 10) },
@@ -960,17 +1257,18 @@ export const Editor: React.FC<EditorProps> = ({
         />
       )}
       {editor && <BubbleMenuBar editor={editor} />}
-      <div className={`editor-body-layout${showSidePanel ? ' editor-body-with-toc' : ''}`}>
+      <div className={`editor-body-layout${activityState.selection ? ' editor-body-with-toc' : ''}`}>
         <ActivityBar
-          activeTab={showSidePanel ? sidePanelTab : null}
-          onTabClick={handleActivityTabClick}
-          showExplorer
-          showTemplates
+          activeDestination={activityState.selection?.destination ?? null}
+          onDestinationClick={handleActivityDestinationClick}
+          showWorkspace
         />
-        {showSidePanel && (
+        {activityState.selection && (
           <SidePanel
             onClose={handleCloseSidePanel}
-            activeTab={sidePanelTab}
+            selection={activityState.selection}
+            onSelectionChange={handleSidePanelSelection}
+            returnFocusRef={activityTriggerRef}
             editor={editor}
             settings={state.settings}
             showNumbering={showNumbering}
@@ -979,8 +1277,11 @@ export const Editor: React.FC<EditorProps> = ({
             onToggleDecoration={handleToggleDecoration}
             onUpdateDocSettings={handleUpdateDocSettings}
             onViewJson={handleViewJson}
-            onExport={handleExport}
-            onImport={handleImport}
+            onFileOperation={handleFileOperation}
+            fileOperationState={fileController.operationState}
+            diagramRendererSettings={diagramRendererSettings}
+            onDiagramRendererSettingsChange={handleDiagramRendererSettingsChange}
+            onTestDiagramRenderer={handleTestDiagramRenderer}
             workspaceFolder={workspaceFolder}
             workspaceEntries={workspaceEntries}
             currentPath={currentPath}
@@ -995,11 +1296,10 @@ export const Editor: React.FC<EditorProps> = ({
             hasDeletionHistory={hasDeletionHistory}
             onHoverPath={setHoveredExplorerPath}
             templates={templates}
-            templateDiagnosticCount={templateDiagnosticCount}
+            templateDiagnostics={templateDiagnostics}
             isTemplateCatalogLoading={isTemplateCatalogLoading}
             isApplyingTemplate={isApplyingTemplate}
             isManagingTemplate={isManagingTemplate}
-            personalTemplateRootPath={personalTemplateRootPath}
             onRefreshTemplates={handleRefreshTemplates}
             onApplyTemplate={handleApplyTemplate}
             onSavePersonalTemplate={() => handleManagedTemplate('savePersonalTemplate')}
@@ -1009,7 +1309,7 @@ export const Editor: React.FC<EditorProps> = ({
             onOpenPersonalTemplateFolder={handleOpenPersonalTemplateFolder}
           />
         )}
-        <div className="editor-content-area" onContextMenu={handleContextMenu}>
+        <div ref={editorAreaRef} className="editor-content-area" onContextMenu={handleContextMenu} tabIndex={-1}>
           <div className="editor-scroll-area">
             <div style={{ zoom: zoom / 100 }}>
               <div className="editor-title-area">
@@ -1037,6 +1337,7 @@ export const Editor: React.FC<EditorProps> = ({
         </span>
       </div>
       {editorContextMenu && editor && <EditorContextMenu
+        returnFocusRef={editorAreaRef}
         position={editorContextMenu}
         editor={editor}
         onInsertImage={handleInsertImage}
@@ -1050,7 +1351,7 @@ export const Editor: React.FC<EditorProps> = ({
         onRemoveLink={() => editor.chain().focus().unsetLink().run()}
         onClose={() => setEditorContextMenu(null)}
       />}
-      {contextMenu && editor && <TableContextMenu editor={editor} position={contextMenu} onClose={() => setContextMenu(null)} onOpenProperties={() => { setContextMenu(null); setShowTableProperties(true); }} />}
+      {contextMenu && editor && <TableContextMenu returnFocusRef={editorAreaRef} editor={editor} position={contextMenu} onClose={() => setContextMenu(null)} onOpenProperties={() => { setContextMenu(null); setShowTableProperties(true); }} />}
       {showTableProperties && editor && <TablePropertiesModal editor={editor} onClose={() => setShowTableProperties(false)} />}
       {pendingImage && <ImageNameDialog defaultName={`image-${Date.now()}`} onConfirm={handleImageNameConfirm} onCancel={() => setPendingImage(null)} />}
       {showDrawioActionDialog && <DrawioActionDialog onCreateNew={handleDrawioCreateNew} onImportExisting={handleDrawioImportExisting} onCancel={() => setShowDrawioActionDialog(false)} />}
@@ -1058,9 +1359,9 @@ export const Editor: React.FC<EditorProps> = ({
       {showDrawioInstallGuide && <DrawioInstallGuideDialog onClose={() => setShowDrawioInstallGuide(false)} />}
       {showLinkDialog && editor && <LinkDialog onConfirm={handleLinkConfirm} onCancel={() => setShowLinkDialog(false)} defaultText={editor.state.doc.textBetween(editor.state.selection.from, editor.state.selection.to, ' ')} />}
       {imageProperties && <ImagePropertiesDialog src={imageProperties.src} alt={imageProperties.alt} align={imageProperties.align} onConfirm={handleImagePropertiesConfirm} onReplace={handleImageReplace} onCancel={() => setImageProperties(null)} isDrawio={imageProperties.isDrawio} path={imageProperties.path} />}
-      {imageContextMenu && <ImageContextMenu position={{ x: imageContextMenu.x, y: imageContextMenu.y }} onClose={() => setImageContextMenu(null)} onOpenProperties={handleImageContextMenuProperties} onReplaceImage={handleImageContextMenuReplace} onCopyPath={handleImageContextMenuCopyPath} onDelete={handleImageContextMenuDelete} isDrawio={imageContextMenu.isDrawio} />}
+      {imageContextMenu && <ImageContextMenu returnFocusRef={editorAreaRef} position={{ x: imageContextMenu.x, y: imageContextMenu.y }} onClose={() => setImageContextMenu(null)} onOpenProperties={handleImageContextMenuProperties} onReplaceImage={handleImageContextMenuReplace} onCopyPath={handleImageContextMenuCopyPath} onDelete={handleImageContextMenuDelete} isDrawio={imageContextMenu.isDrawio} />}
       {mathDialog && <MathDialog initialLatex={mathDialog.latex} isBlock={mathDialog.isBlock} onConfirm={handleMathConfirm} onCancel={() => setMathDialog(null)} />}
-      {diagramDialog && <DiagramDialog initialCode={diagramDialog.code} initialLanguage={diagramDialog.language} pos={diagramDialog.pos} onConfirm={handleDiagramConfirm} onCancel={() => setDiagramDialog(null)} />}
+      {diagramDialog && <DiagramDialog renderDiagram={renderDiagram} initialCode={diagramDialog.code} initialLanguage={diagramDialog.language} pos={diagramDialog.pos} onConfirm={handleDiagramConfirm} onCancel={() => setDiagramDialog(null)} />}
       {showCrossRefDialog && editor && <CrossReferenceDialog targets={collectTargets(editor, settings)} onSelect={(target: RefTarget) => { setShowCrossRefDialog(false); editor.chain().focus().insertContent([{ type: 'text', marks: [{ type: 'link', attrs: { href: `#${target.id}` } }], text: target.label }, { type: 'text', text: ' ' }]).run(); }} onClose={() => setShowCrossRefDialog(false)} />}
     </div>
   );

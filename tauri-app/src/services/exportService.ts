@@ -3,6 +3,7 @@ import { save } from '@tauri-apps/plugin-dialog';
 import type { DocumentSettings, ResolvedEditorSettings, SdocMeta, TiptapNode } from '@shared/types';
 
 export type ExportFormat = 'html' | 'adoc' | 'markdown' | 'pdf' | 'slides';
+export type ExportOutcome = 'completed' | 'cancelled' | 'fallback';
 
 interface AppThemeSettings {
   themeCompanyName?: string;
@@ -18,7 +19,8 @@ export async function exportDocument(
   settings: ResolvedEditorSettings,
   docSettings: Partial<DocumentSettings> | null,
   meta: SdocMeta,
-): Promise<void> {
+  diagramImages?: ReadonlyMap<string, string>,
+): Promise<ExportOutcome> {
   const exportSettings = {
     captionStyle: settings.captionStyle,
     headingNumbering: settings.headingNumbering,
@@ -59,7 +61,12 @@ export async function exportDocument(
         accentColor: appSettings.themeAccentColor,
         fontFamily: appSettings.themeFontFamily,
         customStyles: `${appSettings.themeCustomStyles ?? ''}${htmlCss}`,
-      }, exportSettings, meta);
+      }, exportSettings, meta, {
+        resolveDiagramImage: ({ language, code }) => {
+          const dataUrl = diagramImages?.get(`${language}\0${code}`);
+          return dataUrl ? { dataUrl } : undefined;
+        },
+      });
       extension = 'html';
       filterName = 'HTML';
       break;
@@ -81,9 +88,11 @@ export async function exportDocument(
     case 'pdf':
     case 'slides':
       window.alert(`${format.toUpperCase()} export is not available in the desktop app yet.`);
-      return;
+      return 'cancelled';
   }
 
   const path = await save({ filters: [{ name: filterName, extensions: [extension] }] });
-  if (path) await invoke('write_export_file', { path, content });
+  if (!path) return 'cancelled';
+  await invoke('write_export_file', { path, content });
+  return 'completed';
 }

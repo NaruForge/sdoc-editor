@@ -21,7 +21,14 @@ import { MathDialog } from '@shared/editor/components/MathDialog';
 import { EditorContextMenu } from '@shared/editor/components/EditorContextMenu';
 import { CrossReferenceDialog } from '@shared/editor/components/CrossReferenceDialog';
 import { DiagramDialog } from '@shared/editor/components/DiagramDialog';
-import { ActivityBar, type ActivityTab } from '@shared/editor/components/ActivityBar';
+import { ActivityBar } from '@shared/editor/components/ActivityBar';
+import {
+  createActivitySessionState,
+  selectSidePanel,
+  transitionActivityDestination,
+  type ActivityDestination,
+  type SidePanelSelection,
+} from '@shared/editor/activityState';
 import { SidePanel } from './SidePanel';
 import { ZoomBar } from '@shared/editor/components/ZoomBar';
 import { collectTargets, CROSSREF_RESYNC_META } from '@shared/editor/extensions/CrossReference';
@@ -41,6 +48,7 @@ import {
 } from '@shared/editor/externalChanges';
 import { useEditorI18n } from '@shared/editor/i18n';
 import type { EditorExtensionRuntime } from '@shared/editor/extensionRuntime';
+import type { HostDiagramRenderer } from '@shared/editor/diagram';
 
 export const Editor: React.FC = () => {
   const { state, dispatch } = useEditorContext();
@@ -48,8 +56,11 @@ export const Editor: React.FC = () => {
   const translatorRef = useRef(t);
   translatorRef.current = t;
   const [showNumbering, setShowNumbering] = useState(true);
-  const [showSidePanel, setShowSidePanel] = useState(false);
-  const [sidePanelTab, setSidePanelTab] = useState<ActivityTab>('toc');
+  const [activityState, setActivityState] = useState(
+    () => createActivitySessionState(null, { showTemplates: true }),
+  );
+  const activityTriggerRef = useRef<HTMLElement | null>(null);
+  const editorAreaRef = useRef<HTMLDivElement | null>(null);
   const [zoom, setZoom] = useState<number>(() => {
     const saved = localStorage.getItem('sdoc-editor-zoom');
     return saved ? parseInt(saved, 10) : 100;
@@ -88,6 +99,9 @@ export const Editor: React.FC = () => {
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
   const flushUpdateRef = useRef<() => boolean>(() => false);
+  const diagramRendererRef = useRef<HostDiagramRenderer>(
+    async () => ({ kind: 'source-only' }),
+  );
   const extensionRuntime = useMemo<EditorExtensionRuntime>(() => ({
     getSettings: () => settingsRef.current,
     translate: (key, params) => translatorRef.current(key, params),
@@ -103,6 +117,7 @@ export const Editor: React.FC = () => {
       dialogDispatch({ type: 'SET_MATH_DIALOG', payload: { latex, isBlock, pos } }),
     openDiagramDialog: (code: string, language: string, pos: number) =>
       dialogDispatch({ type: 'SET_DIAGRAM_DIALOG', payload: { code, language, pos } }),
+    renderDiagram: (request) => diagramRendererRef.current(request),
   }), [dialogDispatch]);
 
   const { editor, replaceEditorDocument, flushUpdate, flushPendingUpdate } = useTiptapEditor({
@@ -148,8 +163,12 @@ export const Editor: React.FC = () => {
   const {
     postMessage,
     handleViewJson,
-    handleExport,
-    handleImport,
+    handleFileOperation,
+    fileOperationState,
+    renderDiagram,
+    diagramRendererSettings,
+    handleDiagramRendererSettingsChange,
+    handleTestDiagramRenderer,
     handleMetaChange,
     handleRequestTemplateCatalog,
     handleApplyTemplate,
@@ -159,13 +178,11 @@ export const Editor: React.FC = () => {
     handleDeletePersonalTemplate,
     handleOpenPersonalTemplateFolder,
     templates,
-    templateDiagnosticCount,
+    templateDiagnostics,
     isTemplateCatalogLoading,
     isApplyingTemplate,
     isManagingTemplate,
-    personalTemplateRootPath,
     personalTemplateRootScope,
-    isExporting,
     externalChange,
     showExternalComparison,
     setShowExternalComparison,
@@ -187,6 +204,7 @@ export const Editor: React.FC = () => {
     } satisfies DocumentMutation : null,
   });
   postMessageRef.current = postMessage;
+  diagramRendererRef.current = renderDiagram;
 
   const handleToggleNumbering = () => {
     setShowNumbering(!showNumbering);
@@ -196,22 +214,30 @@ export const Editor: React.FC = () => {
     dispatch({ type: 'SET_SETTINGS', payload: { headingDecoration: !state.settings.headingDecoration } });
   };
 
-  const handleActivityTabClick = useCallback((tab: ActivityTab) => {
-    if (showSidePanel && sidePanelTab === tab) {
-      setShowSidePanel(false);
-    } else {
-      setSidePanelTab(tab);
-      setShowSidePanel(true);
-    }
-  }, [showSidePanel, sidePanelTab]);
+  const handleActivityDestinationClick = useCallback((destination: ActivityDestination) => {
+    activityTriggerRef.current = document.getElementById(`activity-destination-${destination}`);
+    setActivityState((current) => transitionActivityDestination(
+      current,
+      destination,
+      { showTemplates: true },
+    ));
+  }, []);
 
   const handleCloseSidePanel = useCallback(() => {
-    const triggerId = `activity-tab-${sidePanelTab}`;
-    setShowSidePanel(false);
-    requestAnimationFrame(() => {
-      document.getElementById(triggerId)?.focus();
-    });
-  }, [sidePanelTab]);
+    setActivityState((current) => selectSidePanel(
+      current,
+      null,
+      { showTemplates: true },
+    ));
+  }, []);
+
+  const handleSidePanelSelection = useCallback((selection: SidePanelSelection) => {
+    setActivityState((current) => selectSidePanel(
+      current,
+      selection,
+      { showTemplates: true },
+    ));
+  }, []);
 
   const handleZoomChange = useCallback((value: number) => {
     const clamped = Math.min(200, Math.max(60, value));
@@ -577,16 +603,17 @@ export const Editor: React.FC = () => {
         />
       )}
       {editor && <BubbleMenuBar editor={editor} />}
-      <div className={`editor-body-layout${showSidePanel ? ' editor-body-with-toc' : ''}`}>
+      <div className={`editor-body-layout${activityState.selection ? ' editor-body-with-toc' : ''}`}>
         <ActivityBar
-          activeTab={showSidePanel ? sidePanelTab : null}
-          onTabClick={handleActivityTabClick}
-          showTemplates
+          activeDestination={activityState.selection?.destination ?? null}
+          onDestinationClick={handleActivityDestinationClick}
         />
-        {showSidePanel && (
+        {activityState.selection && (
           <SidePanel
             onClose={handleCloseSidePanel}
-            activeTab={sidePanelTab}
+            selection={activityState.selection}
+            onSelectionChange={handleSidePanelSelection}
+            returnFocusRef={activityTriggerRef}
             editor={editor}
             settings={state.settings}
             showNumbering={showNumbering}
@@ -596,15 +623,16 @@ export const Editor: React.FC = () => {
             onUpdateDocSettings={handleUpdateDocSettings}
             onPostMessage={postMessage}
             onViewJson={handleViewJson}
-            onExport={handleExport}
-            onImport={handleImport}
-            isExporting={isExporting}
+            onFileOperation={handleFileOperation}
+            fileOperationState={fileOperationState}
+            diagramRendererSettings={diagramRendererSettings}
+            onDiagramRendererSettingsChange={handleDiagramRendererSettingsChange}
+            onTestDiagramRenderer={handleTestDiagramRenderer}
             templates={templates}
-            templateDiagnosticCount={templateDiagnosticCount}
+            templateDiagnostics={templateDiagnostics}
             isTemplateCatalogLoading={isTemplateCatalogLoading}
             isApplyingTemplate={isApplyingTemplate}
             isManagingTemplate={isManagingTemplate}
-            personalTemplateRootPath={personalTemplateRootPath}
             personalTemplateRootScope={personalTemplateRootScope}
             onRefreshTemplates={handleRequestTemplateCatalog}
             onApplyTemplate={handleApplyTemplate}
@@ -615,7 +643,7 @@ export const Editor: React.FC = () => {
             onOpenPersonalTemplateFolder={handleOpenPersonalTemplateFolder}
           />
         )}
-        <div className="editor-content-area" onContextMenu={handleContextMenu}>
+        <div ref={editorAreaRef} className="editor-content-area" onContextMenu={handleContextMenu} tabIndex={-1}>
           <div className="editor-scroll-area">
             <div style={{ zoom: zoom / 100 }}>
               <div className="editor-title-area">
@@ -637,6 +665,7 @@ export const Editor: React.FC = () => {
       </div>
       {dialogs.editorContextMenu && editor && (
         <EditorContextMenu
+          returnFocusRef={editorAreaRef}
           position={dialogs.editorContextMenu}
           editor={editor}
           onInsertImage={handleInsertImage}
@@ -656,6 +685,7 @@ export const Editor: React.FC = () => {
       )}
       {dialogs.contextMenu && editor && (
         <TableContextMenu
+          returnFocusRef={editorAreaRef}
           editor={editor}
           position={dialogs.contextMenu}
           onClose={() => dialogDispatch({ type: 'CLOSE_TABLE_CONTEXT_MENU' })}
@@ -717,6 +747,7 @@ export const Editor: React.FC = () => {
       )}
       {dialogs.imageContextMenu && (
         <ImageContextMenu
+          returnFocusRef={editorAreaRef}
           position={{ x: dialogs.imageContextMenu.x, y: dialogs.imageContextMenu.y }}
           onClose={() => dialogDispatch({ type: 'SET_IMAGE_CONTEXT_MENU', payload: null })}
           onOpenProperties={handleImageContextMenuProperties}
@@ -736,6 +767,7 @@ export const Editor: React.FC = () => {
       )}
       {dialogs.diagramDialog && (
         <DiagramDialog
+          renderDiagram={renderDiagram}
           initialCode={dialogs.diagramDialog.code}
           initialLanguage={dialogs.diagramDialog.language}
           pos={dialogs.diagramDialog.pos}
