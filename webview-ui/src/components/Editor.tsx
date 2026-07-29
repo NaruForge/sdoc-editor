@@ -41,7 +41,7 @@ import {
 } from '@shared/persistence/DocumentSyncCoordinator';
 import type { EditorReplacementReason } from '@shared/editor/documentReplacement';
 import {
-  ExternalChangeBanner,
+  ExternalChangePrompt,
   ExternalChangeComparison,
   buildExternalChangeComparison,
   buildExternalDocumentDiff,
@@ -576,23 +576,26 @@ export const Editor: React.FC = () => {
         onInsertDrawio={handleInsertDrawio}
       />
       {externalChange && (
-        <ExternalChangeBanner
+        <ExternalChangePrompt
           isDirty={hasLocalChanges}
-          message={t('externalChange.message')}
-          compareLabel={t('externalChange.compare')}
-          keepMineLabel={t('externalChange.keepMine')}
-          reloadLabel={t('externalChange.reload')}
           onCompare={() => setShowExternalComparison(true)}
-          onKeepMine={() => {
-            if (window.confirm(t('externalChange.confirmKeepMine'))) {
-              handleKeepLocal();
-            }
-          }}
-          onReload={() => {
-            if (!hasLocalChanges
-              || window.confirm(t('externalChange.confirmReload'))) {
-              handleReloadExternal();
-            }
+          onKeepMine={handleKeepLocal}
+          onReload={handleReloadExternal}
+          fallbackFocusRef={editorAreaRef}
+          labels={{
+            message: t('externalChange.message'),
+            compare: t('externalChange.compare'),
+            keepMine: t('externalChange.keepMine'),
+            reload: t('externalChange.reload'),
+            keepTitle: t('externalChange.keepMineTitle'),
+            reloadTitle: t('externalChange.reloadTitle'),
+            keepConfirm: t('externalChange.confirmKeepMine'),
+            reloadConfirm: t('externalChange.confirmReload'),
+            cancel: t('common.cancel'),
+            keepRunning: t('externalChange.keepMineRunning'),
+            reloadRunning: t('externalChange.reloadRunning'),
+            failure: t('externalChange.resolutionFailed'),
+            retry: t('externalChange.retry'),
           }}
         />
       )}

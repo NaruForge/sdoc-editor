@@ -230,7 +230,7 @@ export class DocumentSyncCoordinator {
   }
 
   /** User chose “keep mine”; rebase and send the newest editor snapshot. */
-  public keepLocal(revision: number): void {
+  public keepLocal(revision: number): number {
     const latest = this.current.localMutation;
     const localGeneration = latest
       ? this.current.localGeneration + 1
@@ -248,6 +248,7 @@ export class DocumentSyncCoordinator {
       externalChange: null,
     };
     this.dispatchNext();
+    return localGeneration;
   }
 
   /** User chose reload/template; reset persistence state to that explicit snapshot. */

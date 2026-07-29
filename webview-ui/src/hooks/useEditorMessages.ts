@@ -28,6 +28,10 @@ import {
   SaveCoordinator,
   type DocumentMutation,
 } from '@shared/persistence/DocumentSyncCoordinator';
+import {
+  keepLocalThroughAcknowledgement,
+  reloadExternalChangeAfterReplacement,
+} from '@shared/persistence/externalChangeResolution';
 import type { EditorReplacementReason } from '@shared/editor/documentReplacement';
 import type { UiLanguagePreference } from '@shared/editor/i18n';
 
@@ -630,27 +634,48 @@ export function useEditorMessages({
     });
   };
 
-  const handleKeepLocal = () => {
-    if (!externalChange) return;
-    syncCoordinatorRef.current?.keepLocal(externalChange.revision);
-    if (persistenceSessionRef.current) {
-      persistenceSessionRef.current.revision = externalChange.revision;
+  const handleKeepLocal = async (): Promise<void> => {
+    const sync = syncCoordinatorRef.current;
+    if (!externalChange || !sync) {
+      throw new Error('No external document change is available.');
     }
-    setExternalChange(null);
-    setShowExternalComparison(false);
+    try {
+      const observed = await keepLocalThroughAcknowledgement(sync, externalChange.revision);
+      setExternalChange(observed
+        ? { revision: observed.revision, snapshot: observed.hostSnapshot }
+        : null);
+      if (!observed) setShowExternalComparison(false);
+    } catch (error: unknown) {
+      console.error('Failed to keep local document after an external change', error);
+      throw error;
+    }
   };
 
-  const handleReloadExternal = () => {
-    if (!externalChange) return;
-    replaceEditorDocumentRef.current?.('user-reload', externalChange.snapshot.content);
-    syncCoordinatorRef.current?.adoptReplacement(externalChange.revision, externalChange.snapshot);
-    if (persistenceSessionRef.current) {
-      persistenceSessionRef.current.revision = externalChange.revision;
+  const handleReloadExternal = async (): Promise<void> => {
+    if (!externalChange) {
+      throw new Error('No external document change is available.');
     }
-    setMeta(replaceMetaState(externalChange.snapshot.meta));
-    dispatch({ type: 'SET_DOC_SETTINGS', payload: externalChange.snapshot.documentSettings });
-    setExternalChange(null);
-    setShowExternalComparison(false);
+    try {
+      await reloadExternalChangeAfterReplacement({
+        sync: syncCoordinatorRef.current,
+        revision: externalChange.revision,
+        snapshot: externalChange.snapshot,
+        replace: () => replaceEditorDocumentRef.current?.(
+          'user-reload',
+          externalChange.snapshot.content,
+        ) ?? false,
+      });
+      if (persistenceSessionRef.current) {
+        persistenceSessionRef.current.revision = externalChange.revision;
+      }
+      setMeta(replaceMetaState(externalChange.snapshot.meta));
+      dispatch({ type: 'SET_DOC_SETTINGS', payload: externalChange.snapshot.documentSettings });
+      setExternalChange(null);
+      setShowExternalComparison(false);
+    } catch (error: unknown) {
+      console.error('Failed to reload an external document change', error);
+      throw error;
+    }
   };
 
   return {

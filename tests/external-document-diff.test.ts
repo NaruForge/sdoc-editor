@@ -5,8 +5,12 @@ import type { TiptapNode } from '../shared/types';
 import {
   ExternalChangeBanner,
   ExternalChangeComparison,
+  ExternalChangePrompt,
   buildExternalChangeComparison,
   buildExternalDocumentDiff,
+  externalChangePromptTabTarget,
+  initialExternalChangePromptState,
+  reduceExternalChangePromptState,
 } from '../shared/editor/externalChanges';
 
 const text = (value: string): TiptapNode => ({ type: 'text', text: value });
@@ -163,5 +167,94 @@ describe('external change comparison UI', () => {
     expect(markup).toContain('External');
     expect(markup).toContain('Changed');
     expect(markup).toContain('Close comparison');
+  });
+});
+
+describe('external change resolution prompt', () => {
+  it('uses a discriminated state machine and blocks cancellation or duplicate actions while running', () => {
+    const confirming = reduceExternalChangePromptState(initialExternalChangePromptState, {
+      type: 'confirm',
+      resolution: 'keep-mine',
+    });
+    expect(confirming).toEqual({ kind: 'confirming', resolution: 'keep-mine' });
+
+    const running = reduceExternalChangePromptState(confirming, { type: 'run' });
+    expect(running).toEqual({ kind: 'running', resolution: 'keep-mine' });
+    expect(reduceExternalChangePromptState(running, { type: 'cancel' })).toBe(running);
+    expect(
+      reduceExternalChangePromptState(running, {
+        type: 'confirm',
+        resolution: 'reload',
+      }),
+    ).toBe(running);
+
+    const failed = reduceExternalChangePromptState(running, { type: 'fail' });
+    expect(failed).toEqual({ kind: 'failed', resolution: 'keep-mine' });
+    expect(reduceExternalChangePromptState(failed, { type: 'run' })).toEqual({
+      kind: 'running',
+      resolution: 'keep-mine',
+    });
+    expect(reduceExternalChangePromptState(failed, { type: 'cancel' })).toBe(initialExternalChangePromptState);
+  });
+
+  it('wraps Tab and Shift+Tab and traps focus even when running disables every control', () => {
+    expect(externalChangePromptTabTarget(1, 2, false)).toBe(0);
+    expect(externalChangePromptTabTarget(0, 2, true)).toBe(1);
+    expect(externalChangePromptTabTarget(-1, 2, false)).toBe(0);
+    expect(externalChangePromptTabTarget(-1, 0, false)).toBe(-1);
+  });
+
+  it('renders localized banner actions without exposing a dialog before confirmation', () => {
+    const markup = renderToStaticMarkup(
+      React.createElement(ExternalChangePrompt, {
+        isDirty: true,
+        onCompare: vi.fn(),
+        onKeepMine: vi.fn(async () => undefined),
+        onReload: vi.fn(async () => undefined),
+        labels: {
+          message: 'Changed elsewhere',
+          compare: 'Inspect',
+          keepMine: 'Preserve local',
+          reload: 'Use disk',
+        },
+      }),
+    );
+
+    expect(markup).toContain('Changed elsewhere');
+    expect(markup).toContain('Inspect');
+    expect(markup).toContain('Preserve local');
+    expect(markup).toContain('Use disk');
+    expect(markup).not.toContain('role="alertdialog"');
+  });
+
+  it('exposes banner busy, disabled, status, and generic error semantics', () => {
+    const callbacks = {
+      onCompare: vi.fn(),
+      onKeepMine: vi.fn(),
+      onReload: vi.fn(),
+    };
+    const busyMarkup = renderToStaticMarkup(
+      React.createElement(ExternalChangeBanner, {
+        isDirty: true,
+        ...callbacks,
+        busy: true,
+        disabled: true,
+        status: 'Reloading safely',
+      }),
+    );
+    const failedMarkup = renderToStaticMarkup(
+      React.createElement(ExternalChangeBanner, {
+        isDirty: true,
+        ...callbacks,
+        error: 'Resolution failed',
+      }),
+    );
+
+    expect(busyMarkup).toContain('aria-busy="true"');
+    expect(busyMarkup.match(/disabled=""/g)).toHaveLength(3);
+    expect(busyMarkup).toContain('role="status"');
+    expect(busyMarkup).toContain('Reloading safely');
+    expect(failedMarkup).toContain('role="alert"');
+    expect(failedMarkup).toContain('Resolution failed');
   });
 });

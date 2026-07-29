@@ -33,6 +33,7 @@ import {
 } from '@shared/editor/diagram';
 import { NOOP_EDITOR_EXTENSION_RUNTIME } from '@shared/editor/extensionRuntime';
 import { CustomTable } from '@shared/editor/extensions/CustomTable';
+import { ExternalChangePrompt } from '@shared/editor/externalChanges';
 import { FILE_OPERATION_IDLE_STATE } from '@shared/editor/fileOperations';
 import { createEditorTranslator } from '@shared/editor/i18n';
 import type { ManagedTemplateDescriptor } from '@shared/types/messages';
@@ -43,7 +44,7 @@ import './harness.css';
 type Host = 'vscode' | 'tauri';
 type Theme = 'light' | 'dark' | 'hc';
 type Locale = 'ko' | 'en';
-type Scene = 'editor' | 'settings' | 'templates' | 'files' | 'diagram-error';
+type Scene = 'editor' | 'settings' | 'templates' | 'files' | 'diagram-error' | 'external-change';
 
 const TEMPLATE_FIXTURES: readonly ManagedTemplateDescriptor[] = [
   {
@@ -296,7 +297,7 @@ function SharedPanelScene({
   editor: Editor;
   host: Host;
   locale: Locale;
-  scene: Exclude<Scene, 'editor' | 'diagram-error'>;
+  scene: Exclude<Scene, 'editor' | 'diagram-error' | 'external-change'>;
 }) {
   const returnFocusRef = useRef<HTMLButtonElement | null>(null);
   const [open, setOpen] = useState(true);
@@ -397,6 +398,81 @@ function DiagramErrorScene({ editor, host, locale }: {
   );
 }
 
+function ExternalChangeScene({ locale }: { locale: Locale }) {
+  const t = createEditorTranslator(locale);
+  const fallbackFocusRef = useRef<HTMLButtonElement | null>(null);
+  const pendingRef = useRef<{
+    resolve: () => void;
+    reject: (reason: Error) => void;
+  } | null>(null);
+  const [visible, setVisible] = useState(true);
+  const [attempts, setAttempts] = useState(0);
+
+  const runResolution = () => new Promise<void>((resolve, reject) => {
+    pendingRef.current = { resolve, reject };
+    setAttempts((current) => current + 1);
+  }).then(() => {
+    pendingRef.current = null;
+    setVisible(false);
+  }, (error: unknown) => {
+    pendingRef.current = null;
+    throw error;
+  });
+
+  return (
+    <div
+      className="host-frame scene-surface external-change-scene"
+      data-scene="external-change"
+      style={{ minHeight: '100vh', position: 'relative' }}
+    >
+      <button ref={fallbackFocusRef} type="button" data-testid="external-change-fallback">
+        {locale === 'ko' ? '편집기로 돌아가기' : 'Return to editor'}
+      </button>
+      {visible && (
+        <ExternalChangePrompt
+          isDirty
+          onCompare={() => undefined}
+          onKeepMine={runResolution}
+          onReload={runResolution}
+          fallbackFocusRef={fallbackFocusRef}
+          labels={{
+            message: t('externalChange.message'),
+            compare: t('externalChange.compare'),
+            keepMine: t('externalChange.keepMine'),
+            reload: t('externalChange.reload'),
+            keepTitle: t('externalChange.keepMineTitle'),
+            reloadTitle: t('externalChange.reloadTitle'),
+            keepConfirm: t('externalChange.confirmKeepMine'),
+            reloadConfirm: t('externalChange.confirmReload'),
+            cancel: t('common.cancel'),
+            keepRunning: t('externalChange.keepMineRunning'),
+            reloadRunning: t('externalChange.reloadRunning'),
+            failure: t('externalChange.resolutionFailed'),
+            retry: t('externalChange.retry'),
+          }}
+        />
+      )}
+      <output data-testid="external-change-attempts">{attempts}</output>
+      <button
+        type="button"
+        hidden
+        data-testid="external-change-resolve"
+        onClick={() => pendingRef.current?.resolve()}
+      >
+        Resolve operation
+      </button>
+      <button
+        type="button"
+        hidden
+        data-testid="external-change-reject"
+        onClick={() => pendingRef.current?.reject(new Error('fixture write failure'))}
+      >
+        Reject operation
+      </button>
+    </div>
+  );
+}
+
 function useSceneReady(scene: Scene): boolean {
   const [ready, setReady] = useState(scene !== 'diagram-error');
 
@@ -420,7 +496,7 @@ function App() {
   const locale = queryValue('locale', ['ko', 'en'] as const, 'en');
   const scene = queryValue(
     'scene',
-    ['editor', 'settings', 'templates', 'files', 'diagram-error'] as const,
+    ['editor', 'settings', 'templates', 'files', 'diagram-error', 'external-change'] as const,
     'editor',
   );
   const params = new URLSearchParams(window.location.search);
@@ -441,11 +517,14 @@ function App() {
         data-theme={theme}
         data-ready={ready ? 'true' : 'false'}
       >
-        {scene !== 'editor' && scene !== 'diagram-error' && (
+        {(scene === 'settings' || scene === 'templates' || scene === 'files') && (
           <SharedPanelScene editor={editor} host={host} locale={locale} scene={scene} />
         )}
         {scene === 'diagram-error' && (
           <DiagramErrorScene editor={editor} host={host} locale={locale} />
+        )}
+        {scene === 'external-change' && (
+          <ExternalChangeScene locale={locale} />
         )}
         {scene === 'editor' && (
         <div className="host-frame">

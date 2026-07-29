@@ -83,7 +83,11 @@ acknowledgement while later input remains editable. Tauri additionally uses a
 document-session hydration generation so late asset resolution cannot replace
 the active document. External changes use the shared non-modal banner and
 read-only block comparison in `shared/editor/externalChanges/`; no automatic
-refresh or merge is performed. See [ADR 0010](adr/0010-use-single-flight-document-mutations-and-explicit-replacement.md).
+refresh or merge is performed. Conflict decisions use a shared accessible
+confirmation dialog. Keeping local changes waits for the correlated host
+acknowledgement, while cancellation or failure preserves both the local draft
+and the external-change notice. See
+[ADR 0010](adr/0010-use-single-flight-document-mutations-and-explicit-replacement.md).
 
 A later user save/switch/close barrier may retry a transient write or transport
 failure. Conflict and invalid-document errors never retry through that path;

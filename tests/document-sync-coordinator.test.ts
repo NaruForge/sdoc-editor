@@ -244,13 +244,14 @@ describe('DocumentSyncCoordinator', () => {
     sync.adoptReplacement(4, mutation('pristine local'));
     sync.observeExternalChange(5, mutation('external'));
 
-    sync.keepLocal(5);
+    const keptGeneration = sync.keepLocal(5);
     let completed = false;
-    const barrier = sync.flushThrough();
+    const barrier = sync.flushThrough(keptGeneration);
     void barrier.then(() => { completed = true; });
     await Promise.resolve();
 
     expect(sent).toHaveLength(1);
+    expect(keptGeneration).toBe(1);
     expect(completed).toBe(false);
     expect(sent[0]).toMatchObject({
       editId: 'keep-pristine',
@@ -266,6 +267,35 @@ describe('DocumentSyncCoordinator', () => {
     });
     await barrier;
     expect(completed).toBe(true);
+  });
+
+  it('keeps the local snapshot available when a keep-mine write is rejected', async () => {
+    const sent: DocumentMutationRequest[] = [];
+    const sync = new DocumentSyncCoordinator({
+      identity: { sessionId: 'session-a', documentId: 'doc-a', revision: 4 },
+      createEditId: () => 'keep-failed',
+      send: (request) => { sent.push(request); },
+    });
+    const local = mutation('local draft');
+    sync.adoptReplacement(4, local);
+    sync.observeExternalChange(5, mutation('external'));
+
+    const keptGeneration = sync.keepLocal(5);
+    const barrier = sync.flushThrough(keptGeneration);
+    sync.reject({
+      sessionId: 'session-a',
+      documentId: 'doc-a',
+      editId: 'keep-failed',
+      revision: 5,
+      code: 'WRITE_FAILED',
+      message: 'write failed',
+    });
+
+    await expect(barrier).rejects.toThrow('write failed');
+    expect(sent).toHaveLength(1);
+    expect(sync.state.localMutation).toEqual(local);
+    expect(sync.state.acknowledgedGeneration).toBe(0);
+    expect(sync.state.error?.code).toBe('WRITE_FAILED');
   });
 
   it('keeps rejecting repeated save barriers until an errored mutation is retried', async () => {

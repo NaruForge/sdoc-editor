@@ -4,7 +4,7 @@ import { expect, test, type Page } from '@playwright/test';
 type Host = 'vscode' | 'tauri';
 type Theme = 'light' | 'dark' | 'hc';
 type Locale = 'ko' | 'en';
-type Scene = 'editor' | 'settings' | 'templates' | 'files' | 'diagram-error';
+type Scene = 'editor' | 'settings' | 'templates' | 'files' | 'diagram-error' | 'external-change';
 
 interface FixtureOptions {
   width: number;
@@ -284,6 +284,96 @@ test.describe('responsive side panel contract', () => {
   });
 });
 
+test.describe('external change resolution prompt', () => {
+  test('cancel, Escape, and wrapped Tab restore the triggering Keep button', async ({ page }) => {
+    await openFixture(page, {
+      width: 800,
+      height: 700,
+      host: 'vscode',
+      locale: 'en',
+      scene: 'external-change',
+    });
+
+    const keepButton = page.getByRole('button', { name: 'Keep my changes' });
+    await keepButton.click();
+    const dialog = page.getByRole('alertdialog');
+    const cancelButton = dialog.getByRole('button', { name: 'Cancel' });
+    const confirmButton = dialog.getByRole('button', { name: 'Keep my changes' });
+    await expect(cancelButton).toBeFocused();
+
+    await page.keyboard.press('Shift+Tab');
+    await expect(confirmButton).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(cancelButton).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    await expect(keepButton).toBeFocused();
+  });
+
+  test('failure remains recoverable and success closes only after the correlated operation', async ({ page }) => {
+    await openFixture(page, {
+      width: 800,
+      height: 700,
+      host: 'tauri',
+      locale: 'en',
+      scene: 'external-change',
+    });
+
+    await page.getByRole('button', { name: 'Keep my changes' }).click();
+    const dialog = page.getByRole('alertdialog');
+    await dialog.getByRole('button', { name: 'Keep my changes' }).click();
+    await expect(dialog).toHaveAttribute('aria-busy', 'true');
+    await expect(page.getByTestId('external-change-banner')).toHaveAttribute('aria-busy', 'true');
+    await expect(page.getByTestId('external-change-attempts')).toHaveText('1');
+
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeVisible();
+    await page.getByTestId('external-change-reject').evaluate((button: HTMLButtonElement) => {
+      button.click();
+    });
+    await expect(dialog.getByRole('alert')).toContainText('could not be resolved');
+    await expect(page.getByTestId('external-change-banner')).toBeVisible();
+
+    await dialog.getByRole('button', { name: 'Retry' }).click();
+    await expect(page.getByTestId('external-change-attempts')).toHaveText('2');
+    await page.getByTestId('external-change-resolve').evaluate((button: HTMLButtonElement) => {
+      button.click();
+    });
+    await expect(page.getByTestId('external-change-banner')).toBeHidden();
+    await expect(dialog).toBeHidden();
+    await expect(page.getByTestId('external-change-fallback')).toBeFocused();
+  });
+
+  test('Reload uses the same accessible dialog without horizontal overflow', async ({ page }) => {
+    await openFixture(page, {
+      width: 320,
+      height: 700,
+      host: 'vscode',
+      locale: 'en',
+      scene: 'external-change',
+    });
+
+    const reloadButton = page.getByRole('button', { name: 'Reload external version' });
+    await reloadButton.click();
+    const dialog = page.getByRole('alertdialog');
+    await expect(dialog.getByRole('heading')).toHaveText('Reload the external version?');
+    const accessibility = await new AxeBuilder({ page })
+      .include('.quality-harness')
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+      .analyze();
+    expect(accessibility.violations).toEqual([]);
+    const dimensions = await dialog.evaluate((element) => ({
+      clientWidth: element.clientWidth,
+      scrollWidth: element.scrollWidth,
+    }));
+    expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth + 1);
+
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    await expect(reloadButton).toBeFocused();
+  });
+});
+
 test.describe('accessibility and visual regions', () => {
   const scenes: Array<Required<Omit<
     FixtureOptions,
@@ -317,7 +407,7 @@ test.describe('accessibility and visual regions', () => {
 
 test.describe('commercial workflow scene gate', () => {
   interface WorkflowScene {
-    scene: Exclude<Scene, 'editor'>;
+    scene: Exclude<Scene, 'editor' | 'external-change'>;
     width: 800 | 1024 | 1440;
     host: Host;
     theme: Theme;

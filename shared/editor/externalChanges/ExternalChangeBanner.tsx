@@ -6,6 +6,10 @@ export interface ExternalChangeBannerProps {
   readonly onCompare: () => void;
   readonly onKeepMine: () => void;
   readonly onReload: () => void;
+  readonly disabled?: boolean;
+  readonly busy?: boolean;
+  readonly status?: string;
+  readonly error?: string;
   readonly message?: string;
   readonly compareLabel?: string;
   readonly keepMineLabel?: string;
@@ -21,6 +25,10 @@ export const ExternalChangeBanner: React.FC<ExternalChangeBannerProps> = ({
   onCompare,
   onKeepMine,
   onReload,
+  disabled = false,
+  busy = false,
+  status,
+  error,
   message = 'This document changed outside the editor.',
   compareLabel = 'Compare',
   keepMineLabel = 'Keep mine',
@@ -29,19 +37,37 @@ export const ExternalChangeBanner: React.FC<ExternalChangeBannerProps> = ({
   <section
     className="external-change-banner"
     aria-label="External document change"
+    aria-busy={busy || undefined}
     data-testid="external-change-banner"
   >
-    <p className="external-change-banner__message">{message}</p>
+    <div className="external-change-banner__copy">
+      <p className="external-change-banner__message">{message}</p>
+      {status && (
+        <p className="external-change-banner__status" role="status">
+          {status}
+        </p>
+      )}
+      {error && (
+        <p className="external-change-banner__error" role="alert">
+          {error}
+        </p>
+      )}
+    </div>
     <div className="external-change-banner__actions">
-      <button type="button" className="external-change-action" onClick={onCompare}>
+      <button type="button" className="external-change-action" disabled={disabled} onClick={onCompare}>
         {compareLabel}
       </button>
       {isDirty && (
-        <button type="button" className="external-change-action" onClick={onKeepMine}>
+        <button type="button" className="external-change-action" disabled={disabled} onClick={onKeepMine}>
           {keepMineLabel}
         </button>
       )}
-      <button type="button" className="external-change-action external-change-action--primary" onClick={onReload}>
+      <button
+        type="button"
+        className="external-change-action external-change-action--primary"
+        disabled={disabled}
+        onClick={onReload}
+      >
         {reloadLabel}
       </button>
     </div>

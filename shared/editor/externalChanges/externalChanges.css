@@ -11,13 +11,32 @@
 
 .external-change-banner__message {
   margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.external-change-banner__copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.external-change-banner__status,
+.external-change-banner__error {
+  font-size: 0.875em;
+  margin: 0;
+}
+
+.external-change-banner__error,
+.external-change-prompt__error {
+  color: var(--vscode-errorForeground, #f14c4c);
 }
 
 .external-change-banner__actions {
   display: flex;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
   flex-wrap: wrap;
   gap: 6px;
+  min-width: 0;
 }
 
 .external-change-action {
@@ -26,11 +45,18 @@
   color: var(--vscode-button-secondaryForeground, #fff);
   cursor: pointer;
   font: inherit;
+  max-width: 100%;
+  overflow-wrap: anywhere;
   padding: 5px 10px;
 }
 
 .external-change-action:hover {
   background: var(--vscode-button-secondaryHoverBackground, #45494e);
+}
+
+.external-change-action:disabled {
+  cursor: default;
+  opacity: 0.6;
 }
 
 .external-change-action:focus-visible {
@@ -131,6 +157,50 @@
 .external-comparison__empty {
   font-style: italic;
   opacity: 0.65;
+}
+
+.external-change-prompt__scrim {
+  align-items: center;
+  background: rgb(0 0 0 / 45%);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 20px;
+  position: fixed;
+  z-index: 1000;
+}
+
+.external-change-prompt {
+  background: var(--vscode-editorWidget-background, #252526);
+  border: 1px solid var(--vscode-editorWidget-border, #454545);
+  box-sizing: border-box;
+  box-shadow: 0 8px 32px rgb(0 0 0 / 35%);
+  color: var(--vscode-editorWidget-foreground, inherit);
+  max-width: min(480px, calc(100vw - 40px));
+  min-width: 0;
+  padding: 20px;
+  width: 100%;
+}
+
+.external-change-prompt h2 {
+  font-size: 1.125rem;
+  margin: 0 0 10px;
+}
+
+.external-change-prompt p {
+  line-height: 1.5;
+  margin: 0 0 16px;
+}
+
+.external-change-prompt__status {
+  opacity: 0.8;
+}
+
+.external-change-prompt__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
 }
 
 @media (max-width: 640px) {

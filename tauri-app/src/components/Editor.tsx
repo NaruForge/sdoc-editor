@@ -58,9 +58,13 @@ import {
   SaveCoordinator,
   type DocumentMutation,
 } from '@shared/persistence/DocumentSyncCoordinator';
+import {
+  keepLocalThroughAcknowledgement,
+  reloadExternalChangeAfterReplacement,
+} from '@shared/persistence/externalChangeResolution';
 import { DocumentHydrationCoordinator } from '../documentHydration';
 import {
-  ExternalChangeBanner,
+  ExternalChangePrompt,
   ExternalChangeComparison,
   buildExternalChangeComparison,
   buildExternalDocumentDiff,
@@ -899,22 +903,45 @@ export const Editor: React.FC<EditorProps> = ({
   }, [dispatch, editor]);
 
   const handleKeepExternal = useCallback(async () => {
-    const accepted = await adapter.acceptExternalChange();
-    syncCoordinatorRef.current?.keepLocal(accepted.revision);
-    setExternalChange(null);
-    setShowExternalComparison(false);
+    try {
+      const accepted = await adapter.acceptExternalChange();
+      const sync = syncCoordinatorRef.current;
+      if (!sync) throw new Error('No active document synchronization session.');
+      setSaveStatus('saving');
+      const observed = await keepLocalThroughAcknowledgement(sync, accepted.revision);
+      setExternalChange(observed
+        ? { revision: observed.revision, snapshot: observed.hostSnapshot }
+        : null);
+      if (!observed) setShowExternalComparison(false);
+    } catch (error: unknown) {
+      setSaveStatus('error');
+      console.error('Failed to keep local document after an external change', error);
+      throw error;
+    }
   }, [adapter]);
 
   const handleReloadExternal = useCallback(async () => {
-    const accepted = await adapter.acceptExternalChange();
-    const hydrated = await convertImagePaths(accepted.snapshot.content);
-    replaceEditorDocument('user-reload', hydrated);
-    syncCoordinatorRef.current?.adoptReplacement(accepted.revision, accepted.snapshot);
-    setMeta(replaceMetaState(accepted.snapshot.meta));
-    dispatch({ type: 'SET_DOC_SETTINGS', payload: accepted.snapshot.documentSettings });
-    setExternalChange(null);
-    setShowExternalComparison(false);
-    setSaveStatus('saved');
+    try {
+      const accepted = await adapter.acceptExternalChange();
+      await reloadExternalChangeAfterReplacement({
+        sync: syncCoordinatorRef.current,
+        revision: accepted.revision,
+        snapshot: accepted.snapshot,
+        replace: async () => {
+          const hydrated = await convertImagePaths(accepted.snapshot.content);
+          return replaceEditorDocument('user-reload', hydrated);
+        },
+      });
+      setMeta(replaceMetaState(accepted.snapshot.meta));
+      dispatch({ type: 'SET_DOC_SETTINGS', payload: accepted.snapshot.documentSettings });
+      setExternalChange(null);
+      setShowExternalComparison(false);
+      setSaveStatus('saved');
+    } catch (error: unknown) {
+      setSaveStatus('error');
+      console.error('Failed to reload an external document change', error);
+      throw error;
+    }
   }, [adapter, dispatch, replaceEditorDocument]);
   const handleContextMenu = (event: React.MouseEvent) => {
     event.preventDefault();
@@ -1235,29 +1262,26 @@ export const Editor: React.FC<EditorProps> = ({
         onInsertDrawio={handleInsertDrawio}
       />
       {externalChange && (
-        <ExternalChangeBanner
+        <ExternalChangePrompt
           isDirty={hasLocalChanges}
-          message={t('externalChange.message')}
-          compareLabel={t('externalChange.compare')}
-          keepMineLabel={t('externalChange.keepMine')}
-          reloadLabel={t('externalChange.reload')}
           onCompare={() => setShowExternalComparison(true)}
-          onKeepMine={() => {
-            if (window.confirm(t('externalChange.confirmKeepMine'))) {
-              void handleKeepExternal().catch((error: unknown) => {
-                setSaveStatus('error');
-                console.error('Failed to keep local document', error);
-              });
-            }
-          }}
-          onReload={() => {
-            if (!hasLocalChanges
-              || window.confirm(t('externalChange.confirmReload'))) {
-              void handleReloadExternal().catch((error: unknown) => {
-                setSaveStatus('error');
-                console.error('Failed to reload external document', error);
-              });
-            }
+          onKeepMine={handleKeepExternal}
+          onReload={handleReloadExternal}
+          fallbackFocusRef={editorAreaRef}
+          labels={{
+            message: t('externalChange.message'),
+            compare: t('externalChange.compare'),
+            keepMine: t('externalChange.keepMine'),
+            reload: t('externalChange.reload'),
+            keepTitle: t('externalChange.keepMineTitle'),
+            reloadTitle: t('externalChange.reloadTitle'),
+            keepConfirm: t('externalChange.confirmKeepMine'),
+            reloadConfirm: t('externalChange.confirmReload'),
+            cancel: t('common.cancel'),
+            keepRunning: t('externalChange.keepMineRunning'),
+            reloadRunning: t('externalChange.reloadRunning'),
+            failure: t('externalChange.resolutionFailed'),
+            retry: t('externalChange.retry'),
           }}
         />
       )}
