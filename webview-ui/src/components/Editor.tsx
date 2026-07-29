@@ -120,6 +120,17 @@ export const Editor: React.FC = () => {
     renderDiagram: (request) => diagramRendererRef.current(request),
   }), [dialogDispatch]);
 
+  const handleEditorTextFocusChange = useCallback((focused: boolean) => {
+    const session = persistenceSessionRef.current;
+    if (!session) return;
+    postMessageRef.current({
+      type: 'editorTextFocusChanged',
+      sessionId: session.sessionId,
+      documentId: session.documentId,
+      focused,
+    });
+  }, []);
+
   const { editor, replaceEditorDocument, flushUpdate, flushPendingUpdate } = useTiptapEditor({
     onUpdate: (content) => {
       syncCoordinatorRef.current?.submit({
@@ -132,6 +143,7 @@ export const Editor: React.FC = () => {
     // VS Code owns Ctrl+S. Its onWillSave participant requests exactly one flush.
     handleSaveShortcut: false,
     translationLocale: state.locale,
+    onEditorTextFocusChange: handleEditorTextFocusChange,
   });
   flushUpdateRef.current = flushUpdate;
 

@@ -6,6 +6,8 @@ interface PackageManifest {
   activationEvents?: unknown;
   contributes?: {
     customEditors?: unknown;
+    commands?: unknown;
+    keybindings?: unknown;
     configuration?: {
       properties?: Record<string, unknown>;
     };
@@ -37,5 +39,25 @@ describe('VS Code package manifest', () => {
         enum: ['auto', 'ko', 'en'],
         scope: 'window',
       }));
+  });
+
+  it('routes the platform bold shortcut to the focused editable sdoc editor', () => {
+    expect(manifest.contributes?.commands).toEqual(expect.arrayContaining([
+      expect.objectContaining({ command: 'structuredDocEditor.toggleBold' }),
+    ]));
+    expect(manifest.contributes?.keybindings).toEqual(expect.arrayContaining([
+      {
+        command: 'structuredDocEditor.toggleBold',
+        key: 'ctrl+b',
+        mac: 'cmd+b',
+        when: 'activeCustomEditorId == structuredDocEditor.sdoc && focusedCustomEditorIsEditable && structuredDocEditor.editorTextFocus',
+      },
+    ]));
+    expect(manifest.contributes?.menus?.commandPalette).toEqual(expect.arrayContaining([
+      {
+        command: 'structuredDocEditor.toggleBold',
+        when: 'false',
+      },
+    ]));
   });
 });

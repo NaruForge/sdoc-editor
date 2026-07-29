@@ -13,6 +13,7 @@ interface UseTiptapEditorOptions {
   runtime: EditorExtensionRuntime;
   handleSaveShortcut?: boolean;
   translationLocale?: string;
+  onEditorTextFocusChange?: (focused: boolean) => void;
 }
 
 interface SaveShortcutEvent {
@@ -63,18 +64,29 @@ export const useTiptapEditor = ({
   runtime,
   handleSaveShortcut = true,
   translationLocale,
+  onEditorTextFocusChange,
 }: UseTiptapEditorOptions) => {
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const updateGateRef = useRef(new PendingEditorUpdateGate());
   const replacementBoundaryRef = useRef(new EditorDocumentReplacementBoundary<JSONContent>());
   const onUpdateRef = useRef(onUpdate);
   useEffect(() => { onUpdateRef.current = onUpdate; }, [onUpdate]);
+  const onEditorTextFocusChangeRef = useRef(onEditorTextFocusChange);
+  useEffect(() => {
+    onEditorTextFocusChangeRef.current = onEditorTextFocusChange;
+  }, [onEditorTextFocusChange]);
 
   const extensions = useMemo(() => createTiptapExtensions(runtime), [runtime]);
   const editor = useEditor({
     extensions,
     content: '',
     editable: false,
+    onFocus: () => {
+      onEditorTextFocusChangeRef.current?.(true);
+    },
+    onBlur: () => {
+      onEditorTextFocusChangeRef.current?.(false);
+    },
     onUpdate: ({ editor }) => {
       updateGateRef.current.markPending();
       // Debounce updates to avoid too many messages

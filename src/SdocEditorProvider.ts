@@ -17,7 +17,10 @@ import {
   SETTINGS_DEFAULTS,
 } from '../shared/settingsResolver';
 import type { DocumentSettings, CaptionStyleName, SdocMeta, TiptapNode } from '../shared/types';
-import type { EditorToHostMessage, PersonalTemplateOperation } from '../shared/types/messages';
+import type {
+  EditorToHostMessage,
+  PersonalTemplateOperation,
+} from '../shared/types/messages';
 import { isEditorToHostMessage } from '../shared/types/messageGuards';
 import { VsCodeAssetService } from './services/VsCodeAssetService';
 import { VsCodeExportService, type ExportFormat } from './services/VsCodeExportService';
@@ -67,9 +70,15 @@ import {
   resolveUiLanguagePreference,
   type UiLanguagePreference,
 } from '../shared/editor/i18n/locale';
+import {
+  EditorTextFocusCoordinator,
+  type EditorTextFocusIdentity,
+} from './editorTextFocusCoordinator';
 
 export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
   private static readonly SDOC_VERSION = '1.0';
+  private static readonly EDITOR_TEXT_FOCUS_CONTEXT = 'structuredDocEditor.editorTextFocus';
+  private static readonly TOGGLE_BOLD_COMMAND = 'structuredDocEditor.toggleBold';
   private static watcherGeneration = 0;
   private static instance: SdocEditorProvider | undefined;
   private readonly assetService = new VsCodeAssetService();
@@ -88,7 +97,18 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         supportsMultipleEditorsPerDocument: false,
       }
     );
-    return providerRegistration;
+    const toggleBoldRegistration = vscode.commands.registerCommand(
+      SdocEditorProvider.TOGGLE_BOLD_COMMAND,
+      // Winning VS Code's keybinding resolution prevents the workbench sidebar
+      // command. The original DOM keyboard event still reaches ProseMirror,
+      // which owns the single document mutation and preserves its selection.
+      () => undefined,
+    );
+    return vscode.Disposable.from(
+      providerRegistration,
+      toggleBoldRegistration,
+      { dispose: () => provider.dispose() },
+    );
   }
 
   public static async exportActiveDocument(format: ExportFormat): Promise<void> {
@@ -115,8 +135,52 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     panel: vscode.WebviewPanel;
     sessionId: string;
   }>();
+  private readonly editorTextFocus = new EditorTextFocusCoordinator<vscode.WebviewPanel>();
+  private focusContextUpdates: Promise<unknown> = Promise.resolve();
+
   constructor(private readonly context: vscode.ExtensionContext) {
     this.exportService = new VsCodeExportService(context);
+    this.setEditorTextFocusContext(false);
+  }
+
+  private setEditorTextFocusContext(value: boolean): void {
+    this.focusContextUpdates = this.focusContextUpdates
+      .then(() => vscode.commands.executeCommand(
+        'setContext',
+        SdocEditorProvider.EDITOR_TEXT_FOCUS_CONTEXT,
+        value,
+      ))
+      .catch((error: unknown) => {
+        console.error('Failed to update Structured Doc editor text focus context', error);
+      });
+  }
+
+  private updateEditorTextFocus(
+    panel: vscode.WebviewPanel,
+    identity: EditorTextFocusIdentity,
+    focused: boolean,
+  ): void {
+    if (this.editorTextFocus.update(panel, identity, focused, panel.active)) {
+      this.setEditorTextFocusContext(this.editorTextFocus.currentLease !== undefined);
+    }
+  }
+
+  private releaseEditorTextFocus(
+    panel: vscode.WebviewPanel,
+    identity: EditorTextFocusIdentity,
+  ): void {
+    if (this.editorTextFocus.release(panel, identity)) {
+      this.setEditorTextFocusContext(false);
+    }
+  }
+
+  private dispose(): void {
+    this.editorTextFocus.clear();
+    // Extension reloads must also reset a context key left by an interrupted host.
+    this.setEditorTextFocusContext(false);
+    if (SdocEditorProvider.instance === this) {
+      SdocEditorProvider.instance = undefined;
+    }
   }
 
   private readDiagramRendererSettings(): DiagramRendererSettings {
@@ -169,6 +233,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview);
     const sessionId = randomUUID();
     const documentId = document.uri.toString();
+    const editorIdentity = { sessionId, documentId };
     this.editorSessions.set(documentId, { document, panel: webviewPanel, sessionId });
     let writeBlockedReason: string | undefined;
     let readOnlyWarningShown = false;
@@ -737,6 +802,15 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         console.warn('Ignoring malformed Structured Doc editor message', message);
         return;
       }
+      if (message.type === 'editorTextFocusChanged') {
+        if (message.sessionId !== sessionId || message.documentId !== documentId) return;
+        const registeredSession = this.editorSessions.get(documentId);
+        if (registeredSession?.panel !== webviewPanel
+          || registeredSession.sessionId !== sessionId
+          || registeredSession.document !== document) return;
+        this.updateEditorTextFocus(webviewPanel, editorIdentity, message.focused);
+        return;
+      }
       const readOnlySafeMessages = new Set([
         'ready', 'flushComplete', 'viewJson', 'export', 'openDocument', 'browseSdocFiles',
         'importMarkdown', 'importHtml', 'fileOperationApplied',
@@ -1247,9 +1321,15 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         sendUiLanguage();
       }
     });
+    const viewStateSubscription = webviewPanel.onDidChangeViewState((event) => {
+      if (!event.webviewPanel.active) {
+        this.releaseEditorTextFocus(webviewPanel, editorIdentity);
+      }
+    });
 
     // Cleanup
     webviewPanel.onDidDispose(() => {
+      this.releaseEditorTextFocus(webviewPanel, editorIdentity);
       if (this.editorSessions.get(documentId)?.panel === webviewPanel) {
         this.editorSessions.delete(documentId);
       }
@@ -1258,6 +1338,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       drawioWatcher.dispose();
       pendingDrawioEvents.forEach((timer) => clearTimeout(timer));
       settingsSubscription.dispose();
+      viewStateSubscription.dispose();
       this.expectedDocumentChanges.clear(document.uri.toString());
       for (const [requestId, pending] of this.pendingFlushResolvers) {
         clearTimeout(pending.timer);

@@ -121,6 +121,10 @@ export function isEditorToHostMessage(value: unknown): value is EditorToHostMess
     case 'insertExistingImage':
     case 'browseSdocFiles':
       return true;
+    case 'editorTextFocusChanged':
+      return hasString(value, 'sessionId')
+        && hasString(value, 'documentId')
+        && typeof value.focused === 'boolean';
     case 'requestTemplateCatalog':
       return hasString(value, 'requestId');
     case 'flushComplete':

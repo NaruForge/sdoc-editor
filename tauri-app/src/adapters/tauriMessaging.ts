@@ -937,6 +937,11 @@ export function createTauriAdapter(translate: EditorTranslator = DEFAULT_EDITOR_
           emitUiLanguage(msg.preference);
           break;
 
+        // Text-focus routing is owned by the VS Code host so that its Ctrl+B
+        // keybinding only wins while the ProseMirror body is focused.
+        case 'editorTextFocusChanged':
+          break;
+
         case 'testDiagramRendererConnection': {
           try {
             const result = await invoke<{

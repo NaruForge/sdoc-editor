@@ -320,6 +320,13 @@ export interface ReadyMessage {
   type: 'ready';
 }
 
+export interface EditorTextFocusChangedMessage {
+  type: 'editorTextFocusChanged';
+  sessionId: string;
+  documentId: string;
+  focused: boolean;
+}
+
 export interface UpdateUiLanguageMessage {
   type: 'updateUiLanguage';
   preference: UiLanguagePreference;
@@ -514,6 +521,7 @@ export interface ClearCssFileMessage {
 
 export type WebviewToExtensionMessage =
   | ReadyMessage
+  | EditorTextFocusChangedMessage
   | UpdateUiLanguageMessage
   | RequestTemplateCatalogMessage
   | ApplyTemplateMessage
