@@ -748,7 +748,7 @@ samp {
 
 .ProseMirror td,
 .ProseMirror th {
-  min-width: 8rem;
+  min-width: var(--sdoc-table-cell-min-width, 8rem);
   border: 1px solid var(--vscode-panel-border);
   padding: 8px;
   vertical-align: top;
@@ -3062,6 +3062,44 @@ samp {
   align-items: center;
   justify-content: space-between;
   padding: 4px 12px;
+  gap: 12px;
+}
+
+.side-panel-control-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(7rem, auto);
+  align-items: center;
+  gap: 12px;
+  padding: 6px 12px 10px;
+}
+
+.side-panel-control-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.side-panel-control-description {
+  color: var(--vscode-descriptionForeground);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.side-panel-select {
+  min-width: 0;
+  width: 100%;
+  max-width: 10rem;
+  padding: 4px 24px 4px 6px;
+  border: 1px solid var(--vscode-dropdown-border, var(--vscode-panel-border));
+  border-radius: 3px;
+  background: var(--vscode-dropdown-background, var(--vscode-input-background));
+  color: var(--vscode-dropdown-foreground, var(--vscode-input-foreground));
+}
+
+.side-panel-select:focus-visible {
+  outline: 2px solid var(--vscode-focusBorder);
+  outline-offset: 1px;
 }
 
 .side-panel-toggle-label {

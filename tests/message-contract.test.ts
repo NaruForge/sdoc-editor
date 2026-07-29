@@ -2,6 +2,27 @@ import { describe, expect, it } from 'vitest';
 import { isEditorToHostMessage, isHostToEditorMessage } from '../shared/types/messageGuards';
 
 describe('editor host message boundary', () => {
+  it('accepts only supported UI language preferences and resolved locales', () => {
+    expect(isEditorToHostMessage({
+      type: 'updateUiLanguage',
+      preference: 'ko',
+    })).toBe(true);
+    expect(isEditorToHostMessage({
+      type: 'updateUiLanguage',
+      preference: 'system',
+    })).toBe(false);
+    expect(isHostToEditorMessage({
+      type: 'uiLanguageChanged',
+      preference: 'auto',
+      locale: 'en',
+    })).toBe(true);
+    expect(isHostToEditorMessage({
+      type: 'uiLanguageChanged',
+      preference: 'auto',
+      locale: 'ja',
+    })).toBe(false);
+  });
+
   it('accepts valid discriminated messages', () => {
     expect(isEditorToHostMessage({
       type: 'edit',

@@ -7,6 +7,7 @@ import {
   transitionActivityDestination,
 } from '../shared/editor/activityState';
 import { ActivityBar } from '../shared/editor/components/ActivityBar';
+import { ViewControlPanel } from '../shared/editor/components/ViewControlPanel';
 import {
   applyHeadingPalette,
   DocumentSettingsPanel,
@@ -70,6 +71,26 @@ describe('activity hubs and settings UI', () => {
     expect(sharedMarkup).not.toContain('Workspace');
     expect(workspaceMarkup.match(/class="activity-bar-icon/g)).toHaveLength(4);
     expect(workspaceMarkup).toContain('Workspace');
+  });
+
+  it('renders the global UI language preference in the shared View panel', () => {
+    const markup = renderToStaticMarkup(
+      <EditorProvider>
+        <ViewControlPanel
+          showNumbering
+          onToggleNumbering={vi.fn()}
+          showDecoration
+          onToggleDecoration={vi.fn()}
+          uiLanguagePreference="ko"
+          onUiLanguagePreferenceChange={vi.fn()}
+        />
+      </EditorProvider>,
+    );
+
+    expect(markup).toContain('Interface language');
+    expect(markup).toContain('<option value="auto">Auto</option>');
+    expect(markup).toContain('<option value="ko" selected="">한국어</option>');
+    expect(markup).toContain('<option value="en">English</option>');
   });
 
   it('applies a document-wide palette as one H1-H6 settings patch', () => {

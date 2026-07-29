@@ -164,6 +164,26 @@ describe('shared editor core', () => {
     expect(() => assertPersistedDocument(wrapSdoc(dehydrateDocumentAssets(roundTripped), {}))).not.toThrow();
   });
 
+  it('defaults newly created tables to Auto width while preserving explicit widths', () => {
+    const schema = getSchema(createTiptapExtensions(createRuntime()));
+    const table = (width?: string) => schema.nodeFromJSON({
+      type: 'table',
+      ...(width ? { attrs: { width } } : {}),
+      content: [{
+        type: 'tableRow',
+        content: [{
+          type: 'tableCell',
+          content: [{ type: 'paragraph' }],
+        }],
+      }],
+    }).toJSON();
+
+    expect(table().attrs?.width).toBe('auto');
+    for (const width of ['100%', '75%', '50%', 'auto']) {
+      expect(table(width).attrs?.width).toBe(width);
+    }
+  });
+
   it('assigns ids to newly inserted referenceable nodes before host persistence', () => {
     const extensions = createTiptapExtensions(createRuntime());
     const schema = getSchema(extensions);

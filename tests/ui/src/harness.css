@@ -146,13 +146,12 @@ body {
 }
 
 .fixture-table-region table {
-  width: max(100%, var(--fixture-table-min-width));
   border-collapse: collapse;
 }
 
 .fixture-table-region th,
 .fixture-table-region td {
-  min-width: 8rem;
+  min-width: var(--sdoc-table-cell-min-width, 8rem);
   padding: 8px 10px;
   border: 1px solid var(--vscode-widget-border);
   overflow-wrap: anywhere;

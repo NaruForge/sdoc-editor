@@ -32,7 +32,7 @@ export const CustomTable = Table.extend<EditorExtensionOptions>({
         },
       },
       width: {
-        default: '100%',
+        default: 'auto',
         parseHTML: (element: HTMLElement) => element.getAttribute('data-width'),
         renderHTML: (attributes: Record<string, unknown>) => {
           const width = typeof attributes.width === 'string' ? attributes.width : '';
@@ -125,11 +125,16 @@ export const CustomTable = Table.extend<EditorExtensionOptions>({
 
       // === Helper: update table styles ===
       function refreshStyles() {
-        const w = currentNode.attrs.width || '100%';
+        const w = currentNode.attrs.width || 'auto';
         const a = currentNode.attrs.align || 'left';
         const logicalColumnCount = Math.max(1, TableMap.get(currentNode).width);
-        const minimumTableWidth = `${logicalColumnCount * 8}rem`;
+        const cellMinimumWidthRem = w === 'auto' ? 6 : 8;
+        const minimumTableWidth = `${logicalColumnCount * cellMinimumWidthRem}rem`;
         tableContainer.style.setProperty('--sdoc-table-min-width', minimumTableWidth);
+        tableContainer.style.setProperty(
+          '--sdoc-table-cell-min-width',
+          `${cellMinimumWidthRem}rem`,
+        );
         table.style.minWidth = minimumTableWidth;
 
         if (w === 'auto') {

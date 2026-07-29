@@ -6,6 +6,15 @@ use std::path::PathBuf;
 const SETTINGS_FILE: &str = "settings.json";
 pub const DEFAULT_DIAGRAM_RENDERER_ENDPOINT: &str = "https://kroki.io";
 
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum UiLanguagePreference {
+    #[default]
+    Auto,
+    En,
+    Ko,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct DiagramRendererSettings {
@@ -30,6 +39,8 @@ impl Default for DiagramRendererSettings {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppSettings {
+    #[serde(default)]
+    pub ui_language: UiLanguagePreference,
     #[serde(default = "default_true")]
     pub heading_decoration: bool,
     #[serde(default = "default_primary_color")]
@@ -295,13 +306,14 @@ fn classify_ipv6(address: Ipv6Addr) -> AddressClass {
 mod tests {
     use super::{
         classify_address, validate_diagram_renderer_settings, AddressClass, AppSettings,
-        DiagramRendererSettings,
+        DiagramRendererSettings, UiLanguagePreference,
     };
 
     #[test]
     fn defaults_are_project_neutral() {
         let settings = AppSettings::default();
 
+        assert_eq!(settings.ui_language, UiLanguagePreference::Auto);
         assert_eq!(settings.heading_h1_color, "#2563EB");
         assert_eq!(settings.heading_h2_color, "#2563EB");
         assert_eq!(settings.heading_h3_color, "#2563EB");
@@ -310,6 +322,26 @@ mod tests {
         assert!(!settings.diagram_renderer.enabled);
         assert_eq!(settings.diagram_renderer.endpoint, "https://kroki.io");
         assert!(!settings.diagram_renderer.allow_private_network);
+    }
+
+    #[test]
+    fn validates_persisted_ui_language_preferences() {
+        for (raw, expected) in [
+            ("auto", UiLanguagePreference::Auto),
+            ("en", UiLanguagePreference::En),
+            ("ko", UiLanguagePreference::Ko),
+        ] {
+            let settings: AppSettings =
+                serde_json::from_value(serde_json::json!({ "uiLanguage": raw })).unwrap();
+            assert_eq!(settings.ui_language, expected);
+        }
+
+        assert!(serde_json::from_value::<AppSettings>(
+            serde_json::json!({ "uiLanguage": "system" }),
+        )
+        .is_err());
+        let legacy: AppSettings = serde_json::from_value(serde_json::json!({})).unwrap();
+        assert_eq!(legacy.ui_language, UiLanguagePreference::Auto);
     }
 
     #[test]

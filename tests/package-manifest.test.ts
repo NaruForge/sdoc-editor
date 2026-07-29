@@ -6,6 +6,9 @@ interface PackageManifest {
   activationEvents?: unknown;
   contributes?: {
     customEditors?: unknown;
+    configuration?: {
+      properties?: Record<string, unknown>;
+    };
   };
 }
 
@@ -24,5 +27,15 @@ describe('VS Code package manifest', () => {
       expect.objectContaining({ viewType: 'structuredDocEditor.sdoc' }),
       expect.objectContaining({ viewType: 'structuredDocEditor.sdocBook' }),
     ]));
+  });
+
+  it('contributes an Auto/Korean/English UI language preference', () => {
+    expect(manifest.contributes?.configuration?.properties?.['structuredDocEditor.ui.language'])
+      .toEqual(expect.objectContaining({
+        type: 'string',
+        default: 'auto',
+        enum: ['auto', 'ko', 'en'],
+        scope: 'window',
+      }));
   });
 });

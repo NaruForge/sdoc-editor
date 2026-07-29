@@ -35,7 +35,13 @@ import {
   type WorkspaceTemplateDiscovery,
 } from '../templateService';
 import { classifyTauriSaveError } from './tauriPersistenceErrors';
-import { DEFAULT_EDITOR_TRANSLATOR, type EditorTranslator } from '@shared/editor/i18n';
+import {
+  DEFAULT_EDITOR_TRANSLATOR,
+  readUiLanguagePreference,
+  resolveUiLanguagePreference,
+  type EditorTranslator,
+  type UiLanguagePreference,
+} from '@shared/editor/i18n';
 import {
   projectTemplateCatalogDiagnostics,
   projectTemplateCatalogDiagnostic,
@@ -130,6 +136,14 @@ export function createTauriAdapter(translate: EditorTranslator = DEFAULT_EDITOR_
 
   const emit = (message: HostToEditorMessage): void => {
     for (const handler of listeners) handler(message);
+  };
+
+  const emitUiLanguage = (preference: UiLanguagePreference): void => {
+    emit({
+      type: 'uiLanguageChanged',
+      preference,
+      locale: resolveUiLanguagePreference(preference, navigator.language),
+    });
   };
 
   const toExternalMutation = (
@@ -362,6 +376,7 @@ export function createTauriAdapter(translate: EditorTranslator = DEFAULT_EDITOR_
                   : DEFAULT_DIAGRAM_RENDERER_SETTINGS.allowPrivateNetwork,
               },
             });
+            emitUiLanguage(readUiLanguagePreference(record.uiLanguage));
           }
           break;
 
@@ -915,6 +930,11 @@ export function createTauriAdapter(translate: EditorTranslator = DEFAULT_EDITOR_
         case 'updateDiagramRendererSettings':
           await invoke('update_settings', { updates: { diagramRenderer: msg.settings } });
           emit({ type: 'diagramRendererSettings', settings: msg.settings });
+          break;
+
+        case 'updateUiLanguage':
+          await invoke('update_settings', { updates: { uiLanguage: msg.preference } });
+          emitUiLanguage(msg.preference);
           break;
 
         case 'testDiagramRendererConnection': {

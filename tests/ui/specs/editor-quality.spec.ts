@@ -191,8 +191,21 @@ test.describe('table behavior', () => {
       const container = page.locator('.fixture-table-region .table-container');
       await expect(page.getByTestId('actual-table-editor')).toBeVisible();
       await expect(container).toHaveAttribute('role', 'region');
-      expect(await container.locator('table').evaluate(table => table.style.minWidth))
-        .toBe(`${columns * 8}rem`);
+      const inlineLayout = await container.evaluate(element => {
+        const table = element.querySelector('table');
+        return {
+          containerWidth: (element as HTMLElement).style.width,
+          tableWidth: table?.style.width,
+          tableMinWidth: table?.style.minWidth,
+          tableLayout: table?.style.tableLayout,
+        };
+      });
+      expect(inlineLayout).toEqual({
+        containerWidth: 'fit-content',
+        tableWidth: 'auto',
+        tableMinWidth: `${columns * 6}rem`,
+        tableLayout: 'auto',
+      });
       const dimensions = await container.evaluate(element => ({
         clientWidth: element.clientWidth,
         scrollWidth: element.scrollWidth,

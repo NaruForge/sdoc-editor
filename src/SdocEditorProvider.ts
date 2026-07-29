@@ -62,7 +62,11 @@ import {
   KrokiDiagramService,
   KrokiRenderError,
 } from './services/KrokiDiagramService';
-import { resolveEditorLocale } from '../shared/editor/i18n/locale';
+import {
+  readUiLanguagePreference,
+  resolveUiLanguagePreference,
+  type UiLanguagePreference,
+} from '../shared/editor/i18n/locale';
 
 export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
   private static readonly SDOC_VERSION = '1.0';
@@ -129,6 +133,19 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         DEFAULT_DIAGRAM_RENDERER_SETTINGS.allowPrivateNetwork,
       ),
     };
+  }
+
+  private readUiLanguagePreference(): UiLanguagePreference {
+    const config = vscode.workspace.getConfiguration('structuredDocEditor.ui');
+    const inspected = config.inspect<unknown>('language');
+    return readUiLanguagePreference(inspected?.globalValue);
+  }
+
+  private resolveUiLocale() {
+    return resolveUiLanguagePreference(
+      this.readUiLanguagePreference(),
+      vscode.env.language,
+    );
   }
 
   public async resolveCustomTextEditor(
@@ -304,6 +321,14 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       });
     };
 
+    const sendUiLanguage = () => {
+      webviewPanel.webview.postMessage({
+        type: 'uiLanguageChanged',
+        preference: this.readUiLanguagePreference(),
+        locale: this.resolveUiLocale(),
+      });
+    };
+
     // Send initial document content with image paths converted
     const sendUpdate = () => {
       try {
@@ -328,7 +353,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         const convertedJson = convertImagePathsToWebviewUris(doc, documentDir, webviewPanel.webview);
         webviewPanel.webview.postMessage({
           type: 'init',
-          locale: resolveEditorLocale(vscode.env.language),
+          locale: this.resolveUiLocale(),
           sessionId,
           documentId,
           revision: document.version,
@@ -339,6 +364,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
             documentSettings: documentSettings ?? null,
           },
         });
+        sendUiLanguage();
         sendSettings();
       } catch (error) {
         vscode.window.showErrorMessage(
@@ -718,7 +744,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         'savePersonalTemplate', 'updatePersonalTemplate', 'duplicatePersonalTemplate',
         'deletePersonalTemplate', 'openPersonalTemplateFolder',
         'renderDiagram', 'cancelDiagramRender', 'updateDiagramRendererSettings',
-        'testDiagramRendererConnection',
+        'testDiagramRendererConnection', 'updateUiLanguage',
       ]);
       if (writeBlockedReason && !readOnlySafeMessages.has(message.type)) {
         if (message.type === 'edit') {
@@ -999,6 +1025,16 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
               settings: this.readDiagramRendererSettings(),
             });
             break;
+          case 'updateUiLanguage': {
+            const config = vscode.workspace.getConfiguration('structuredDocEditor.ui');
+            await config.update(
+              'language',
+              message.preference,
+              vscode.ConfigurationTarget.Global,
+            );
+            sendUiLanguage();
+            break;
+          }
           case 'requestTemplateCatalog':
             await sendTemplateCatalog(message.requestId);
             break;
@@ -1206,6 +1242,9 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     const settingsSubscription = vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration('structuredDocEditor')) {
         sendSettings();
+      }
+      if (e.affectsConfiguration('structuredDocEditor.ui.language')) {
+        sendUiLanguage();
       }
     });
 
@@ -1690,7 +1729,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     const fontFaces = generateFontFaceCSS(webview, this.context.extensionUri);
 
     const nonce = getNonce();
-    const htmlLanguage = resolveEditorLocale(vscode.env.language) === 'ko' ? 'ko-KR' : 'en';
+    const htmlLanguage = this.resolveUiLocale() === 'ko' ? 'ko-KR' : 'en';
 
     return `<!DOCTYPE html>
 <html lang="${htmlLanguage}">

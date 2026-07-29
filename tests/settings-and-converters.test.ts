@@ -63,6 +63,48 @@ describe('markdown conversion', () => {
     expect(output).toContain('```mermaid');
     expect(output).toContain('A-->B');
   });
+
+  it('preserves Auto and explicit table widths across text exports', () => {
+    const table = (width?: string): TiptapNode => ({
+      type: 'table',
+      attrs: {
+        id: `table-${width ?? 'missing'}`,
+        align: 'left',
+        ...(width ? { width } : {}),
+      },
+      content: [
+        {
+          type: 'tableRow',
+          content: [{
+            type: 'tableHeader',
+            content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Name' }] }],
+          }],
+        },
+        {
+          type: 'tableRow',
+          content: [{
+            type: 'tableCell',
+            content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Value' }] }],
+          }],
+        },
+      ],
+    });
+
+    expect(convertJsonToHtml({ type: 'doc', content: [table()] }))
+      .toContain('style="width: auto;');
+    expect(convertJsonToMarkdown({ type: 'doc', content: [table('auto')] }))
+      .toContain('| Name |');
+    for (const width of ['100%', '75%', '50%']) {
+      const doc = { type: 'doc', content: [table(width)] } satisfies TiptapNode;
+      expect(convertJsonToHtml(doc)).toContain(`width: ${width};`);
+      expect(convertJsonToMarkdown(doc)).toContain(`style="width:${width};`);
+      expect(convertJsonToAdoc(doc)).toContain(
+        width === '100%' ? 'options="header"' : `width="${width}"`,
+      );
+    }
+    expect(convertJsonToAdoc({ type: 'doc', content: [table('auto')] }))
+      .toContain('options="header,autowidth"');
+  });
 });
 
 describe('cross-format numbering', () => {

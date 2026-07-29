@@ -17,7 +17,10 @@ import type {
   DocumentMutation,
   DocumentMutationErrorCode,
 } from '../persistence/DocumentSyncCoordinator';
-import type { EditorLocale } from '../editor/i18n/locale';
+import type {
+  EditorLocale,
+  UiLanguagePreference,
+} from '../editor/i18n/locale';
 import type { FileOperationState } from '../editor/fileOperations';
 import type { KnownDiagramLanguage } from '../editor/diagram/languages';
 import type {
@@ -146,6 +149,12 @@ export interface EditRejectedMessage {
 export interface SettingsChangedMessage {
   type: 'settingsChanged';
   settings: Partial<EditorSettings>;
+}
+
+export interface UiLanguageChangedMessage {
+  type: 'uiLanguageChanged';
+  preference: UiLanguagePreference;
+  locale: EditorLocale;
 }
 
 export interface DocSettingsChangedMessage {
@@ -285,6 +294,7 @@ export type ExtensionToWebviewMessage =
   | EditAcknowledgedMessage
   | EditRejectedMessage
   | SettingsChangedMessage
+  | UiLanguageChangedMessage
   | DocSettingsChangedMessage
   | DocumentSettingSelectedMessage
   | MetaUpdateMessage
@@ -308,6 +318,11 @@ export type ExtensionToWebviewMessage =
 
 export interface ReadyMessage {
   type: 'ready';
+}
+
+export interface UpdateUiLanguageMessage {
+  type: 'updateUiLanguage';
+  preference: UiLanguagePreference;
 }
 
 export interface RequestTemplateCatalogMessage {
@@ -499,6 +514,7 @@ export interface ClearCssFileMessage {
 
 export type WebviewToExtensionMessage =
   | ReadyMessage
+  | UpdateUiLanguageMessage
   | RequestTemplateCatalogMessage
   | ApplyTemplateMessage
   | SavePersonalTemplateMessage

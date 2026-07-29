@@ -3,7 +3,10 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { EditorProvider, useEditorContext } from '@shared/editor/context/EditorContext';
-import { useEditorI18n } from '@shared/editor/i18n';
+import {
+  readUiLanguagePreference,
+  useEditorI18n,
+} from '@shared/editor/i18n';
 import { Editor } from './components/Editor';
 import { createTauriAdapter } from './adapters/tauriMessaging';
 import type { SdocMeta, TiptapNode } from '@shared/types';
@@ -77,6 +80,8 @@ function isPathInsideFolder(filePath: string, folder: string): boolean {
 const AppContent: React.FC = () => {
   const { dispatch } = useEditorContext();
   const { t } = useEditorI18n();
+  const translatorRef = useRef(t);
+  translatorRef.current = t;
   const [view, setView] = useState<AppView>('welcome');
   const [doc, setDoc] = useState<TiptapNode | null>(null);
   const [meta, setMeta] = useState<SdocMeta | null>(null);
@@ -102,7 +107,31 @@ const AppContent: React.FC = () => {
     workspaceFolderRef.current = workspaceFolder;
   }, [workspaceFolder]);
 
-  const adapter = useMemo(() => createTauriAdapter(t), [t]);
+  const adapter = useMemo(
+    () => createTauriAdapter((key, params) => translatorRef.current(key, params)),
+    [],
+  );
+  useEffect(() => {
+    let cancelled = false;
+    void invoke<unknown>('get_settings').then((value) => {
+      if (cancelled) return;
+      const record = typeof value === 'object' && value !== null && !Array.isArray(value)
+        ? value as Record<string, unknown>
+        : {};
+      dispatch({
+        type: 'SET_UI_LANGUAGE',
+        payload: {
+          preference: readUiLanguagePreference(record.uiLanguage),
+          detectedLanguage: navigator.language,
+        },
+      });
+    }).catch((error: unknown) => {
+      console.warn('Failed to load UI language preference', error);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [dispatch]);
   useEffect(() => {
     adapter.setWorkspaceFolder(workspaceFolder);
   }, [adapter, workspaceFolder]);

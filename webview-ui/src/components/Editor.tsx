@@ -131,6 +131,7 @@ export const Editor: React.FC = () => {
     runtime: extensionRuntime,
     // VS Code owns Ctrl+S. Its onWillSave participant requests exactly one flush.
     handleSaveShortcut: false,
+    translationLocale: state.locale,
   });
   flushUpdateRef.current = flushUpdate;
 
@@ -168,6 +169,7 @@ export const Editor: React.FC = () => {
     renderDiagram,
     diagramRendererSettings,
     handleDiagramRendererSettingsChange,
+    handleUiLanguagePreferenceChange,
     handleTestDiagramRenderer,
     handleMetaChange,
     handleRequestTemplateCatalog,
@@ -620,6 +622,8 @@ export const Editor: React.FC = () => {
             onToggleNumbering={handleToggleNumbering}
             showDecoration={state.settings.headingDecoration}
             onToggleDecoration={handleToggleDecoration}
+            uiLanguagePreference={state.uiLanguagePreference}
+            onUiLanguagePreferenceChange={handleUiLanguagePreferenceChange}
             onUpdateDocSettings={handleUpdateDocSettings}
             onPostMessage={postMessage}
             onViewJson={handleViewJson}

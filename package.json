@@ -94,6 +94,22 @@
     "configuration": {
       "title": "Structured Doc Editor",
       "properties": {
+        "structuredDocEditor.ui.language": {
+          "type": "string",
+          "default": "auto",
+          "enum": [
+            "auto",
+            "ko",
+            "en"
+          ],
+          "enumDescriptions": [
+            "Use the current VS Code display language.",
+            "한국어",
+            "English"
+          ],
+          "scope": "window",
+          "description": "Interface language used by Structured Doc Editor. Workspace overrides are ignored."
+        },
         "structuredDocEditor.diagramRenderer.enabled": {
           "type": "boolean",
           "default": false,

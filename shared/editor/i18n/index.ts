@@ -8,8 +8,12 @@ export {
   createEditorTranslator,
   DEFAULT_EDITOR_TRANSLATOR,
   formatEditorDate,
+  isUiLanguagePreference,
+  readUiLanguagePreference,
   resolveEditorLocale,
+  resolveUiLanguagePreference,
   type EditorLocale,
+  type UiLanguagePreference,
   type EditorTranslationParams,
   type EditorTranslator,
 } from './locale';

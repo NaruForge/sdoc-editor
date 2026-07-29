@@ -4,7 +4,10 @@ import {
   KO_EDITOR_MESSAGES,
   createEditorTranslator,
   formatEditorDate,
+  isUiLanguagePreference,
+  readUiLanguagePreference,
   resolveEditorLocale,
+  resolveUiLanguagePreference,
 } from '../shared/editor/i18n';
 
 describe('editor i18n', () => {
@@ -15,6 +18,16 @@ describe('editor i18n', () => {
     expect(resolveEditorLocale('en-GB')).toBe('en');
     expect(resolveEditorLocale('ja-JP')).toBe('en');
     expect(resolveEditorLocale(undefined)).toBe('en');
+  });
+
+  it('resolves an explicit UI language independently of the detected host language', () => {
+    expect(resolveUiLanguagePreference('auto', 'ko-KR')).toBe('ko');
+    expect(resolveUiLanguagePreference('auto', 'ja-JP')).toBe('en');
+    expect(resolveUiLanguagePreference('en', 'ko-KR')).toBe('en');
+    expect(resolveUiLanguagePreference('ko', 'en-US')).toBe('ko');
+    expect(isUiLanguagePreference('auto')).toBe(true);
+    expect(isUiLanguagePreference('system')).toBe(false);
+    expect(readUiLanguagePreference('invalid')).toBe('auto');
   });
 
   it('keeps Korean and English catalogs structurally complete', () => {

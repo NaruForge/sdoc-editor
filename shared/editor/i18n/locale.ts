@@ -6,6 +6,7 @@ import {
 } from './catalogs';
 
 export type EditorLocale = 'en' | 'ko';
+export type UiLanguagePreference = 'auto' | EditorLocale;
 export type EditorTranslationParams = Readonly<Record<string, string | number>>;
 export type EditorTranslator = (
   key: EditorTranslationKey,
@@ -21,6 +22,21 @@ export function resolveEditorLocale(value: unknown): EditorLocale {
   if (typeof value !== 'string') return 'en';
   const language = value.trim().toLowerCase().split(/[-_]/, 1)[0];
   return language === 'ko' ? 'ko' : 'en';
+}
+
+export function isUiLanguagePreference(value: unknown): value is UiLanguagePreference {
+  return value === 'auto' || value === 'en' || value === 'ko';
+}
+
+export function readUiLanguagePreference(value: unknown): UiLanguagePreference {
+  return isUiLanguagePreference(value) ? value : 'auto';
+}
+
+export function resolveUiLanguagePreference(
+  preference: UiLanguagePreference,
+  detectedLanguage: unknown,
+): EditorLocale {
+  return preference === 'auto' ? resolveEditorLocale(detectedLanguage) : preference;
 }
 
 function interpolate(message: string, params?: EditorTranslationParams): string {

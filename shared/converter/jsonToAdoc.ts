@@ -196,16 +196,25 @@ function convertTable(table: TiptapNode, ctx: ConvertContext): string {
   const width = table.attrs?.width;
 
   const tableOptions: string[] = [];
+  const options: string[] = [];
 
   if (hasHeader) {
-    tableOptions.push('header');
+    options.push('header');
+  }
+
+  if (width === 'auto' || width === undefined) {
+    options.push('autowidth');
+  }
+
+  if (options.length > 0) {
+    tableOptions.push(`options="${options.join(',')}"`);
   }
 
   if (align && align !== 'left') {
     tableOptions.push(`align="${align}"`);
   }
 
-  if (width && width !== '100%') {
+  if (width && width !== '100%' && width !== 'auto') {
     tableOptions.push(`width="${width}"`);
   }
 

@@ -181,6 +181,8 @@ export function isEditorToHostMessage(value: unknown): value is EditorToHostMess
       return hasString(value, 'requestId');
     case 'updateDiagramRendererSettings':
       return isDiagramRendererSettings(value.settings);
+    case 'updateUiLanguage':
+      return value.preference === 'auto' || value.preference === 'en' || value.preference === 'ko';
     case 'testDiagramRendererConnection':
       return hasString(value, 'requestId') && isDiagramRendererSettings(value.settings);
     case 'fileOperationApplied':
@@ -247,6 +249,9 @@ export function isHostToEditorMessage(value: unknown): value is HostToEditorMess
         && isRecord(value.content) && value.content.type === 'doc';
     case 'settingsChanged':
       return isRecord(value.settings);
+    case 'uiLanguageChanged':
+      return (value.preference === 'auto' || value.preference === 'en' || value.preference === 'ko')
+        && (value.locale === 'en' || value.locale === 'ko');
     case 'docSettingsChanged':
       return value.docSettings === null || isRecord(value.docSettings);
     case 'documentSettingSelected':

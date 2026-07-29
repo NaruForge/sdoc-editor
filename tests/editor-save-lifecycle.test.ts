@@ -1,6 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import type { Editor } from '@tiptap/core';
+import { describe, expect, it, vi } from 'vitest';
 import {
   PendingEditorUpdateGate,
+  refreshTranslatedNodeViews,
   shouldEmitEditorFlush,
   shouldFlushOnSaveShortcut,
 } from '../shared/editor/hooks/useTiptapEditor';
@@ -32,5 +34,23 @@ describe('editor save lifecycle', () => {
     expect(shouldEmitEditorFlush('barrier', true)).toBe(true);
     expect(shouldEmitEditorFlush('pending-only', false)).toBe(false);
     expect(shouldEmitEditorFlush('pending-only', true)).toBe(true);
+  });
+
+  it('recreates translated NodeViews without replacing the editor document', () => {
+    const originalNodeViews = { table: vi.fn(), image: vi.fn() };
+    const setProps = vi.fn();
+    const editor = {
+      view: {
+        props: { nodeViews: originalNodeViews },
+        setProps,
+      },
+    } as unknown as Editor;
+
+    refreshTranslatedNodeViews(editor);
+
+    expect(setProps).toHaveBeenCalledOnce();
+    const nextNodeViews = setProps.mock.calls[0]?.[0].nodeViews;
+    expect(nextNodeViews).toEqual(originalNodeViews);
+    expect(nextNodeViews).not.toBe(originalNodeViews);
   });
 });

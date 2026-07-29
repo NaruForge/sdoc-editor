@@ -29,6 +29,7 @@ import {
   type DocumentMutation,
 } from '@shared/persistence/DocumentSyncCoordinator';
 import type { EditorReplacementReason } from '@shared/editor/documentReplacement';
+import type { UiLanguagePreference } from '@shared/editor/i18n';
 
 export interface MetaState extends Partial<SdocMeta> {
   title: string;
@@ -146,6 +147,15 @@ export function useEditorMessages({
         } else {
           dispatch({ type: 'SET_DOC', payload: message.snapshot.content });
         }
+        break;
+      case 'uiLanguageChanged':
+        dispatch({
+          type: 'SET_UI_LANGUAGE',
+          payload: {
+            preference: message.preference,
+            detectedLanguage: message.locale,
+          },
+        });
         break;
       case 'templateCatalog':
         if (message.requestId !== catalogRequestRef.current) break;
@@ -606,6 +616,9 @@ export function useEditorMessages({
   const handleDiagramRendererSettingsChange = (settings: DiagramRendererSettings) => {
     postMessage({ type: 'updateDiagramRendererSettings', settings });
   };
+  const handleUiLanguagePreferenceChange = (preference: UiLanguagePreference) => {
+    postMessage({ type: 'updateUiLanguage', preference });
+  };
   const handleTestDiagramRenderer = (settings: DiagramRendererSettings) => {
     const requestId = crypto.randomUUID();
     return new Promise<void>((resolve, reject) => {
@@ -648,6 +661,7 @@ export function useEditorMessages({
     renderDiagram,
     diagramRendererSettings,
     handleDiagramRendererSettingsChange,
+    handleUiLanguagePreferenceChange,
     handleTestDiagramRenderer,
     handleMetaChange,
     handleRequestTemplateCatalog,

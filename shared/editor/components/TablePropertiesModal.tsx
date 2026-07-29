@@ -15,7 +15,7 @@ export const TablePropertiesModal: React.FC<TablePropertiesModalProps> = ({
   const { t } = useEditorI18n();
   const [caption, setCaption] = useState('');
   const [align, setAlign] = useState('left');
-  const [width, setWidth] = useState('100%');
+  const [width, setWidth] = useState('auto');
 
   useEffect(() => {
     // Get current table attributes
@@ -23,7 +23,7 @@ export const TablePropertiesModal: React.FC<TablePropertiesModalProps> = ({
 
     setCaption(attrs.caption || '');
     setAlign(attrs.align || 'left');
-    setWidth(attrs.width || '100%');
+    setWidth(attrs.width || 'auto');
   }, [editor]);
 
   const handleSave = () => {

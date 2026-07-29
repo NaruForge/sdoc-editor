@@ -226,7 +226,7 @@ function convertTable(table: TiptapNode, ctx: ConvertContext): string {
 
   const caption = table.attrs?.caption;
   const align = table.attrs?.align || 'left';
-  const width = table.attrs?.width || '100%';
+  const width = table.attrs?.width || 'auto';
   const label = ctx.numbering.byNode.get(table)?.displayLabel;
 
   const hasHeader = table.content[0]?.content?.some(

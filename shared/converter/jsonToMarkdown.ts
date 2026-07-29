@@ -215,7 +215,8 @@ function convertTable(table: TiptapNode, ctx: ConvertContext): string {
     captionMd = `**${ctx.numbering.byNode.get(table)?.displayLabel ?? String(caption)}**\n\n`;
   }
 
-  if (isComplexTable(table)) {
+  const width = table.attrs?.width;
+  if (isComplexTable(table) || (typeof width === 'string' && width !== 'auto')) {
     return captionMd + convertTableAsHtml(table, ctx);
   }
   return captionMd + convertTableAsGfm(table, ctx);
@@ -283,7 +284,7 @@ function convertTableAsGfm(table: TiptapNode, ctx: ConvertContext): string {
 
 function convertTableAsHtml(table: TiptapNode, ctx: ConvertContext): string {
   const align = table.attrs?.align || 'left';
-  const width = table.attrs?.width || '100%';
+  const width = table.attrs?.width || 'auto';
   const tId = table.attrs?.id ? ` id="${table.attrs.id}"` : '';
   let html = `<table${tId} style="width:${width}; text-align:${align};">`;
 

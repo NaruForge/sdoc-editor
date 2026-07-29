@@ -65,7 +65,7 @@ import {
   buildExternalChangeComparison,
   buildExternalDocumentDiff,
 } from '@shared/editor/externalChanges';
-import { useEditorI18n } from '@shared/editor/i18n';
+import { useEditorI18n, type UiLanguagePreference } from '@shared/editor/i18n';
 import type { EditorExtensionRuntime } from '@shared/editor/extensionRuntime';
 import type {
   HostDiagramRenderer,
@@ -308,6 +308,7 @@ export const Editor: React.FC<EditorProps> = ({
       });
     },
     runtime: extensionRuntime,
+    translationLocale: state.locale,
   });
   flushUpdateRef.current = flushUpdate;
 
@@ -352,6 +353,15 @@ export const Editor: React.FC<EditorProps> = ({
   const { postMessage } = useTauriMessaging(adapter, (message) => {
     if (dispatchTauriSettingsMessage(message, dispatch)) return;
     switch (message.type) {
+      case 'uiLanguageChanged':
+        dispatch({
+          type: 'SET_UI_LANGUAGE',
+          payload: {
+            preference: message.preference,
+            detectedLanguage: message.locale,
+          },
+        });
+        break;
       case 'importMarkdownText':
         if (editor
           && session?.sessionId === message.sessionId
@@ -599,6 +609,9 @@ export const Editor: React.FC<EditorProps> = ({
   diagramRendererRef.current = renderDiagram;
   const handleDiagramRendererSettingsChange = (settings: DiagramRendererSettings) => {
     void postMessage({ type: 'updateDiagramRendererSettings', settings });
+  };
+  const handleUiLanguagePreferenceChange = (preference: UiLanguagePreference) => {
+    void postMessage({ type: 'updateUiLanguage', preference });
   };
   const handleTestDiagramRenderer = (settings: DiagramRendererSettings) => {
     const requestId = crypto.randomUUID();
@@ -1275,6 +1288,8 @@ export const Editor: React.FC<EditorProps> = ({
             onToggleNumbering={handleToggleNumbering}
             showDecoration={state.settings.headingDecoration}
             onToggleDecoration={handleToggleDecoration}
+            uiLanguagePreference={state.uiLanguagePreference}
+            onUiLanguagePreferenceChange={handleUiLanguagePreferenceChange}
             onUpdateDocSettings={handleUpdateDocSettings}
             onViewJson={handleViewJson}
             onFileOperation={handleFileOperation}

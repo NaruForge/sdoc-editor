@@ -9,6 +9,7 @@ import { FilesPanel } from '@shared/editor/components/FilesPanel';
 import { ResponsiveSidePanel } from '@shared/editor/components/ResponsiveSidePanel';
 import { SidePanelTabs } from '@shared/editor/components/SidePanelTabs';
 import { DiagramRendererSettingsPanel } from '@shared/editor/components/DiagramRendererSettingsPanel';
+import { ViewControlPanel } from '@shared/editor/components/ViewControlPanel';
 import type { SidePanelSelection } from '@shared/editor/activityState';
 import type { FileOperationKind, FileOperationState } from '@shared/editor/fileOperations';
 import type {
@@ -18,7 +19,7 @@ import type {
 import type { TemplateCatalogDiagnosticView } from '@shared/template/catalogView';
 import type { ManagedTemplateDescriptor, EditorToHostMessage } from '@shared/types/messages';
 import type { DocumentSettings, ResolvedEditorSettings } from '@shared/types';
-import { useEditorI18n } from '@shared/editor/i18n';
+import { useEditorI18n, type UiLanguagePreference } from '@shared/editor/i18n';
 import type { DiagramRendererSettings } from '@shared/diagramRenderer';
 
 interface SidePanelProps {
@@ -31,6 +32,8 @@ interface SidePanelProps {
   onToggleNumbering: () => void;
   showDecoration: boolean;
   onToggleDecoration: () => void;
+  uiLanguagePreference: UiLanguagePreference;
+  onUiLanguagePreferenceChange: (preference: UiLanguagePreference) => void;
   onUpdateDocSettings: (settings: Partial<DocumentSettings> | null) => void;
   onPostMessage?: (message: EditorToHostMessage) => void;
   onViewJson?: () => void;
@@ -81,6 +84,8 @@ export const SidePanel: React.FC<SidePanelProps> = ({
   onToggleNumbering,
   showDecoration,
   onToggleDecoration,
+  uiLanguagePreference,
+  onUiLanguagePreferenceChange,
   onUpdateDocSettings,
   onPostMessage,
   onViewJson,
@@ -141,6 +146,8 @@ export const SidePanel: React.FC<SidePanelProps> = ({
             onToggleNumbering={onToggleNumbering}
             showDecoration={showDecoration}
             onToggleDecoration={onToggleDecoration}
+            uiLanguagePreference={uiLanguagePreference}
+            onUiLanguagePreferenceChange={onUiLanguagePreferenceChange}
           />
         )}
         {selection.destination === 'design' && selection.tab === 'document' && (
@@ -212,49 +219,5 @@ export const SidePanel: React.FC<SidePanelProps> = ({
         )}
       </div>
     </ResponsiveSidePanel>
-  );
-};
-
-interface ViewControlPanelProps {
-  showNumbering: boolean;
-  onToggleNumbering: () => void;
-  showDecoration: boolean;
-  onToggleDecoration: () => void;
-}
-
-const ViewControlPanel: React.FC<ViewControlPanelProps> = ({
-  showNumbering,
-  onToggleNumbering,
-  showDecoration,
-  onToggleDecoration,
-}) => {
-  const { t } = useEditorI18n();
-  return (
-    <div className="side-panel-section">
-      <div className="side-panel-section-title">{t('panel.viewControls')}</div>
-      <div className="side-panel-section-desc">{t('panel.viewOnlyDescription')}</div>
-      <label className="side-panel-toggle-row">
-        <span className="side-panel-toggle-label">{t('panel.headingNumbering')}</span>
-        <button
-          type="button"
-          className={`side-panel-toggle-btn${showNumbering ? ' is-active' : ''}`}
-          onClick={onToggleNumbering}
-          aria-pressed={showNumbering}
-        >
-          {showNumbering ? 'ON' : 'OFF'}
-        </button>
-      </label>
-      <label className="side-panel-toggle-row">
-        <span className="side-panel-toggle-label">{t('panel.headingDecoration')}</span>
-        <button
-          type="button"
-          className={`side-panel-toggle-btn${showDecoration ? ' is-active' : ''}`}
-          onClick={onToggleDecoration}
-          aria-pressed={showDecoration}
-        >
-          {showDecoration ? 'ON' : 'OFF'}
-        </button>
-      </label>
-    </div>
   );
 };

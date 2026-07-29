@@ -1,4 +1,5 @@
 import { useEditor, JSONContent } from '@tiptap/react';
+import type { Editor } from '@tiptap/core';
 import { useRef, useEffect, useCallback, useMemo } from 'react';
 import { createTiptapExtensions } from '../extensions/tiptapExtensions';
 import type { EditorExtensionRuntime } from '../extensionRuntime';
@@ -11,6 +12,7 @@ interface UseTiptapEditorOptions {
   onUpdate: (content: JSONContent) => void;
   runtime: EditorExtensionRuntime;
   handleSaveShortcut?: boolean;
+  translationLocale?: string;
 }
 
 interface SaveShortcutEvent {
@@ -50,10 +52,17 @@ export function shouldFlushOnSaveShortcut(
   return enabled && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's';
 }
 
+export function refreshTranslatedNodeViews(editor: Editor): void {
+  editor.view.setProps({
+    nodeViews: { ...(editor.view.props.nodeViews ?? {}) },
+  });
+}
+
 export const useTiptapEditor = ({
   onUpdate,
   runtime,
   handleSaveShortcut = true,
+  translationLocale,
 }: UseTiptapEditorOptions) => {
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const updateGateRef = useRef(new PendingEditorUpdateGate());
@@ -81,6 +90,12 @@ export const useTiptapEditor = ({
       }, 300);
     },
   });
+
+  useEffect(() => {
+    if (editor && translationLocale) {
+      refreshTranslatedNodeViews(editor);
+    }
+  }, [editor, translationLocale]);
 
   const replaceEditorDocument = useCallback((
     reason: EditorReplacementReason,

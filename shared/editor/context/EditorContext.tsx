@@ -3,7 +3,12 @@ import { JSONContent } from '@tiptap/react';
 import type { DocumentSettings, ResolvedEditorSettings } from '@shared/types';
 import { EDITOR_SETTINGS_DEFAULTS } from '@shared/settingsResolver';
 import { EditorI18nProvider } from '../i18n/EditorI18nContext';
-import { resolveEditorLocale, type EditorLocale } from '../i18n/locale';
+import {
+  resolveEditorLocale,
+  resolveUiLanguagePreference,
+  type EditorLocale,
+  type UiLanguagePreference,
+} from '../i18n/locale';
 
 export interface EditorSettings extends ResolvedEditorSettings {
   fontWeightBody: number;
@@ -37,6 +42,7 @@ interface EditorState {
   doc: JSONContent | null;
   isReady: boolean;
   locale: EditorLocale;
+  uiLanguagePreference: UiLanguagePreference;
   settings: EditorSettings;
   /** Raw per-document settings (null = no overrides, falls back to VS Code). */
   docSettings: Partial<DocumentSettings> | null;
@@ -46,6 +52,10 @@ type EditorAction =
   | { type: 'SET_DOC'; payload: JSONContent }
   | { type: 'SET_READY'; payload: boolean }
   | { type: 'SET_LOCALE'; payload: EditorLocale }
+  | {
+      type: 'SET_UI_LANGUAGE';
+      payload: { preference: UiLanguagePreference; detectedLanguage: unknown };
+    }
   | { type: 'SET_SETTINGS'; payload: Partial<EditorSettings> }
   | { type: 'SET_DOC_SETTINGS'; payload: Partial<DocumentSettings> | null };
 
@@ -53,6 +63,7 @@ const createInitialState = (locale: EditorLocale): EditorState => ({
   doc: null,
   isReady: false,
   locale,
+  uiLanguagePreference: 'auto',
   settings: defaultSettings,
   docSettings: null,
 });
@@ -65,6 +76,15 @@ const editorReducer = (state: EditorState, action: EditorAction): EditorState =>
       return { ...state, isReady: action.payload };
     case 'SET_LOCALE':
       return { ...state, locale: action.payload };
+    case 'SET_UI_LANGUAGE':
+      return {
+        ...state,
+        locale: resolveUiLanguagePreference(
+          action.payload.preference,
+          action.payload.detectedLanguage,
+        ),
+        uiLanguagePreference: action.payload.preference,
+      };
     case 'SET_SETTINGS':
       return { ...state, settings: { ...state.settings, ...action.payload } };
     case 'SET_DOC_SETTINGS':

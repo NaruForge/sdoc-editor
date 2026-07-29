@@ -270,7 +270,7 @@
           "properties": {
             "caption": { "type": ["string", "null"], "description": "Table caption text." },
             "align": { "type": "string", "enum": ["left", "center", "right"], "default": "left" },
-            "width": { "type": "string", "description": "CSS width value (e.g., '100%', '50%', 'auto').", "default": "100%" },
+            "width": { "type": "string", "description": "CSS width value (e.g., '100%', '50%', 'auto').", "default": "auto" },
             "id": { "type": ["string", "null"], "description": "Anchor id for cross-references." }
           },
           "additionalProperties": false
