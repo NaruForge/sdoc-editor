@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-07-29
+
+### Added
+- Added an editor UI language preference with Auto, Korean, and English choices independent of the VS Code or operating-system language
+
+### Changed
+- Made Auto the default width for newly inserted tables so short content can use its intrinsic width while existing explicit widths remain unchanged
+
+### Fixed
+- Made `Keep my changes` wait for the matching host persistence acknowledgement before closing the external-change notice
+- Preserved the local draft and conflict notice when external-change resolution is cancelled, fails, or receives a stale acknowledgement
+- Added a shared accessible confirmation dialog with focus trapping, retry feedback, and focus restoration for both VS Code and Tauri
+
 ## [0.7.0] - 2026-07-28
 
 ### Added
