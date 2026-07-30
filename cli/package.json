@@ -1,6 +1,6 @@
 {
   "name": "sdoc-editor-cli",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "description": "Preview-first command line operations for Structured Doc Editor documents",
   "type": "module",
   "bin": {

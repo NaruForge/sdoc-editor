@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.2] - 2026-07-30
+
 ### Fixed
 - Routed Ctrl+B/Cmd+B to bold formatting while the editable Structured Doc body has focus, without requiring users to remap VS Code's sidebar shortcut
 
