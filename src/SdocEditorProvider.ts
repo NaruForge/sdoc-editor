@@ -74,6 +74,10 @@ import {
   EditorTextFocusCoordinator,
   type EditorTextFocusIdentity,
 } from './editorTextFocusCoordinator';
+import {
+  recoverFromUiLanguageWriteFailure,
+  updateUiLanguagePreference,
+} from './uiLanguagePreferenceUpdate';
 
 export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
   private static readonly SDOC_VERSION = '1.0';
@@ -1101,12 +1105,26 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
             break;
           case 'updateUiLanguage': {
             const config = vscode.workspace.getConfiguration('structuredDocEditor.ui');
-            await config.update(
-              'language',
-              message.preference,
-              vscode.ConfigurationTarget.Global,
-            );
-            sendUiLanguage();
+            await updateUiLanguagePreference(message.preference, {
+              write: async (preference) => {
+                await config.update(
+                  'language',
+                  preference,
+                  vscode.ConfigurationTarget.Global,
+                );
+              },
+              publishCurrent: sendUiLanguage,
+              recoverFromWriteFailure: (error) => recoverFromUiLanguageWriteFailure(error, {
+                report: (writeError) => {
+                  console.error('Structured Doc UI language update failed', writeError);
+                },
+                showError: async (messageText, action) =>
+                  vscode.window.showErrorMessage(messageText, action),
+                openUserSettings: async () => {
+                  await vscode.commands.executeCommand('workbench.action.openSettingsJson');
+                },
+              }),
+            });
             break;
           }
           case 'requestTemplateCatalog':
