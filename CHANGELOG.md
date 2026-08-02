@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.3] - 2026-08-03
+
+### Fixed
+- Restored the persisted Interface language selection when VS Code cannot write User Settings
+- Added an actionable **Open User Settings** recovery path without interrupting the editor message queue
+
 ## [0.7.2] - 2026-07-30
 
 ### Fixed
