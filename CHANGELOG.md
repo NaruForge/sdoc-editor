@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.5] - 2026-08-04
+
+### Added
+- Added accessible, persisted resizing for the shared docked side panel in VS Code and the Windows desktop app
+- Added a document setting that allows heading numbering to start at zero across previews, cross-references, operations, and exports
+
+### Changed
+- Polished shared editor settings, context menus, zoom feedback, localization, and responsive side-panel behavior across both hosts
+- Reduced the VS Code Settings surface to the six current host options while retaining compatibility reads for existing configurations
+- Hardened mandatory Grok CLI review with UTF-8 prompt-file transport, cleanup, and fail-closed response validation
+
+### Fixed
+- Updated cross-host visual regression baselines for the heading start-number control
+
 ## [0.7.4] - 2026-08-03
 
 ### Added
