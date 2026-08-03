@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.4] - 2026-08-03
+
+### Added
+- Added Templates as an independent Activity destination in both VS Code and the Windows desktop app
+- Added shared accessible confirmation and metadata dialogs for applying and managing personal templates
+
+### Changed
+- Centralized template catalog, action, refresh-selection, and focus behavior in a request-correlated editor session state
+- Moved initial and post-action catalog refresh ownership to the UI while preserving the last valid catalog on refresh failure
+
+### Fixed
+- Fixed the VS Code initial catalog deadlock and stale catalog responses in both hosts
+- Fixed Tauri template actions that could continue after document revisions, template fingerprints, or pending saves changed
+- Replaced template-flow native prompts and confirmations, and restored localized failure, cancellation, capability, and focus feedback
+
 ## [0.7.3] - 2026-08-03
 
 ### Fixed
