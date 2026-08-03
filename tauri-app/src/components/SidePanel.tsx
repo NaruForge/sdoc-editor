@@ -11,8 +11,8 @@ import { SidePanelTabs } from '@shared/editor/components/SidePanelTabs';
 import { DiagramRendererSettingsPanel } from '@shared/editor/components/DiagramRendererSettingsPanel';
 import { ViewControlPanel } from '@shared/editor/components/ViewControlPanel';
 import type { DocumentSettings, ResolvedEditorSettings } from '@shared/types';
-import type { ManagedTemplateDescriptor } from '@shared/types/messages';
-import type { TemplateCatalogDiagnosticView } from '@shared/template/catalogView';
+import type { ManagedTemplateDescriptor, PersonalTemplateMetadataInput } from '@shared/types/messages';
+import type { TemplateSessionEvent, TemplateSessionState } from '@shared/editor/templateSession';
 import type { FileOperationKind, FileOperationState } from '@shared/editor/fileOperations';
 import { FolderOpen, RefreshCw, FilePlus, FileText, FileImage, Folder, ChevronRight, ChevronDown } from 'lucide-react';
 import type { ExplorerEntry } from '../App';
@@ -68,17 +68,14 @@ interface SidePanelProps {
   onUndoDelete?: () => void;
   hasDeletionHistory?: boolean;
   onHoverPath?: (path: string | null) => void;
-  templates?: readonly ManagedTemplateDescriptor[];
-  templateDiagnostics?: readonly TemplateCatalogDiagnosticView[];
-  isTemplateCatalogLoading?: boolean;
-  isApplyingTemplate?: boolean;
-  isManagingTemplate?: boolean;
+  templateSession: TemplateSessionState;
+  dispatchTemplateSession: React.Dispatch<TemplateSessionEvent>;
   onRefreshTemplates?: () => void;
   onApplyTemplate?: (templateId: string) => void;
-  onSavePersonalTemplate?: () => void;
-  onUpdatePersonalTemplate?: (template: ManagedTemplateDescriptor) => void;
-  onDuplicatePersonalTemplate?: (template: ManagedTemplateDescriptor) => void;
-  onDeletePersonalTemplate?: (template: ManagedTemplateDescriptor) => void;
+  onSavePersonalTemplate?: (metadata: PersonalTemplateMetadataInput) => void;
+  onUpdatePersonalTemplate?: (template: ManagedTemplateDescriptor, metadata: PersonalTemplateMetadataInput) => void;
+  onDuplicatePersonalTemplate?: (template: ManagedTemplateDescriptor, metadata: PersonalTemplateMetadataInput) => void;
+  onDeletePersonalTemplate?: (template: ManagedTemplateDescriptor, visibleIndex: number) => void;
   onOpenPersonalTemplateFolder?: () => void;
   onClose: () => void;
 }
@@ -115,11 +112,8 @@ export const SidePanel: React.FC<SidePanelProps> = ({
   onUndoDelete,
   hasDeletionHistory,
   onHoverPath,
-  templates = [],
-  templateDiagnostics = [],
-  isTemplateCatalogLoading = false,
-  isApplyingTemplate = false,
-  isManagingTemplate = false,
+  templateSession,
+  dispatchTemplateSession,
   onRefreshTemplates,
   onApplyTemplate,
   onSavePersonalTemplate,
@@ -131,12 +125,14 @@ export const SidePanel: React.FC<SidePanelProps> = ({
 }) => {
   const { t } = useEditorI18n();
   const title = selection.destination === 'workspace'
-    ? 'Workspace'
+    ? t('activity.workspace')
     : selection.destination === 'navigate'
-      ? 'Navigate'
+      ? t('activity.navigate')
       : selection.destination === 'design'
-        ? 'Design'
-        : 'Publish';
+        ? t('activity.design')
+        : selection.destination === 'templates'
+          ? t('activity.templates')
+          : t('activity.publish');
   return (
     <ResponsiveSidePanel
       title={title}
@@ -144,10 +140,11 @@ export const SidePanel: React.FC<SidePanelProps> = ({
       onClose={onClose}
       returnFocusRef={returnFocusRef}
     >
-        {selection.destination !== 'workspace' && (
+        {(selection.destination === 'navigate'
+          || selection.destination === 'design'
+          || selection.destination === 'publish') && (
           <SidePanelTabs
             selection={selection}
-            showTemplates
             onSelectionChange={onSelectionChange}
           />
         )}
@@ -226,17 +223,10 @@ export const SidePanel: React.FC<SidePanelProps> = ({
             onStart={onFileOperation}
           />
         )}
-        {selection.destination === 'publish' && selection.tab === 'templates'
-          && onRefreshTemplates && onApplyTemplate
-          && onSavePersonalTemplate && onUpdatePersonalTemplate && onDuplicatePersonalTemplate
-          && onDeletePersonalTemplate && onOpenPersonalTemplateFolder && (
+        {selection.destination === 'templates' && (
           <TemplatePanel
-            templates={templates}
-            diagnostics={templateDiagnostics}
-            isLoading={isTemplateCatalogLoading}
-            isApplying={isApplyingTemplate}
-            isManaging={isManagingTemplate}
-            personalRootScope="local"
+            session={templateSession}
+            dispatch={dispatchTemplateSession}
             onRefresh={onRefreshTemplates}
             onApply={onApplyTemplate}
             onSaveCurrent={onSavePersonalTemplate}

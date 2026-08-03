@@ -206,6 +206,7 @@ describe('Explorer-created empty SDOC initialization', () => {
       sessionId: identity.sessionId,
       documentId: identity.documentId,
       baseRevision: identity.revision,
+      metadata: { name: 'Current document' },
     })).toBe(true);
     expect(isEditorToHostMessage({
       type: 'updatePersonalTemplate',
@@ -215,6 +216,7 @@ describe('Explorer-created empty SDOC initialization', () => {
       baseRevision: identity.revision,
       templateId: 'user:11111111-1111-4111-8111-111111111111',
       revisionToken: 'fingerprint',
+      metadata: { name: 'Renamed template' },
     })).toBe(true);
     expect(isEditorToHostMessage({
       type: 'deletePersonalTemplate',

@@ -88,6 +88,25 @@ export interface TemplateCatalogMessage {
   personalRootScope: 'local' | 'remote';
 }
 
+export type TemplateErrorCode =
+  | 'catalog-unavailable'
+  | 'document-changed'
+  | 'template-unavailable'
+  | 'template-changed'
+  | 'invalid-document'
+  | 'operation-failed';
+
+export interface TemplateOperationError {
+  code: TemplateErrorCode;
+  message: string;
+}
+
+export interface TemplateCatalogFailedMessage {
+  type: 'templateCatalogFailed';
+  requestId: string;
+  error: TemplateOperationError;
+}
+
 export interface ManagedTemplateDescriptor extends TemplateDescriptor {
   revisionToken?: string;
   preview?: TemplateStructuralPreview;
@@ -99,15 +118,16 @@ export interface TemplateOperationFinishedMessage {
   type: 'templateOperationFinished';
   requestId: string;
   operation: PersonalTemplateOperation;
-  succeeded: boolean;
+  result: 'completed' | 'cancelled' | 'failed';
   templateId?: string;
-  message?: string;
+  error?: TemplateOperationError;
 }
 
 export interface TemplateApplicationFinishedMessage {
   type: 'templateApplicationFinished';
   requestId: string;
   result: 'applied' | 'cancelled' | 'failed';
+  error?: TemplateOperationError;
 }
 
 export interface ExternalChangeMessage {
@@ -287,6 +307,7 @@ export interface SdocFileBrowseResultMessage {
 export type ExtensionToWebviewMessage =
   | InitMessage
   | TemplateCatalogMessage
+  | TemplateCatalogFailedMessage
   | TemplateApplicationFinishedMessage
   | TemplateOperationFinishedMessage
   | ExternalChangeMessage
@@ -361,18 +382,21 @@ interface PersonalTemplateRequestIdentity {
 
 export interface SavePersonalTemplateMessage extends PersonalTemplateRequestIdentity {
   type: 'savePersonalTemplate';
+  metadata: PersonalTemplateMetadataInput;
 }
 
 export interface UpdatePersonalTemplateMessage extends PersonalTemplateRequestIdentity {
   type: 'updatePersonalTemplate';
   templateId: string;
   revisionToken: string;
+  metadata: PersonalTemplateMetadataInput;
 }
 
 export interface DuplicatePersonalTemplateMessage extends PersonalTemplateRequestIdentity {
   type: 'duplicatePersonalTemplate';
   templateId: string;
   revisionToken: string;
+  metadata: PersonalTemplateMetadataInput;
 }
 
 export interface DeletePersonalTemplateMessage {

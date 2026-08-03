@@ -8,8 +8,7 @@ import type {
 import { useEditorI18n, type EditorTranslationKey } from '../i18n';
 
 interface SidePanelTabsProps {
-  selection: Exclude<SidePanelSelection, { destination: 'workspace' }>;
-  showTemplates?: boolean;
+  selection: Exclude<SidePanelSelection, { destination: 'workspace' | 'templates' }>;
   onSelectionChange: (selection: SidePanelSelection) => void;
 }
 
@@ -30,12 +29,10 @@ const DESIGN_TABS: readonly TabDefinition<DesignPanelTab>[] = [
 const PUBLISH_TABS: readonly TabDefinition<PublishPanelTab>[] = [
   { id: 'export', labelKey: 'panel.export' },
   { id: 'import', labelKey: 'panel.import' },
-  { id: 'templates', labelKey: 'panel.templates' },
 ];
 
 export const SidePanelTabs: React.FC<SidePanelTabsProps> = ({
   selection,
-  showTemplates = false,
   onSelectionChange,
 }) => {
   const { t } = useEditorI18n();
@@ -43,7 +40,7 @@ export const SidePanelTabs: React.FC<SidePanelTabsProps> = ({
     ? NAVIGATE_TABS
     : selection.destination === 'design'
       ? DESIGN_TABS
-      : PUBLISH_TABS.filter(({ id }) => showTemplates || id !== 'templates');
+      : PUBLISH_TABS;
 
   return (
     <div className="side-panel-tabs" role="tablist" aria-label={t('panel.documentPanels')}>

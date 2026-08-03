@@ -3145,6 +3145,98 @@ samp {
   padding: 8px 0 16px;
 }
 
+.template-card-heading strong,
+.template-panel-diagnostic,
+.template-status,
+.template-capability-reason,
+.template-capability-reasons {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.template-capability-reasons {
+  color: var(--sdoc-muted, var(--vscode-descriptionForeground));
+  font-size: 0.78rem;
+}
+
+.template-capability-reasons p {
+  margin: 4px 0 0;
+}
+
+.template-dialog-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: color-mix(in srgb, var(--sdoc-bg, #111827) 58%, transparent);
+}
+
+.template-dialog {
+  width: min(440px, 100%);
+  max-height: min(680px, calc(100vh - 40px));
+  overflow: auto;
+  padding: 20px;
+  border: 1px solid var(--sdoc-border, #d1d5db);
+  border-radius: 12px;
+  background: var(--sdoc-panel-bg, var(--sdoc-bg, #fff));
+  color: var(--sdoc-fg, inherit);
+  box-shadow: 0 24px 64px rgb(0 0 0 / 35%);
+}
+
+.template-dialog h2 {
+  margin: 0 0 10px;
+  font-size: 18px;
+}
+
+.template-metadata-dialog {
+  display: grid;
+  gap: 14px;
+}
+
+.template-metadata-dialog label {
+  display: grid;
+  gap: 6px;
+}
+
+.template-metadata-dialog input,
+.template-metadata-dialog textarea {
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.template-metadata-dialog textarea {
+  min-height: 96px;
+  resize: vertical;
+}
+
+.template-dialog-error,
+.template-status [role="alert"] {
+  color: var(--sdoc-danger, #dc2626);
+}
+
+.template-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.template-dialog-actions .is-primary {
+  color: var(--sdoc-button-primary-fg, #fff);
+  background: var(--sdoc-accent, #2563eb);
+}
+
+.template-dialog-actions .is-destructive {
+  color: #fff;
+  background: var(--sdoc-danger, #dc2626);
+}
+
+.template-status:empty {
+  display: none;
+}
+
 .template-panel-header {
   display: flex;
   align-items: flex-start;

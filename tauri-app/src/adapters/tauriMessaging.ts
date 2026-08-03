@@ -15,6 +15,8 @@ import type {
   HostToEditorMessage,
   ManagedTemplateDescriptor,
   PersonalTemplateOperation,
+  SavePersonalTemplateMessage,
+  TemplateErrorCode,
 } from '@shared/types/messages';
 import { RecoverableSerialQueue } from '@shared/persistence/RecoverableSerialQueue';
 import type { DocumentMutation } from '@shared/persistence/DocumentSyncCoordinator';
@@ -99,6 +101,19 @@ interface DrawioFileResult {
 export type TauriInboundMessage = HostToEditorMessage;
 export type TauriMessageHandler = HostMessageHandler;
 
+type TemplateRequestIdentity = Pick<
+  SavePersonalTemplateMessage,
+  'sessionId' | 'documentId' | 'baseRevision'
+>;
+
+export const matchesTemplateRequestIdentity = (
+  request: TemplateRequestIdentity,
+  current: { sessionId: string; documentId: string; revision: number } | null,
+): boolean => Boolean(current
+  && request.sessionId === current.sessionId
+  && request.documentId === current.documentId
+  && request.baseRevision === current.revision);
+
 /**
  * Convert a relative image/drawio path to an asset URL displayable in the webview.
  */
@@ -121,7 +136,7 @@ export interface TauriAdapter extends EditorHostBridge {
   acceptExternalChange(): Promise<{ revision: number; snapshot: DocumentMutation }>;
 }
 
-export function createTauriAdapter(translate: EditorTranslator = DEFAULT_EDITOR_TRANSLATOR): TauriAdapter {
+export function createTauriAdapter(_translate: EditorTranslator = DEFAULT_EDITOR_TRANSLATOR): TauriAdapter {
   const listeners: TauriMessageHandler[] = [];
   const unlistenFns: UnlistenFn[] = [];
   let disposed = false;
@@ -129,6 +144,7 @@ export function createTauriAdapter(translate: EditorTranslator = DEFAULT_EDITOR_
   let workspaceFolder: string | null = null;
   let availableTemplates = new Map<string, SdocTemplate>();
   let personalTemplateFingerprints = new Map<string, string>();
+  let templateCatalogGeneration = 0;
   let latestDrawioGeneration = 0;
   let flushHandler: (() => void | Promise<void>) | null = null;
   let editorEditableHandler: ((editable: boolean) => void) | null = null;
@@ -181,16 +197,20 @@ export function createTauriAdapter(translate: EditorTranslator = DEFAULT_EDITOR_
   };
 
   const refreshTemplateCatalog = async (requestId: string): Promise<void> => {
-    const discovery = await loadTauriTemplateCatalog(
-      workspaceFolder,
-      () => invoke<WorkspaceTemplateDiscovery>('list_workspace_template_candidates'),
-      () => invoke<PersonalTemplateDiscovery>('list_personal_template_candidates'),
-    );
-    availableTemplates = new Map(
-      discovery.catalog.templates.map((template) => [template.descriptor.id, template]),
-    );
-    personalTemplateFingerprints = new Map(discovery.personalFingerprints);
-    const templates: ManagedTemplateDescriptor[] = discovery.catalog.templates.map((template) => ({
+    const generation = ++templateCatalogGeneration;
+    try {
+      const discovery = await loadTauriTemplateCatalog(
+        workspaceFolder,
+        () => invoke<WorkspaceTemplateDiscovery>('list_workspace_template_candidates'),
+        () => invoke<PersonalTemplateDiscovery>('list_personal_template_candidates'),
+      );
+      if (generation === templateCatalogGeneration) {
+        availableTemplates = new Map(
+          discovery.catalog.templates.map((template) => [template.descriptor.id, template]),
+        );
+        personalTemplateFingerprints = new Map(discovery.personalFingerprints);
+      }
+      const templates: ManagedTemplateDescriptor[] = discovery.catalog.templates.map((template) => ({
       ...template.descriptor,
       sourceLabel: template.descriptor.source === 'builtin'
         ? 'Structured Doc Editor'
@@ -202,54 +222,47 @@ export function createTauriAdapter(translate: EditorTranslator = DEFAULT_EDITOR_
         ? { revisionToken: discovery.personalFingerprints.get(template.descriptor.id) }
         : {}),
     }));
-    emit({
-      type: 'templateCatalog',
-      requestId,
-      templates,
-      diagnostics: [
-        ...projectTemplateCatalogDiagnostics(discovery.catalog.diagnostics, 'catalog'),
-        ...discovery.nativeDiagnostics.map((diagnostic, index) =>
-          projectTemplateCatalogDiagnostic({
-            code: 'read-failed',
-            targetPath: diagnostic.path,
-            message: 'Template discovery failed.',
-          } satisfies TemplateDiagnostic, 'catalog', index)),
-      ],
-      personalRootScope: 'local',
-    });
+      emit({
+        type: 'templateCatalog',
+        requestId,
+        templates,
+        diagnostics: [
+          ...projectTemplateCatalogDiagnostics(discovery.catalog.diagnostics, 'catalog'),
+          ...discovery.nativeDiagnostics.map((diagnostic, index) =>
+            projectTemplateCatalogDiagnostic({
+              code: 'read-failed',
+              targetPath: diagnostic.path,
+              message: 'Template discovery failed.',
+            } satisfies TemplateDiagnostic, 'catalog', index)),
+        ],
+        personalRootScope: 'local',
+      });
+    } catch (error) {
+      console.error('Template catalog discovery failed', error);
+      emit({
+        type: 'templateCatalogFailed',
+        requestId,
+        error: { code: 'catalog-unavailable', message: 'The template catalog could not be loaded.' },
+      });
+    }
   };
 
   const finishOperation = (
     requestId: string,
     operation: PersonalTemplateOperation,
-    succeeded: boolean,
+    result: 'completed' | 'cancelled' | 'failed',
     templateId?: string,
-    message?: string,
+    errorCode?: TemplateErrorCode,
   ): void => emit({
     type: 'templateOperationFinished',
     requestId,
     operation,
-    succeeded,
+    result,
     ...(templateId ? { templateId } : {}),
-    ...(message ? { message } : {}),
+    ...(errorCode ? {
+      error: { code: errorCode, message: 'The template action could not be completed.' },
+    } : {}),
   });
-
-  const promptMetadata = (
-    title: string,
-    current: { name: string; description?: string; category?: string },
-  ): { name: string; description?: string; category?: string } | undefined => {
-    const name = window.prompt(title, current.name);
-    if (name === null) return undefined;
-    const description = window.prompt(translate('template.descriptionPrompt'), current.description ?? '');
-    if (description === null) return undefined;
-    const category = window.prompt(translate('template.categoryPrompt'), current.category ?? '');
-    if (category === null) return undefined;
-    return {
-      name,
-      ...(description ? { description } : {}),
-      ...(category ? { category } : {}),
-    };
-  };
 
   const retainListener = (unlisten: UnlistenFn) => {
     if (disposed) {
@@ -354,7 +367,6 @@ export function createTauriAdapter(translate: EditorTranslator = DEFAULT_EDITOR_
       // Route messages to appropriate Tauri commands
       switch (msg.type) {
         case 'ready':
-          await refreshTemplateCatalog('initial');
           {
             const rawSettings = await invoke<unknown>('get_settings');
             const record = typeof rawSettings === 'object' && rawSettings !== null
@@ -702,13 +714,23 @@ export function createTauriAdapter(translate: EditorTranslator = DEFAULT_EDITOR_
         case 'applyTemplate': {
           if (!session || msg.sessionId !== session.sessionId
             || msg.documentId !== session.documentId || msg.baseRevision !== session.revision) {
-            emit({ type: 'templateApplicationFinished', requestId: msg.requestId, result: 'failed' });
+            emit({
+              type: 'templateApplicationFinished', requestId: msg.requestId, result: 'failed',
+              error: { code: 'document-changed', message: 'The document changed.' },
+            });
             break;
           }
+          const expectedSession = { ...session };
+          const expectedIdentity = {
+            documentId: expectedSession.documentId,
+            revision: expectedSession.revision,
+          };
           const template = availableTemplates.get(msg.templateId);
           if (!template) {
-            await refreshTemplateCatalog(`apply-refresh-${msg.requestId}`);
-            emit({ type: 'templateApplicationFinished', requestId: msg.requestId, result: 'failed' });
+            emit({
+              type: 'templateApplicationFinished', requestId: msg.requestId, result: 'failed',
+              error: { code: 'template-unavailable', message: 'The selected template is unavailable.' },
+            });
             break;
           }
           try {
@@ -717,12 +739,19 @@ export function createTauriAdapter(translate: EditorTranslator = DEFAULT_EDITOR_
                 await flushHandler?.();
                 await saveQueue.whenIdle();
               },
-              getIdentity: requireIdentity,
+              getIdentity: () => expectedIdentity,
               readSnapshot,
-              confirm: async () => window.confirm(translate('template.applyConfirm')),
               save: async (request) => {
+                if (!session || session.sessionId !== expectedSession.sessionId
+                  || session.documentId !== expectedSession.documentId
+                  || session.revision !== expectedSession.revision) {
+                  throw new Error('Document identity or revision changed.');
+                }
                 const saved = await invoke<TauriDocumentIdentity>('save_document', request);
-                if (session) session = { ...session, ...saved };
+                if (!session || session.sessionId !== expectedSession.sessionId) {
+                  throw new Error('Document session changed.');
+                }
+                session = { ...session, ...saved };
                 return saved;
               },
             });
@@ -751,7 +780,10 @@ export function createTauriAdapter(translate: EditorTranslator = DEFAULT_EDITOR_
               result: result.applied ? 'applied' : 'cancelled',
             });
           } catch (error: unknown) {
-            emit({ type: 'templateApplicationFinished', requestId: msg.requestId, result: 'failed' });
+            emit({
+              type: 'templateApplicationFinished', requestId: msg.requestId, result: 'failed',
+              error: { code: 'operation-failed', message: 'The template could not be applied.' },
+            });
             console.error('Template application failed', error);
           }
           break;
@@ -759,25 +791,18 @@ export function createTauriAdapter(translate: EditorTranslator = DEFAULT_EDITOR_
 
         case 'savePersonalTemplate': {
           let templateId: string | undefined;
+          if (!matchesTemplateRequestIdentity(msg, session)) {
+            finishOperation(msg.requestId, 'save', 'failed', undefined, 'document-changed');
+            break;
+          }
           try {
-            const identity = requireIdentity();
-            if (!session || msg.sessionId !== session.sessionId
-              || identity.documentId !== msg.documentId || identity.revision !== msg.baseRevision) {
-              throw new Error('Document identity or revision changed.');
-            }
             const snapshot = await readSnapshotAfterFlush();
-            const contractTitle = typeof snapshot.envelope === 'object' && snapshot.envelope !== null
-              && 'meta' in snapshot.envelope
-              && typeof snapshot.envelope.meta === 'object' && snapshot.envelope.meta !== null
-              && 'title' in snapshot.envelope.meta && typeof snapshot.envelope.meta.title === 'string'
-              ? snapshot.envelope.meta.title
-              : translate('template.untitled');
-            const metadata = promptMetadata(translate('template.personalNamePrompt'), { name: contractTitle });
-            if (!metadata) {
-              finishOperation(msg.requestId, 'save', false);
+            if (!session || msg.sessionId !== session.sessionId
+              || snapshot.documentId !== msg.documentId || snapshot.revision !== msg.baseRevision) {
+              finishOperation(msg.requestId, 'save', 'failed', undefined, 'document-changed');
               break;
             }
-            const template = await saveActiveDocumentAsPersonalTemplate(metadata, {
+            const template = await saveActiveDocumentAsPersonalTemplate(msg.metadata, {
               createId: () => crypto.randomUUID(),
               flushAndWait: async () => {},
               getIdentity: () => ({ documentId: snapshot.documentId, revision: snapshot.revision }),
@@ -788,59 +813,61 @@ export function createTauriAdapter(translate: EditorTranslator = DEFAULT_EDITOR_
               }).then(() => undefined),
             });
             templateId = template.descriptor.id;
-            await refreshTemplateCatalog(`operation-${msg.requestId}`);
-            finishOperation(msg.requestId, 'save', true, templateId);
+            finishOperation(msg.requestId, 'save', 'completed', templateId);
           } catch {
-            finishOperation(msg.requestId, 'save', false, templateId, 'The template could not be saved.');
+            finishOperation(msg.requestId, 'save', 'failed', templateId, 'operation-failed');
           }
           break;
         }
 
         case 'updatePersonalTemplate': {
+          if (!matchesTemplateRequestIdentity(msg, session)) {
+            finishOperation(msg.requestId, 'update', 'failed', msg.templateId, 'document-changed');
+            break;
+          }
           try {
             const template = availableTemplates.get(msg.templateId);
-            if (!template) throw new Error('Selected personal template no longer exists.');
-            const metadata = promptMetadata(translate('template.editNamePrompt'), template.descriptor);
-            if (!metadata) {
-              finishOperation(msg.requestId, 'update', false, msg.templateId);
+            if (!template || template.descriptor.source !== 'user') {
+              finishOperation(msg.requestId, 'update', 'failed', msg.templateId, 'template-unavailable');
               break;
             }
-            const updated = updatePersonalTemplateMetadata(template, metadata);
+            if (personalTemplateFingerprints.get(msg.templateId) !== msg.revisionToken) {
+              finishOperation(msg.requestId, 'update', 'failed', msg.templateId, 'template-changed');
+              break;
+            }
+            const updated = updatePersonalTemplateMetadata(template, msg.metadata);
             await invoke('update_personal_template', {
               templateId: msg.templateId,
               expectedFingerprint: msg.revisionToken,
               envelope: updated.envelope,
             });
-            await refreshTemplateCatalog(`operation-${msg.requestId}`);
-            finishOperation(msg.requestId, 'update', true, msg.templateId);
+            finishOperation(msg.requestId, 'update', 'completed', msg.templateId);
           } catch {
-            finishOperation(msg.requestId, 'update', false, msg.templateId, 'The template could not be updated.');
+            finishOperation(msg.requestId, 'update', 'failed', msg.templateId, 'operation-failed');
           }
           break;
         }
 
         case 'duplicatePersonalTemplate': {
           let duplicateId: string | undefined;
+          if (!matchesTemplateRequestIdentity(msg, session)) {
+            finishOperation(msg.requestId, 'duplicate', 'failed', undefined, 'document-changed');
+            break;
+          }
           try {
-            await refreshTemplateCatalog(`operation-${msg.requestId}`);
             const template = availableTemplates.get(msg.templateId);
-            if (!template
-              || personalTemplateFingerprints.get(msg.templateId) !== msg.revisionToken) {
-              throw new Error('Selected personal template changed. Refresh and try again.');
+            if (!template || template.descriptor.source !== 'user') {
+              finishOperation(msg.requestId, 'duplicate', 'failed', undefined, 'template-unavailable');
+              break;
             }
-            const metadata = promptMetadata(translate('template.duplicateNamePrompt'), {
-              name: translate('template.copySuffix', { name: template.descriptor.name }),
-              description: template.descriptor.description,
-              category: template.descriptor.category,
-            });
-            if (!metadata) {
-              finishOperation(msg.requestId, 'duplicate', false);
+            if (personalTemplateFingerprints.get(msg.templateId) !== msg.revisionToken) {
+              finishOperation(msg.requestId, 'duplicate', 'failed', undefined, 'template-changed');
               break;
             }
             duplicateId = `user:${crypto.randomUUID()}`;
             const duplicate = createPersonalTemplateSnapshot(template.envelope, {
               id: duplicateId,
-              ...metadata,
+              ...msg.metadata,
               titleNodeId: template.descriptor.titleNodeId,
               sourceLabel: '.sdoc/templates',
             });
@@ -848,10 +875,9 @@ export function createTauriAdapter(translate: EditorTranslator = DEFAULT_EDITOR_
               templateId: duplicateId,
               envelope: duplicate.envelope,
             });
-            await refreshTemplateCatalog(`operation-${msg.requestId}`);
-            finishOperation(msg.requestId, 'duplicate', true, duplicateId);
+            finishOperation(msg.requestId, 'duplicate', 'completed', duplicateId);
           } catch {
-            finishOperation(msg.requestId, 'duplicate', false, duplicateId, 'The template could not be duplicated.');
+            finishOperation(msg.requestId, 'duplicate', 'failed', duplicateId, 'operation-failed');
           }
           break;
         }
@@ -859,19 +885,21 @@ export function createTauriAdapter(translate: EditorTranslator = DEFAULT_EDITOR_
         case 'deletePersonalTemplate': {
           try {
             const template = availableTemplates.get(msg.templateId);
-            if (!template) throw new Error('Selected personal template no longer exists.');
-            if (!window.confirm(translate('template.deleteConfirm', { name: template.descriptor.name }))) {
-              finishOperation(msg.requestId, 'delete', false, msg.templateId);
+            if (!template || template.descriptor.source !== 'user') {
+              finishOperation(msg.requestId, 'delete', 'failed', msg.templateId, 'template-unavailable');
+              break;
+            }
+            if (personalTemplateFingerprints.get(msg.templateId) !== msg.revisionToken) {
+              finishOperation(msg.requestId, 'delete', 'failed', msg.templateId, 'template-changed');
               break;
             }
             await invoke('trash_personal_template', {
               templateId: msg.templateId,
               expectedFingerprint: msg.revisionToken,
             });
-            await refreshTemplateCatalog(`operation-${msg.requestId}`);
-            finishOperation(msg.requestId, 'delete', true, msg.templateId);
+            finishOperation(msg.requestId, 'delete', 'completed', msg.templateId);
           } catch {
-            finishOperation(msg.requestId, 'delete', false, msg.templateId, 'The template could not be deleted.');
+            finishOperation(msg.requestId, 'delete', 'failed', msg.templateId, 'operation-failed');
           }
           break;
         }
@@ -879,9 +907,9 @@ export function createTauriAdapter(translate: EditorTranslator = DEFAULT_EDITOR_
         case 'openPersonalTemplateFolder':
           try {
             await invoke('reveal_personal_template_library');
-            finishOperation(msg.requestId, 'open-folder', true);
+            finishOperation(msg.requestId, 'open-folder', 'completed');
           } catch {
-            finishOperation(msg.requestId, 'open-folder', false, undefined, 'The template folder could not be opened.');
+            finishOperation(msg.requestId, 'open-folder', 'failed', undefined, 'operation-failed');
           }
           break;
 

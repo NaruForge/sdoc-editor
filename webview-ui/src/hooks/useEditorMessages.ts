@@ -1,11 +1,14 @@
-import { useRef, useState, MutableRefObject } from 'react';
+import { useCallback, useEffect, useReducer, useRef, useState, MutableRefObject } from 'react';
 import { Editor as TiptapEditor, type JSONContent } from '@tiptap/react';
 import { useEditorContext, resolveFontWeight } from '@shared/editor/context/EditorContext';
 import { useVSCodeMessaging } from './useVSCodeMessaging';
 import { preprocessImportedHtml } from '@shared/editor/utils/preprocessImportedHtml';
 import { isUpdatedDrawioAsset } from '@shared/editor/drawioUpdates';
-import type { ManagedTemplateDescriptor } from '@shared/types/messages';
-import type { TemplateCatalogDiagnosticView } from '@shared/template/catalogView';
+import type { ManagedTemplateDescriptor, PersonalTemplateMetadataInput } from '@shared/types/messages';
+import {
+  createTemplateSessionState,
+  templateSessionReducer,
+} from '@shared/editor/templateSession';
 import {
   createFileOperationControllerState,
   fileOperationReducer,
@@ -91,20 +94,18 @@ export function useEditorMessages({
   const flushPendingRef = useRef(flushPendingUpdate);
   flushPendingRef.current = flushPendingUpdate;
 
-  const [templates, setTemplates] = useState<ManagedTemplateDescriptor[]>([]);
-  const [templateDiagnostics, setTemplateDiagnostics] = useState<TemplateCatalogDiagnosticView[]>([]);
-  const [isTemplateCatalogLoading, setIsTemplateCatalogLoading] = useState(true);
-  const [isApplyingTemplate, setIsApplyingTemplate] = useState(false);
-  const [isManagingTemplate, setIsManagingTemplate] = useState(false);
-  const [personalTemplateRootScope, setPersonalTemplateRootScope] = useState<'local' | 'remote'>('local');
+  const [templateSession, dispatchTemplateSession] = useReducer(
+    templateSessionReducer,
+    undefined,
+    createTemplateSessionState,
+  );
   const [fileController, setFileController] = useState<FileOperationControllerState>(
     () => createFileOperationControllerState('pending'),
   );
   const [diagramRendererSettings, setDiagramRendererSettings] =
     useState<DiagramRendererSettings>({ ...DEFAULT_DIAGRAM_RENDERER_SETTINGS });
-  const catalogRequestRef = useRef<string | null>(null);
-  const applyRequestRef = useRef<string | null>(null);
-  const personalRequestRef = useRef<string | null>(null);
+  const catalogBootstrappedRef = useRef(false);
+  const requestCatalogRef = useRef<() => void>(() => {});
   const diagramRequestsRef = useRef(new Map<string, {
     resolve: (value: Awaited<ReturnType<HostDiagramRenderer>>) => void;
     reject: (reason: unknown) => void;
@@ -162,22 +163,48 @@ export function useEditorMessages({
         });
         break;
       case 'templateCatalog':
-        if (message.requestId !== catalogRequestRef.current) break;
-        setTemplates(message.templates);
-        setTemplateDiagnostics(message.diagnostics);
-        setPersonalTemplateRootScope(message.personalRootScope);
-        setIsTemplateCatalogLoading(false);
+        dispatchTemplateSession({
+          type: 'catalog-succeeded',
+          requestId: message.requestId,
+          templates: message.templates,
+          diagnostics: message.diagnostics,
+          personalRootScope: message.personalRootScope,
+        });
+        break;
+      case 'templateCatalogFailed':
+        dispatchTemplateSession({
+          type: 'catalog-failed',
+          requestId: message.requestId,
+          error: message.error,
+        });
         break;
       case 'templateApplicationFinished':
-        if (message.requestId !== applyRequestRef.current) break;
-        applyRequestRef.current = null;
-        setIsApplyingTemplate(false);
+        if (message.result === 'applied') {
+          dispatchTemplateSession({ type: 'action-completed', requestId: message.requestId });
+        } else if (message.result === 'cancelled') {
+          dispatchTemplateSession({ type: 'action-cancelled', requestId: message.requestId });
+        } else {
+          dispatchTemplateSession({
+            type: 'action-failed', requestId: message.requestId,
+            error: message.error ?? { code: 'operation-failed', message: 'The template could not be applied.' },
+          });
+        }
         ed?.setEditable(true);
         break;
       case 'templateOperationFinished':
-        if (message.requestId !== personalRequestRef.current) break;
-        personalRequestRef.current = null;
-        setIsManagingTemplate(false);
+        if (message.result === 'completed') {
+          dispatchTemplateSession({
+            type: 'action-completed', requestId: message.requestId, templateId: message.templateId,
+          });
+          if (message.operation !== 'open-folder') queueMicrotask(() => requestCatalogRef.current());
+        } else if (message.result === 'cancelled') {
+          dispatchTemplateSession({ type: 'action-cancelled', requestId: message.requestId });
+        } else {
+          dispatchTemplateSession({
+            type: 'action-failed', requestId: message.requestId,
+            error: message.error ?? { code: 'operation-failed', message: 'The template action could not be completed.' },
+          });
+        }
         break;
       case 'externalChange':
         if (persistenceSessionRef.current?.sessionId !== message.sessionId
@@ -485,23 +512,33 @@ export function useEditorMessages({
     }
   };
 
-  const handleRequestTemplateCatalog = () => {
+  const handleRequestTemplateCatalog = useCallback(() => {
     const requestId = crypto.randomUUID();
-    catalogRequestRef.current = requestId;
-    setIsTemplateCatalogLoading(true);
-    postMessage({ type: 'requestTemplateCatalog', requestId });
-  };
+    dispatchTemplateSession({ type: 'catalog-requested', requestId });
+    void postMessage({ type: 'requestTemplateCatalog', requestId }).catch(() => {
+      dispatchTemplateSession({
+        type: 'catalog-failed',
+        requestId,
+        error: { code: 'catalog-unavailable', message: 'The template catalog could not be loaded.' },
+      });
+    });
+  }, [postMessage]);
+  requestCatalogRef.current = handleRequestTemplateCatalog;
+
+  useEffect(() => {
+    if (catalogBootstrappedRef.current) return;
+    catalogBootstrappedRef.current = true;
+    handleRequestTemplateCatalog();
+  }, [handleRequestTemplateCatalog]);
 
   const handleApplyTemplate = (templateId: string) => {
-    if (isApplyingTemplate) return;
+    if (templateSession.action.phase === 'running') return;
     flushPendingRef.current();
     const session = persistenceSessionRef.current;
     const sync = syncCoordinatorRef.current;
     if (!session || !sync) return;
-    setIsApplyingTemplate(true);
     const requestId = crypto.randomUUID();
-    applyRequestRef.current = requestId;
-    catalogRequestRef.current = `apply-refresh-${requestId}`;
+    dispatchTemplateSession({ type: 'action-started', requestId, operation: 'apply', templateId });
     editorRef.current?.setEditable(false);
     void new SaveCoordinator(sync).afterAcknowledged(() => {
       postMessage({
@@ -513,40 +550,42 @@ export function useEditorMessages({
         baseRevision: sync.state.acknowledgedRevision,
       });
     }).catch(() => {
-      setIsApplyingTemplate(false);
+      dispatchTemplateSession({
+        type: 'action-failed', requestId,
+        error: { code: 'operation-failed', message: 'The template could not be applied.' },
+      });
       editorRef.current?.setEditable(true);
     });
   };
 
   const postIdentifiedTemplateOperation = (
     type: 'savePersonalTemplate' | 'updatePersonalTemplate' | 'duplicatePersonalTemplate',
+    metadata: PersonalTemplateMetadataInput,
     template?: ManagedTemplateDescriptor,
   ) => {
-    if (isManagingTemplate) return;
+    if (templateSession.action.phase === 'running') return;
     const session = persistenceSessionRef.current;
     const sync = syncCoordinatorRef.current;
     if (!session || !sync) return;
     if (type !== 'savePersonalTemplate' && (!template || !template.revisionToken)) return;
     flushPendingRef.current();
-    setIsManagingTemplate(true);
+    const requestId = crypto.randomUUID();
+    const operation = type === 'savePersonalTemplate'
+      ? 'save' : type === 'updatePersonalTemplate' ? 'update' : 'duplicate';
+    dispatchTemplateSession({ type: 'action-started', requestId, operation, templateId: template?.id });
     void new SaveCoordinator(sync).afterAcknowledged(() => {
       if (type === 'savePersonalTemplate') {
-        const requestId = crypto.randomUUID();
-        personalRequestRef.current = requestId;
-        catalogRequestRef.current = `operation-${requestId}`;
         postMessage({
           type,
           requestId,
           sessionId: session.sessionId,
           documentId: session.documentId,
           baseRevision: sync.state.acknowledgedRevision,
+          metadata,
         });
         return;
       }
       if (!template?.revisionToken) return;
-      const requestId = crypto.randomUUID();
-      personalRequestRef.current = requestId;
-      catalogRequestRef.current = `operation-${requestId}`;
       postMessage({
         type,
         requestId,
@@ -555,38 +594,48 @@ export function useEditorMessages({
         baseRevision: sync.state.acknowledgedRevision,
         templateId: template.id,
         revisionToken: template.revisionToken,
+        metadata,
       });
     }).catch(() => {
-      setIsManagingTemplate(false);
+      dispatchTemplateSession({
+        type: 'action-failed', requestId,
+        error: { code: 'operation-failed', message: 'The template action could not be completed.' },
+      });
     });
   };
 
-  const handleSavePersonalTemplate = () =>
-    postIdentifiedTemplateOperation('savePersonalTemplate');
-  const handleUpdatePersonalTemplate = (template: ManagedTemplateDescriptor) =>
-    postIdentifiedTemplateOperation('updatePersonalTemplate', template);
-  const handleDuplicatePersonalTemplate = (template: ManagedTemplateDescriptor) =>
-    postIdentifiedTemplateOperation('duplicatePersonalTemplate', template);
-  const handleDeletePersonalTemplate = (template: ManagedTemplateDescriptor) => {
-    if (isManagingTemplate || !template.revisionToken) return;
-    setIsManagingTemplate(true);
+  const handleSavePersonalTemplate = (metadata: PersonalTemplateMetadataInput) =>
+    postIdentifiedTemplateOperation('savePersonalTemplate', metadata);
+  const handleUpdatePersonalTemplate = (template: ManagedTemplateDescriptor, metadata: PersonalTemplateMetadataInput) =>
+    postIdentifiedTemplateOperation('updatePersonalTemplate', metadata, template);
+  const handleDuplicatePersonalTemplate = (template: ManagedTemplateDescriptor, metadata: PersonalTemplateMetadataInput) =>
+    postIdentifiedTemplateOperation('duplicatePersonalTemplate', metadata, template);
+  const handleDeletePersonalTemplate = (template: ManagedTemplateDescriptor, visibleIndex: number) => {
+    if (templateSession.action.phase === 'running' || !template.revisionToken) return;
     const requestId = crypto.randomUUID();
-    personalRequestRef.current = requestId;
-    catalogRequestRef.current = `operation-${requestId}`;
-    postMessage({
+    dispatchTemplateSession({
+      type: 'action-started', requestId, operation: 'delete', templateId: template.id, visibleIndex,
+    });
+    void postMessage({
       type: 'deletePersonalTemplate',
       requestId,
       templateId: template.id,
       revisionToken: template.revisionToken,
-    });
+    }).catch(() => dispatchTemplateSession({
+      type: 'action-failed', requestId,
+      error: { code: 'operation-failed', message: 'The template could not be deleted.' },
+    }));
   };
   const handleOpenPersonalTemplateFolder = () => {
-    if (isManagingTemplate) return;
-    setIsManagingTemplate(true);
+    if (templateSession.action.phase === 'running') return;
     const requestId = crypto.randomUUID();
-    personalRequestRef.current = requestId;
-    catalogRequestRef.current = `operation-${requestId}`;
-    postMessage({ type: 'openPersonalTemplateFolder', requestId });
+    dispatchTemplateSession({ type: 'action-started', requestId, operation: 'open-folder' });
+    void postMessage({ type: 'openPersonalTemplateFolder', requestId }).catch(() => {
+      dispatchTemplateSession({
+        type: 'action-failed', requestId,
+        error: { code: 'operation-failed', message: 'The template folder could not be opened.' },
+      });
+    });
   };
 
   const renderDiagram: HostDiagramRenderer = ({ language, code, signal }) => {
@@ -696,12 +745,8 @@ export function useEditorMessages({
     handleDuplicatePersonalTemplate,
     handleDeletePersonalTemplate,
     handleOpenPersonalTemplateFolder,
-    templates,
-    templateDiagnostics,
-    isTemplateCatalogLoading,
-    isApplyingTemplate,
-    isManagingTemplate,
-    personalTemplateRootScope,
+    templateSession,
+    dispatchTemplateSession,
     externalChange,
     showExternalComparison,
     setShowExternalComparison,

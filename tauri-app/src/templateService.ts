@@ -205,7 +205,6 @@ export async function saveActiveDocumentAsPersonalTemplate(
 }
 
 export interface ApplyTemplateToActiveTauriDocumentOperations extends ActiveDocumentOperations {
-  confirm(snapshot: SdocEnvelope): Promise<boolean>;
   save(request: {
     content: TiptapNode;
     metaUpdates: Record<string, unknown>;
@@ -225,7 +224,6 @@ export async function applyTemplateToActiveTauriDocument(
   operations: ApplyTemplateToActiveTauriDocumentOperations,
 ): Promise<ApplyTemplateToActiveTauriDocumentResult> {
   const { identity, envelope: current } = await readFlushedSnapshot(operations);
-  if (!await operations.confirm(current)) return { applied: false };
 
   const instantiated = instantiateTemplate(template, {
     title: typeof current.meta.title === 'string' && current.meta.title.trim()

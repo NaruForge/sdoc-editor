@@ -8,6 +8,7 @@ import {
 } from '../shared/editor/activityState';
 import { ActivityBar } from '../shared/editor/components/ActivityBar';
 import { ViewControlPanel } from '../shared/editor/components/ViewControlPanel';
+import { SidePanelTabs } from '../shared/editor/components/SidePanelTabs';
 import {
   applyHeadingPalette,
   DocumentSettingsPanel,
@@ -15,6 +16,11 @@ import {
   removeDocumentSettings,
 } from '../shared/editor/components/DocumentSettingsPanel';
 import { EditorProvider } from '../shared/editor/context/EditorContext';
+import { EditorI18nProvider } from '../shared/editor/i18n';
+
+const renderActivityBar = (element: React.ReactElement): string => renderToStaticMarkup(
+  <EditorI18nProvider locale="en">{element}</EditorI18nProvider>,
+);
 
 describe('activity hubs and settings UI', () => {
   it('remembers each hub child and closes an open hub when it is clicked again', () => {
@@ -42,21 +48,26 @@ describe('activity hubs and settings UI', () => {
     let state = createActivitySessionState(null);
     expect(transitionActivityDestination(state, 'workspace')).toBe(state);
 
-    state = selectSidePanel(
-      state,
-      { destination: 'publish', tab: 'templates' },
-      { showTemplates: true },
-    );
-    state = selectSidePanel(state, null);
+    state = transitionActivityDestination(state, 'templates', { showTemplates: true });
+    expect(state.selection).toEqual({ destination: 'templates' });
+    state = transitionActivityDestination(state, 'templates', { showTemplates: true });
+    expect(state.selection).toBeNull();
     state = transitionActivityDestination(state, 'publish');
     expect(state.selection).toEqual({ destination: 'publish', tab: 'export' });
+
+    const unavailable = createActivitySessionState(null);
+    expect(transitionActivityDestination(unavailable, 'templates')).toBe(unavailable);
   });
 
-  it('renders three shared hubs and an optional workspace hub', () => {
-    const sharedMarkup = renderToStaticMarkup(
-      <ActivityBar activeDestination="design" onDestinationClick={vi.fn()} />,
+  it('renders Templates as an independent shared destination in the required order', () => {
+    const sharedMarkup = renderActivityBar(
+      <ActivityBar
+        activeDestination="templates"
+        onDestinationClick={vi.fn()}
+        showTemplates
+      />,
     );
-    const workspaceMarkup = renderToStaticMarkup(
+    const workspaceMarkup = renderActivityBar(
       <ActivityBar
         activeDestination="workspace"
         onDestinationClick={vi.fn()}
@@ -64,13 +75,33 @@ describe('activity hubs and settings UI', () => {
       />,
     );
 
-    expect(sharedMarkup.match(/class="activity-bar-icon/g)).toHaveLength(3);
-    expect(sharedMarkup).toContain('Navigate');
-    expect(sharedMarkup).toContain('Design');
-    expect(sharedMarkup).toContain('Publish');
+    expect(sharedMarkup.match(/class="activity-bar-icon/g)).toHaveLength(4);
+    expect(sharedMarkup.indexOf('Navigate')).toBeLessThan(sharedMarkup.indexOf('Design'));
+    expect(sharedMarkup.indexOf('Design')).toBeLessThan(sharedMarkup.indexOf('Templates'));
+    expect(sharedMarkup.indexOf('Templates')).toBeLessThan(sharedMarkup.indexOf('Publish'));
     expect(sharedMarkup).not.toContain('Workspace');
     expect(workspaceMarkup.match(/class="activity-bar-icon/g)).toHaveLength(4);
     expect(workspaceMarkup).toContain('Workspace');
+  });
+
+  it('keeps only Export and Import in Publish and remembers its last tab', () => {
+    const markup = renderToStaticMarkup(
+      <EditorI18nProvider locale="en">
+        <SidePanelTabs
+          selection={{ destination: 'publish', tab: 'import' }}
+          onSelectionChange={vi.fn()}
+        />
+      </EditorI18nProvider>,
+    );
+    expect(markup.match(/role="tab"/g)).toHaveLength(2);
+    expect(markup).toContain('Export');
+    expect(markup).toContain('Import');
+    expect(markup).not.toContain('Templates');
+
+    let state = createActivitySessionState({ destination: 'publish', tab: 'import' });
+    state = transitionActivityDestination(state, 'templates', { showTemplates: true });
+    state = transitionActivityDestination(state, 'publish', { showTemplates: true });
+    expect(state.selection).toEqual({ destination: 'publish', tab: 'import' });
   });
 
   it('renders the global UI language preference in the shared View panel', () => {

@@ -7,6 +7,8 @@ import {
   selectedTemplateAfterFiltering,
   TemplatePanel,
 } from '../shared/editor/components/TemplatePanel';
+import { validateTemplateMetadata } from '../shared/editor/components/TemplateDialogs';
+import { createTemplateSessionState } from '../shared/editor/templateSession';
 import { EditorI18nProvider } from '../shared/editor/i18n';
 import type { TemplateCatalogDiagnosticView } from '../shared/template/catalogView';
 import type { ManagedTemplateDescriptor } from '../shared/types/messages';
@@ -59,11 +61,8 @@ const renderPanel = (
 ): string => renderToStaticMarkup(
   <EditorI18nProvider locale={locale}>
     <TemplatePanel
-      templates={templates}
-      diagnostics={diagnostics}
-      isApplying={false}
-      isManaging={false}
-      personalRootScope="local"
+      session={{ ...createTemplateSessionState(), templates, diagnostics, catalog: { phase: 'ready', requestId: 'catalog' } }}
+      dispatch={vi.fn()}
       onApply={vi.fn()}
       onRefresh={vi.fn()}
       onSaveCurrent={vi.fn()}
@@ -85,7 +84,7 @@ describe('template side panel UI', () => {
       markup.indexOf('Save current document as my template'),
     );
     expect(markup).toContain('<details class="template-personal-management">');
-    expect(markup).toContain('Local · ~/.sdoc/templates');
+    expect(markup).toContain('Shared storage on this PC · ~/.sdoc/templates');
   });
 
   it('intersects search, source, and category without indexing a source path', () => {
@@ -120,10 +119,8 @@ describe('template side panel UI', () => {
     const markup = renderToStaticMarkup(
       <EditorI18nProvider locale="en">
         <TemplatePanel
-          templates={templates}
-          isApplying={false}
-          isManaging={false}
-          personalRootScope="remote"
+          session={{ ...createTemplateSessionState(), templates, personalRootScope: 'remote', catalog: { phase: 'ready', requestId: 'catalog' } }}
+          dispatch={vi.fn()}
           onApply={onApply}
           onRefresh={vi.fn()}
           onSaveCurrent={vi.fn()}
@@ -142,8 +139,22 @@ describe('template side panel UI', () => {
     expect(markup).toContain(
       '<button type="button" class="template-apply-primary" disabled="">Apply template</button>',
     );
-    expect(markup).toContain('Remote · ~/.sdoc/templates');
+    expect(markup).toContain('Remote Extension Host storage · ~/.sdoc/templates');
     expect(onApply).not.toHaveBeenCalled();
+  });
+
+  it('validates and trims metadata before sending it to a host', () => {
+    expect(validateTemplateMetadata({
+      name: '  Report  ', description: '  Notes  ', category: '  Work  ',
+    }, { name: 'name', description: 'description', category: 'category' }).value).toEqual({
+      name: 'Report', description: 'Notes', category: 'Work',
+    });
+    expect(validateTemplateMetadata({ name: ' ' }, {
+      name: 'name', description: 'description', category: 'category',
+    }).errors.name).toBe('name');
+    expect(validateTemplateMetadata({ name: 'Report', description: 'x'.repeat(2_001) }, {
+      name: 'name', description: 'description', category: 'category',
+    }).errors.description).toBe('description');
   });
 
   it('renders structured diagnostics with recovery and correct singular copy', () => {
@@ -172,5 +183,39 @@ describe('template side panel UI', () => {
     expect(markup).not.toContain('/Users/');
     expect(markup).not.toContain('secret');
     expect(markup).toContain('~/.sdoc/templates');
+  });
+
+  it('keeps browsing and apply available while exposing per-action disabled reasons', () => {
+    const markup = renderToStaticMarkup(
+      <EditorI18nProvider locale="en">
+        <TemplatePanel
+          session={{
+            ...createTemplateSessionState(),
+            templates,
+            selectedId: 'user:11111111-1111-4111-8111-111111111111',
+            catalog: { phase: 'ready', requestId: 'catalog' },
+          }}
+          dispatch={vi.fn()}
+          capabilities={{
+            apply: { available: true },
+            save: { available: false, reason: 'Saving is managed by this host.' },
+            update: { available: false, reason: 'Editing is unavailable.' },
+            duplicate: { available: false, reason: 'Duplication is unavailable.' },
+            delete: { available: false, reason: 'Deletion is unavailable.' },
+            openFolder: { available: false, reason: 'Folder access is unavailable.' },
+          }}
+          onApply={vi.fn()}
+        />
+      </EditorI18nProvider>,
+    );
+
+    expect(markup).toContain('Template results');
+    expect(markup).toContain('Apply template');
+    expect(markup).toContain('aria-disabled="true" aria-describedby=');
+    expect(markup).toContain('Saving is managed by this host.');
+    expect(markup).toContain('Folder access is unavailable.');
+    expect(markup).toContain('Editing is unavailable.');
+    expect(markup).toContain('Duplication is unavailable.');
+    expect(markup).toContain('Deletion is unavailable.');
   });
 });

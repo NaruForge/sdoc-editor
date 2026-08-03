@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { EditorContent, useEditor, type Editor } from '@tiptap/react';
 import { StarterKit } from '@tiptap/starter-kit';
@@ -36,6 +36,7 @@ import { CustomTable } from '@shared/editor/extensions/CustomTable';
 import { ExternalChangePrompt } from '@shared/editor/externalChanges';
 import { FILE_OPERATION_IDLE_STATE } from '@shared/editor/fileOperations';
 import { createEditorTranslator } from '@shared/editor/i18n';
+import { createTemplateSessionState, templateSessionReducer } from '@shared/editor/templateSession';
 import type { ManagedTemplateDescriptor } from '@shared/types/messages';
 import '../../../tauri-app/src/styles/tauri-theme.css';
 import '@shared/editor/styles/editor.css';
@@ -301,12 +302,44 @@ function SharedPanelScene({
 }) {
   const returnFocusRef = useRef<HTMLButtonElement | null>(null);
   const [open, setOpen] = useState(true);
+  const [templateSession, dispatchTemplateSession] = useReducer(
+    templateSessionReducer,
+    undefined,
+    () => ({
+      ...createTemplateSessionState(),
+      catalog: { phase: 'ready' as const, requestId: 'fixture-catalog' },
+      templates: TEMPLATE_FIXTURES,
+      diagnostics: [{
+        id: 'workspace-readable-diagnostic',
+        code: 'read-failed' as const,
+        source: 'workspace' as const,
+        severity: 'warning' as const,
+        targetLabel: 'legacy-report.sdoc',
+        detail: 'One workspace template could not be read.',
+        recovery: 'retry' as const,
+      }],
+      personalRootScope: host === 'vscode' ? 'remote' as const : 'local' as const,
+    }),
+  );
   const title = scene === 'settings'
     ? (locale === 'ko' ? '문서 설정' : 'Document settings')
     : scene === 'templates'
       ? (locale === 'ko' ? '템플릿' : 'Templates')
       : (locale === 'ko' ? '파일' : 'Files');
-  const destination: ActivityDestination = scene === 'settings' ? 'design' : 'publish';
+  const destination: ActivityDestination = scene === 'settings'
+    ? 'design' : scene === 'templates' ? 'templates' : 'publish';
+  const finishFixtureAction = (operation: 'apply' | 'save' | 'update' | 'duplicate' | 'delete' | 'open-folder', templateId?: string, visibleIndex?: number) => {
+    const requestId = `fixture-${operation}`;
+    dispatchTemplateSession({ type: 'action-started', requestId, operation, templateId, visibleIndex });
+    queueMicrotask(() => dispatchTemplateSession(
+      operation === 'open-folder' && host === 'tauri'
+        ? {
+          type: 'action-failed', requestId,
+          error: { code: 'operation-failed', message: 'The template action could not be completed.' },
+        }
+        : { type: 'action-completed', requestId, templateId },
+    ));
+  };
 
   return (
     <div
@@ -315,9 +348,13 @@ function SharedPanelScene({
       style={{ height: '100vh', position: 'relative' }}
     >
       <ActivityBar
-        activeDestination={destination}
-        onDestinationClick={() => undefined}
+        activeDestination={open ? destination : null}
+        onDestinationClick={(clicked) => {
+          returnFocusRef.current = document.getElementById(`activity-destination-${clicked}`) as HTMLButtonElement | null;
+          setOpen((current) => clicked === destination ? !current : true);
+        }}
         showWorkspace={host === 'tauri'}
+        showTemplates
       />
       {open && (
         <ResponsiveSidePanel
@@ -331,26 +368,23 @@ function SharedPanelScene({
           )}
           {scene === 'templates' && (
             <TemplatePanel
-              templates={TEMPLATE_FIXTURES}
-              diagnostics={[{
-                id: 'workspace-readable-diagnostic',
-                code: 'read-failed',
-                source: 'workspace',
-                severity: 'warning',
-                targetLabel: 'legacy-report.sdoc',
-                detail: 'One workspace template could not be read.',
-                recovery: 'retry',
-              }]}
-              isApplying={false}
-              isManaging={false}
-              personalRootScope={host === 'vscode' ? 'remote' : 'local'}
-              onApply={() => undefined}
-              onRefresh={() => undefined}
-              onSaveCurrent={() => undefined}
-              onEdit={() => undefined}
-              onDuplicate={() => undefined}
-              onDelete={() => undefined}
-              onOpenPersonalFolder={() => undefined}
+              session={templateSession}
+              dispatch={dispatchTemplateSession}
+              onApply={(templateId) => finishFixtureAction('apply', templateId)}
+              onRefresh={() => {
+                const requestId = 'fixture-refresh';
+                dispatchTemplateSession({ type: 'catalog-requested', requestId });
+                queueMicrotask(() => dispatchTemplateSession({
+                  type: 'catalog-succeeded', requestId, templates: TEMPLATE_FIXTURES,
+                  diagnostics: templateSession.diagnostics,
+                  personalRootScope: templateSession.personalRootScope,
+                }));
+              }}
+              onSaveCurrent={() => finishFixtureAction('save', 'user:fixture-new')}
+              onEdit={(template) => finishFixtureAction('update', template.id)}
+              onDuplicate={() => finishFixtureAction('duplicate', 'user:fixture-copy')}
+              onDelete={(template, visibleIndex) => finishFixtureAction('delete', template.id, visibleIndex)}
+              onOpenPersonalFolder={() => finishFixtureAction('open-folder')}
             />
           )}
           {scene === 'files' && (

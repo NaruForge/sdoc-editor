@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import type { EditorHostBridge, HostMessageHandler } from '@shared/editor/hostBridge';
 import type { EditorToHostMessage } from '@shared/types/messages';
 import { isHostToEditorMessage } from '@shared/types/messageGuards';
@@ -60,6 +60,9 @@ export const useVSCodeMessaging = (handler: HostMessageHandler) => {
   }, []);
 
   return {
-    postMessage: (message: EditorToHostMessage) => vscodeBridge.postMessage(message),
+    postMessage: useCallback(
+      (message: EditorToHostMessage) => vscodeBridge.postMessage(message),
+      [],
+    ),
   };
 };

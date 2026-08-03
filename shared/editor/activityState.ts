@@ -1,13 +1,14 @@
-export type ActivityDestination = 'workspace' | 'navigate' | 'design' | 'publish';
+export type ActivityDestination = 'workspace' | 'navigate' | 'design' | 'templates' | 'publish';
 
 export type NavigatePanelTab = 'toc' | 'figures' | 'tables';
 export type DesignPanelTab = 'view' | 'document';
-export type PublishPanelTab = 'export' | 'import' | 'templates';
+export type PublishPanelTab = 'export' | 'import';
 
 export type SidePanelSelection =
   | { destination: 'workspace' }
   | { destination: 'navigate'; tab: NavigatePanelTab }
   | { destination: 'design'; tab: DesignPanelTab }
+  | { destination: 'templates' }
   | { destination: 'publish'; tab: PublishPanelTab };
 
 export interface ActivityCapabilities {
@@ -35,9 +36,7 @@ const isSelectionAvailable = (
   capabilities: ActivityCapabilities,
 ): boolean => {
   if (selection.destination === 'workspace') return capabilities.showWorkspace === true;
-  if (selection.destination === 'publish' && selection.tab === 'templates') {
-    return capabilities.showTemplates === true;
-  }
+  if (selection.destination === 'templates') return capabilities.showTemplates === true;
   return true;
 };
 
@@ -66,7 +65,9 @@ export function selectSidePanel(
 ): ActivitySessionState {
   if (selection === null) return { ...state, selection: null };
   if (!isSelectionAvailable(selection, capabilities)) return state;
-  if (selection.destination === 'workspace') return { ...state, selection };
+  if (selection.destination === 'workspace' || selection.destination === 'templates') {
+    return { ...state, selection };
+  }
   return {
     selection,
     lastChildTabs: {
@@ -90,6 +91,11 @@ export function transitionActivityDestination(
       ? { ...state, selection: { destination: 'workspace' } }
       : state;
   }
+  if (destination === 'templates') {
+    return capabilities.showTemplates === true
+      ? { ...state, selection: { destination: 'templates' } }
+      : state;
+  }
 
   if (destination === 'navigate') {
     return selectSidePanel(
@@ -105,9 +111,9 @@ export function transitionActivityDestination(
       capabilities,
     );
   }
-  const tab = state.lastChildTabs.publish === 'templates'
-    && capabilities.showTemplates !== true
-    ? 'export'
-    : state.lastChildTabs.publish;
-  return selectSidePanel(state, { destination, tab }, capabilities);
+  return selectSidePanel(
+    state,
+    { destination, tab: state.lastChildTabs.publish },
+    capabilities,
+  );
 }

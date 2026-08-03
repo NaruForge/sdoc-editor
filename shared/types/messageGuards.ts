@@ -22,6 +22,37 @@ const hasTemplateRequestIdentity = (value: Record<string, unknown>): boolean =>
   && hasString(value, 'documentId')
   && hasNumber(value, 'baseRevision');
 
+const isPersonalTemplateMetadataInput = (value: unknown): boolean => {
+  if (!isRecord(value) || typeof value.name !== 'string') return false;
+  const name = value.name;
+  if (name !== name.trim() || name.length < 1 || name.length > 200) return false;
+  if (value.description !== undefined
+    && (typeof value.description !== 'string' || value.description.length > 2_000)) return false;
+  if (value.category !== undefined
+    && (typeof value.category !== 'string' || value.category.length > 100)) return false;
+  return true;
+};
+
+const TEMPLATE_ERROR_CODES = [
+  'catalog-unavailable', 'document-changed', 'template-unavailable',
+  'template-changed', 'invalid-document', 'operation-failed',
+] as const;
+
+const containsUnsafeAbsolutePath = (value: string): boolean =>
+  /(?:file:\/{2,}|[A-Za-z]:[\\/]|\\\\|(?:^|[\s("'=])\/(?!\/)(?:[^/\s]+\/)*[^/\s]*)/i.test(value);
+
+const hasOnlyKeys = (value: Record<string, unknown>, keys: readonly string[]): boolean =>
+  Object.keys(value).every((key) => keys.includes(key));
+
+const isTemplateOperationError = (value: unknown): boolean =>
+  isRecord(value)
+  && hasOnlyKeys(value, ['code', 'message'])
+  && TEMPLATE_ERROR_CODES.includes(String(value.code) as typeof TEMPLATE_ERROR_CODES[number])
+  && hasString(value, 'message')
+  && String(value.message).length <= 1_000
+  && !/[\u0000-\u001F\u007F]/.test(String(value.message))
+  && !containsUnsafeAbsolutePath(String(value.message));
+
 const isDocumentMutation = (value: unknown): boolean =>
   isRecord(value)
   && isRecord(value.content)
@@ -146,12 +177,13 @@ export function isEditorToHostMessage(value: unknown): value is EditorToHostMess
         && hasString(value, 'sessionId') && hasString(value, 'documentId')
         && hasNumber(value, 'baseRevision');
     case 'savePersonalTemplate':
-      return hasTemplateRequestIdentity(value);
+      return hasTemplateRequestIdentity(value) && isPersonalTemplateMetadataInput(value.metadata);
     case 'updatePersonalTemplate':
     case 'duplicatePersonalTemplate':
       return hasTemplateRequestIdentity(value)
         && hasString(value, 'templateId')
-        && hasString(value, 'revisionToken');
+        && hasString(value, 'revisionToken')
+        && isPersonalTemplateMetadataInput(value.metadata);
     case 'deletePersonalTemplate':
       return hasString(value, 'requestId')
         && hasString(value, 'templateId')
@@ -210,13 +242,18 @@ export function isHostToEditorMessage(value: unknown): value is HostToEditorMess
       return true;
     case 'templateApplicationFinished':
       return hasString(value, 'requestId')
-        && ['applied', 'cancelled', 'failed'].includes(String(value.result));
+        && ['applied', 'cancelled', 'failed'].includes(String(value.result))
+        && (value.result === 'failed'
+          ? isTemplateOperationError(value.error)
+          : value.error === undefined);
     case 'templateOperationFinished':
       return hasString(value, 'requestId')
         && ['save', 'update', 'duplicate', 'delete', 'open-folder'].includes(String(value.operation))
-        && typeof value.succeeded === 'boolean'
+        && ['completed', 'cancelled', 'failed'].includes(String(value.result))
         && (value.templateId === undefined || hasString(value, 'templateId'))
-        && (value.message === undefined || hasString(value, 'message'));
+        && (value.result === 'failed'
+          ? isTemplateOperationError(value.error)
+          : value.error === undefined);
     case 'requestFlush':
       return hasString(value, 'sessionId') && hasString(value, 'requestId');
     case 'init':
@@ -239,6 +276,8 @@ export function isHostToEditorMessage(value: unknown): value is HostToEditorMess
         && Array.isArray(value.diagnostics)
         && value.diagnostics.every(isTemplateCatalogDiagnosticView)
         && (value.personalRootScope === 'local' || value.personalRootScope === 'remote');
+    case 'templateCatalogFailed':
+      return hasString(value, 'requestId') && isTemplateOperationError(value.error);
     case 'editAcknowledged':
       return hasString(value, 'sessionId') && hasString(value, 'documentId')
         && hasString(value, 'editId') && hasNumber(value, 'revision');

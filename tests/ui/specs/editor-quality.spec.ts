@@ -481,3 +481,81 @@ test.describe('commercial workflow scene gate', () => {
     });
   }
 });
+
+test.describe('template interaction contract', () => {
+  test('confirmation and metadata dialogs trap focus, validate, cancel, and complete', async ({ page }) => {
+    await openFixture(page, {
+      scene: 'templates', width: 1024, height: 900, host: 'vscode', theme: 'dark', locale: 'en',
+    });
+
+    await page.getByRole('button', { name: /Technical report/ }).click();
+    const apply = page.getByRole('button', { name: 'Apply template' });
+    await apply.click();
+    const confirmation = page.getByRole('alertdialog');
+    await expect(confirmation).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Cancel' })).toBeFocused();
+    await page.keyboard.press('Shift+Tab');
+    await expect(page.getByRole('button', { name: 'Apply template' }).last()).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(confirmation).toBeHidden();
+    await expect(apply).toBeFocused();
+
+    await apply.click();
+    await page.getByRole('button', { name: 'Apply template' }).last().click();
+    await expect(page.getByText('Template action completed.')).toBeVisible();
+    await expect(page.locator('.template-panel')).toBeVisible();
+
+    await page.getByText('My templates', { exact: true }).last().click();
+    await page.getByRole('button', { name: /Save current document/ }).click();
+    const metadataDialog = page.getByRole('dialog', { name: 'Save personal template' });
+    await expect(metadataDialog).toBeVisible();
+    const name = metadataDialog.getByLabel('Name');
+    await name.fill(' ');
+    await metadataDialog.getByRole('button', { name: 'Save' }).click();
+    await expect(metadataDialog.getByRole('alert')).toContainText('1 and 200');
+    await name.fill('Validated template');
+    await page.keyboard.press('Enter');
+    await expect(metadataDialog).toBeHidden();
+    await expect(page.getByText('Template action completed.')).toBeVisible();
+
+    await page.getByRole('button', { name: /My weekly review/ }).click();
+    await page.getByRole('button', { name: 'Edit' }).click();
+    const editDialog = page.getByRole('dialog', { name: 'Edit personal template' });
+    await editDialog.getByLabel('Name').fill('Updated weekly review');
+    await page.keyboard.press('Enter');
+    await expect(editDialog).toBeHidden();
+
+    await page.getByRole('button', { name: 'Duplicate' }).click();
+    const duplicateDialog = page.getByRole('dialog', { name: 'Duplicate personal template' });
+    await duplicateDialog.getByLabel('Name').fill('Weekly review copy');
+    await page.keyboard.press('Enter');
+    await expect(duplicateDialog).toBeHidden();
+
+    await page.locator('.template-personal-actions').getByRole('button', { name: 'Delete', exact: true }).click();
+    const deleteDialog = page.getByRole('alertdialog', { name: 'Delete this template?' });
+    await deleteDialog.getByRole('button', { name: 'Delete' }).click();
+    await expect(deleteDialog).toBeHidden();
+  });
+
+  test('Tauri failure restores the invoking button and the activity toggles with localized focus', async ({ page }) => {
+    await openFixture(page, {
+      scene: 'templates', width: 800, height: 900, host: 'tauri', theme: 'light', locale: 'ko',
+    });
+
+    const activity = page.locator('#activity-destination-templates');
+    await activity.click();
+    await expect(page.locator('.template-panel')).toBeHidden();
+    await expect(activity).toBeFocused();
+    await activity.click();
+    await expect(page.locator('.template-panel')).toBeVisible();
+
+    await page.getByRole('button', { name: '다시 시도' }).click();
+    await expect(page.locator('.template-result-count')).toContainText('3');
+
+    await page.getByText('내 템플릿', { exact: true }).last().click();
+    const openFolder = page.getByRole('button', { name: '개인 템플릿 폴더 열기' });
+    await openFolder.click();
+    await expect(page.getByRole('alert')).toContainText('템플릿 작업을 완료하지 못했습니다.');
+    await expect(openFolder).toBeFocused();
+  });
+});

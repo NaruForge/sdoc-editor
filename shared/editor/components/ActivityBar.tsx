@@ -2,10 +2,12 @@ import React from 'react';
 import {
   Compass,
   Files,
+  LayoutTemplate,
   Palette,
   Send,
 } from 'lucide-react';
 import type { ActivityDestination } from '../activityState';
+import { useEditorI18n, type EditorTranslationKey } from '../i18n';
 
 export type { ActivityDestination, SidePanelSelection } from '../activityState';
 
@@ -13,31 +15,39 @@ interface ActivityBarProps {
   activeDestination: ActivityDestination | null;
   onDestinationClick: (destination: ActivityDestination) => void;
   showWorkspace?: boolean;
+  showTemplates?: boolean;
 }
 
 const DESTINATIONS: ReadonlyArray<{
   id: ActivityDestination;
   icon: React.ReactNode;
-  label: string;
+  labelKey: EditorTranslationKey;
 }> = [
-  { id: 'workspace', icon: <Files size={18} />, label: 'Workspace' },
-  { id: 'navigate', icon: <Compass size={18} />, label: 'Navigate' },
-  { id: 'design', icon: <Palette size={18} />, label: 'Design' },
-  { id: 'publish', icon: <Send size={18} />, label: 'Publish' },
+  { id: 'workspace', icon: <Files size={18} />, labelKey: 'activity.workspace' },
+  { id: 'navigate', icon: <Compass size={18} />, labelKey: 'activity.navigate' },
+  { id: 'design', icon: <Palette size={18} />, labelKey: 'activity.design' },
+  { id: 'templates', icon: <LayoutTemplate size={18} />, labelKey: 'activity.templates' },
+  { id: 'publish', icon: <Send size={18} />, labelKey: 'activity.publish' },
 ];
 
 export const ActivityBar: React.FC<ActivityBarProps> = ({
   activeDestination,
   onDestinationClick,
   showWorkspace = false,
-}) => (
-  <nav className="activity-bar" aria-label="Document activities">
-    {DESTINATIONS.filter(({ id }) => showWorkspace || id !== 'workspace').map(({
+  showTemplates = false,
+}) => {
+  const { t } = useEditorI18n();
+  return (
+  <nav className="activity-bar" aria-label={t('activity.documentActivities')}>
+    {DESTINATIONS.filter(({ id }) => (
+      (showWorkspace || id !== 'workspace') && (showTemplates || id !== 'templates')
+    )).map(({
       id,
       icon,
-      label,
+      labelKey,
     }) => {
       const isActive = activeDestination === id;
+      const label = t(labelKey);
       return (
         <button
           key={id}
@@ -57,4 +67,5 @@ export const ActivityBar: React.FC<ActivityBarProps> = ({
       );
     })}
   </nav>
-);
+  );
+};

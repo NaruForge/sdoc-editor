@@ -20,6 +20,8 @@ import type { DocumentSettings, CaptionStyleName, SdocMeta, TiptapNode } from '.
 import type {
   EditorToHostMessage,
   PersonalTemplateOperation,
+  TemplateErrorCode,
+  TemplateOperationError,
 } from '../shared/types/messages';
 import { isEditorToHostMessage } from '../shared/types/messageGuards';
 import { VsCodeAssetService } from './services/VsCodeAssetService';
@@ -49,7 +51,6 @@ import {
   suggestTemplateTitleNodeId,
   updatePersonalTemplateMetadata,
   type SdocTemplate,
-  type TemplateDescriptor,
   type TemplateDiagnostic,
 } from '../shared/template';
 import {
@@ -246,6 +247,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     let fileOperationPending = false;
     let availableTemplates = new Map<string, SdocTemplate>();
     let personalTemplateFingerprints = new Map<string, string>();
+    let templateCatalogGeneration = 0;
     const personalRootScope = vscode.env.remoteName ? 'remote' : 'local';
     const templateService = new VsCodeTemplateService({
       personalSourceLabel: vscode.env.remoteName
@@ -502,11 +504,15 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         }));
 
     const sendTemplateCatalog = async (requestId: string): Promise<void> => {
-      const discovery = await templateService.discover(workspaceTemplateRoots());
-      availableTemplates = new Map(
-        discovery.catalog.templates.map((template) => [template.descriptor.id, template]),
-      );
-      personalTemplateFingerprints = new Map(discovery.personalFingerprints);
+      const generation = ++templateCatalogGeneration;
+      try {
+        const discovery = await templateService.discover(workspaceTemplateRoots());
+        if (generation === templateCatalogGeneration) {
+          availableTemplates = new Map(
+            discovery.catalog.templates.map((template) => [template.descriptor.id, template]),
+          );
+          personalTemplateFingerprints = new Map(discovery.personalFingerprints);
+        }
       const diagnosticCount = discovery.hostDiagnostics.length + discovery.catalog.diagnostics.length;
       if (diagnosticCount > 0) {
         console.warn('Structured Doc template discovery diagnostics', {
@@ -514,7 +520,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
           contract: discovery.catalog.diagnostics,
         });
       }
-      webviewPanel.webview.postMessage({
+        webviewPanel.webview.postMessage({
         type: 'templateCatalog',
         requestId,
         templates: discovery.catalog.templates.map((template) => ({
@@ -547,27 +553,32 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
           }),
         ],
         personalRootScope,
-      });
+        });
+      } catch (error) {
+        console.error('Structured Doc template catalog discovery failed', error);
+        webviewPanel.webview.postMessage({
+          type: 'templateCatalogFailed',
+          requestId,
+          error: {
+            code: 'catalog-unavailable',
+            message: 'The template catalog could not be loaded.',
+          },
+        });
+      }
     };
 
     const applyTemplateToCurrentDocument = async (
       templateId: string,
       expected: CurrentDocumentIdentity,
-      requestId: string,
     ): Promise<boolean> => {
       if (!canApplyTemplateToCurrentDocument(
         document.getText(), document.getText(), expected, currentDocumentIdentity(),
       )) {
-        await vscode.window.showWarningMessage(
-          '템플릿을 적용하기 전에 문서가 변경되었습니다. 현재 내용을 확인한 뒤 다시 시도하세요.',
-        );
         return false;
       }
 
       const template = availableTemplates.get(templateId);
       if (!template) {
-        await vscode.window.showWarningMessage('선택한 템플릿이 더 이상 없습니다. 목록을 새로 고친 뒤 다시 시도하세요.');
-        await sendTemplateCatalog(`apply-refresh-${requestId}`);
         return false;
       }
       const defaultTitle = path.basename(document.uri.fsPath, path.extname(document.uri.fsPath))
@@ -578,19 +589,6 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         template,
         defaultTitle,
       });
-      const message = prepared.hasReplaceableContent
-        ? '이 템플릿을 적용하면 현재 문서의 기존 내용과 문서 설정이 대체됩니다. 계속하시겠습니까?'
-        : '이 템플릿을 현재 문서에 적용하시겠습니까?';
-      const selected = await vscode.window.showWarningMessage(
-        message,
-        {
-          modal: true,
-          detail: '현재 제목·작성자·버전·생성일은 유지되며, 본문과 문서 설정은 템플릿 내용으로 교체됩니다. 한 번의 실행 취소로 되돌릴 수 있습니다.',
-        },
-        '템플릿 적용',
-      );
-      if (selected !== '템플릿 적용') return false;
-
       const committed = await commitCurrentDocumentTemplateApplication({
         expectedText: baselineText,
         currentText: document.getText(),
@@ -608,9 +606,6 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         },
       });
       if (!committed) {
-        await vscode.window.showWarningMessage(
-          '확인하는 동안 문서가 변경되어 템플릿을 적용하지 않았습니다. 기존 내용은 보존되었습니다.',
-        );
         return false;
       }
       postExplicitReplacement('confirmed-template');
@@ -626,36 +621,16 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         | 'openPersonalTemplateFolder';
     }>;
 
-    const requestTemplateMetadata = async (
-      defaults?: Pick<TemplateDescriptor, 'name' | 'description' | 'category'>,
-      duplicate = false,
-    ): Promise<{ name: string; description?: string; category?: string } | undefined> => {
-      const name = await vscode.window.showInputBox({
-        title: duplicate ? 'Duplicate Personal Template' : 'Personal Template',
-        prompt: 'Template name',
-        value: duplicate ? `${defaults?.name ?? ''} copy`.trim() : defaults?.name,
-        validateInput: (value) => value.trim().length === 0
-          ? 'Enter a template name.'
-          : value.length > 200 ? 'The template name must be 200 characters or fewer.' : undefined,
-      });
-      if (name === undefined) return undefined;
-      const description = await vscode.window.showInputBox({
-        title: 'Personal Template',
-        prompt: 'Description (optional)',
-        value: defaults?.description,
-      });
-      if (description === undefined) return undefined;
-      const category = await vscode.window.showInputBox({
-        title: 'Personal Template',
-        prompt: 'Category (optional)',
-        value: defaults?.category,
-      });
-      if (category === undefined) return undefined;
-      return {
-        name: name.trim(),
-        ...(description.trim() ? { description: description.trim() } : {}),
-        ...(category.trim() ? { category: category.trim() } : {}),
-      };
+    const templateRequestFailure = (code: TemplateErrorCode, message: string): never => {
+      throw Object.assign(new Error(message), { templateErrorCode: code });
+    };
+
+    const classifyTemplateRequestError = (error: unknown): TemplateOperationError => {
+      if (error instanceof Error && 'templateErrorCode' in error) {
+        const code = (error as Error & { templateErrorCode: TemplateErrorCode }).templateErrorCode;
+        return { code, message: 'The template action could not be completed.' };
+      }
+      return { code: 'operation-failed', message: 'The template action could not be completed.' };
     };
 
     const requireLiveTemplateRequest = (
@@ -665,7 +640,10 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       if (request.sessionId !== current.sessionId
         || request.documentId !== current.documentId
         || request.baseRevision !== current.revision) {
-        throw new Error('The document changed before the template operation started. Refresh and try again.');
+        templateRequestFailure(
+          'document-changed',
+          'The document changed before the template operation started.',
+        );
       }
     };
 
@@ -680,9 +658,9 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         case 'deletePersonalTemplate': operation = 'delete'; break;
         case 'openPersonalTemplateFolder': operation = 'open-folder'; break;
       }
-      let succeeded = false;
+      let result: 'completed' | 'failed' = 'failed';
       let resultTemplateId: string | undefined;
-      let resultMessage: string | undefined;
+      let resultError: TemplateOperationError | undefined;
       try {
         if ('sessionId' in request) {
           await messageQueue.whenIdle();
@@ -691,40 +669,32 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         if (request.type === 'openPersonalTemplateFolder') {
           const personalRoot = await templateService.ensurePersonalTemplateRoot();
           await vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(personalRoot));
-          succeeded = true;
+          result = 'completed';
           return;
         }
         if (request.type === 'deletePersonalTemplate') {
           const template = availableTemplates.get(request.templateId);
           if (!template || template.descriptor.source !== 'user') {
-            throw new Error('The selected personal template is no longer available.');
+            return templateRequestFailure('template-unavailable', 'The selected personal template is no longer available.');
           }
-          const selected = await vscode.window.showWarningMessage(
-            `Move '${template.descriptor.name}' to the personal template trash?`,
-            { modal: true },
-            'Move to Trash',
-          );
-          if (selected !== 'Move to Trash') return;
+          if (personalTemplateFingerprints.get(request.templateId) !== request.revisionToken) {
+            templateRequestFailure('template-changed', 'The selected personal template changed.');
+          }
           await templateService.trashPersonalTemplate(request.templateId, request.revisionToken);
-          await sendTemplateCatalog(`operation-${request.requestId}`);
-          succeeded = true;
+          result = 'completed';
           resultTemplateId = request.templateId;
           return;
         }
         if (request.type === 'updatePersonalTemplate' || request.type === 'duplicatePersonalTemplate') {
-          if (request.type === 'duplicatePersonalTemplate') {
-            await sendTemplateCatalog(`operation-${request.requestId}`);
-          }
           const template = availableTemplates.get(request.templateId);
           const currentFingerprint = personalTemplateFingerprints.get(request.templateId);
-          if (!template || template.descriptor.source !== 'user' || currentFingerprint !== request.revisionToken) {
-            throw new Error('The selected personal template changed. Refresh and try again.');
+          if (!template || template.descriptor.source !== 'user') {
+            return templateRequestFailure('template-unavailable', 'The selected personal template is no longer available.');
           }
-          const metadata = await requestTemplateMetadata(
-            template.descriptor,
-            request.type === 'duplicatePersonalTemplate',
-          );
-          if (!metadata) return;
+          if (currentFingerprint !== request.revisionToken) {
+            templateRequestFailure('template-changed', 'The selected personal template changed.');
+          }
+          const metadata = request.metadata;
           if (request.type === 'updatePersonalTemplate') {
             const updated = updatePersonalTemplateMetadata(template, metadata);
             await templateService.updatePersonalTemplate(
@@ -744,8 +714,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
             await templateService.createPersonalTemplate(newTemplateId, duplicate.envelope);
             resultTemplateId = newTemplateId;
           }
-          await sendTemplateCatalog(`operation-${request.requestId}`);
-          succeeded = true;
+          result = 'completed';
           return;
         }
 
@@ -755,18 +724,17 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         await messageQueue.whenIdle();
         const baselineIdentity = currentDocumentIdentity();
         const baselineText = document.getText();
-        const metadata = await requestTemplateMetadata();
-        if (!metadata) return;
+        const metadata = request.metadata;
         if (document.getText() !== baselineText
           || currentDocumentIdentity().revision !== baselineIdentity.revision) {
-          throw new Error('The document changed while template details were being entered.');
+          templateRequestFailure('document-changed', 'The document changed during the template operation.');
         }
         const source: unknown = isUninitializedSdocText(baselineText)
           ? { sdoc: '1.0', meta: {}, doc: { type: 'doc', content: [] } }
           : JSON.parse(baselineText);
         const contract = parseDocumentContract(source);
         if (!contract.ok || contract.legacy) {
-          throw new Error('Only a valid SDOC 1.0 document can be saved as a personal template.');
+          return templateRequestFailure('invalid-document', 'Only a valid SDOC 1.0 document can be saved as a personal template.');
         }
         const persistedSource = {
           ...contract.envelope,
@@ -780,21 +748,20 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
           sourceLabel: templateService.personalTemplateRootPath,
         });
         await templateService.createPersonalTemplate(newTemplateId, snapshot.envelope);
-        await sendTemplateCatalog(`operation-${request.requestId}`);
-        succeeded = true;
+        result = 'completed';
         resultTemplateId = newTemplateId;
       } catch (error) {
-        resultMessage = error instanceof Error ? error.message : String(error);
-        await vscode.window.showErrorMessage(`Structured Doc template operation failed: ${resultMessage}`);
+        resultError = classifyTemplateRequestError(error);
+        console.error('Structured Doc template operation failed', error);
       } finally {
         templateManagementPending = false;
         webviewPanel.webview.postMessage({
           type: 'templateOperationFinished',
           requestId: request.requestId,
           operation,
-          succeeded,
+          result,
           ...(resultTemplateId ? { templateId: resultTemplateId } : {}),
-          ...(resultMessage ? { message: 'The template operation could not be completed.' } : {}),
+          ...(resultError ? { error: resultError } : {}),
         });
       }
     };
@@ -1054,8 +1021,11 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
                 : message.type === 'duplicatePersonalTemplate' ? 'duplicate'
                   : message.type === 'deletePersonalTemplate' ? 'delete'
                     : 'open-folder',
-            succeeded: false,
-            message: 'Another template operation is already running.',
+            result: 'failed',
+            error: {
+              code: 'operation-failed',
+              message: 'Another template operation is already running.',
+            },
           });
           return;
         }
@@ -1069,6 +1039,10 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
             type: 'templateApplicationFinished',
             requestId: message.requestId,
             result: 'failed',
+            error: {
+              code: 'operation-failed',
+              message: 'Another template operation is already running.',
+            },
           });
           return;
         }
@@ -1097,7 +1071,6 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         switch (message.type) {
           case 'ready':
             sendUpdate();
-            await sendTemplateCatalog('initial');
             webviewPanel.webview.postMessage({
               type: 'diagramRendererSettings',
               settings: this.readDiagramRendererSettings(),
@@ -1132,18 +1105,34 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
             break;
           case 'applyTemplate': {
             let applied = false;
+            let applicationError: TemplateOperationError | undefined;
             try {
               applied = await applyTemplateToCurrentDocument(message.templateId, {
                 sessionId: message.sessionId,
                 documentId: message.documentId,
                 revision: message.baseRevision,
-              }, message.requestId);
+              });
+              if (!applied) {
+                applicationError = {
+                  code: availableTemplates.has(message.templateId)
+                    ? 'document-changed'
+                    : 'template-unavailable',
+                  message: 'The template could not be applied.',
+                };
+              }
+            } catch (error) {
+              console.error('Structured Doc template application failed', error);
+              applicationError = {
+                code: 'operation-failed',
+                message: 'The template could not be applied.',
+              };
             } finally {
               templateApplicationPending = false;
               webviewPanel.webview.postMessage({
                 type: 'templateApplicationFinished',
                 requestId: message.requestId,
-                result: applied ? 'applied' : 'cancelled',
+                result: applied ? 'applied' : 'failed',
+                ...(applicationError ? { error: applicationError } : {}),
               });
             }
             break;

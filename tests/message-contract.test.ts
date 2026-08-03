@@ -119,6 +119,56 @@ describe('editor host message boundary', () => {
       result: 'cancelled',
     })).toBe(true);
     expect(isHostToEditorMessage({
+      type: 'templateCatalogFailed',
+      requestId: 'catalog-2',
+      error: { code: 'catalog-unavailable', message: 'The catalog could not be loaded.' },
+    })).toBe(true);
+    expect(isHostToEditorMessage({
+      type: 'templateCatalogFailed',
+      requestId: 'catalog-2',
+      error: { code: 'raw-os-error', message: 'C:\\Users\\secret\\templates' },
+    })).toBe(false);
+    expect(isHostToEditorMessage({
+      type: 'templateApplicationFinished',
+      requestId: 'apply-2',
+      result: 'failed',
+      error: { code: 'document-changed', message: 'The document changed.' },
+    })).toBe(true);
+    expect(isHostToEditorMessage({
+      type: 'templateOperationFinished',
+      requestId: 'save-1',
+      operation: 'save',
+      result: 'completed',
+      templateId: 'user:11111111-1111-4111-8111-111111111111',
+    })).toBe(true);
+    expect(isHostToEditorMessage({
+      type: 'templateOperationFinished',
+      requestId: 'save-2',
+      operation: 'save',
+      result: 'failed',
+      error: { code: 'operation-failed', message: 'C:\\Users\\secret\\template.sdoc' },
+    })).toBe(false);
+    expect(isHostToEditorMessage({
+      type: 'templateCatalogFailed',
+      requestId: 'catalog-3',
+      error: { code: 'catalog-unavailable', message: 'Failed at /srv/private/template.sdoc' },
+    })).toBe(false);
+    expect(isHostToEditorMessage({
+      type: 'templateCatalogFailed',
+      requestId: 'catalog-4',
+      error: { code: 'catalog-unavailable', message: 'Failed.\nraw details' },
+    })).toBe(false);
+    expect(isHostToEditorMessage({
+      type: 'templateCatalogFailed',
+      requestId: 'catalog-5',
+      error: { code: 'catalog-unavailable', message: 'Failed.', raw: { path: '/secret' } },
+    })).toBe(false);
+    expect(isHostToEditorMessage({
+      type: 'templateCatalogFailed',
+      requestId: 'catalog-6',
+      error: { code: 'catalog-unavailable', message: 'Failed at file:///srv/private/template.sdoc' },
+    })).toBe(false);
+    expect(isHostToEditorMessage({
       type: 'fileOperationStatus',
       sessionId: 'session-1',
       state: {
@@ -171,6 +221,45 @@ describe('editor host message boundary', () => {
         endpoint: 'https://kroki.io',
         allowPrivateNetwork: false,
       },
+    })).toBe(false);
+  });
+
+  it('requires validated metadata on personal template writes', () => {
+    const identity = {
+      requestId: 'personal-1',
+      sessionId: 'session-1',
+      documentId: 'doc-a',
+      baseRevision: 3,
+    };
+    expect(isEditorToHostMessage({
+      type: 'savePersonalTemplate',
+      ...identity,
+      metadata: { name: 'Template', description: 'Description', category: 'Report' },
+    })).toBe(true);
+    expect(isEditorToHostMessage({ type: 'savePersonalTemplate', ...identity })).toBe(false);
+    expect(isEditorToHostMessage({
+      type: 'savePersonalTemplate',
+      ...identity,
+      metadata: { name: '', description: 'Description' },
+    })).toBe(false);
+    expect(isEditorToHostMessage({
+      type: 'savePersonalTemplate',
+      ...identity,
+      metadata: { name: 'x'.repeat(201) },
+    })).toBe(false);
+    expect(isEditorToHostMessage({
+      type: 'updatePersonalTemplate',
+      ...identity,
+      templateId: 'user:11111111-1111-4111-8111-111111111111',
+      revisionToken: 'fingerprint',
+      metadata: { name: 'Renamed' },
+    })).toBe(true);
+    expect(isEditorToHostMessage({
+      type: 'duplicatePersonalTemplate',
+      ...identity,
+      templateId: 'user:11111111-1111-4111-8111-111111111111',
+      revisionToken: 'fingerprint',
+      metadata: { name: 'Copy', category: 'x'.repeat(101) },
     })).toBe(false);
   });
 

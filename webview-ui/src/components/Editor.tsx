@@ -191,12 +191,8 @@ export const Editor: React.FC = () => {
     handleDuplicatePersonalTemplate,
     handleDeletePersonalTemplate,
     handleOpenPersonalTemplateFolder,
-    templates,
-    templateDiagnostics,
-    isTemplateCatalogLoading,
-    isApplyingTemplate,
-    isManagingTemplate,
-    personalTemplateRootScope,
+    templateSession,
+    dispatchTemplateSession,
     externalChange,
     showExternalComparison,
     setShowExternalComparison,
@@ -624,6 +620,7 @@ export const Editor: React.FC = () => {
         <ActivityBar
           activeDestination={activityState.selection?.destination ?? null}
           onDestinationClick={handleActivityDestinationClick}
+          showTemplates
         />
         {activityState.selection && (
           <SidePanel
@@ -647,12 +644,8 @@ export const Editor: React.FC = () => {
             diagramRendererSettings={diagramRendererSettings}
             onDiagramRendererSettingsChange={handleDiagramRendererSettingsChange}
             onTestDiagramRenderer={handleTestDiagramRenderer}
-            templates={templates}
-            templateDiagnostics={templateDiagnostics}
-            isTemplateCatalogLoading={isTemplateCatalogLoading}
-            isApplyingTemplate={isApplyingTemplate}
-            isManagingTemplate={isManagingTemplate}
-            personalTemplateRootScope={personalTemplateRootScope}
+            templateSession={templateSession}
+            dispatchTemplateSession={dispatchTemplateSession}
             onRefreshTemplates={handleRequestTemplateCatalog}
             onApplyTemplate={handleApplyTemplate}
             onSavePersonalTemplate={handleSavePersonalTemplate}

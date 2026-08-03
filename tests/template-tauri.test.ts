@@ -154,7 +154,7 @@ describe('Tauri template service', () => {
     }).envelope);
   });
 
-  it('applies a template with one save after flush, snapshot, and confirmation', async () => {
+  it('applies a UI-confirmed template with one save after flush and snapshot', async () => {
     const events: string[] = [];
     const current = structuredClone(BUILTIN_TEMPLATES[0].envelope);
     current.meta.title = 'Current title';
@@ -173,14 +173,10 @@ describe('Tauri template service', () => {
         events.push('snapshot');
         return { documentId: 'doc-a', revision: 7, envelope: current };
       },
-      confirm: async () => {
-        events.push('confirm');
-        return true;
-      },
       save,
     });
 
-    expect(events).toEqual(['flush', 'snapshot', 'confirm', 'save']);
+    expect(events).toEqual(['flush', 'snapshot', 'save']);
     expect(save).toHaveBeenCalledOnce();
     expect(result.applied).toBe(true);
     expect(result.envelope?.meta).toMatchObject({
