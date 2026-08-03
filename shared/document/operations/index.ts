@@ -6,7 +6,8 @@ import {
   validateDocumentSettings,
 } from '../documentContract';
 import { normalizeDocumentTitle, unicodeCodePointLength } from '../title';
-import { normalizeDocument, queryDocumentStructure } from '../sdocUtils';
+import { normalizeDocument } from '../sdocUtils';
+import { buildNumberingIndex } from '../numbering';
 import { walkDocument } from '../walker';
 import { parsePortableAssetPath } from '../../security/portableAssets';
 import { computeRevision, decodeUtf8, encodeUtf8 } from './sha256';
@@ -30,6 +31,7 @@ const NON_BLOCK = new Set([
 ]);
 const PORTABLE_SETTING_KEYS = new Set<keyof DocumentSettings>([
   'headingNumbering',
+  'headingStartNumber',
   'headingDecoration',
   'headingH1Color',
   'headingH2Color',
@@ -103,15 +105,12 @@ const internalReferenceTexts = (doc: TiptapNode): Map<string, string> => {
   }
   return result;
 };
-const numberingById = (doc: TiptapNode): Map<string, string> => {
-  const structure = queryDocumentStructure(doc);
-  return new Map<string, string>([
-    ...structure.headings.filter((item) => item.id).map((item) => [item.id, item.numbering] as const),
-    ...structure.figures.filter((item) => item.id).map((item) => [item.id, String(item.number)] as const),
-    ...structure.tables.filter((item) => item.id).map((item) => [item.id, String(item.number)] as const),
-    ...structure.equations.filter((item) => item.id).map((item) => [item.id, String(item.number)] as const),
-  ]);
-};
+const numberingById = (
+  doc: TiptapNode,
+  settings: Required<DocumentSettings>,
+): Map<string, string> => new Map(
+  Array.from(buildNumberingIndex(doc, settings).byId, ([id, entry]) => [id, entry.number]),
+);
 const stableValue = (value: unknown): unknown => {
   if (Array.isArray(value)) return value.map(stableValue);
   if (!isRecord(value)) return value;
@@ -908,7 +907,8 @@ export function applyOperationRequest(
     return failure('document', 'LEGACY_UPGRADE_REQUIRED', 'legacy writes require upgradeLegacy');
   }
   const baseline = analyze(loaded.envelope.doc);
-  const originalNumbering = numberingById(loaded.envelope.doc);
+  const originalSettings = resolveSettings(loaded.envelope.meta.settings, options.externalSettings);
+  const originalNumbering = numberingById(loaded.envelope.doc, originalSettings);
   if (baseline.duplicates.length) {
     return failure('document', 'DUPLICATE_ID', `duplicate id: ${baseline.duplicates[0]}`);
   }
@@ -970,6 +970,7 @@ export function applyOperationRequest(
     equationNumbering: settings.equationNumbering,
     crossRefIncludeCaption: settings.crossRefIncludeCaption,
     headingNumbering: settings.headingNumbering,
+    headingStartNumber: settings.headingStartNumber,
   });
   const beforeIds = new Set<string>();
   for (const { node } of walkDocument(envelope.doc)) {
@@ -990,7 +991,7 @@ export function applyOperationRequest(
       diff.push({ kind: 'reference-label-updated', before: beforeText.slice(0, 120), after: afterText.slice(0, 120) });
     }
   }
-  const finalNumbering = numberingById(envelope.doc);
+  const finalNumbering = numberingById(envelope.doc, settings);
   const numberChanges = Array.from(finalNumbering).filter(
     ([id, number]) => originalNumbering.has(id) && originalNumbering.get(id) !== number,
   );
@@ -1046,6 +1047,7 @@ export function applyOperationRequest(
       equationNumbering: settings.equationNumbering,
       crossRefIncludeCaption: settings.crossRefIncludeCaption,
       headingNumbering: settings.headingNumbering,
+      headingStartNumber: settings.headingStartNumber,
     },
     warnings: baseline.warnings,
   };

@@ -776,6 +776,33 @@ describe('document operations core', () => {
     }
   });
 
+  it('persists a zero heading start number and reports the applied normalization policy', () => {
+    const text = source([heading(1, 'title', 'Title')]);
+    const updated = apply(text, [{
+      op: 'updateDocumentSettings',
+      patch: { headingStartNumber: 0 },
+    }]);
+
+    expect(updated.ok).toBe(true);
+    if (!updated.ok) return;
+    expect(updated.envelope.meta.settings?.headingStartNumber).toBe(0);
+    expect(updated.normalizationPolicy.headingStartNumber).toBe(0);
+    expect(updated.diff).toContainEqual(expect.objectContaining({
+      kind: 'numbering-updated',
+      before: 'title=1',
+      after: 'title=0',
+    }));
+
+    for (const headingStartNumber of [-1, 0.5]) {
+      const rejected = applyOperationRequest(text, {
+        contract: 'sdoc.operations/1',
+        expected: { revision: computeRevision(text) },
+        operations: [{ op: 'updateDocumentSettings', patch: { headingStartNumber } }],
+      });
+      expect(rejected).toMatchObject({ ok: false, category: 'argument' });
+    }
+  });
+
   it('preserves exact bytes and modified time for document-level semantic no-ops', () => {
     const value = envelope([heading(1, 'document-title', 'Same title')]);
     Object.assign(value.meta, { title: 'Same title', author: 'Same author' });

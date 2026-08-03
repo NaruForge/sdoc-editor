@@ -91,5 +91,9 @@ describe('context menu focus contract', () => {
     expect(markup.match(/tabindex="-1"/g)).toHaveLength(7);
     expect(markup.match(/aria-haspopup="menu"/g)).toHaveLength(2);
     expect(markup.match(/aria-expanded="false"/g)).toHaveLength(2);
+    expect(markup).toContain('class="editor-context-menu"');
+    expect(markup).toContain('class="editor-context-menu-item"');
+    expect(markup).toContain('class="editor-context-menu-section-label"');
+    expect(markup).not.toContain('background:var(--vscode-menu-selectionBackground');
   });
 });

@@ -4,9 +4,13 @@ param(
     [ValidateSet('grok', 'agy')]
     [string]$Provider,
 
-    [Parameter(Mandatory = $true)]
+    [Parameter(Mandatory = $true, ParameterSetName = 'InlinePrompt')]
     [ValidateNotNullOrEmpty()]
     [string]$Prompt,
+
+    [Parameter(Mandatory = $true, ParameterSetName = 'PromptFile')]
+    [ValidateNotNullOrEmpty()]
+    [string]$PromptFile,
 
     [string]$WorkingDirectory = (Get-Location).Path,
 
@@ -15,7 +19,9 @@ param(
     [ValidateRange(30, 1800)]
     [int]$TimeoutSeconds = 300,
 
-    [switch]$DryRun
+    [switch]$DryRun,
+
+    [switch]$AllowIncompleteResponse
 )
 
 Set-StrictMode -Version Latest
@@ -66,63 +72,97 @@ $resolvedDirectory = (Resolve-Path -LiteralPath $WorkingDirectory).Path
 $command = Get-Command $Provider -CommandType Application -ErrorAction Stop |
     Select-Object -First 1
 
+$taskPrompt = if ($PSCmdlet.ParameterSetName -eq 'PromptFile') {
+    $resolvedPromptFile = (Resolve-Path -LiteralPath $PromptFile).Path
+    [System.IO.File]::ReadAllText($resolvedPromptFile, [System.Text.Encoding]::UTF8)
+} else {
+    $Prompt
+}
+if ([string]::IsNullOrWhiteSpace($taskPrompt)) {
+    throw 'The review prompt must not be empty.'
+}
+
 $advisoryPrompt = @"
 Act as a read-only advisory reviewer. Do not modify files, create commits,
 change configuration, or invoke other agents. Inspect only the repository
 content needed for the task. Return a concise conclusion, confidence, evidence
 with file and line references, risks, assumptions, and recommended next action.
+Use explicit `Conclusion` and `Findings` headings, or return the exact token
+`NO_ACTIONABLE_FINDINGS` when no actionable finding remains.
 
 Task:
-$Prompt
+$taskPrompt
 "@
 
-$arguments = if ($Provider -eq 'grok') {
-    @(
-        '--cwd', $resolvedDirectory,
-        '--permission-mode', 'plan',
-        '--no-subagents',
-        '--no-memory',
-        '--disable-web-search',
-        '--max-turns', '8',
-        '--output-format', 'plain'
-    ) + $(if ($Model) { @('--model', $Model) } else { @() }) +
-        @('--single', $advisoryPrompt)
-} else {
-    @(
-        '--mode', 'plan',
-        '--sandbox',
-        '--print-timeout', "${TimeoutSeconds}s"
-    ) + $(if ($Model) { @('--model', $Model) } else { @() }) +
-        @('--print', $advisoryPrompt)
-}
-
-$nativeArguments = ($arguments | ForEach-Object {
-    ConvertTo-NativeArgument -Value $_
-}) -join ' '
-
-if ($DryRun) {
-    [pscustomobject]@{
-        provider = $Provider
-        executable = $command.Source
-        workingDirectory = $resolvedDirectory
-        arguments = $arguments
-        nativeArguments = $nativeArguments
-    } | ConvertTo-Json -Depth 3
-    return
-}
-
-$startInfo = [System.Diagnostics.ProcessStartInfo]::new()
-$startInfo.FileName = $command.Source
-$startInfo.Arguments = $nativeArguments
-$startInfo.WorkingDirectory = $resolvedDirectory
-$startInfo.UseShellExecute = $false
-$startInfo.CreateNoWindow = $true
-$startInfo.RedirectStandardOutput = $true
-$startInfo.RedirectStandardError = $true
-
-$process = [System.Diagnostics.Process]::new()
-$process.StartInfo = $startInfo
+$managedPromptFile = $null
+$process = $null
 try {
+    $promptArgument = $advisoryPrompt
+    if ($Provider -eq 'grok') {
+        $promptArgument = if ($DryRun) {
+            '<managed-temporary-utf8-prompt-file>'
+        } else {
+            $managedPromptFile = Join-Path ([System.IO.Path]::GetTempPath()) (
+                'sdoc-grok-review-{0}.txt' -f [System.Guid]::NewGuid().ToString('N')
+            )
+            [System.IO.File]::WriteAllText(
+                $managedPromptFile,
+                $advisoryPrompt,
+                [System.Text.UTF8Encoding]::new($false)
+            )
+            $managedPromptFile
+        }
+    }
+
+    $arguments = if ($Provider -eq 'grok') {
+        @(
+            '--cwd', $resolvedDirectory,
+            '--permission-mode', 'plan',
+            '--no-subagents',
+            '--no-memory',
+            '--disable-web-search',
+            '--max-turns', '8',
+            '--output-format', 'plain'
+        ) + $(if ($Model) { @('--model', $Model) } else { @() }) +
+            @('--prompt-file', $promptArgument)
+    } else {
+        @(
+            '--mode', 'plan',
+            '--sandbox',
+            '--print-timeout', "${TimeoutSeconds}s"
+        ) + $(if ($Model) { @('--model', $Model) } else { @() }) +
+            @('--print', $promptArgument)
+    }
+
+    $nativeArguments = ($arguments | ForEach-Object {
+        ConvertTo-NativeArgument -Value $_
+    }) -join ' '
+
+    if ($DryRun) {
+        [pscustomobject]@{
+            provider = $Provider
+            executable = $command.Source
+            workingDirectory = $resolvedDirectory
+            promptSource = $PSCmdlet.ParameterSetName
+            promptLength = $advisoryPrompt.Length
+            reviewReportRequired = ($Provider -eq 'grok' -and -not $AllowIncompleteResponse)
+            arguments = $arguments
+            nativeArguments = $nativeArguments
+        } | ConvertTo-Json -Depth 3
+        return
+    }
+
+    $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = $command.Source
+    $startInfo.Arguments = $nativeArguments
+    $startInfo.WorkingDirectory = $resolvedDirectory
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+
+    $process = [System.Diagnostics.Process]::new()
+    $process.StartInfo = $startInfo
     if (-not $process.Start()) {
         throw "Failed to start $Provider."
     }
@@ -150,6 +190,24 @@ try {
     if ($exitCode -ne 0) {
         throw "$Provider exited with code $exitCode."
     }
+    if ($Provider -eq 'grok' -and -not $AllowIncompleteResponse) {
+        $reviewText = ([string]$stdout).Trim()
+        $hasNoActionableFindings = $reviewText -match '(?im)\bNO[_ ]ACTIONABLE[_ ]FINDINGS\b'
+        $hasConclusion = $reviewText -match '(?im)^\s*(?:#{1,6}\s*)?(?:\*\*)?(?:Conclusion|Verdict)(?:\*\*)?\s*(?::|$)'
+        $hasFindings = $reviewText -match '(?im)^\s*(?:#{1,6}\s*)?(?:\*\*)?(?:Actionable\s+Findings?|Findings?)(?:\*\*)?\s*(?::|$)'
+        if (-not $hasNoActionableFindings -and -not ($hasConclusion -and $hasFindings)) {
+            throw 'Grok returned an incomplete review report. An acknowledgement or exit code 0 is not sufficient.'
+        }
+    }
 } finally {
-    $process.Dispose()
+    if ($null -ne $process) {
+        $process.Dispose()
+    }
+    if ($managedPromptFile -and (Test-Path -LiteralPath $managedPromptFile -PathType Leaf)) {
+        try {
+            Remove-Item -LiteralPath $managedPromptFile -Force -ErrorAction Stop
+        } catch {
+            Write-Warning "Failed to remove managed Grok prompt file: $($_.Exception.Message)"
+        }
+    }
 }

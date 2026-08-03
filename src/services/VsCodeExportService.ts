@@ -113,6 +113,7 @@ export class VsCodeExportService {
       const vscodeDefaults: Partial<DocumentSettings> = {
         captionStyle: config.get<CaptionStyleName>('caption.style', 'modern'),
         headingNumbering: config.get<boolean>('heading.numbering', true),
+        headingStartNumber: config.get<number>('heading.startNumber', 1),
         captionNumbering: config.get<'sequential' | 'hierarchical'>('caption.numbering', 'sequential'),
         equationNumbering: config.get<'sequential' | 'hierarchical'>('equation.numbering', 'sequential'),
         selfContained: config.get<'none' | 'images-only' | 'full'>('export.selfContained', 'images-only'),
@@ -127,6 +128,7 @@ export class VsCodeExportService {
       const exportSettings: Record<string, unknown> = {
         captionStyle: resolved.captionStyle,
         headingNumbering: resolved.headingNumbering,
+        headingStartNumber: resolved.headingStartNumber,
         imageCaptionPrefix: preset.figurePrefix,
         tableCaptionPrefix: preset.tablePrefix,
         equationCaptionPrefix: preset.equationPrefix,

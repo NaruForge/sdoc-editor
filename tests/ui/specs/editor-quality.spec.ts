@@ -262,6 +262,97 @@ test.describe('responsive side panel contract', () => {
     expect(metrics.overflow).toBeLessThanOrEqual(1);
   });
 
+  test('docked panel resizes by pointer and restores its host-local width', async ({ page }) => {
+    await openFixture(page, { width: 1440, locale: 'en', scene: 'settings' });
+    const panel = page.getByRole('complementary');
+    const separator = page.getByRole('separator', { name: 'Resize side panel' });
+    const initialWidth = (await panel.boundingBox())!.width;
+    const handle = (await separator.boundingBox())!;
+
+    await page.mouse.move(handle.x + handle.width / 2, handle.y + 40);
+    await page.mouse.down();
+    await expect(page.locator('html')).toHaveClass(/is-resizing-side-panel/);
+    await page.mouse.move(handle.x + 120, handle.y + 40);
+    await page.mouse.up();
+    await expect.poll(async () => (await panel.boundingBox())!.width).toBeCloseTo(initialWidth + 116, 0);
+
+    await page.mouse.move(handle.x + 300, handle.y + 40);
+    expect((await panel.boundingBox())!.width).toBeCloseTo(initialWidth + 116, 0);
+
+    await page.locator('#activity-destination-design').click();
+    await expect(panel).toBeHidden();
+    await page.locator('#activity-destination-design').click();
+    await expect.poll(async () => (await panel.boundingBox())!.width).toBeCloseTo(initialWidth + 116, 0);
+    await page.reload();
+    await page.locator('.quality-harness[data-ready="true"]').waitFor();
+    await expect.poll(async () => (await page.getByRole('complementary').boundingBox())!.width)
+      .toBeCloseTo(initialWidth + 116, 0);
+
+    const restoredSeparator = page.getByRole('separator', { name: 'Resize side panel' });
+    let restoredHandle = (await restoredSeparator.boundingBox())!;
+    await page.mouse.move(restoredHandle.x + 4, restoredHandle.y + 40);
+    await page.mouse.down();
+    await page.mouse.move(1435, restoredHandle.y + 40);
+    await page.mouse.up();
+    expect((await page.getByRole('complementary').boundingBox())!.width).toBeCloseTo(560, 0);
+
+    restoredHandle = (await restoredSeparator.boundingBox())!;
+    await page.mouse.move(restoredHandle.x + 4, restoredHandle.y + 40);
+    await page.mouse.down();
+    await page.mouse.move(1, restoredHandle.y + 40);
+    await page.mouse.up();
+    expect((await page.getByRole('complementary').boundingBox())!.width).toBeCloseTo(320, 0);
+  });
+
+  test('separator keyboard controls clamp, persist, and retain focus', async ({ page }) => {
+    await openFixture(page, { width: 1440, locale: 'en', scene: 'settings' });
+    const panel = page.getByRole('complementary');
+    const separator = page.getByRole('separator', { name: 'Resize side panel' });
+    await separator.focus();
+    await page.keyboard.press('End');
+    await expect(separator).toBeFocused();
+    await expect(separator).toHaveAttribute('aria-valuenow', '560');
+    expect((await panel.boundingBox())!.width).toBeCloseTo(560, 0);
+    await page.keyboard.press('ArrowRight');
+    expect((await panel.boundingBox())!.width).toBeCloseTo(560, 0);
+    await page.keyboard.press('Home');
+    await expect(separator).toHaveAttribute('aria-valuenow', '320');
+    expect((await panel.boundingBox())!.width).toBeCloseTo(320, 0);
+    await page.keyboard.press('ArrowRight');
+    await expect(separator).toHaveAttribute('aria-valuenow', '336');
+  });
+
+  test('Escape during pointer resize restores the starting width and clears global state', async ({ page }) => {
+    await openFixture(page, { width: 1440, locale: 'en', scene: 'settings' });
+    const panel = page.getByRole('complementary');
+    const separator = page.getByRole('separator', { name: 'Resize side panel' });
+    const initialWidth = (await panel.boundingBox())!.width;
+    const handle = (await separator.boundingBox())!;
+
+    await page.mouse.move(handle.x + handle.width / 2, handle.y + 40);
+    await page.mouse.down();
+    await page.mouse.move(handle.x + 100, handle.y + 40);
+    await expect.poll(async () => (await panel.boundingBox())!.width).toBeGreaterThan(initialWidth);
+    await page.keyboard.press('Escape');
+
+    await expect.poll(async () => (await panel.boundingBox())!.width).toBeCloseTo(initialWidth, 0);
+    await expect(page.locator('html')).not.toHaveClass(/is-resizing-side-panel/);
+    await page.mouse.up();
+  });
+
+  test('1101px is docked while 1100px is overlay without a resize handle', async ({ page }) => {
+    await openFixture(page, { width: 1101, locale: 'ko', scene: 'settings' });
+    await expect(page.getByRole('complementary')).toBeVisible();
+    await expect(page.getByRole('separator', { name: '사이드 패널 크기 조절' })).toBeVisible();
+    await page.setViewportSize({ width: 1100, height: 800 });
+    await expect(page.getByRole('dialog')).toBeVisible();
+    await expect(page.getByRole('separator')).toHaveCount(0);
+    await expect(page.locator('.side-panel-scrim')).toBeVisible();
+    await page.setViewportSize({ width: 1101, height: 800 });
+    await expect(page.getByRole('complementary')).toBeVisible();
+    await expect(page.getByRole('separator')).toBeVisible();
+  });
+
   test('narrow overlay is modal, traps focus, and closes with Escape', async ({ page }) => {
     await openFixture(page, { width: 480, locale: 'en', panel: true });
     const panel = page.getByRole('dialog', { name: 'Document settings' });

@@ -252,6 +252,12 @@
             { "type": "null" }
           ]
         },
+        "headingStartNumber": {
+          "oneOf": [
+            { "type": "integer", "minimum": 0 },
+            { "type": "null" }
+          ]
+        },
         "headingDecoration": {
           "oneOf": [
             { "$ref": "https://sdoc.dev/schema/v1.0.json#/definitions/documentSettings/properties/headingDecoration" },

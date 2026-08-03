@@ -15,7 +15,7 @@ export const ZoomBar: React.FC<ZoomBarProps> = ({ zoom, onZoomChange }) => {
   const clamp = (v: number) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, v));
 
   return (
-    <div className="editor-zoom-bar">
+    <div className={`editor-zoom-bar${zoom !== 100 ? ' is-non-default' : ''}`}>
       <button
         type="button"
         className="zoom-btn"
@@ -34,6 +34,7 @@ export const ZoomBar: React.FC<ZoomBarProps> = ({ zoom, onZoomChange }) => {
         value={zoom}
         onChange={(e) => onZoomChange(parseInt(e.target.value, 10))}
         aria-label={t('zoom.adjust')}
+        aria-valuetext={`${zoom}%`}
       />
       <button
         type="button"

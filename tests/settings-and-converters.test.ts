@@ -29,6 +29,8 @@ describe('settings', () => {
     expect(resolved.captionStyle).toBe('korean');
     expect(resolved.pdfScale).toBe(85);
     expect(resolved.headingNumbering).toBe(SETTINGS_DEFAULTS.headingNumbering);
+    expect(resolved.headingStartNumber).toBe(1);
+    expect(resolveSettings({ headingStartNumber: 0 }).headingStartNumber).toBe(0);
   });
 
   it('formats roman table numbers', () => {
@@ -160,6 +162,25 @@ describe('cross-format numbering', () => {
     expect(outputs[1]).toContain('(2.1)');
     expect(outputs[2]).toContain('(2.1)');
     expect(outputs[3]).toContain('(2.1)');
+  });
+
+  it('starts headings at zero in every export format', () => {
+    const doc: TiptapNode = { type: 'doc', content: [
+      { type: 'heading', attrs: { level: 1, id: 'zero' }, content: [{ type: 'text', text: 'Zero' }] },
+      { type: 'heading', attrs: { level: 2, id: 'zero-one' }, content: [{ type: 'text', text: 'Zero One' }] },
+    ] };
+    const settings: ExportSettings = { headingNumbering: true, headingStartNumber: 0 };
+    const outputs = [
+      convertJsonToHtml(doc, undefined, settings),
+      convertJsonToMarkdown(doc, settings),
+      convertJsonToAdoc(doc, settings),
+      convertJsonToSlides(doc, undefined, settings as SlideSettings),
+    ];
+
+    for (const output of outputs) {
+      expect(output).toContain('0.1');
+      expect(output).toContain('Zero One');
+    }
   });
 
   it('resolves identical host semantics from the shared settings resolver', () => {

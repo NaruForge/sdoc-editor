@@ -16,6 +16,7 @@ export function convertJsonToAdoc(json: TiptapNode, settings?: ExportSettings, m
     settings: resolved,
     numbering: buildNumberingIndex(json, {
       headingNumbering: resolved.headingNumbering ?? true,
+      headingStartNumber: resolved.headingStartNumber ?? 1,
       captionNumbering: resolved.captionNumbering ?? 'sequential',
       equationNumbering: resolved.equationNumbering ?? 'sequential',
       captionStyle: resolved.captionStyle ?? 'modern',

@@ -93,46 +93,19 @@ export const EditorContextMenu: React.FC<EditorContextMenuProps> = ({
   };
 
   const menuStyle: React.CSSProperties = {
-    position: 'fixed',
     top: position.y,
     left: position.x,
-    zIndex: 1000,
-    background: 'var(--vscode-menu-background, #252526)',
-    border: '1px solid var(--vscode-menu-border, #454545)',
-    borderRadius: '4px',
-    boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
-    minWidth: '200px',
-    padding: '4px 0',
-    fontSize: '13px',
-    color: 'var(--vscode-menu-foreground, #cccccc)',
-  };
-
-  const itemBase: React.CSSProperties = {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    padding: '5px 12px',
-    cursor: 'pointer',
-    userSelect: 'none',
-    background: 'transparent',
-    width: '100%',
-    border: 'none',
-    color: 'inherit',
-    fontSize: 'inherit',
-    fontFamily: 'inherit',
-    textAlign: 'left',
-    position: 'relative',
   };
 
   const separator = (
     <div
       role="separator"
-      style={{ height: '1px', background: 'var(--vscode-menu-separatorBackground, #454545)', margin: '4px 0' }}
+      className="editor-context-menu-separator"
     />
   );
 
   const sectionLabel = (label: string) => (
-    <div style={{ padding: '2px 12px', fontSize: '10px', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--vscode-descriptionForeground, #888)', userSelect: 'none' }}>
+    <div className="editor-context-menu-section-label">
       {label}
     </div>
   );
@@ -165,24 +138,16 @@ export const EditorContextMenu: React.FC<EditorContextMenuProps> = ({
       tabIndex={-1}
       aria-haspopup={hasArrow ? 'menu' : undefined}
       aria-expanded={hasArrow ? expanded : undefined}
-      style={itemBase}
+      className="editor-context-menu-item"
       onKeyDown={onKeyDown}
-      onMouseEnter={e => {
-        e.currentTarget.style.background = 'var(--vscode-menu-selectionBackground, #094771)';
-        e.currentTarget.style.color = 'var(--vscode-menu-selectionForeground, #fff)';
-        onMouseEnter?.();
-      }}
-      onMouseLeave={e => {
-        e.currentTarget.style.background = 'transparent';
-        e.currentTarget.style.color = 'inherit';
-        onMouseLeave?.();
-      }}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
       onMouseDown={e => e.preventDefault()}
       onClick={onClick}
     >
       {icon}
-      <span style={{ flex: 1 }}>{label}</span>
-      {hasArrow && <ChevronRight size={12} style={{ opacity: 0.7 }} />}
+      <span className="editor-context-menu-item-label">{label}</span>
+      {hasArrow && <ChevronRight className="editor-context-menu-arrow" size={12} />}
     </button>
   );
 
@@ -198,19 +163,10 @@ export const EditorContextMenu: React.FC<EditorContextMenuProps> = ({
       label={label}
       onEscape={onEscape}
       style={{
-        position: 'fixed',
         top: position.y,
         left: position.x + (menuRef.current?.offsetWidth ?? 200) + 2,
-        zIndex: 1001,
-        background: 'var(--vscode-menu-background, #252526)',
-        border: '1px solid var(--vscode-menu-border, #454545)',
-        borderRadius: '4px',
-        boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
-        minWidth: '160px',
-        padding: '4px 0',
-        fontSize: '13px',
-        color: 'var(--vscode-menu-foreground, #cccccc)',
       }}
+      className="editor-context-menu editor-context-submenu"
     >
       {children}
     </Menu>
@@ -220,6 +176,7 @@ export const EditorContextMenu: React.FC<EditorContextMenuProps> = ({
     <>
       <Menu
         ref={menuRef}
+        className="editor-context-menu"
         style={menuStyle}
         label={t('context.insert')}
         autoFocus
@@ -350,7 +307,7 @@ export const EditorContextMenu: React.FC<EditorContextMenuProps> = ({
               tableTriggerRef.current?.focus();
             }}
           >
-            <div style={{ padding: '2px 10px 4px', fontSize: '11px', color: 'var(--vscode-descriptionForeground, #888)', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+            <div className="editor-context-menu-submenu-label">
               {t('context.tableSize')}
             </div>
             {TABLE_PRESETS.map(size => (
@@ -367,23 +324,23 @@ export const EditorContextMenu: React.FC<EditorContextMenuProps> = ({
               onClick={() => setShowCustomSize(v => !v)}
             />
             {showCustomSize && (
-              <div style={{ padding: '6px 10px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+              <div className="editor-context-menu-custom-size">
+                <div className="editor-context-menu-custom-size-fields">
                   <input
                     type="number" min="1" max="50"
                     value={customRows}
                     onChange={e => setCustomRows(e.target.value)}
-                    style={{ width: '44px', padding: '3px 6px', fontSize: '12px', background: 'var(--vscode-input-background)', border: '1px solid var(--vscode-input-border)', color: 'var(--vscode-input-foreground)', borderRadius: '3px' }}
+                    className="editor-context-menu-size-input"
                     placeholder={t('context.rowsPlaceholder')}
                     aria-label={t('toolbar.rows')}
                     onClick={e => e.stopPropagation()}
                   />
-                  <span style={{ fontSize: '12px' }}>×</span>
+                  <span className="editor-context-menu-size-separator">×</span>
                   <input
                     type="number" min="1" max="50"
                     value={customCols}
                     onChange={e => setCustomCols(e.target.value)}
-                    style={{ width: '44px', padding: '3px 6px', fontSize: '12px', background: 'var(--vscode-input-background)', border: '1px solid var(--vscode-input-border)', color: 'var(--vscode-input-foreground)', borderRadius: '3px' }}
+                    className="editor-context-menu-size-input"
                     placeholder={t('context.columnsPlaceholder')}
                     aria-label={t('toolbar.columns')}
                     onClick={e => e.stopPropagation()}
@@ -393,9 +350,7 @@ export const EditorContextMenu: React.FC<EditorContextMenuProps> = ({
                   type="button"
                   role="menuitem"
                   tabIndex={-1}
-                  style={{ ...itemBase, justifyContent: 'center', fontWeight: 600, fontSize: '12px', padding: '4px 6px' }}
-                  onMouseEnter={e => { e.currentTarget.style.background = 'var(--vscode-menu-selectionBackground, #094771)'; e.currentTarget.style.color = 'var(--vscode-menu-selectionForeground, #fff)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'inherit'; }}
+                  className="editor-context-menu-item editor-context-menu-insert-size"
                   onMouseDown={e => e.preventDefault()}
                   onClick={() => {
                     const r = parseInt(customRows), c = parseInt(customCols);
@@ -425,7 +380,7 @@ export const EditorContextMenu: React.FC<EditorContextMenuProps> = ({
             {CALLOUT_ITEMS.map(({ variant, icon, label }) => (
               <Item
                 key={variant}
-                icon={<span style={{ fontSize: '13px', lineHeight: 1 }}>{icon}</span>}
+                icon={<span className="editor-context-menu-callout-icon">{icon}</span>}
                 label={label}
                 onClick={() => handleItem(() =>
                   editor.chain().focus().insertContent({ type: 'callout', attrs: { variant }, content: [{ type: 'paragraph' }] }).run()

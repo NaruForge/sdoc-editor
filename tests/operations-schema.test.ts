@@ -117,6 +117,31 @@ describe('public operation contract', () => {
       }), formatErrors(validate.errors)).toBe(false);
     }
   });
+
+  it('accepts zero or null for the portable heading start number and rejects invalid numbers', async () => {
+    const documentSchema = await parseJson(join(root, 'sdoc.schema.json')) as JsonSchema;
+    const operationSchema = await parseJson(join(root, 'sdoc.operations.schema.json')) as JsonSchema;
+    const ajv = new Ajv({ allErrors: true, strict: false });
+    ajv.addSchema(documentSchema);
+    const validate = ajv.compile(operationSchema);
+    const revision = `sha256:${'0'.repeat(64)}`;
+
+    for (const headingStartNumber of [0, null]) {
+      expect(validate({
+        contract: 'sdoc.operations/1',
+        expected: { revision },
+        operations: [{ op: 'updateDocumentSettings', patch: { headingStartNumber } }],
+      }), formatErrors(validate.errors)).toBe(true);
+    }
+
+    for (const headingStartNumber of [-1, 0.5]) {
+      expect(validate({
+        contract: 'sdoc.operations/1',
+        expected: { revision },
+        operations: [{ op: 'updateDocumentSettings', patch: { headingStartNumber } }],
+      }), formatErrors(validate.errors)).toBe(false);
+    }
+  });
 });
 
 function formatErrors(errors: ErrorObject[] | null | undefined): string {

@@ -154,18 +154,19 @@ export const Editor: React.FC = () => {
     capMode: string;
     includeCaption: boolean;
     heading: boolean;
+    headingStart: number;
   } | null>(null);
   useEffect(() => {
-    const { captionStyle, equationNumbering, captionNumbering, crossRefIncludeCaption, headingNumbering } = state.settings;
+    const { captionStyle, equationNumbering, captionNumbering, crossRefIncludeCaption, headingNumbering, headingStartNumber } = state.settings;
     const prev = prevPrefixRef.current;
     if (!prev) {
-      prevPrefixRef.current = { style: captionStyle, eqMode: equationNumbering, capMode: captionNumbering, includeCaption: crossRefIncludeCaption, heading: headingNumbering };
+      prevPrefixRef.current = { style: captionStyle, eqMode: equationNumbering, capMode: captionNumbering, includeCaption: crossRefIncludeCaption, heading: headingNumbering, headingStart: headingStartNumber };
       return;
     }
     const changed = prev.style !== captionStyle || prev.eqMode !== equationNumbering
       || prev.capMode !== captionNumbering || prev.includeCaption !== crossRefIncludeCaption
-      || prev.heading !== headingNumbering;
-    prevPrefixRef.current = { style: captionStyle, eqMode: equationNumbering, capMode: captionNumbering, includeCaption: crossRefIncludeCaption, heading: headingNumbering };
+      || prev.heading !== headingNumbering || prev.headingStart !== headingStartNumber;
+    prevPrefixRef.current = { style: captionStyle, eqMode: equationNumbering, capMode: captionNumbering, includeCaption: crossRefIncludeCaption, heading: headingNumbering, headingStart: headingStartNumber };
     if (changed && editor) {
       const { tr } = editor.state;
       tr.setMeta(CROSSREF_RESYNC_META, true);

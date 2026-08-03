@@ -44,6 +44,37 @@ describe('shared document numbering', () => {
     expect(index.byId.get('h4')?.number).toBe('1.1.0.1');
   });
 
+  it('starts numbered H1 sections at zero when configured', () => {
+    const doc: TiptapNode = {
+      type: 'doc',
+      content: [
+        { type: 'heading', attrs: { id: 'leading-h2', level: 2 }, content: [{ type: 'text', text: 'Leading H2' }] },
+        { type: 'image', attrs: { id: 'preamble', src: './images/pre.png' } },
+        { type: 'heading', attrs: { id: 'appendix', level: 1, numbered: false }, content: [{ type: 'text', text: 'Appendix' }] },
+        { type: 'image', attrs: { id: 'appendix-figure', src: './images/appendix.png' } },
+        { type: 'heading', attrs: { id: 'zero', level: 1 }, content: [{ type: 'text', text: 'Zero' }] },
+        { type: 'heading', attrs: { id: 'zero-one', level: 2 }, content: [{ type: 'text', text: 'Zero One' }] },
+        { type: 'image', attrs: { id: 'zero-figure', src: './images/zero.png' } },
+      ],
+    };
+
+    const index = buildNumberingIndex(doc, {
+      headingNumbering: true,
+      headingStartNumber: 0,
+      captionNumbering: 'hierarchical',
+      equationNumbering: 'hierarchical',
+      captionStyle: 'modern',
+      crossRefIncludeCaption: false,
+    });
+
+    expect(index.byId.get('leading-h2')?.number).toBe('0.1');
+    expect(index.byId.get('preamble')?.number).toBe('1');
+    expect(index.byId.get('appendix-figure')?.number).toBe('1');
+    expect(index.byId.get('zero')?.number).toBe('0');
+    expect(index.byId.get('zero-one')?.number).toBe('0.1');
+    expect(index.byId.get('zero-figure')?.number).toBe('0.1');
+  });
+
   it('uses global sequential counters and includes captionless and nested objects', () => {
     const index = buildNumberingIndex(fixture, {
       headingNumbering: true,
@@ -59,6 +90,25 @@ describe('shared document numbering', () => {
     expect(index.byId.get('nested-equation')?.number).toBe('2');
     expect(index.byId.get('figure-one')?.referenceLabel).toBe('Figure 2: First');
     expect(index.byId.get('appendix')?.numbered).toBe(false);
+  });
+
+  it('reapplies a zero heading start number at reset boundaries', () => {
+    const doc: TiptapNode = { type: 'doc', content: [
+      { type: 'heading', attrs: { id: 'chapter-one', level: 1 } },
+      { type: 'heading', attrs: { id: 'chapter-two', level: 1 } },
+    ] };
+    const index = buildNumberingIndex(doc, {
+      headingNumbering: true,
+      headingStartNumber: 0,
+      captionNumbering: 'sequential',
+      equationNumbering: 'sequential',
+      captionStyle: 'modern',
+      crossRefIncludeCaption: false,
+      counterResetPaths: ['1'],
+    });
+
+    expect(index.byId.get('chapter-one')?.number).toBe('0');
+    expect(index.byId.get('chapter-two')?.number).toBe('0');
   });
 
   it('uses section-local hierarchical counters with IEEE Roman tables', () => {

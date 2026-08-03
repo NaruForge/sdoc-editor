@@ -177,10 +177,11 @@ export function syncCrossReferences(
   crossRefIncludeCaption = false,
   captionNumbering: 'sequential' | 'hierarchical' = 'sequential',
   headingNumbering = true,
+  headingStartNumber = 1,
 ): TiptapNode {
   if (!doc.content) return doc;
   const numbering = buildNumberingIndex(doc, {
-    headingNumbering, captionNumbering, equationNumbering, captionStyle, crossRefIncludeCaption,
+    headingNumbering, headingStartNumber, captionNumbering, equationNumbering, captionStyle, crossRefIncludeCaption,
   });
 
   return mapDocument(doc, (node): TiptapNode => {
@@ -200,6 +201,7 @@ export interface DocumentNormalizationOptions {
   crossRefIncludeCaption?: boolean;
   captionNumbering?: 'sequential' | 'hierarchical';
   headingNumbering?: boolean;
+  headingStartNumber?: number;
 }
 
 /** The single semantic persistence pipeline used by every host. */
@@ -216,6 +218,7 @@ export function normalizeDocument(
     options.crossRefIncludeCaption,
     options.captionNumbering,
     options.headingNumbering,
+    options.headingStartNumber,
   );
 }
 
@@ -230,7 +233,10 @@ export interface QueryResult {
   crossReferences: Array<{ href: string; text: string; targetExists: boolean }>;
 }
 
-export function queryDocumentStructure(doc: TiptapNode): QueryResult {
+export function queryDocumentStructure(
+  doc: TiptapNode,
+  options: DocumentNormalizationOptions = {},
+): QueryResult {
   const result: QueryResult = {
     headings: [],
     figures: [],
@@ -241,11 +247,12 @@ export function queryDocumentStructure(doc: TiptapNode): QueryResult {
   if (!doc.content) return result;
 
   const numbering = buildNumberingIndex(doc, {
-    headingNumbering: true,
-    captionNumbering: 'sequential',
-    equationNumbering: 'sequential',
-    captionStyle: 'modern',
-    crossRefIncludeCaption: false,
+    headingNumbering: options.headingNumbering ?? true,
+    headingStartNumber: options.headingStartNumber ?? 1,
+    captionNumbering: options.captionNumbering ?? 'sequential',
+    equationNumbering: options.equationNumbering ?? 'sequential',
+    captionStyle: options.captionStyle ?? 'modern',
+    crossRefIncludeCaption: options.crossRefIncludeCaption ?? false,
   });
   const allIds = new Set<string>();
 

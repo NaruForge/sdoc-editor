@@ -280,6 +280,7 @@ const EquationNumbering = Extension.create<EditorExtensionOptions>({
               const settingsKey = JSON.stringify({
                 captionStyle: settings.captionStyle,
                 headingNumbering: settings.headingNumbering,
+                headingStartNumber: settings.headingStartNumber,
                 captionNumbering: settings.captionNumbering,
                 equationNumbering: settings.equationNumbering,
               });
@@ -317,6 +318,7 @@ const semanticNumberingKey = new PluginKey<SemanticNumberingState>('semanticNumb
 
 const semanticSettingsKey = (settings: ResolvedEditorSettings): string => [
   settings.headingNumbering,
+  settings.headingStartNumber,
   settings.captionNumbering,
   settings.equationNumbering,
   settings.captionStyle,

@@ -24,6 +24,7 @@ export async function exportDocument(
   const exportSettings = {
     captionStyle: settings.captionStyle,
     headingNumbering: settings.headingNumbering,
+    headingStartNumber: settings.headingStartNumber,
     imageCaptionPrefix: settings.imageCaptionPrefix,
     tableCaptionPrefix: settings.tableCaptionPrefix,
     equationCaptionPrefix: settings.equationCaptionPrefix,

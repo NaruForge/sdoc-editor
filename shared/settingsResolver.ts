@@ -77,6 +77,7 @@ export function toRoman(num: number): string {
 /** Hardcoded defaults — last-resort fallback. */
 export const SETTINGS_DEFAULTS: Required<DocumentSettings> = {
   headingNumbering: true,
+  headingStartNumber: 1,
   headingDecoration: true,
   headingH1Color: '#2563EB',
   headingH2Color: '#2563EB',
@@ -111,6 +112,7 @@ export const EDITOR_SETTINGS_DEFAULTS: ResolvedEditorSettings = {
   equationNumbering: SETTINGS_DEFAULTS.equationNumbering,
   crossRefIncludeCaption: SETTINGS_DEFAULTS.crossRefIncludeCaption,
   headingNumbering: SETTINGS_DEFAULTS.headingNumbering,
+  headingStartNumber: SETTINGS_DEFAULTS.headingStartNumber,
   headingDecoration: SETTINGS_DEFAULTS.headingDecoration,
   headingH1Color: SETTINGS_DEFAULTS.headingH1Color,
   headingH2Color: SETTINGS_DEFAULTS.headingH2Color,

@@ -1161,6 +1161,110 @@ samp {
   margin: 4px 0;
 }
 
+.editor-context-menu {
+  position: fixed;
+  z-index: 1000;
+  min-width: 200px;
+  padding: 4px 0;
+  color: var(--vscode-menu-foreground, var(--menu-fg, #cccccc));
+  font-size: 13px;
+  background: var(--vscode-menu-background, var(--menu-bg, #252526));
+  border: 1px solid var(--vscode-menu-border, var(--menu-border, #454545));
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.editor-context-submenu {
+  z-index: 1001;
+  min-width: 160px;
+}
+
+.editor-context-menu-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 12px;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  user-select: none;
+  background: transparent;
+  border: none;
+}
+
+.editor-context-menu-item:hover,
+.editor-context-menu-item:focus-visible {
+  color: var(--vscode-menu-selectionForeground, var(--menu-selection-fg, #fff));
+  background: var(--vscode-menu-selectionBackground, var(--menu-selection-bg, #094771));
+  outline: none;
+}
+
+.editor-context-menu-item-label { flex: 1; }
+.editor-context-menu-arrow { opacity: 0.7; }
+
+.editor-context-menu-separator {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--vscode-menu-separatorBackground, var(--menu-separator, #454545));
+}
+
+.editor-context-menu-section-label,
+.editor-context-menu-submenu-label {
+  color: var(--vscode-descriptionForeground, var(--description-fg, #888));
+  font-weight: 700;
+  text-transform: uppercase;
+  user-select: none;
+}
+
+.editor-context-menu-section-label {
+  padding: 2px 12px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
+.editor-context-menu-submenu-label {
+  padding: 2px 10px 4px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+}
+
+.editor-context-menu-custom-size {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 10px;
+}
+
+.editor-context-menu-custom-size-fields {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.editor-context-menu-size-input {
+  width: 44px;
+  padding: 3px 6px;
+  color: var(--vscode-input-foreground, var(--input-fg));
+  font-size: 12px;
+  background: var(--vscode-input-background, var(--input-bg));
+  border: 1px solid var(--vscode-input-border, var(--input-border));
+  border-radius: 3px;
+}
+
+.editor-context-menu-size-separator,
+.editor-context-menu-callout-icon { font-size: 12px; }
+.editor-context-menu-callout-icon { line-height: 1; }
+
+.editor-context-menu-insert-size {
+  justify-content: center;
+  padding: 4px 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
 /* Modal */
 .modal-overlay {
   position: fixed;
@@ -1967,8 +2071,14 @@ samp {
   transition: opacity 0.15s ease;
 }
 
-.editor-zoom-bar:hover {
+.editor-zoom-bar:hover,
+.editor-zoom-bar:focus-within,
+.editor-zoom-bar.is-non-default {
   opacity: 1;
+}
+
+.editor-zoom-bar.is-non-default {
+  border-color: var(--vscode-focusBorder, #007fd4);
 }
 
 .editor-zoom-bar .zoom-btn {
@@ -2424,9 +2534,10 @@ samp {
 }
 
 .side-panel {
+  position: relative;
   width: clamp(320px, 28vw, 380px);
   min-width: 320px;
-  max-width: 380px;
+  max-width: 560px;
   flex-shrink: 0;
   height: 100%;          /* fill editor-body-layout height */
   overflow-y: auto;
@@ -2434,6 +2545,39 @@ samp {
   background-color: var(--vscode-sideBar-background, var(--vscode-editor-background));
   display: flex;
   flex-direction: column;
+}
+
+.editor-zoom-bar.is-non-default .zoom-label { font-weight: 600; }
+
+.side-panel-resize-handle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  width: 8px;
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+.side-panel-resize-handle::after {
+  content: '';
+  position: absolute;
+  inset: 0 3px;
+  background: transparent;
+}
+
+.side-panel-resize-handle:hover::after,
+.side-panel-resize-handle:focus-visible::after {
+  background: var(--vscode-focusBorder, #007acc);
+}
+
+.side-panel-resize-handle:focus-visible { outline: none; }
+
+html.is-resizing-side-panel,
+html.is-resizing-side-panel * {
+  cursor: ew-resize !important;
+  user-select: none !important;
 }
 
 .side-panel-tabs {

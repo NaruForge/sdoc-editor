@@ -376,21 +376,9 @@ body {
 .bubble-menu button:hover { background-color: var(--toolbar-hover-bg); }
 .bubble-menu button.is-active { background-color: var(--button-bg); color: var(--button-fg); }
 
-/* Table Context Menu */
-.table-context-menu {
-  background-color: var(--menu-bg); border: 1px solid var(--menu-border); border-radius: 6px;
-  padding: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.4); min-width: 180px;
-}
-.context-menu-item {
-  display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 12px;
-  background-color: transparent; color: var(--menu-fg); border: none; border-radius: 4px;
-  cursor: pointer; text-align: left; font-size: 13px; transition: background-color 0.1s;
-}
-.context-menu-item:hover { background-color: var(--menu-selection-bg); color: var(--menu-selection-fg); }
-.context-menu-item.danger { color: var(--error-fg); }
+/* Explorer disabled state extends the shared context-menu styles. */
 .context-menu-item:disabled { color: var(--disabled-fg, #6b6b6b); cursor: not-allowed; opacity: 0.5; }
 .context-menu-item:disabled:hover { background-color: transparent; color: var(--disabled-fg, #6b6b6b); }
-.context-menu-separator { height: 1px; background-color: var(--menu-separator); margin: 4px 0; }
 
 /* Modal */
 .modal-content {

@@ -28,6 +28,7 @@ export type SlideTransition = 'none' | 'fade' | 'slide' | 'convex' | 'concave' |
 /** Per-document settings that override VS Code workspace defaults. */
 export interface DocumentSettings {
   headingNumbering?: boolean;
+  headingStartNumber?: number;
   headingDecoration?: boolean;
   headingH1Color?: string;
   headingH2Color?: string;
@@ -62,6 +63,7 @@ export interface ResolvedEditorSettings {
   equationNumbering: 'sequential' | 'hierarchical';
   crossRefIncludeCaption: boolean;
   headingNumbering: boolean;
+  headingStartNumber: number;
   headingDecoration: boolean;
   headingH1Color: string;
   headingH2Color: string;
@@ -109,6 +111,7 @@ export interface SdocEnvelope {
 export interface ExportSettings {
   captionStyle?: CaptionStyleName;
   headingNumbering?: boolean;
+  headingStartNumber?: number;
   counterResetPaths?: string[];
   imageCaptionPrefix?: string;
   tableCaptionPrefix?: string;
@@ -165,6 +168,7 @@ export interface SlideTheme {
 export interface SlideSettings {
   captionStyle?: CaptionStyleName;
   headingNumbering?: boolean;
+  headingStartNumber?: number;
   counterResetPaths?: string[];
   imageCaptionPrefix?: string;
   tableCaptionPrefix?: string;

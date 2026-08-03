@@ -41,6 +41,20 @@ describe('VS Code package manifest', () => {
       }));
   });
 
+  it('exposes only current host-level settings in the VS Code Settings UI', () => {
+    const properties = manifest.contributes?.configuration?.properties ?? {};
+
+    expect(Object.keys(properties).sort()).toEqual([
+      'structuredDocEditor.diagramRenderer.allowPrivateNetwork',
+      'structuredDocEditor.diagramRenderer.enabled',
+      'structuredDocEditor.diagramRenderer.endpoint',
+      'structuredDocEditor.export.imagePath',
+      'structuredDocEditor.image.defaultAlignment',
+      'structuredDocEditor.ui.language',
+    ]);
+    expect(properties).not.toHaveProperty('structuredDocEditor.theme.customStyles');
+  });
+
   it('routes the platform bold shortcut to the focused editable sdoc editor', () => {
     expect(manifest.contributes?.commands).toEqual(expect.arrayContaining([
       expect.objectContaining({ command: 'structuredDocEditor.toggleBold' }),

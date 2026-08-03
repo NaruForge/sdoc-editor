@@ -226,7 +226,12 @@ function PanelFixture({ locale }: { locale: Locale }) {
   const returnFocusRef = React.useRef<HTMLButtonElement | null>(null);
   return (
     <>
-      <button ref={returnFocusRef} type="button" data-testid="panel-return-target">Background action</button>
+      <button
+        ref={returnFocusRef}
+        type="button"
+        data-testid="panel-return-target"
+        onClick={() => setOpen((value) => !value)}
+      >Background action</button>
       {open && <ResponsiveSidePanel
         title={locale === 'ko' ? '문서 설정' : 'Document settings'}
         closeLabel={locale === 'ko' ? '문서 패널 닫기' : 'Close document panel'}

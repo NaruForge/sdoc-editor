@@ -67,14 +67,14 @@ const CAPTION_STYLE_OPTIONS: ReadonlyArray<{
 
 interface CssFileTargetOption {
   target: CssTarget;
-  label: string;
+  labelKey: EditorTranslationKey;
   pathKey: 'slideCssPath' | 'htmlCssPath';
   placeholder: string;
 }
 
 const CSS_FILE_TARGET_OPTIONS: ReadonlyArray<CssFileTargetOption> = [
-  { target: 'slide', label: 'Slide CSS', pathKey: 'slideCssPath', placeholder: './theme/slide.css' },
-  { target: 'html', label: 'HTML CSS', pathKey: 'htmlCssPath', placeholder: './theme/html.css' },
+  { target: 'slide', labelKey: 'settings.slideCss', pathKey: 'slideCssPath', placeholder: './theme/slide.css' },
+  { target: 'html', labelKey: 'settings.htmlCss', pathKey: 'htmlCssPath', placeholder: './theme/html.css' },
 ];
 
 const SELF_CONTAINED_OPTIONS: ReadonlyArray<{
@@ -94,13 +94,13 @@ const SLIDE_BREAK_OPTIONS: ReadonlyArray<{
   { value: 'h1-h2-vertical', labelKey: 'settings.splitH1H2' },
 ];
 
-const SLIDE_TRANSITION_OPTIONS: ReadonlyArray<{ value: SlideTransition; label: string }> = [
-  { value: 'none', label: 'None' },
-  { value: 'fade', label: 'Fade' },
-  { value: 'slide', label: 'Slide' },
-  { value: 'convex', label: 'Convex' },
-  { value: 'concave', label: 'Concave' },
-  { value: 'zoom', label: 'Zoom' },
+const SLIDE_TRANSITION_OPTIONS: ReadonlyArray<{ value: SlideTransition; labelKey: EditorTranslationKey }> = [
+  { value: 'none', labelKey: 'common.none' },
+  { value: 'fade', labelKey: 'settings.transitionFade' },
+  { value: 'slide', labelKey: 'settings.transitionSlide' },
+  { value: 'convex', labelKey: 'settings.transitionConvex' },
+  { value: 'concave', labelKey: 'settings.transitionConcave' },
+  { value: 'zoom', labelKey: 'settings.transitionZoom' },
 ];
 
 const HEADING_COLOR_KEYS = HEADING_LEVELS.map(headingColorKey);
@@ -166,6 +166,7 @@ const APPEARANCE_KEYS: ReadonlyArray<keyof DocumentSettings> = [
 ];
 const NUMBERING_KEYS: ReadonlyArray<keyof DocumentSettings> = [
   'headingNumbering',
+  'headingStartNumber',
   'captionStyle',
   'captionNumbering',
   'equationNumbering',
@@ -321,11 +322,12 @@ const DeferredTextInput: React.FC<DeferredTextInputProps> = ({
 
 interface GroupDefaultsButtonProps {
   onClick: () => void;
+  label: string;
 }
 
-const GroupDefaultsButton: React.FC<GroupDefaultsButtonProps> = ({ onClick }) => (
+const GroupDefaultsButton: React.FC<GroupDefaultsButtonProps> = ({ onClick, label }) => (
   <button type="button" className="settings-reset-btn" onClick={onClick}>
-    Use host defaults
+    {label}
   </button>
 );
 
@@ -413,14 +415,15 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
   const renderAdvanced = exportMode !== 'settings';
   const title = exportMode === 'settings'
     ? t('settings.title')
-    : exportMode === 'export' ? 'Export options' : 'Slide options';
+    : exportMode === 'export' ? t('settings.exportOptions') : t('settings.slideOptions');
+  const hostDefaultsLabel = t('settings.hostDefaults');
 
   return (
     <div className="settings-panel">
       <div className="settings-panel-title">{title}</div>
 
       {renderAppearance && (
-        <CollapsibleSection title="Document appearance" defaultOpen>
+        <CollapsibleSection title={t('settings.documentAppearance')} defaultOpen>
           <div className="settings-row" style={rowStyle}>
             <label className="settings-label" style={labelStyle}>{t('settings.decoration')}</label>
             <input
@@ -432,12 +435,12 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
             />
           </div>
           <div className="settings-row" style={rowStyle}>
-            <span className="settings-label" style={labelStyle}>Heading palette</span>
-            <div className="settings-radio-group" role="group" aria-label="Heading palette">
+            <span className="settings-label" style={labelStyle}>{t('settings.headingPalette')}</span>
+            <div className="settings-radio-group" role="group" aria-label={t('settings.headingPalette')}>
               {([
-                ['blue', 'Blue'],
-                ['heritage-red', 'Heritage red'],
-                ['black', 'Black'],
+                ['blue', t('settings.presetBlue')],
+                ['heritage-red', t('settings.presetHeritageRed')],
+                ['black', t('settings.presetBlack')],
               ] as const).map(([palette, label]) => (
                 <button
                   key={palette}
@@ -455,21 +458,21 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
                 aria-pressed={headingPalette === 'custom'}
                 onClick={() => handleHeadingPaletteChange('custom')}
               >
-                Custom
+                {t('settings.custom')}
               </button>
               <button
                 type="button"
                 className={`settings-reset-btn${headingPalette === 'mixed' ? ' is-active' : ''}`}
                 aria-pressed={headingPalette === 'mixed'}
                 disabled
-                title="Shown when heading levels use different colors"
+                title={t('settings.mixedPaletteDescription')}
               >
-                Mixed
+                {t('settings.mixedPalette')}
               </button>
               <DeferredTextInput
                 value={displaySettings.headingH1Color}
                 placeholder="#2563EB"
-                ariaLabel="Custom document heading color"
+                ariaLabel={t('settings.customDocumentHeadingColor')}
                 pattern="^#[0-9a-fA-F]{6}$"
                 onCommit={(value) => {
                   if (/^#[0-9a-f]{6}$/i.test(value)) {
@@ -479,7 +482,7 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
               />
             </div>
           </div>
-          <CollapsibleSection title="Advanced heading colors">
+          <CollapsibleSection title={t('settings.advancedHeadingColors')}>
             {HEADING_LEVELS.map((level) => {
               const key = headingColorKey(level);
               return (
@@ -496,12 +499,12 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
               );
             })}
           </CollapsibleSection>
-          <GroupDefaultsButton onClick={() => resetGroupToHostDefaults(APPEARANCE_KEYS)} />
+          <GroupDefaultsButton label={hostDefaultsLabel} onClick={() => resetGroupToHostDefaults(APPEARANCE_KEYS)} />
         </CollapsibleSection>
       )}
 
       {renderNumbering && (
-        <CollapsibleSection title="Numbering and references" defaultOpen>
+        <CollapsibleSection title={t('settings.numberingAndReferences')} defaultOpen>
           <div className="settings-row" style={rowStyle}>
             <label className="settings-label" style={labelStyle}>{t('settings.headingNumbering')}</label>
             <input
@@ -510,6 +513,23 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
               aria-label={t('settings.headingNumbering')}
               checked={displaySettings.headingNumbering}
               onChange={(event) => updateField('headingNumbering', event.target.checked)}
+            />
+          </div>
+          <div className="settings-row" style={rowStyle}>
+            <label className="settings-label" style={labelStyle}>{t('settings.headingStartNumber')}</label>
+            <input
+              type="number"
+              min={0}
+              step={1}
+              className="settings-text-input"
+              style={controlStyle}
+              aria-label={t('settings.headingStartNumber')}
+              value={displaySettings.headingStartNumber}
+              disabled={!displaySettings.headingNumbering}
+              onChange={(event) => {
+                const value = event.target.valueAsNumber;
+                if (Number.isInteger(value) && value >= 0) updateField('headingStartNumber', value);
+              }}
             />
           </div>
           <div className="settings-row" style={rowStyle}>
@@ -566,13 +586,13 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
               onChange={(event) => updateField('crossRefIncludeCaption', event.target.checked)}
             />
           </div>
-          <GroupDefaultsButton onClick={() => resetGroupToHostDefaults(NUMBERING_KEYS)} />
+          <GroupDefaultsButton label={hostDefaultsLabel} onClick={() => resetGroupToHostDefaults(NUMBERING_KEYS)} />
         </CollapsibleSection>
       )}
 
       {renderExport && (
         <>
-        <CollapsibleSection title="General">
+        <CollapsibleSection title={t('settings.general')}>
           <div className="settings-row" style={rowStyle}>
             <label className="settings-label" style={labelStyle}>{t('settings.outputFolder')}</label>
             <DeferredTextInput
@@ -583,7 +603,7 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
             />
           </div>
           <div className="settings-hint">{t('settings.outputFolderHint')}</div>
-          <GroupDefaultsButton onClick={() => resetGroupToHostDefaults(['outputDir'])} />
+          <GroupDefaultsButton label={hostDefaultsLabel} onClick={() => resetGroupToHostDefaults(['outputDir'])} />
         </CollapsibleSection>
         <CollapsibleSection title="HTML">
           <div className="settings-row" style={rowStyle}>
@@ -600,7 +620,7 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
               ))}
             </select>
           </div>
-          <GroupDefaultsButton onClick={() => resetGroupToHostDefaults(['selfContained', 'htmlCssPath'])} />
+          <GroupDefaultsButton label={hostDefaultsLabel} onClick={() => resetGroupToHostDefaults(['selfContained', 'htmlCssPath'])} />
         </CollapsibleSection>
         <CollapsibleSection title="PDF">
           <div className="settings-row" style={rowStyle}>
@@ -620,13 +640,13 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
               )}
             />
           </div>
-          <GroupDefaultsButton onClick={() => resetGroupToHostDefaults(['pdfScale'])} />
+          <GroupDefaultsButton label={hostDefaultsLabel} onClick={() => resetGroupToHostDefaults(['pdfScale'])} />
         </CollapsibleSection>
         </>
       )}
 
       {renderSlides && (
-        <CollapsibleSection title="Slides">
+        <CollapsibleSection title={t('settings.slides')}>
           <div className="settings-row" style={rowStyle}>
             <label className="settings-label" style={labelStyle}>{t('settings.slideSplit')}</label>
             <select
@@ -662,18 +682,19 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
             >
               {SLIDE_TRANSITION_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
-                  {option.value === 'none' ? t('common.none') : option.label}
+                  {t(option.labelKey)}
                 </option>
               ))}
             </select>
           </div>
-          <GroupDefaultsButton onClick={() => resetGroupToHostDefaults(SLIDE_KEYS)} />
+          <GroupDefaultsButton label={hostDefaultsLabel} onClick={() => resetGroupToHostDefaults(SLIDE_KEYS)} />
         </CollapsibleSection>
       )}
 
       {renderAdvanced && (
-        <CollapsibleSection title="Advanced">
-          {CSS_FILE_TARGET_OPTIONS.map(({ target, label, pathKey, placeholder }) => {
+        <CollapsibleSection title={t('settings.advanced')}>
+          {CSS_FILE_TARGET_OPTIONS.map(({ target, labelKey, pathKey, placeholder }) => {
+            const label = t(labelKey);
             const cssPath = draftDocSettings?.[pathKey];
             const hasPath = typeof cssPath === 'string' && cssPath.length > 0;
             return (
@@ -714,15 +735,15 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
               </div>
             );
           })}
-          <GroupDefaultsButton onClick={() => resetGroupToHostDefaults(ADVANCED_KEYS)} />
+          <GroupDefaultsButton label={hostDefaultsLabel} onClick={() => resetGroupToHostDefaults(ADVANCED_KEYS)} />
         </CollapsibleSection>
       )}
 
       {exportMode === 'settings' && (
         <div className="settings-footer">
           {confirmResetAll ? (
-            <div role="group" aria-label="Confirm reset all document settings">
-              <span>Reset all document settings?</span>
+            <div role="group" aria-label={t('settings.resetConfirmGroup')}>
+              <span>{t('settings.resetConfirmPrompt')}</span>
               <button
                 type="button"
                 className="settings-reset-btn"
@@ -731,14 +752,14 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
                   emitSettings(null);
                 }}
               >
-                Confirm reset
+                {t('settings.resetConfirm')}
               </button>
               <button
                 type="button"
                 className="settings-reset-btn"
                 onClick={() => setConfirmResetAll(false)}
               >
-                Cancel
+                {t('common.cancel')}
               </button>
             </div>
           ) : (
@@ -748,7 +769,7 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
               onClick={() => setConfirmResetAll(true)}
               title={t('settings.resetTitle')}
             >
-              Reset all document settings
+              {t('settings.resetAll')}
             </button>
           )}
         </div>

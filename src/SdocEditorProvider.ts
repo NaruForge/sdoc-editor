@@ -310,6 +310,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       const config = vscode.workspace.getConfiguration('structuredDocEditor');
       return {
         headingNumbering: config.get<boolean>('heading.numbering', true),
+        headingStartNumber: config.get<number>('heading.startNumber', SETTINGS_DEFAULTS.headingStartNumber),
         headingDecoration: config.get<boolean>('heading.decoration', true),
         headingH1Color: config.get<string>('heading.h1Color', SETTINGS_DEFAULTS.headingH1Color),
         headingH2Color: config.get<string>('heading.h2Color', SETTINGS_DEFAULTS.headingH2Color),
@@ -363,6 +364,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
           equationNumbering: resolved.equationNumbering,
           crossRefIncludeCaption: resolved.crossRefIncludeCaption,
           headingNumbering: resolved.headingNumbering,
+          headingStartNumber: resolved.headingStartNumber,
           headingDecoration: resolved.headingDecoration,
           headingH1Color: resolved.headingH1Color,
           headingH2Color: resolved.headingH2Color,
@@ -1394,6 +1396,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       crossRefIncludeCaption: config.get<boolean>('caption.crossRefIncludeCaption', false),
       captionNumbering: config.get<'sequential' | 'hierarchical'>('caption.numbering', 'sequential'),
       headingNumbering: config.get<boolean>('heading.numbering', true),
+      headingStartNumber: config.get<number>('heading.startNumber', SETTINGS_DEFAULTS.headingStartNumber),
     });
 
     const synced = normalizeDocument(convertedContent, {
@@ -1402,6 +1405,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       crossRefIncludeCaption: resolved.crossRefIncludeCaption,
       captionNumbering: resolved.captionNumbering,
       headingNumbering: resolved.headingNumbering,
+      headingStartNumber: resolved.headingStartNumber,
     });
 
     // Wrap in sdoc envelope, preserving settings

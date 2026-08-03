@@ -54,6 +54,7 @@
       "description": "Per-document settings that override workspace defaults.",
       "properties": {
         "headingNumbering": { "type": "boolean", "description": "Enable automatic heading numbering." },
+        "headingStartNumber": { "type": "integer", "minimum": 0, "description": "Starting number for automatic H1 heading numbering." },
         "headingDecoration": { "type": "boolean", "description": "Enable heading border-bottom decoration." },
         "headingH1Color": { "type": "string", "pattern": "^#[0-9a-fA-F]{3,8}$", "description": "H1 heading number color." },
         "headingH2Color": { "type": "string", "pattern": "^#[0-9a-fA-F]{3,8}$", "description": "H2 heading number color." },

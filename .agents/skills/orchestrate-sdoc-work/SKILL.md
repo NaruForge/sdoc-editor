@@ -1,6 +1,6 @@
 ---
 name: orchestrate-sdoc-work
-description: Coordinate bounded multi-agent work for Structured Doc Editor across the VS Code host, Tauri host, shared core, tests, and documentation. Use when a task explicitly requests subagents, delegation, parallel work, Grok or agy review, or when a complex change has at least two independent exploration, implementation, verification, or review workstreams.
+description: Coordinate bounded multi-agent work and its required Grok CLI critique for Structured Doc Editor across the VS Code host, Tauri host, shared core, tests, and documentation. Use when a task explicitly requests subagents, delegation, parallel work, Grok or agy review, or when a complex change has at least two independent exploration, implementation, verification, or review workstreams.
 ---
 
 # Orchestrate SDOC Work
@@ -24,7 +24,19 @@ verification. Delegate only bounded work that can proceed independently.
    conflicts, and integrate centrally. Never accept a worker summary as proof
    when source or test evidence is available.
 6. Run the applicable commands from `AGENTS.md`, inspect the final diff, and
-   report completed work, verification, and residual risk.
+   invoke the Grok CLI for an independent critical review of every material
+   implementation or substantive repository verification. Put full diffs and
+   other long payloads in an OS temporary UTF-8 file and call the wrapper with
+   `-PromptFile`; never place them in shell arguments. Grok report validation
+   is enabled by default.
+7. Disposition each actionable Grok finding by accepting or rejecting it with
+   local repository and test evidence, and remediate accepted findings. If
+   reviewed files change materially, rerun the Grok critique before reporting
+   completed work, verification, and residual risk.
+8. Treat exit code 0 plus an acknowledgement or intent statement as incomplete.
+   A valid critique must contain explicit ASCII `Conclusion` and `Findings`
+   headings or `NO_ACTIONABLE_FINDINGS`. Retry incomplete output with a bounded,
+   self-contained prompt and never report it as Grok review.
 
 ## Native agent roles
 
@@ -40,14 +52,19 @@ thread available for the main agent and avoid recursive delegation.
 
 ## External advisors
 
-Use Grok or agy only when the user explicitly asks for an external model or
-cross-model validation. Read `references/external-advisors.md` before invoking
-either CLI. Run `scripts/invoke-advisor.ps1` so external work remains
-non-interactive and advisory by default.
+Use Grok CLI as the default independent critic for every material implementation
+and substantive repository verification, even without an explicit user request.
+Read `references/external-advisors.md` and run `scripts/invoke-advisor.ps1` so
+the review remains non-interactive, bounded, and advisory. Use agy or another
+external advisor only when the user explicitly requests it.
 
-Do not send secrets, credentials, unrelated source, or uncommitted proprietary
-content beyond what the task requires. Do not let an external advisor modify
-the working tree. Verify every adopted claim locally.
+Do not send secrets, credentials, unrelated source or proprietary content,
+personal information, customer data, or sensitive logs. Do not let an external
+advisor modify the working tree. Verify every adopted claim locally,
+disposition actionable findings with evidence, and rerun Grok after material
+remediation. If Grok is unavailable, unauthenticated, or unsafe to scope,
+report the missing critique and residual risk explicitly rather than implying
+that Grok reviewed the work.
 
 ## Delegation contract
 

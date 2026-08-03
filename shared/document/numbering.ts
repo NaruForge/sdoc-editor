@@ -4,6 +4,7 @@ import { walkDocument } from './walker';
 
 export interface NumberingPolicy {
   headingNumbering: boolean;
+  headingStartNumber?: number;
   captionNumbering: 'sequential' | 'hierarchical';
   equationNumbering: 'sequential' | 'hierarchical';
   captionStyle: CaptionStyleName;
@@ -41,8 +42,8 @@ const stringAttr = (node: TiptapNode, name: string): string | undefined => {
   return typeof value === 'string' && value ? value : undefined;
 };
 
-const sectionNumber = (section: number, local: string): string =>
-  section > 0 ? `${section}.${local}` : local;
+const sectionNumber = (section: number | undefined, local: string): string =>
+  section !== undefined ? `${section}.${local}` : local;
 
 /** Build the single document-order numbering model consumed by UI, references and exports. */
 export function buildNumberingIndex(doc: TiptapNode, policy: NumberingPolicy): NumberingIndex {
@@ -51,8 +52,13 @@ export function buildNumberingIndex(doc: TiptapNode, policy: NumberingPolicy): N
   const byId = new Map<string, NumberedEntry>();
   const byPath = new Map<string, NumberedEntry>();
   const byNode = new WeakMap<TiptapNode, NumberedEntry>();
+  const headingStartNumber = Number.isInteger(policy.headingStartNumber)
+    && (policy.headingStartNumber ?? -1) >= 0
+    ? policy.headingStartNumber ?? 1
+    : 1;
   const headings = [0, 0, 0, 0, 0, 0];
-  let activeSection = 0;
+  let hasNumberedH1 = false;
+  let activeSection: number | undefined;
   let globalFigure = 0;
   let globalTable = 0;
   let globalEquation = 0;
@@ -71,7 +77,8 @@ export function buildNumberingIndex(doc: TiptapNode, policy: NumberingPolicy): N
   for (const { node, path } of walkDocument(doc)) {
     if (resetPaths.has(path.join('.'))) {
       headings.fill(0);
-      activeSection = 0;
+      hasNumberedH1 = false;
+      activeSection = undefined;
       globalFigure = 0;
       globalTable = 0;
       globalEquation = 0;
@@ -87,10 +94,11 @@ export function buildNumberingIndex(doc: TiptapNode, policy: NumberingPolicy): N
       const numbered = policy.headingNumbering && explicitlyNumbered;
       if (level === 1) {
         if (explicitlyNumbered) {
-          headings[0] += 1;
+          headings[0] = hasNumberedH1 ? headings[0] + 1 : headingStartNumber;
+          hasNumberedH1 = true;
           activeSection = headings[0];
         } else {
-          activeSection = 0;
+          activeSection = undefined;
         }
         localFigure = 0;
         localTable = 0;

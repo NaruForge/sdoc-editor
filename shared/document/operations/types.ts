@@ -130,7 +130,7 @@ export interface ApplySuccess {
   diff: SemanticDiffEvent[];
   normalizationPolicy: Required<Pick<DocumentSettings,
     'captionStyle' | 'captionNumbering' | 'equationNumbering'
-    | 'crossRefIncludeCaption' | 'headingNumbering'>>;
+    | 'crossRefIncludeCaption' | 'headingNumbering' | 'headingStartNumber'>>;
   warnings: OperationDiagnostic[];
 }
 

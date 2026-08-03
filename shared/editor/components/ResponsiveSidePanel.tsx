@@ -1,5 +1,14 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { X } from 'lucide-react';
+import { useEditorI18n } from '../i18n';
+import {
+  clampSidePanelWidth,
+  readStoredSidePanelWidth,
+  SIDE_PANEL_MAX_WIDTH,
+  SIDE_PANEL_MIN_WIDTH,
+  sidePanelWidthForKey,
+  storeSidePanelWidth,
+} from '../sidePanelWidth';
 
 interface ResponsiveSidePanelProps {
   title: string;
@@ -10,6 +19,16 @@ interface ResponsiveSidePanelProps {
 }
 
 const OVERLAY_PANEL_QUERY = '(max-width: 1100px)';
+const getLocalStorage = (): Storage | null => {
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+};
+const getDefaultDockedWidth = (): number => (
+  typeof window === 'undefined' ? 380 : Math.min(380, Math.max(320, window.innerWidth * 0.28))
+);
 const overlayHeaderStyle: React.CSSProperties = {
   display: 'flex',
   minHeight: '40px',
@@ -28,11 +47,41 @@ export const ResponsiveSidePanel: React.FC<ResponsiveSidePanelProps> = ({
   children,
 }) => {
   const titleId = useId();
+  const { t } = useEditorI18n();
   const panelRef = useRef<HTMLElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const resizeHandleRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef<{ pointerId: number; startX: number; startWidth: number } | null>(null);
+  const [preferredWidth, setPreferredWidth] = useState<number | null>(() => (
+    typeof window === 'undefined' ? null : readStoredSidePanelWidth(getLocalStorage())
+  ));
   const [isOverlay, setIsOverlay] = useState(
     () => typeof window !== 'undefined' && window.matchMedia(OVERLAY_PANEL_QUERY).matches,
   );
+  const clearDragState = useCallback(() => {
+    const drag = dragRef.current;
+    dragRef.current = null;
+    if (drag && resizeHandleRef.current?.hasPointerCapture(drag.pointerId)) {
+      resizeHandleRef.current.releasePointerCapture(drag.pointerId);
+    }
+    document.documentElement.classList.remove('is-resizing-side-panel');
+  }, []);
+
+  const finishDrag = useCallback((commit: boolean) => {
+    const drag = dragRef.current;
+    if (!drag) return;
+    if (!commit) setPreferredWidth(drag.startWidth);
+    else setPreferredWidth((width) => {
+      const nextWidth = width ?? drag.startWidth;
+      storeSidePanelWidth(getLocalStorage(), nextWidth);
+      return nextWidth;
+    });
+    clearDragState();
+  }, [clearDragState]);
+
+  useEffect(() => {
+    if (isOverlay && dragRef.current) finishDrag(false);
+  }, [finishDrag, isOverlay]);
 
   useEffect(() => {
     const media = window.matchMedia(OVERLAY_PANEL_QUERY);
@@ -47,8 +96,19 @@ export const ResponsiveSidePanel: React.FC<ResponsiveSidePanelProps> = ({
   }, [isOverlay]);
 
   useEffect(() => () => {
+    clearDragState();
     returnFocusRef.current?.focus();
-  }, [returnFocusRef]);
+  }, [clearDragState, returnFocusRef]);
+
+  useEffect(() => {
+    const cancelWithEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || !dragRef.current) return;
+      event.preventDefault();
+      finishDrag(false);
+    };
+    document.addEventListener('keydown', cancelWithEscape);
+    return () => document.removeEventListener('keydown', cancelWithEscape);
+  }, [finishDrag]);
 
   const closeAndRestoreFocus = useCallback(() => {
     onClose();
@@ -109,7 +169,49 @@ export const ResponsiveSidePanel: React.FC<ResponsiveSidePanelProps> = ({
         aria-modal={isOverlay ? true : undefined}
         aria-labelledby={titleId}
         tabIndex={isOverlay ? -1 : undefined}
+        style={!isOverlay && preferredWidth !== null ? { width: `${preferredWidth}px` } : undefined}
       >
+        {!isOverlay && <div
+          ref={resizeHandleRef}
+          className="side-panel-resize-handle"
+          role="separator"
+          aria-label={t('sidePanel.resize')}
+          aria-orientation="vertical"
+          aria-valuemin={SIDE_PANEL_MIN_WIDTH}
+          aria-valuemax={SIDE_PANEL_MAX_WIDTH}
+          aria-valuenow={Math.round(preferredWidth ?? getDefaultDockedWidth())}
+          tabIndex={0}
+          onKeyDown={(event) => {
+            const currentWidth = preferredWidth ?? panelRef.current?.getBoundingClientRect().width ?? 380;
+            const nextWidth = sidePanelWidthForKey(currentWidth, event.key);
+            if (nextWidth === null) return;
+            event.preventDefault();
+            setPreferredWidth(nextWidth);
+            storeSidePanelWidth(getLocalStorage(), nextWidth);
+          }}
+          onPointerDown={(event) => {
+            if (event.button !== 0) return;
+            const startWidth = preferredWidth ?? panelRef.current?.getBoundingClientRect().width ?? 380;
+            dragRef.current = { pointerId: event.pointerId, startX: event.clientX, startWidth };
+            event.currentTarget.setPointerCapture(event.pointerId);
+            document.documentElement.classList.add('is-resizing-side-panel');
+          }}
+          onPointerMove={(event) => {
+            const drag = dragRef.current;
+            if (!drag || drag.pointerId !== event.pointerId) return;
+            setPreferredWidth(clampSidePanelWidth(drag.startWidth + event.clientX - drag.startX));
+          }}
+          onPointerUp={(event) => {
+            if (dragRef.current?.pointerId !== event.pointerId) return;
+            finishDrag(true);
+          }}
+          onPointerCancel={(event) => {
+            if (dragRef.current?.pointerId === event.pointerId) finishDrag(false);
+          }}
+          onLostPointerCapture={(event) => {
+            if (dragRef.current?.pointerId === event.pointerId) finishDrag(false);
+          }}
+        />}
         <div
           className="side-panel-mobile-header"
           style={isOverlay ? overlayHeaderStyle : undefined}

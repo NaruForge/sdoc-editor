@@ -302,6 +302,7 @@ export const Editor: React.FC<EditorProps> = ({
         crossRefIncludeCaption: settings.crossRefIncludeCaption,
         captionNumbering: settings.captionNumbering,
         headingNumbering: settings.headingNumbering,
+        headingStartNumber: settings.headingStartNumber,
       });
       assertPersistedDocument(wrapSdoc(normalized, {}));
       syncCoordinatorRef.current?.submit({
@@ -338,14 +339,14 @@ export const Editor: React.FC<EditorProps> = ({
   }, [settings]);
 
   // Trigger CrossRef label re-sync when caption settings change
-  const prevPrefixRef = useRef({ style: '', eqMode: '', capMode: '', includeCaption: false, heading: true });
+  const prevPrefixRef = useRef({ style: '', eqMode: '', capMode: '', includeCaption: false, heading: true, headingStart: 1 });
   useEffect(() => {
-    const { captionStyle, equationNumbering, captionNumbering, crossRefIncludeCaption, headingNumbering } = state.settings;
+    const { captionStyle, equationNumbering, captionNumbering, crossRefIncludeCaption, headingNumbering, headingStartNumber } = state.settings;
     const prev = prevPrefixRef.current;
     const changed = prev.style !== captionStyle || prev.eqMode !== equationNumbering
       || prev.capMode !== captionNumbering || prev.includeCaption !== crossRefIncludeCaption
-      || prev.heading !== headingNumbering;
-    prevPrefixRef.current = { style: captionStyle, eqMode: equationNumbering, capMode: captionNumbering, includeCaption: crossRefIncludeCaption, heading: headingNumbering };
+      || prev.heading !== headingNumbering || prev.headingStart !== headingStartNumber;
+    prevPrefixRef.current = { style: captionStyle, eqMode: equationNumbering, capMode: captionNumbering, includeCaption: crossRefIncludeCaption, heading: headingNumbering, headingStart: headingStartNumber };
     if (changed && editor) {
       const { tr } = editor.state;
       tr.setMeta(CROSSREF_RESYNC_META, true);

@@ -299,7 +299,7 @@ Book 화면은 포함 문서를 자동으로 검사합니다. 누락되거나 �
 
 VS Code 설정에서 `Structured Doc Editor`를 검색하면 다음 항목을 조정할 수 있습니다.
 
-- 제목 번호·장식·색상
+- 제목 번호(0 이상의 H1 시작 번호 포함)·장식·색상
 - 편집기 UI 언어(Auto, 한국어, English)
 - IEEE, ISO/IEC, Modern, Korean 캡션 스타일과 번호 방식
 - 본문·굵게·제목 폰트 굵기

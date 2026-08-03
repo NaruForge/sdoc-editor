@@ -37,6 +37,10 @@ export function resolveTauriEditorSettings(
   for (const key of ['headingDecoration'] as const) {
     if (typeof raw[key] === 'boolean') external[key] = raw[key];
   }
+  if (typeof raw.headingStartNumber === 'number'
+    && Number.isInteger(raw.headingStartNumber) && raw.headingStartNumber >= 0) {
+    external.headingStartNumber = raw.headingStartNumber;
+  }
   for (const key of [
     'headingH1Color', 'headingH2Color', 'headingH3Color',
     'headingH4Color', 'headingH5Color', 'headingH6Color',

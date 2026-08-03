@@ -172,6 +172,9 @@ describe('activity hubs and settings UI', () => {
 
     expect(settingsMarkup).toContain('Document appearance');
     expect(settingsMarkup).toContain('Numbering and references');
+    expect(settingsMarkup).toContain('Heading start number');
+    expect(settingsMarkup).toContain('type="number"');
+    expect(settingsMarkup).toContain('min="0"');
     expect(settingsMarkup).toContain('Advanced heading colors');
     expect(settingsMarkup).toContain('aria-expanded="false"');
     expect(settingsMarkup).toContain('Use host defaults');
@@ -179,4 +182,51 @@ describe('activity hubs and settings UI', () => {
     expect(exportMarkup).toContain('Export options');
     expect(exportMarkup).not.toContain('Document appearance');
   });
+
+  it.each([
+    ['en', 'settings', 'Document settings', 'Document appearance'],
+    ['en', 'export', 'Export options', 'General'],
+    ['en', 'slides', 'Slide options', 'Slides'],
+    ['ko', 'settings', '문서 설정', '문서 모양'],
+    ['ko', 'export', '내보내기 옵션', '일반'],
+    ['ko', 'slides', '슬라이드 옵션', '슬라이드'],
+  ] as const)('renders %s %s settings UI from the locale catalog', (locale, mode, title, section) => {
+    const markup = renderToStaticMarkup(
+      <EditorProvider initialLocale={locale}>
+        <DocumentSettingsPanel onUpdateSettings={vi.fn()} exportMode={mode} />
+      </EditorProvider>,
+    );
+
+    expect(markup).toContain(title);
+    expect(markup).toContain(section);
+    expect(markup).toContain(locale === 'ko' ? '호스트 기본값 사용' : 'Use host defaults');
+  });
+
+  it.each(['settings', 'export', 'slides'] as const)(
+    'does not leave known hardcoded English UI in Korean %s mode',
+    (mode) => {
+      const markup = renderToStaticMarkup(
+        <EditorProvider initialLocale="ko">
+          <DocumentSettingsPanel onUpdateSettings={vi.fn()} exportMode={mode} />
+        </EditorProvider>,
+      );
+
+      for (const text of [
+        'Document appearance',
+        'Heading palette',
+        'Mixed',
+        'Advanced heading colors',
+        'Numbering and references',
+        'Use host defaults',
+        'Shown when heading levels use different colors',
+        'Custom document heading color',
+        'Export options',
+        'Slide options',
+        'Confirm reset all document settings',
+        'Reset all document settings?',
+      ]) {
+        expect(markup).not.toContain(text);
+      }
+    },
+  );
 });

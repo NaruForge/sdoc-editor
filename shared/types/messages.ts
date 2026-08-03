@@ -41,6 +41,7 @@ export interface EditorSettings {
   captionNumbering: 'sequential' | 'hierarchical';
   equationNumbering: 'sequential' | 'hierarchical';
   headingNumbering: boolean;
+  headingStartNumber: number;
   headingDecoration: boolean;
   headingH1Color: string;
   headingH2Color: string;

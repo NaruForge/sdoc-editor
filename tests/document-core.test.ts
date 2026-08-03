@@ -119,9 +119,12 @@ describe('sdoc envelope', () => {
       headingH4Color: '#444444',
       headingH5Color: '#555555',
       headingH6Color: '#666666',
+      headingStartNumber: 0,
     })).toBe(true);
     expect(validateDocumentSettings({ captionStyle: 'unknown' })).toBe(false);
     expect(validateDocumentSettings({ headingNumbering: 'yes' })).toBe(false);
+    expect(validateDocumentSettings({ headingStartNumber: -1 })).toBe(false);
+    expect(validateDocumentSettings({ headingStartNumber: 0.5 })).toBe(false);
     expect(validateDocumentSettings({ headingH4Color: 'not-a-color' })).toBe(false);
     expect(parseDocumentContract({
       sdoc: '1.0',
@@ -140,6 +143,22 @@ describe('sdoc envelope', () => {
     if (!parsed.ok) return;
     const wrapped = wrapSdoc(parsed.envelope.doc, parsed.envelope.meta);
     expect(wrapped.meta.review).toEqual({ status: 'approved' });
+  });
+
+  it('reports document structure with a zero heading start number', () => {
+    const doc: TiptapNode = {
+      type: 'doc',
+      content: [
+        { type: 'heading', attrs: { level: 1, id: 'zero' }, content: [text('Zero')] },
+        { type: 'heading', attrs: { level: 2, id: 'zero-one' }, content: [text('Zero One')] },
+      ],
+    };
+
+    expect(queryDocumentStructure(doc, { headingStartNumber: 0 }).headings)
+      .toMatchObject([
+        { id: 'zero', numbering: '0' },
+        { id: 'zero-one', numbering: '0.1' },
+      ]);
   });
   it('unwraps legacy documents and recursively migrates data attributes', () => {
     const legacy: TiptapNode = {
