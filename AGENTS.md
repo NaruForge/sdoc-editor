@@ -18,6 +18,7 @@ The document model, converters, settings, and host-neutral utilities belong in `
 - `shared/converter/`: all import/export conversion
 - `shared/book/`: `.sdocbook` parsing, validation, and host-neutral composition
 - `shared/editor/`: UI and Tiptap code shared by both hosts
+- `DESIGN.md`: product chrome design intent, runtime ownership, host differences, and UI verification contract
 - `docs/architecture.md`: current architecture
 - `docs/adr/`: durable architectural decisions; newer ADRs may supersede older ones
 
@@ -52,6 +53,7 @@ cargo test --manifest-path tauri-app/Cargo.toml --workspace
 7. Update schemas, examples, tests, and converters when the persisted document format changes.
 8. Keep user documentation in `README.md`, contributor workflow in `CONTRIBUTING.md`, and implementation detail in `docs/`.
 9. Keep `.sdocbook` loading behind `BookDocumentLoader`; the composition core must not access host filesystems directly.
+10. Before changing UI, read `DESIGN.md`. Keep shared structure and geometry in `shared/editor/`, and verify affected behavior in VS Code and Tauri across light and dark themes, relevant responsive widths, and accessibility states.
 
 ## Packaging
 

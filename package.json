@@ -200,7 +200,8 @@
     "test:ui:report": "playwright show-report tests/ui/artifacts/report",
     "test:watch": "vitest",
     "version:check": "node scripts/check-versions.mjs",
-    "check": "npm run version:check && npm run validators:check && npm run typecheck && npm run lint && npm test",
+    "design:check": "designmd lint DESIGN.md && node scripts/check-design-contract.mjs",
+    "check": "npm run version:check && npm run design:check && npm run validators:check && npm run typecheck && npm run lint && npm test",
     "licenses:generate": "node scripts/generate-third-party-notices.mjs",
     "licenses:check": "node scripts/generate-third-party-notices.mjs --check",
     "release:check-artifacts": "node scripts/check-release-artifacts.mjs",
@@ -214,6 +215,7 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "4.12.1",
+    "@google/design.md": "0.4.0",
     "@playwright/test": "1.62.0",
     "@types/node": "^26.1.1",
     "@types/react": "19.2.17",
