@@ -271,6 +271,8 @@ interface DeferredTextInputProps {
   onCommit: (value: string) => void;
   ariaLabel?: string;
   pattern?: string;
+  maxLength?: number;
+  title?: string;
 }
 
 const DeferredTextInput: React.FC<DeferredTextInputProps> = ({
@@ -279,9 +281,12 @@ const DeferredTextInput: React.FC<DeferredTextInputProps> = ({
   onCommit,
   ariaLabel,
   pattern,
+  maxLength,
+  title,
 }) => {
   const [draft, setDraft] = React.useState(value);
   const skipCommitOnBlurRef = React.useRef(false);
+  const invalid = pattern ? !new RegExp(pattern).test(draft) : false;
 
   React.useEffect(() => setDraft(value), [value]);
 
@@ -314,7 +319,10 @@ const DeferredTextInput: React.FC<DeferredTextInputProps> = ({
       onKeyDown={handleKeyDown}
       placeholder={placeholder}
       aria-label={ariaLabel}
+      aria-invalid={invalid || undefined}
       pattern={pattern}
+      maxLength={maxLength}
+      title={title}
       spellCheck={false}
     />
   );
@@ -330,10 +338,6 @@ const GroupDefaultsButton: React.FC<GroupDefaultsButtonProps> = ({ onClick, labe
     {label}
   </button>
 );
-
-const rowStyle: React.CSSProperties = { minWidth: 0, flexWrap: 'wrap' };
-const controlStyle: React.CSSProperties = { minWidth: 0, maxWidth: '100%' };
-const labelStyle: React.CSSProperties = { minWidth: 0, overflowWrap: 'anywhere' };
 
 export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
   onUpdateSettings,
@@ -351,14 +355,23 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
   const [confirmResetAll, setConfirmResetAll] = React.useState(false);
   const displaySettings = { ...mergedSettings, ...(draftDocSettings ?? {}) };
   const headingPalette = getHeadingPalette(displaySettings);
+  const [customPaletteOpen, setCustomPaletteOpen] = React.useState(
+    headingPalette === 'custom',
+  );
 
   React.useEffect(() => {
     const pending = pendingDocSettingsRef.current;
     if (pending !== undefined && !documentSettingsEqual(pending, docSettings)) return;
+    const acknowledgedPendingUpdate = pending !== undefined;
     latestDocSettingsRef.current = docSettings;
     setDraftDocSettings(docSettings);
+    if (!acknowledgedPendingUpdate) setCustomPaletteOpen(false);
     pendingDocSettingsRef.current = undefined;
   }, [docSettings]);
+
+  React.useEffect(() => {
+    if (headingPalette === 'custom') setCustomPaletteOpen(true);
+  }, [headingPalette]);
 
   const emitSettings = useCallback((settings: Partial<DocumentSettings> | null) => {
     latestDocSettingsRef.current = settings;
@@ -397,6 +410,11 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
     ));
   }, [displaySettings.headingH1Color, emitSettings]);
 
+  const selectHeadingPalette = useCallback((palette: Exclude<SelectableHeadingPalette, 'custom'>) => {
+    setCustomPaletteOpen(false);
+    handleHeadingPaletteChange(palette);
+  }, [handleHeadingPaletteChange]);
+
   const handleTextFieldCommit = useCallback((
     key: CssFileTargetOption['pathKey'] | 'outputDir',
     value: string,
@@ -429,8 +447,8 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
 
       {renderAppearance && (
         <CollapsibleSection title={t('settings.documentAppearance')} defaultOpen>
-          <div className="settings-row" style={rowStyle}>
-            <label className="settings-label" style={labelStyle}>{t('settings.decoration')}</label>
+          <div className="settings-row">
+            <label className="settings-label">{t('settings.decoration')}</label>
             <input
               type="checkbox"
               className="settings-toggle"
@@ -439,79 +457,110 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
               onChange={(event) => updateField('headingDecoration', event.target.checked)}
             />
           </div>
-          <div className="settings-row" style={rowStyle}>
-            <span className="settings-label" style={labelStyle}>{t('settings.headingPalette')}</span>
-            <div className="settings-radio-group" role="group" aria-label={t('settings.headingPalette')}>
+          <div className="settings-row settings-palette-row">
+            <span className="settings-label">{t('settings.headingPalette')}</span>
+            <div className="settings-palette-layout">
+              <div className="settings-palette-grid" role="group" aria-label={t('settings.headingPalette')}>
               {([
-                ['blue', t('settings.presetBlue')],
-                ['heritage-red', t('settings.presetHeritageRed')],
-                ['black', t('settings.presetBlack')],
-              ] as const).map(([palette, label]) => (
+                ['blue', t('settings.presetBlue'), HEADING_PALETTE_COLORS.blue],
+                ['heritage-red', t('settings.presetHeritageRed'), HEADING_PALETTE_COLORS['heritage-red']],
+                ['black', t('settings.presetBlack'), HEADING_PALETTE_COLORS.black],
+              ] as const).map(([palette, label, color]) => {
+                const selected = headingPalette === palette && !customPaletteOpen;
+                return (
                 <button
                   key={palette}
                   type="button"
-                  className={`settings-reset-btn${headingPalette === palette ? ' is-active' : ''}`}
-                  aria-pressed={headingPalette === palette}
-                  onClick={() => handleHeadingPaletteChange(palette)}
+                  className={`settings-palette-card${selected ? ' is-active' : ''}`}
+                  aria-label={`${label}, ${color}`}
+                  aria-pressed={selected}
+                  onClick={() => selectHeadingPalette(palette)}
                 >
-                  {label}
+                  <span className="settings-palette-swatch" style={{ backgroundColor: color }} />
+                  <span className="settings-palette-name">{label}</span>
+                  <span className="settings-palette-hex">{color}</span>
+                  {selected && <span className="settings-palette-check" aria-hidden="true">✓</span>}
                 </button>
-              ))}
+                );
+              })}
               <button
                 type="button"
-                className={`settings-reset-btn${headingPalette === 'custom' ? ' is-active' : ''}`}
-                aria-pressed={headingPalette === 'custom'}
-                onClick={() => handleHeadingPaletteChange('custom')}
+                className={`settings-palette-card${customPaletteOpen ? ' is-active' : ''}`}
+                aria-label={`${t('settings.custom')}, ${displaySettings.headingH1Color.toUpperCase()}`}
+                aria-pressed={customPaletteOpen}
+                onClick={() => setCustomPaletteOpen(true)}
               >
-                {t('settings.custom')}
+                <span className="settings-palette-swatch" style={{ backgroundColor: displaySettings.headingH1Color }} />
+                <span className="settings-palette-name">{t('settings.custom')}</span>
+                <span className="settings-palette-hex">{displaySettings.headingH1Color.toUpperCase()}</span>
+                {customPaletteOpen && <span className="settings-palette-check" aria-hidden="true">✓</span>}
               </button>
-              <button
-                type="button"
-                className={`settings-reset-btn${headingPalette === 'mixed' ? ' is-active' : ''}`}
-                aria-pressed={headingPalette === 'mixed'}
-                disabled
-                title={t('settings.mixedPaletteDescription')}
-              >
-                {t('settings.mixedPalette')}
-              </button>
-              <DeferredTextInput
-                value={displaySettings.headingH1Color}
-                placeholder="#2563EB"
-                ariaLabel={t('settings.customDocumentHeadingColor')}
-                pattern="^#[0-9a-fA-F]{6}$"
-                onCommit={(value) => {
-                  if (/^#[0-9a-f]{6}$/i.test(value)) {
-                    handleHeadingPaletteChange('custom', value);
-                  }
-                }}
-              />
+              </div>
+              {headingPalette === 'mixed' && (
+                <div className="settings-palette-mixed-notice" role="status">
+                  {t('settings.mixedPaletteDescription')}
+                </div>
+              )}
+              {customPaletteOpen && (
+                <div className="settings-custom-palette-controls">
+                  <input
+                    type="color"
+                    className="settings-custom-palette-picker"
+                    value={toNativeColorValue(displaySettings.headingH1Color)}
+                    aria-label={t('settings.customPalettePicker')}
+                    onChange={(event) => handleHeadingPaletteChange('custom', event.target.value.toUpperCase())}
+                  />
+                  <DeferredTextInput
+                    value={displaySettings.headingH1Color.toUpperCase()}
+                    placeholder="#2563EB"
+                    ariaLabel={t('settings.customPaletteHex')}
+                    pattern="^#[0-9a-fA-F]{6}$"
+                    maxLength={7}
+                    title={t('settings.customPaletteHexHint')}
+                    onCommit={(value) => {
+                      if (/^#[0-9a-f]{6}$/i.test(value)) {
+                        handleHeadingPaletteChange('custom', value.toUpperCase());
+                      }
+                    }}
+                  />
+                </div>
+              )}
             </div>
           </div>
           <CollapsibleSection title={t('settings.advancedHeadingColors')}>
             {HEADING_LEVELS.map((level) => {
               const key = headingColorKey(level);
               return (
-                <div className="settings-row settings-heading-color-row" style={rowStyle} key={key}>
-                  <label className="settings-label" style={labelStyle}>
+                <div className="settings-row settings-heading-color-row" key={key}>
+                  <label className="settings-label">
                     {t('settings.headingColor', { level })}
                   </label>
                   <HeadingColorControl
                     level={level}
                     value={displaySettings[key]}
-                    onChange={(value) => updateField(key, value)}
+                    onChange={(value) => {
+                      setCustomPaletteOpen(false);
+                      updateField(key, value);
+                    }}
                   />
                 </div>
               );
             })}
           </CollapsibleSection>
-          <GroupDefaultsButton label={hostDefaultsLabel} onClick={() => resetGroupToHostDefaults(APPEARANCE_KEYS)} />
+          <GroupDefaultsButton
+            label={hostDefaultsLabel}
+            onClick={() => {
+              setCustomPaletteOpen(false);
+              resetGroupToHostDefaults(APPEARANCE_KEYS);
+            }}
+          />
         </CollapsibleSection>
       )}
 
       {renderNumbering && (
         <CollapsibleSection title={t('settings.numberingAndReferences')} defaultOpen>
-          <div className="settings-row" style={rowStyle}>
-            <label className="settings-label" style={labelStyle}>{t('settings.headingNumbering')}</label>
+          <div className="settings-row">
+            <label className="settings-label">{t('settings.headingNumbering')}</label>
             <input
               type="checkbox"
               className="settings-toggle"
@@ -520,14 +569,13 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
               onChange={(event) => updateField('headingNumbering', event.target.checked)}
             />
           </div>
-          <div className="settings-row" style={rowStyle}>
-            <label className="settings-label" style={labelStyle}>{t('settings.headingStartNumber')}</label>
+          <div className="settings-row">
+            <label className="settings-label">{t('settings.headingStartNumber')}</label>
             <input
               type="number"
               min={0}
               step={1}
               className="settings-text-input"
-              style={controlStyle}
               aria-label={t('settings.headingStartNumber')}
               value={displaySettings.headingStartNumber}
               disabled={!displaySettings.headingNumbering}
@@ -537,11 +585,10 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
               }}
             />
           </div>
-          <div className="settings-row" style={rowStyle}>
-            <label className="settings-label" style={labelStyle}>{t('settings.captionStyle')}</label>
+          <div className="settings-row">
+            <label className="settings-label">{t('settings.captionStyle')}</label>
             <select
               className="settings-select"
-              style={controlStyle}
               aria-label={t('settings.captionStyle')}
               value={displaySettings.captionStyle}
               onChange={(event) => updateField('captionStyle', event.target.value as CaptionStyleName)}
@@ -556,8 +603,8 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
               (option) => option.value === displaySettings.captionStyle,
             )?.description}
           </div>
-          <div className="settings-row" style={rowStyle}>
-            <span className="settings-label" style={labelStyle}>{t('settings.numberingStyle')}</span>
+          <div className="settings-row">
+            <span className="settings-label">{t('settings.numberingStyle')}</span>
             <div className="settings-radio-group">
               <label className="settings-radio-label">
                 <input
@@ -581,8 +628,8 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
               </label>
             </div>
           </div>
-          <div className="settings-row" style={rowStyle}>
-            <label className="settings-label" style={labelStyle}>{t('settings.includeCaptionCrossRef')}</label>
+          <div className="settings-row">
+            <label className="settings-label">{t('settings.includeCaptionCrossRef')}</label>
             <input
               type="checkbox"
               className="settings-toggle"
@@ -598,8 +645,8 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
       {renderExport && (
         <>
         <CollapsibleSection title={t('settings.general')}>
-          <div className="settings-row" style={rowStyle}>
-            <label className="settings-label" style={labelStyle}>{t('settings.outputFolder')}</label>
+          <div className="settings-row">
+            <label className="settings-label">{t('settings.outputFolder')}</label>
             <DeferredTextInput
               value={draftDocSettings?.outputDir ?? displaySettings.outputDir}
               placeholder="./export"
@@ -611,11 +658,10 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
           <GroupDefaultsButton label={hostDefaultsLabel} onClick={() => resetGroupToHostDefaults(['outputDir'])} />
         </CollapsibleSection>
         <CollapsibleSection title="HTML">
-          <div className="settings-row" style={rowStyle}>
-            <label className="settings-label" style={labelStyle}>{t('settings.htmlEmbedding')}</label>
+          <div className="settings-row">
+            <label className="settings-label">{t('settings.htmlEmbedding')}</label>
             <select
               className="settings-select"
-              style={controlStyle}
               aria-label={t('settings.htmlEmbedding')}
               value={draftDocSettings?.selfContained ?? displaySettings.selfContained}
               onChange={(event) => updateField('selfContained', event.target.value as SelfContainedMode)}
@@ -628,12 +674,11 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
           <GroupDefaultsButton label={hostDefaultsLabel} onClick={() => resetGroupToHostDefaults(['selfContained', 'htmlCssPath'])} />
         </CollapsibleSection>
         <CollapsibleSection title="PDF">
-          <div className="settings-row" style={rowStyle}>
-            <label className="settings-label" style={labelStyle}>{t('settings.pdfScale')}</label>
+          <div className="settings-row">
+            <label className="settings-label">{t('settings.pdfScale')}</label>
             <input
               type="number"
               className="settings-number-input"
-              style={controlStyle}
               aria-label={t('settings.pdfScale')}
               min={10}
               max={200}
@@ -652,11 +697,10 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
 
       {renderSlides && (
         <CollapsibleSection title={t('settings.slides')}>
-          <div className="settings-row" style={rowStyle}>
-            <label className="settings-label" style={labelStyle}>{t('settings.slideSplit')}</label>
+          <div className="settings-row">
+            <label className="settings-label">{t('settings.slideSplit')}</label>
             <select
               className="settings-select"
-              style={controlStyle}
               aria-label={t('settings.slideSplit')}
               value={draftDocSettings?.slideBreakLevel ?? displaySettings.slideBreakLevel}
               onChange={(event) => updateField('slideBreakLevel', event.target.value as SlideBreakLevel)}
@@ -666,8 +710,8 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
               ))}
             </select>
           </div>
-          <div className="settings-row" style={rowStyle}>
-            <label className="settings-label" style={labelStyle}>{t('settings.titleSlide')}</label>
+          <div className="settings-row">
+            <label className="settings-label">{t('settings.titleSlide')}</label>
             <input
               type="checkbox"
               className="settings-toggle"
@@ -676,11 +720,10 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
               onChange={(event) => updateField('showTitleSlide', event.target.checked)}
             />
           </div>
-          <div className="settings-row" style={rowStyle}>
-            <label className="settings-label" style={labelStyle}>{t('settings.transition')}</label>
+          <div className="settings-row">
+            <label className="settings-label">{t('settings.transition')}</label>
             <select
               className="settings-select"
-              style={controlStyle}
               aria-label={t('settings.transition')}
               value={draftDocSettings?.slideTransition ?? displaySettings.slideTransition}
               onChange={(event) => updateField('slideTransition', event.target.value as SlideTransition)}
@@ -703,10 +746,10 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
             const cssPath = draftDocSettings?.[pathKey];
             const hasPath = typeof cssPath === 'string' && cssPath.length > 0;
             return (
-              <div className="settings-row" style={rowStyle} key={target}>
-                <label className="settings-label" style={labelStyle}>{label}</label>
+              <div className="settings-row" key={target}>
+                <label className="settings-label">{label}</label>
                 {onSelectCssFile ? (
-                  <div className="settings-file-picker" style={controlStyle}>
+                  <div className="settings-file-picker">
                     <span className="settings-file-path" title={hasPath ? cssPath : t('settings.notSet')}>
                       {hasPath ? cssPath : t('settings.notSet')}
                     </span>
@@ -754,6 +797,7 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
                 className="settings-reset-btn"
                 onClick={() => {
                   setConfirmResetAll(false);
+                  setCustomPaletteOpen(false);
                   emitSettings(null);
                 }}
               >

@@ -2696,6 +2696,15 @@ html.is-resizing-side-panel * {
 }
 
 /* ===== Document Settings Panel ===== */
+.settings-panel,
+.diagram-renderer-settings {
+  --settings-control-height: 32px;
+  --settings-control-radius: 4px;
+  --settings-row-gap: 10px;
+  --settings-control-gap: 6px;
+  --settings-toggle-size: 24px;
+}
+
 .settings-panel {
   padding: 8px 0;
   display: flex;
@@ -2766,14 +2775,13 @@ html.is-resizing-side-panel * {
   align-items: center;
   justify-content: space-between;
   padding: 4px 0;
-  gap: 8px;
+  gap: var(--settings-row-gap);
   min-width: 0;
 }
 
 .settings-label {
   font-size: 12px;
   color: var(--vscode-foreground);
-  min-width: 0;
   flex: 1 1 150px;
   overflow-wrap: anywhere;
   min-width: 60px;
@@ -2785,6 +2793,41 @@ html.is-resizing-side-panel * {
 .settings-file-picker {
   min-width: 0;
   max-width: 100%;
+}
+
+.settings-select,
+.settings-number-input,
+.settings-text-input {
+  box-sizing: border-box;
+  min-height: var(--settings-control-height);
+  padding: 4px 8px;
+  border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
+  border-radius: var(--settings-control-radius);
+  outline: none;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground, var(--vscode-foreground));
+  font-family: var(--sdoc-font-sans);
+  font-size: 12px;
+}
+
+.settings-select:focus-visible,
+.settings-number-input:focus-visible,
+.settings-text-input:focus-visible {
+  border-color: var(--vscode-focusBorder);
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 1px;
+}
+
+.settings-select:disabled,
+.settings-number-input:disabled,
+.settings-text-input:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.settings-text-input:invalid,
+.settings-text-input[aria-invalid="true"] {
+  border-color: var(--vscode-inputValidation-errorBorder, var(--vscode-errorForeground));
 }
 
 .settings-select {
@@ -2804,9 +2847,9 @@ html.is-resizing-side-panel * {
 }
 
 .settings-toggle {
-  width: 24px;
-  height: 24px;
-  flex: 0 0 24px;
+  width: var(--settings-toggle-size);
+  height: var(--settings-toggle-size);
+  flex: 0 0 var(--settings-toggle-size);
   accent-color: var(--vscode-focusBorder, #007acc);
   cursor: pointer;
 }
@@ -2896,18 +2939,6 @@ html.is-resizing-side-panel * {
 
 .settings-text-input {
   width: 100px;
-  padding: 3px 6px;
-  font-size: 12px;
-  background-color: var(--vscode-input-background, #3c3c3c);
-  color: var(--vscode-input-foreground, #cccccc);
-  border: 1px solid var(--vscode-input-border, #3c3c3c);
-  border-radius: 3px;
-  outline: none;
-  font-family: var(--sdoc-font-sans);
-}
-
-.settings-text-input:focus {
-  border-color: var(--vscode-focusBorder, #007acc);
 }
 
 .settings-path-input {
@@ -2919,24 +2950,136 @@ html.is-resizing-side-panel * {
 
 .settings-number-input {
   width: 72px;
-  padding: 3px 6px;
-  font-size: 12px;
-  background-color: var(--vscode-input-background, #3c3c3c);
-  color: var(--vscode-input-foreground, #cccccc);
-  border: 1px solid var(--vscode-input-border, #3c3c3c);
-  border-radius: 3px;
-  outline: none;
-  font-family: var(--sdoc-font-sans);
-}
-
-.settings-number-input:focus {
-  border-color: var(--vscode-focusBorder, #007acc);
 }
 
 .settings-radio-group {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.settings-palette-row {
+  align-items: stretch;
+  flex-direction: column;
+}
+
+.settings-palette-row > .settings-label {
+  flex: 0 0 auto;
+}
+
+.settings-palette-layout {
+  width: 100%;
+  min-width: 0;
+  container-type: inline-size;
+}
+
+.settings-palette-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--settings-control-gap);
+}
+
+@container (min-width: 440px) {
+  .settings-palette-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.settings-palette-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-items: center;
+  min-width: 0;
+  min-height: 58px;
+  padding: 8px 24px 8px 8px;
+  gap: 2px 7px;
+  border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
+  border-radius: var(--settings-control-radius);
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground, var(--vscode-foreground));
+  cursor: pointer;
+  font-family: var(--sdoc-font-sans);
+  text-align: left;
+}
+
+.settings-palette-card:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+
+.settings-palette-card:focus-visible,
+.settings-palette-card.is-active {
+  border-color: var(--vscode-focusBorder);
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 1px;
+}
+
+.settings-palette-swatch {
+  grid-row: 1 / 3;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--vscode-contrastBorder, var(--vscode-panel-border));
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.28);
+}
+
+.settings-palette-name {
+  overflow: hidden;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-palette-hex {
+  color: var(--vscode-descriptionForeground);
+  font-family: var(--sdoc-font-mono);
+  font-size: 10px;
+  line-height: 1.2;
+}
+
+.settings-palette-check {
+  position: absolute;
+  top: 6px;
+  right: 7px;
+  color: var(--vscode-focusBorder);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.settings-palette-mixed-notice {
+  margin-top: 8px;
+  padding: 7px 9px;
+  border-left: 2px solid var(--vscode-focusBorder);
+  background: var(--vscode-textBlockQuote-background, var(--vscode-list-hoverBackground));
+  color: var(--vscode-descriptionForeground);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.settings-custom-palette-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--settings-control-gap);
+  margin-top: 8px;
+}
+
+.settings-custom-palette-picker {
+  width: var(--settings-control-height);
+  height: var(--settings-control-height);
+  flex: 0 0 var(--settings-control-height);
+  padding: 2px;
+  border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
+  border-radius: var(--settings-control-radius);
+  background: var(--vscode-input-background);
+  cursor: pointer;
+}
+
+.settings-custom-palette-controls .settings-path-input {
+  width: auto;
+  flex: 1;
 }
 
 .settings-radio-label {
@@ -2988,7 +3131,8 @@ html.is-resizing-side-panel * {
   background: var(--vscode-button-secondaryBackground);
   color: var(--vscode-button-secondaryForeground);
   border: none;
-  border-radius: 3px;
+  min-height: var(--settings-control-height);
+  border-radius: var(--settings-control-radius);
 }
 
 .settings-file-btn:hover,
@@ -3008,7 +3152,8 @@ html.is-resizing-side-panel * {
   background-color: var(--vscode-button-secondaryBackground, #3a3d41);
   color: var(--vscode-button-secondaryForeground, #cccccc);
   border: none;
-  border-radius: 3px;
+  min-height: var(--settings-control-height);
+  border-radius: var(--settings-control-radius);
   cursor: pointer;
   font-family: var(--sdoc-font-sans);
   transition: background-color 0.15s;
@@ -3016,6 +3161,13 @@ html.is-resizing-side-panel * {
 
 .settings-reset-btn:hover {
   background-color: var(--vscode-button-secondaryHoverBackground, #45494e);
+}
+
+.settings-file-btn:focus-visible,
+.settings-file-clear-btn:focus-visible,
+.settings-reset-btn:focus-visible {
+  outline: 2px solid var(--vscode-focusBorder);
+  outline-offset: 1px;
 }
 
 .template-panel-diagnostic > button {

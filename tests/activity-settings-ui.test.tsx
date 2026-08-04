@@ -310,6 +310,14 @@ describe('activity hubs and settings UI', () => {
     expect(settingsMarkup).toContain('aria-expanded="false"');
     expect(settingsMarkup).toContain('Use host defaults');
     expect(settingsMarkup).toContain('Reset all document settings');
+    expect(settingsMarkup.match(/settings-palette-card/g)).toHaveLength(4);
+    expect(settingsMarkup).toContain('Blue palette, #2563EB');
+    expect(settingsMarkup).toContain('LG heritage red, #A50034');
+    expect(settingsMarkup).toContain('Black, #000000');
+    expect(settingsMarkup).toContain('Custom, #2563EB');
+    expect(settingsMarkup).not.toContain('settings-palette-mixed-notice');
+    expect(settingsMarkup).not.toContain('settings-custom-palette-controls');
+    expect(settingsMarkup).not.toContain('disabled=""');
     expect(exportMarkup).toContain('Export options');
     expect(exportMarkup).not.toContain('Document appearance');
   });

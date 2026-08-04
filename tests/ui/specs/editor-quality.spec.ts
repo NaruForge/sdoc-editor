@@ -508,7 +508,9 @@ test.describe('commercial workflow scene gate', () => {
 
   const scenes: readonly WorkflowScene[] = [
     { scene: 'settings', width: 800, host: 'vscode', theme: 'light', locale: 'en' },
+    { scene: 'settings', width: 1024, host: 'vscode', theme: 'dark', locale: 'en' },
     { scene: 'settings', width: 1024, host: 'tauri', theme: 'dark', locale: 'ko' },
+    { scene: 'settings', width: 1440, host: 'tauri', theme: 'light', locale: 'en' },
     { scene: 'settings', width: 1440, host: 'vscode', theme: 'hc', locale: 'ko' },
     { scene: 'templates', width: 800, host: 'tauri', theme: 'light', locale: 'ko' },
     { scene: 'templates', width: 1024, host: 'vscode', theme: 'dark', locale: 'en' },
@@ -599,6 +601,71 @@ test.describe('commercial workflow scene gate', () => {
       await expect(page.locator('.scene-surface')).toHaveScreenshot(`${name}.png`);
     });
   }
+});
+
+test.describe('heading palette contract', () => {
+  test('uses four keyboard-operable cards and reveals Custom without rewriting Mixed', async ({ page }) => {
+    await openFixture(page, {
+      scene: 'settings', width: 1024, height: 900, host: 'vscode', theme: 'dark', locale: 'en',
+    });
+
+    const cards = page.locator('.settings-palette-card');
+    await expect(cards).toHaveCount(4);
+    const narrowRows = await cards.evaluateAll((elements) =>
+      new Set(elements.map((element) => Math.round(element.getBoundingClientRect().y))).size);
+    expect(narrowRows).toBe(2);
+    await expect(page.getByRole('button', { name: /^Mixed/ })).toHaveCount(0);
+    await expect(page.locator('.settings-custom-palette-controls')).toHaveCount(0);
+
+    const custom = page.getByRole('button', { name: /Custom, #2563EB/i });
+    await custom.focus();
+    await page.keyboard.press('Space');
+    await expect(custom).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByLabel('Custom palette color picker')).toBeVisible();
+    await page.getByRole('button', { name: 'Use host defaults' }).first().click();
+    await expect(page.locator('.settings-custom-palette-controls')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /Blue palette, #2563EB/i })).toHaveAttribute('aria-pressed', 'true');
+
+    await custom.focus();
+    await page.keyboard.press('Space');
+    let hex = page.getByRole('textbox', { name: 'Custom palette HEX color' });
+    await hex.fill('#12');
+    await hex.blur();
+    await expect(hex).toHaveAttribute('aria-invalid', 'true');
+    await expect(page.getByRole('button', { name: /Custom, #2563EB/i })).toHaveAttribute('aria-pressed', 'true');
+    await page.getByRole('button', { name: /LG heritage red, #A50034/i }).click();
+    await expect(page.locator('.settings-custom-palette-controls')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /LG heritage red, #A50034/i })).toHaveAttribute('aria-pressed', 'true');
+
+    await page.getByRole('button', { name: /Custom, #A50034/i }).click();
+    hex = page.getByRole('textbox', { name: 'Custom palette HEX color' });
+    await hex.fill('#123456');
+    await hex.press('Enter');
+    await expect(page.getByRole('button', { name: /Custom, #123456/i })).toHaveAttribute('aria-pressed', 'true');
+
+    await page.getByRole('button', { name: 'Advanced heading colors' }).click();
+    await page.getByRole('button', { name: 'H1 Black' }).click();
+    await expect(page.getByRole('status')).toHaveText('Advanced heading colors are applied.');
+    await expect(page.getByRole('button', { name: /^Mixed/ })).toHaveCount(0);
+    await expect(page.locator('.settings-custom-palette-controls')).toHaveCount(0);
+    await page.getByRole('button', { name: /Custom, #000000/i }).click();
+    await expect(page.getByRole('status')).toHaveText('Advanced heading colors are applied.');
+    await expect(page.locator('.settings-custom-palette-controls')).toBeVisible();
+  });
+
+  test('places all four palette cards in one row at the maximum panel width', async ({ page }) => {
+    await openFixture(page, {
+      scene: 'settings', width: 1440, height: 900, host: 'tauri', theme: 'light', locale: 'en',
+    });
+    const separator = page.getByRole('separator', { name: 'Resize side panel' });
+    await separator.focus();
+    await page.keyboard.press('End');
+    const cards = page.locator('.settings-palette-card');
+    await expect(cards).toHaveCount(4);
+    const wideRows = await cards.evaluateAll((elements) =>
+      new Set(elements.map((element) => Math.round(element.getBoundingClientRect().y))).size);
+    expect(wideRows).toBe(1);
+  });
 });
 
 test.describe('template interaction contract', () => {
