@@ -24,6 +24,7 @@ import {
   type FileFormatCapability,
 } from '@shared/editor/components/FilesPanel';
 import { ResponsiveSidePanel } from '@shared/editor/components/ResponsiveSidePanel';
+import { SidePanelBody } from '@shared/editor/components/SidePanelBody';
 import { TemplatePanel } from '@shared/editor/components/TemplatePanel';
 import { Toolbar } from '@shared/editor/components/Toolbar';
 import { EditorProvider } from '@shared/editor/context/EditorContext';
@@ -38,8 +39,9 @@ import { FILE_OPERATION_IDLE_STATE } from '@shared/editor/fileOperations';
 import { createEditorTranslator } from '@shared/editor/i18n';
 import { createTemplateSessionState, templateSessionReducer } from '@shared/editor/templateSession';
 import type { ManagedTemplateDescriptor } from '@shared/types/messages';
-import '../../../tauri-app/src/styles/tauri-theme.css';
+import '@shared/editor/styles/fonts.css';
 import '@shared/editor/styles/editor.css';
+import '../../../tauri-app/src/styles/tauri-theme.css';
 import './harness.css';
 
 type Host = 'vscode' | 'tauri';
@@ -333,6 +335,11 @@ function SharedPanelScene({
       : (locale === 'ko' ? '파일' : 'Files');
   const destination: ActivityDestination = scene === 'settings'
     ? 'design' : scene === 'templates' ? 'templates' : 'publish';
+  const selection = scene === 'settings'
+    ? { destination: 'design' as const, tab: 'document' as const }
+    : scene === 'templates'
+      ? { destination: 'templates' as const }
+      : { destination: 'publish' as const, tab: 'export' as const };
   const finishFixtureAction = (operation: 'apply' | 'save' | 'update' | 'duplicate' | 'delete' | 'open-folder', templateId?: string, visibleIndex?: number) => {
     const requestId = `fixture-${operation}`;
     dispatchTemplateSession({ type: 'action-started', requestId, operation, templateId, visibleIndex });
@@ -368,6 +375,7 @@ function SharedPanelScene({
           onClose={() => setOpen(false)}
           returnFocusRef={returnFocusRef}
         >
+          <SidePanelBody selection={selection} onSelectionChange={() => undefined}>
           {scene === 'settings' && (
             <DocumentSettingsPanel onUpdateSettings={() => undefined} />
           )}
@@ -401,6 +409,7 @@ function SharedPanelScene({
               onViewJson={() => undefined}
             />
           )}
+          </SidePanelBody>
         </ResponsiveSidePanel>
       )}
       <EditorBackdrop editor={editor} locale={locale} returnFocusRef={returnFocusRef} />
@@ -546,6 +555,8 @@ function App() {
   const title = locale === 'ko' ? '제품 수준 문서 편집 경험' : 'A production-quality editing experience';
 
   document.documentElement.lang = locale;
+  document.documentElement.dataset.host = host;
+  document.documentElement.dataset.fixtureTheme = theme;
   document.documentElement.dataset.theme = theme === 'hc' ? 'dark' : theme;
 
   return (

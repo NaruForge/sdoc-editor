@@ -1151,6 +1151,17 @@ samp {
   color: var(--vscode-menu-selectionForeground);
 }
 
+.context-menu-item:disabled {
+  color: var(--vscode-disabledForeground, #6b6b6b);
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.context-menu-item:disabled:hover {
+  background-color: transparent;
+  color: var(--vscode-disabledForeground, #6b6b6b);
+}
+
 .context-menu-item.danger {
   color: var(--vscode-errorForeground, #f48771);
 }
@@ -2033,6 +2044,7 @@ samp {
   flex: 1;
   min-height: 0;       /* critical: allows flex children to shrink below content-size */
   overflow: hidden;
+  position: relative;
 }
 
 .editor-body-layout .editor-content-area {
@@ -2535,9 +2547,13 @@ samp {
 
 .side-panel {
   position: relative;
-  width: clamp(320px, 28vw, 380px);
-  min-width: 320px;
-  max-width: 560px;
+  width: clamp(
+    var(--side-panel-min-width),
+    var(--side-panel-fluid-width),
+    var(--side-panel-default-width)
+  );
+  min-width: var(--side-panel-min-width);
+  max-width: var(--side-panel-max-width);
   flex-shrink: 0;
   height: 100%;          /* fill editor-body-layout height */
   overflow-y: auto;
@@ -2635,45 +2651,39 @@ html.is-resizing-side-panel * {
   background: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.18));
 }
 
-@media (max-width: 1100px) {
-  .editor-body-layout {
-    position: relative;
-  }
+.side-panel-scrim {
+  position: absolute;
+  inset: 0 0 0 48px;
+  z-index: 79;
+  display: block;
+  width: auto;
+  height: auto;
+  padding: 0;
+  border: 0;
+  background: rgba(0, 0, 0, 0.4);
+  cursor: default;
+}
 
-  .side-panel-scrim {
-    position: absolute;
-    inset: 0 0 0 48px;
-    z-index: 79;
-    display: block;
-    width: auto;
-    height: auto;
-    padding: 0;
-    border: 0;
-    background: rgba(0, 0, 0, 0.4);
-    cursor: default;
-  }
+.side-panel.is-overlay {
+  position: absolute;
+  inset: 0 auto 0 48px;
+  z-index: 80;
+  width: min(var(--side-panel-default-width), calc(100% - 48px));
+  min-width: 0;
+  max-width: var(--side-panel-default-width);
+  box-shadow: 6px 0 20px rgba(0, 0, 0, 0.32);
+}
 
-  .side-panel {
-    position: absolute;
-    inset: 0 auto 0 48px;
-    z-index: 80;
-    width: min(380px, calc(100% - 48px));
-    min-width: 0;
-    max-width: 380px;
-    box-shadow: 6px 0 20px rgba(0, 0, 0, 0.32);
-  }
-
-  .side-panel-mobile-header {
-    display: flex;
-    min-height: 40px;
-    flex: none;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    padding: 4px 6px 4px 12px;
-    border-bottom: 1px solid var(--vscode-panel-border, #767676);
-    color: var(--vscode-foreground, #333333);
-  }
+.side-panel.is-overlay .side-panel-mobile-header {
+  display: flex;
+  min-height: 40px;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 6px 4px 12px;
+  border-bottom: 1px solid var(--vscode-panel-border, #767676);
+  color: var(--vscode-foreground, #333333);
 }
 
 .side-panel .toc-panel {

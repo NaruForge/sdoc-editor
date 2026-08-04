@@ -7,7 +7,7 @@ import { ListOfTables } from '@shared/editor/components/ListOfTables';
 import { DocumentSettingsPanel } from '@shared/editor/components/DocumentSettingsPanel';
 import { TemplatePanel } from '@shared/editor/components/TemplatePanel';
 import { FilesPanel, type FileExportFormat, type FileImportFormat } from '@shared/editor/components/FilesPanel';
-import { SidePanelTabs } from '@shared/editor/components/SidePanelTabs';
+import { SidePanelBody } from '@shared/editor/components/SidePanelBody';
 import { DiagramRendererSettingsPanel } from '@shared/editor/components/DiagramRendererSettingsPanel';
 import { ViewControlPanel } from '@shared/editor/components/ViewControlPanel';
 import type { DocumentSettings, ResolvedEditorSettings } from '@shared/types';
@@ -140,14 +140,7 @@ export const SidePanel: React.FC<SidePanelProps> = ({
       onClose={onClose}
       returnFocusRef={returnFocusRef}
     >
-        {(selection.destination === 'navigate'
-          || selection.destination === 'design'
-          || selection.destination === 'publish') && (
-          <SidePanelTabs
-            selection={selection}
-            onSelectionChange={onSelectionChange}
-          />
-        )}
+        <SidePanelBody selection={selection} onSelectionChange={onSelectionChange}>
         {selection.destination === 'design' && selection.tab === 'view' && (
           <ViewControlPanel
             showNumbering={showNumbering}
@@ -236,6 +229,7 @@ export const SidePanel: React.FC<SidePanelProps> = ({
             onOpenPersonalFolder={onOpenPersonalTemplateFolder}
           />
         )}
+        </SidePanelBody>
     </ResponsiveSidePanel>
   );
 };

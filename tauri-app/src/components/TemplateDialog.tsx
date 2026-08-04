@@ -55,7 +55,7 @@ export const TemplateDialog: React.FC<TemplateDialogProps> = ({
   return (
     <div className="modal-overlay" onClick={onCancel}>
       <div
-        className="modal-content modal-content--lg template-dialog"
+        className="modal-content modal-content--lg tauri-template-dialog"
         role="dialog"
         aria-modal="true"
         aria-labelledby="template-dialog-title"

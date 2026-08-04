@@ -3,7 +3,11 @@ import { X } from 'lucide-react';
 import { useEditorI18n } from '../i18n';
 import {
   clampSidePanelWidth,
+  getDefaultSidePanelWidth,
+  getSidePanelOverlayMediaQuery,
   readStoredSidePanelWidth,
+  SIDE_PANEL_CSS_CUSTOM_PROPERTIES,
+  SIDE_PANEL_DEFAULT_WIDTH,
   SIDE_PANEL_MAX_WIDTH,
   SIDE_PANEL_MIN_WIDTH,
   sidePanelWidthForKey,
@@ -18,7 +22,6 @@ interface ResponsiveSidePanelProps {
   children: React.ReactNode;
 }
 
-const OVERLAY_PANEL_QUERY = '(max-width: 1100px)';
 const getLocalStorage = (): Storage | null => {
   try {
     return window.localStorage;
@@ -27,7 +30,7 @@ const getLocalStorage = (): Storage | null => {
   }
 };
 const getDefaultDockedWidth = (): number => (
-  typeof window === 'undefined' ? 380 : Math.min(380, Math.max(320, window.innerWidth * 0.28))
+  getDefaultSidePanelWidth(typeof window === 'undefined' ? undefined : window.innerWidth)
 );
 const overlayHeaderStyle: React.CSSProperties = {
   display: 'flex',
@@ -56,7 +59,7 @@ export const ResponsiveSidePanel: React.FC<ResponsiveSidePanelProps> = ({
     typeof window === 'undefined' ? null : readStoredSidePanelWidth(getLocalStorage())
   ));
   const [isOverlay, setIsOverlay] = useState(
-    () => typeof window !== 'undefined' && window.matchMedia(OVERLAY_PANEL_QUERY).matches,
+    () => typeof window !== 'undefined' && window.matchMedia(getSidePanelOverlayMediaQuery()).matches,
   );
   const clearDragState = useCallback(() => {
     const drag = dragRef.current;
@@ -84,7 +87,7 @@ export const ResponsiveSidePanel: React.FC<ResponsiveSidePanelProps> = ({
   }, [finishDrag, isOverlay]);
 
   useEffect(() => {
-    const media = window.matchMedia(OVERLAY_PANEL_QUERY);
+    const media = window.matchMedia(getSidePanelOverlayMediaQuery());
     const sync = () => setIsOverlay(media.matches);
     sync();
     media.addEventListener('change', sync);
@@ -169,7 +172,10 @@ export const ResponsiveSidePanel: React.FC<ResponsiveSidePanelProps> = ({
         aria-modal={isOverlay ? true : undefined}
         aria-labelledby={titleId}
         tabIndex={isOverlay ? -1 : undefined}
-        style={!isOverlay && preferredWidth !== null ? { width: `${preferredWidth}px` } : undefined}
+        style={{
+          ...SIDE_PANEL_CSS_CUSTOM_PROPERTIES,
+          ...(!isOverlay && preferredWidth !== null ? { width: `${preferredWidth}px` } : {}),
+        } as React.CSSProperties}
       >
         {!isOverlay && <div
           ref={resizeHandleRef}
@@ -182,7 +188,9 @@ export const ResponsiveSidePanel: React.FC<ResponsiveSidePanelProps> = ({
           aria-valuenow={Math.round(preferredWidth ?? getDefaultDockedWidth())}
           tabIndex={0}
           onKeyDown={(event) => {
-            const currentWidth = preferredWidth ?? panelRef.current?.getBoundingClientRect().width ?? 380;
+            const currentWidth = preferredWidth
+              ?? panelRef.current?.getBoundingClientRect().width
+              ?? SIDE_PANEL_DEFAULT_WIDTH;
             const nextWidth = sidePanelWidthForKey(currentWidth, event.key);
             if (nextWidth === null) return;
             event.preventDefault();
@@ -191,7 +199,9 @@ export const ResponsiveSidePanel: React.FC<ResponsiveSidePanelProps> = ({
           }}
           onPointerDown={(event) => {
             if (event.button !== 0) return;
-            const startWidth = preferredWidth ?? panelRef.current?.getBoundingClientRect().width ?? 380;
+            const startWidth = preferredWidth
+              ?? panelRef.current?.getBoundingClientRect().width
+              ?? SIDE_PANEL_DEFAULT_WIDTH;
             dragRef.current = { pointerId: event.pointerId, startX: event.clientX, startWidth };
             event.currentTarget.setPointerCapture(event.pointerId);
             document.documentElement.classList.add('is-resizing-side-panel');

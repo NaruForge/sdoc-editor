@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
+import { SIDE_PANEL_TAB_CONTENT_ID } from '../../../shared/editor/components/SidePanelTabPanel';
 
 type Host = 'vscode' | 'tauri';
 type Theme = 'light' | 'dark' | 'hc';
@@ -511,7 +512,7 @@ test.describe('commercial workflow scene gate', () => {
     { scene: 'settings', width: 1440, host: 'vscode', theme: 'hc', locale: 'ko' },
     { scene: 'templates', width: 800, host: 'tauri', theme: 'light', locale: 'ko' },
     { scene: 'templates', width: 1024, host: 'vscode', theme: 'dark', locale: 'en' },
-    { scene: 'templates', width: 1440, host: 'tauri', theme: 'hc', locale: 'en' },
+    { scene: 'templates', width: 1440, host: 'tauri', theme: 'dark', locale: 'en' },
     { scene: 'files', width: 800, host: 'vscode', theme: 'dark', locale: 'ko' },
     { scene: 'files', width: 1440, host: 'tauri', theme: 'light', locale: 'en' },
     { scene: 'diagram-error', width: 1024, host: 'tauri', theme: 'dark', locale: 'en' },
@@ -546,6 +547,20 @@ test.describe('commercial workflow scene gate', () => {
           'role',
           scene.width <= 1100 ? 'dialog' : 'complementary',
         );
+
+        if (scene.scene === 'settings' || scene.scene === 'files') {
+          const selectedTab = page.getByRole('tab', { selected: true });
+          const tabPanel = page.getByRole('tabpanel');
+          await expect(selectedTab).toHaveAttribute('aria-controls', SIDE_PANEL_TAB_CONTENT_ID);
+          await expect(tabPanel).toHaveAttribute('id', SIDE_PANEL_TAB_CONTENT_ID);
+          await expect(tabPanel).toHaveAttribute(
+            'aria-labelledby',
+            await selectedTab.getAttribute('id') ?? '',
+          );
+        } else {
+          await expect(page.getByRole('tablist')).toHaveCount(0);
+          await expect(page.getByRole('tabpanel')).toHaveCount(0);
+        }
       }
 
       const accessibility = await new AxeBuilder({ page })

@@ -6,9 +6,14 @@ import type {
   SidePanelSelection,
 } from '../activityState';
 import { useEditorI18n, type EditorTranslationKey } from '../i18n';
+import {
+  getSidePanelTabId,
+  SIDE_PANEL_TAB_CONTENT_ID,
+  type TabbedSidePanelSelection,
+} from './SidePanelTabPanel';
 
 interface SidePanelTabsProps {
-  selection: Exclude<SidePanelSelection, { destination: 'workspace' | 'templates' }>;
+  selection: TabbedSidePanelSelection;
   onSelectionChange: (selection: SidePanelSelection) => void;
 }
 
@@ -49,12 +54,15 @@ export const SidePanelTabs: React.FC<SidePanelTabsProps> = ({
         return (
           <button
             key={id}
-            id={`side-panel-tab-${selection.destination}-${id}`}
+            id={getSidePanelTabId({
+              destination: selection.destination,
+              tab: id,
+            } as TabbedSidePanelSelection)}
             type="button"
             role="tab"
             className={`side-panel-tab${selected ? ' active' : ''}`}
             aria-selected={selected}
-            aria-controls="side-panel-tab-content"
+            aria-controls={SIDE_PANEL_TAB_CONTENT_ID}
             tabIndex={selected ? 0 : -1}
             onClick={() => onSelectionChange({
               destination: selection.destination,

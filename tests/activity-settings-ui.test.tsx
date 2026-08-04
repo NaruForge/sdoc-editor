@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
@@ -9,6 +11,13 @@ import {
 import { ActivityBar } from '../shared/editor/components/ActivityBar';
 import { ViewControlPanel } from '../shared/editor/components/ViewControlPanel';
 import { SidePanelTabs } from '../shared/editor/components/SidePanelTabs';
+import { SidePanelBody } from '../shared/editor/components/SidePanelBody';
+import {
+  getSidePanelTabId,
+  SIDE_PANEL_TAB_CONTENT_ID,
+  SidePanelTabPanel,
+  type TabbedSidePanelSelection,
+} from '../shared/editor/components/SidePanelTabPanel';
 import {
   applyHeadingPalette,
   DocumentSettingsPanel,
@@ -102,6 +111,97 @@ describe('activity hubs and settings UI', () => {
     state = transitionActivityDestination(state, 'templates', { showTemplates: true });
     state = transitionActivityDestination(state, 'publish', { showTemplates: true });
     expect(state.selection).toEqual({ destination: 'publish', tab: 'import' });
+  });
+
+  it.each([
+    { destination: 'navigate', tab: 'figures' },
+    { destination: 'design', tab: 'document' },
+    { destination: 'publish', tab: 'import' },
+  ] satisfies TabbedSidePanelSelection[])(
+    'connects every $destination tab to the shared panel and labels it from the selected tab',
+    (selection) => {
+      const markup = renderToStaticMarkup(
+        <EditorI18nProvider locale="en">
+          <SidePanelTabs selection={selection} onSelectionChange={vi.fn()} />
+          <SidePanelTabPanel selection={selection}>Panel content</SidePanelTabPanel>
+        </EditorI18nProvider>,
+      );
+      const controlledIds = Array.from(
+        markup.matchAll(/aria-controls="([^"]+)"/g),
+        (match) => match[1],
+      );
+      const selectedTabId = markup.match(
+        /<button[^>]*id="([^"]+)"[^>]*aria-selected="true"/,
+      )?.[1];
+
+      expect(controlledIds.length).toBeGreaterThan(0);
+      for (const controlledId of controlledIds) {
+        expect(markup).toContain(`id="${controlledId}"`);
+      }
+      expect(controlledIds).toEqual(
+        Array.from({ length: controlledIds.length }, () => SIDE_PANEL_TAB_CONTENT_ID),
+      );
+      expect(selectedTabId).toBe(getSidePanelTabId(selection));
+      expect(markup).toContain(`role="tabpanel"`);
+      expect(markup).toContain(`aria-labelledby="${selectedTabId}"`);
+    },
+  );
+
+  it.each([
+    { destination: 'workspace' },
+    { destination: 'templates' },
+  ] as const)(
+    'renders $destination content without tabpanel semantics',
+    (selection) => {
+      const markup = renderToStaticMarkup(
+        <SidePanelTabPanel selection={selection}>Panel content</SidePanelTabPanel>,
+      );
+
+      expect(markup).toBe('Panel content');
+      expect(markup).not.toContain('role="tabpanel"');
+      expect(markup).not.toContain('aria-labelledby');
+      expect(markup).not.toContain(`id="${SIDE_PANEL_TAB_CONTENT_ID}"`);
+    },
+  );
+
+  it('uses the shared tab-and-panel composition in both hosts', () => {
+    const bodySource = readFileSync(
+      resolve(process.cwd(), 'shared/editor/components/SidePanelBody.tsx'),
+      'utf8',
+    );
+    const panelSource = readFileSync(
+      resolve(process.cwd(), 'shared/editor/components/SidePanelTabPanel.tsx'),
+      'utf8',
+    );
+    expect(bodySource).toContain("from './SidePanelTabs'");
+    expect(bodySource).toContain("from './SidePanelTabPanel'");
+    expect(panelSource).not.toContain("from './SidePanelTabs'");
+
+    for (const path of [
+      'webview-ui/src/components/SidePanel.tsx',
+      'tauri-app/src/components/SidePanel.tsx',
+    ]) {
+      const source = readFileSync(resolve(process.cwd(), path), 'utf8');
+      expect(source).toContain("import { SidePanelBody } from '@shared/editor/components/SidePanelBody'");
+      expect(source).toContain('<SidePanelBody selection={selection} onSelectionChange={onSelectionChange}>');
+      expect(source).not.toContain('id="side-panel-tab-content"');
+    }
+  });
+
+  it('renders the host-shared composition with a connected selected tab and tabpanel', () => {
+    const selection = { destination: 'design', tab: 'document' } as const;
+    const markup = renderToStaticMarkup(
+      <EditorI18nProvider locale="en">
+        <SidePanelBody selection={selection} onSelectionChange={vi.fn()}>
+          Panel content
+        </SidePanelBody>
+      </EditorI18nProvider>,
+    );
+
+    expect(markup).toContain(`id="${getSidePanelTabId(selection)}"`);
+    expect(markup).toContain(`aria-controls="${SIDE_PANEL_TAB_CONTENT_ID}"`);
+    expect(markup).toContain(`id="${SIDE_PANEL_TAB_CONTENT_ID}"`);
+    expect(markup).toContain(`aria-labelledby="${getSidePanelTabId(selection)}"`);
   });
 
   it('renders the global UI language preference in the shared View panel', () => {

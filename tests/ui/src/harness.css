@@ -20,7 +20,39 @@ body {
   color: var(--vscode-editor-foreground);
 }
 
+:root[data-host="vscode"],
 .quality-harness[data-host="vscode"] {
+  --vscode-foreground: var(--vscode-editor-foreground);
+  --vscode-badge-background: var(--vscode-button-background);
+  --vscode-badge-foreground: var(--vscode-button-foreground);
+  --vscode-button-hoverBackground: var(--vscode-toolbar-activeBackground);
+  --vscode-button-secondaryBackground: var(--vscode-toolbar-hoverBackground);
+  --vscode-button-secondaryBorder: var(--vscode-widget-border);
+  --vscode-button-secondaryForeground: var(--vscode-editor-foreground);
+  --vscode-button-secondaryHoverBackground: var(--vscode-toolbar-activeBackground);
+  --vscode-contrastBorder: var(--vscode-widget-border);
+  --vscode-dropdown-background: var(--vscode-input-background);
+  --vscode-dropdown-border: var(--vscode-input-border);
+  --vscode-dropdown-foreground: var(--vscode-input-foreground);
+  --vscode-editor-inactiveSelectionBackground: var(--vscode-toolbar-hoverBackground);
+  --vscode-editor-selectionBackground: var(--vscode-toolbar-activeBackground);
+  --vscode-editorWarning-foreground: #9a6700;
+  --vscode-editorWidget-border: var(--vscode-widget-border);
+  --vscode-errorForeground: #cf222e;
+  --vscode-font-size: 13px;
+  --vscode-font-weight: 400;
+  --vscode-inputValidation-errorBorder: var(--vscode-errorForeground);
+  --vscode-list-activeSelectionBackground: var(--vscode-toolbar-activeBackground);
+  --vscode-list-activeSelectionForeground: var(--vscode-toolbar-activeForeground);
+  --vscode-list-hoverBackground: var(--vscode-toolbar-hoverBackground);
+  --vscode-list-inactiveSelectionBackground: var(--vscode-toolbar-hoverBackground);
+  --vscode-menu-border: var(--vscode-widget-border);
+  --vscode-menu-separatorBackground: var(--vscode-panel-border);
+  --vscode-sideBar-background: var(--vscode-editorWidget-background);
+  --vscode-sideBarTitle-foreground: var(--vscode-editor-foreground);
+  --vscode-textBlockQuote-background: var(--vscode-toolbar-hoverBackground);
+  --vscode-textBlockQuote-border: var(--vscode-panel-border);
+  --vscode-textCodeBlock-background: var(--vscode-editorWidget-background);
   --vscode-editor-background: #ffffff;
   --vscode-editor-foreground: #1f2328;
   --vscode-toolbar-hoverBackground: #e8ebef;
@@ -48,7 +80,10 @@ body {
   color: var(--vscode-editor-foreground);
 }
 
+:root[data-host="vscode"][data-fixture-theme="dark"],
 .quality-harness[data-host="vscode"][data-theme="dark"] {
+  --vscode-editorWarning-foreground: #cca700;
+  --vscode-errorForeground: #f48771;
   --vscode-editor-background: #1e1e1e;
   --vscode-editor-foreground: #f0f0f0;
   --vscode-toolbar-hoverBackground: #34363a;
@@ -73,7 +108,10 @@ body {
   --vscode-button-foreground: #ffffff;
 }
 
+:root[data-host="vscode"][data-fixture-theme="hc"],
 .quality-harness[data-host="vscode"][data-theme="hc"] {
+  --vscode-editorWarning-foreground: #ffff00;
+  --vscode-errorForeground: #ff8080;
   --vscode-editor-background: #000000;
   --vscode-editor-foreground: #ffffff;
   --vscode-toolbar-hoverBackground: #000000;
