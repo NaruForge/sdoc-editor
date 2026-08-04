@@ -1,6 +1,5 @@
 import React from 'react';
 import type {
-  DesignPanelTab,
   NavigatePanelTab,
   PublishPanelTab,
   SidePanelSelection,
@@ -27,10 +26,6 @@ const NAVIGATE_TABS: readonly TabDefinition<NavigatePanelTab>[] = [
   { id: 'figures', labelKey: 'panel.figures' },
   { id: 'tables', labelKey: 'panel.tables' },
 ];
-const DESIGN_TABS: readonly TabDefinition<DesignPanelTab>[] = [
-  { id: 'view', labelKey: 'panel.view' },
-  { id: 'document', labelKey: 'panel.settings' },
-];
 const PUBLISH_TABS: readonly TabDefinition<PublishPanelTab>[] = [
   { id: 'export', labelKey: 'panel.export' },
   { id: 'import', labelKey: 'panel.import' },
@@ -43,9 +38,7 @@ export const SidePanelTabs: React.FC<SidePanelTabsProps> = ({
   const { t } = useEditorI18n();
   const definitions = selection.destination === 'navigate'
     ? NAVIGATE_TABS
-    : selection.destination === 'design'
-      ? DESIGN_TABS
-      : PUBLISH_TABS;
+    : PUBLISH_TABS;
 
   return (
     <div className="side-panel-tabs" role="tablist" aria-label={t('panel.documentPanels')}>

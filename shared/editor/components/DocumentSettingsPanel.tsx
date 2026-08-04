@@ -421,6 +421,11 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
   return (
     <div className="settings-panel">
       <div className="settings-panel-title">{title}</div>
+      {exportMode === 'settings' && (
+        <div className="settings-panel-description">
+          {t('settings.documentSavedDescription')}
+        </div>
+      )}
 
       {renderAppearance && (
         <CollapsibleSection title={t('settings.documentAppearance')} defaultOpen>

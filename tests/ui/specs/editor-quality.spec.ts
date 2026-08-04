@@ -520,7 +520,7 @@ test.describe('commercial workflow scene gate', () => {
   ];
 
   const componentSelector: Record<WorkflowScene['scene'], string> = {
-    settings: '.settings-panel',
+    settings: '.design-panel',
     templates: '.template-panel',
     files: '.files-panel',
     'diagram-error': '.diagram-error',
@@ -548,7 +548,7 @@ test.describe('commercial workflow scene gate', () => {
           scene.width <= 1100 ? 'dialog' : 'complementary',
         );
 
-        if (scene.scene === 'settings' || scene.scene === 'files') {
+        if (scene.scene === 'files') {
           const selectedTab = page.getByRole('tab', { selected: true });
           const tabPanel = page.getByRole('tabpanel');
           await expect(selectedTab).toHaveAttribute('aria-controls', SIDE_PANEL_TAB_CONTENT_ID);
@@ -560,6 +560,19 @@ test.describe('commercial workflow scene gate', () => {
         } else {
           await expect(page.getByRole('tablist')).toHaveCount(0);
           await expect(page.getByRole('tabpanel')).toHaveCount(0);
+        }
+
+        if (scene.scene === 'settings') {
+          await expect(page.locator('#editor-side-panel')).toContainText(
+            scene.locale === 'ko' ? '디자인' : 'Design',
+          );
+          await expect(page.locator('.side-panel-section-desc')).toBeVisible();
+          await expect(page.locator('.settings-panel-description')).toBeVisible();
+          await expect(page.locator('.design-panel .side-panel-section')).toBeVisible();
+          await expect(page.locator('.design-panel .settings-panel')).toBeVisible();
+          await expect(page.getByRole('button', {
+            name: scene.locale === 'ko' ? '모든 문서 설정 초기화' : 'Reset all document settings',
+          })).toBeAttached();
         }
       }
 

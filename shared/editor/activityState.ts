@@ -1,13 +1,12 @@
 export type ActivityDestination = 'workspace' | 'navigate' | 'design' | 'templates' | 'publish';
 
 export type NavigatePanelTab = 'toc' | 'figures' | 'tables';
-export type DesignPanelTab = 'view' | 'document';
 export type PublishPanelTab = 'export' | 'import';
 
 export type SidePanelSelection =
   | { destination: 'workspace' }
   | { destination: 'navigate'; tab: NavigatePanelTab }
-  | { destination: 'design'; tab: DesignPanelTab }
+  | { destination: 'design' }
   | { destination: 'templates' }
   | { destination: 'publish'; tab: PublishPanelTab };
 
@@ -20,14 +19,12 @@ export interface ActivitySessionState {
   selection: SidePanelSelection | null;
   lastChildTabs: {
     navigate: NavigatePanelTab;
-    design: DesignPanelTab;
     publish: PublishPanelTab;
   };
 }
 
 const DEFAULT_CHILD_TABS: ActivitySessionState['lastChildTabs'] = {
   navigate: 'toc',
-  design: 'view',
   publish: 'export',
 };
 
@@ -50,8 +47,6 @@ export function createActivitySessionState(
   const lastChildTabs = { ...DEFAULT_CHILD_TABS };
   if (availableSelection?.destination === 'navigate') {
     lastChildTabs.navigate = availableSelection.tab;
-  } else if (availableSelection?.destination === 'design') {
-    lastChildTabs.design = availableSelection.tab;
   } else if (availableSelection?.destination === 'publish') {
     lastChildTabs.publish = availableSelection.tab;
   }
@@ -65,7 +60,9 @@ export function selectSidePanel(
 ): ActivitySessionState {
   if (selection === null) return { ...state, selection: null };
   if (!isSelectionAvailable(selection, capabilities)) return state;
-  if (selection.destination === 'workspace' || selection.destination === 'templates') {
+  if (selection.destination === 'workspace'
+    || selection.destination === 'design'
+    || selection.destination === 'templates') {
     return { ...state, selection };
   }
   return {
@@ -105,11 +102,7 @@ export function transitionActivityDestination(
     );
   }
   if (destination === 'design') {
-    return selectSidePanel(
-      state,
-      { destination, tab: state.lastChildTabs.design },
-      capabilities,
-    );
+    return selectSidePanel(state, { destination }, capabilities);
   }
   return selectSidePanel(
     state,

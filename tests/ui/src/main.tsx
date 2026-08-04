@@ -15,7 +15,7 @@ import '@tiptap/extension-text-align';
 import '@tiptap/extension-underline';
 import { ActivityBar, type ActivityDestination } from '@shared/editor/components/ActivityBar';
 import { DiagramDialog } from '@shared/editor/components/DiagramDialog';
-import { DocumentSettingsPanel } from '@shared/editor/components/DocumentSettingsPanel';
+import { DesignPanel } from '@shared/editor/components/DesignPanel';
 import { DocumentHeader } from '@shared/editor/components/DocumentHeader';
 import {
   FilesPanel,
@@ -329,14 +329,14 @@ function SharedPanelScene({
     }),
   );
   const title = scene === 'settings'
-    ? (locale === 'ko' ? '문서 설정' : 'Document settings')
+    ? (locale === 'ko' ? '디자인' : 'Design')
     : scene === 'templates'
       ? (locale === 'ko' ? '템플릿' : 'Templates')
       : (locale === 'ko' ? '파일' : 'Files');
   const destination: ActivityDestination = scene === 'settings'
     ? 'design' : scene === 'templates' ? 'templates' : 'publish';
   const selection = scene === 'settings'
-    ? { destination: 'design' as const, tab: 'document' as const }
+    ? { destination: 'design' as const }
     : scene === 'templates'
       ? { destination: 'templates' as const }
       : { destination: 'publish' as const, tab: 'export' as const };
@@ -377,7 +377,15 @@ function SharedPanelScene({
         >
           <SidePanelBody selection={selection} onSelectionChange={() => undefined}>
           {scene === 'settings' && (
-            <DocumentSettingsPanel onUpdateSettings={() => undefined} />
+            <DesignPanel
+              showNumbering
+              onToggleNumbering={() => undefined}
+              showDecoration
+              onToggleDecoration={() => undefined}
+              uiLanguagePreference="auto"
+              onUiLanguagePreferenceChange={() => undefined}
+              onUpdateDocSettings={() => undefined}
+            />
           )}
           {scene === 'templates' && (
             <TemplatePanel

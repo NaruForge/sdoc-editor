@@ -5,11 +5,11 @@ import { TableOfContents } from '@shared/editor/components/TableOfContents';
 import { ListOfFigures } from '@shared/editor/components/ListOfFigures';
 import { ListOfTables } from '@shared/editor/components/ListOfTables';
 import { DocumentSettingsPanel } from '@shared/editor/components/DocumentSettingsPanel';
+import { DesignPanel } from '@shared/editor/components/DesignPanel';
 import { TemplatePanel } from '@shared/editor/components/TemplatePanel';
 import { FilesPanel, type FileExportFormat, type FileImportFormat } from '@shared/editor/components/FilesPanel';
 import { SidePanelBody } from '@shared/editor/components/SidePanelBody';
 import { DiagramRendererSettingsPanel } from '@shared/editor/components/DiagramRendererSettingsPanel';
-import { ViewControlPanel } from '@shared/editor/components/ViewControlPanel';
 import type { DocumentSettings, ResolvedEditorSettings } from '@shared/types';
 import type { ManagedTemplateDescriptor, PersonalTemplateMetadataInput } from '@shared/types/messages';
 import type { TemplateSessionEvent, TemplateSessionState } from '@shared/editor/templateSession';
@@ -141,14 +141,15 @@ export const SidePanel: React.FC<SidePanelProps> = ({
       returnFocusRef={returnFocusRef}
     >
         <SidePanelBody selection={selection} onSelectionChange={onSelectionChange}>
-        {selection.destination === 'design' && selection.tab === 'view' && (
-          <ViewControlPanel
+        {selection.destination === 'design' && (
+          <DesignPanel
             showNumbering={showNumbering}
             onToggleNumbering={onToggleNumbering}
             showDecoration={showDecoration}
             onToggleDecoration={onToggleDecoration}
             uiLanguagePreference={uiLanguagePreference}
             onUiLanguagePreferenceChange={onUiLanguagePreferenceChange}
+            onUpdateDocSettings={onUpdateDocSettings}
           />
         )}
         {selection.destination === 'workspace' && (
@@ -177,9 +178,6 @@ export const SidePanel: React.FC<SidePanelProps> = ({
         )}
         {selection.destination === 'navigate' && selection.tab === 'tables' && (
           <ListOfTables editor={editor} settings={settings} />
-        )}
-        {selection.destination === 'design' && selection.tab === 'document' && (
-          <DocumentSettingsPanel exportMode="settings" onUpdateSettings={onUpdateDocSettings} />
         )}
         {selection.destination === 'publish' && selection.tab === 'export' && (
           <>

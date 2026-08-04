@@ -4,12 +4,12 @@ import { TableOfContents } from '@shared/editor/components/TableOfContents';
 import { ListOfFigures } from '@shared/editor/components/ListOfFigures';
 import { ListOfTables } from '@shared/editor/components/ListOfTables';
 import { DocumentSettingsPanel } from '@shared/editor/components/DocumentSettingsPanel';
+import { DesignPanel } from '@shared/editor/components/DesignPanel';
 import { TemplatePanel } from '@shared/editor/components/TemplatePanel';
 import { FilesPanel } from '@shared/editor/components/FilesPanel';
 import { ResponsiveSidePanel } from '@shared/editor/components/ResponsiveSidePanel';
 import { SidePanelBody } from '@shared/editor/components/SidePanelBody';
 import { DiagramRendererSettingsPanel } from '@shared/editor/components/DiagramRendererSettingsPanel';
-import { ViewControlPanel } from '@shared/editor/components/ViewControlPanel';
 import type { SidePanelSelection } from '@shared/editor/activityState';
 import type { FileOperationKind, FileOperationState } from '@shared/editor/fileOperations';
 import type {
@@ -127,20 +127,15 @@ export const SidePanel: React.FC<SidePanelProps> = ({
         {selection.destination === 'navigate' && selection.tab === 'tables' && (
           <ListOfTables editor={editor} settings={settings} />
         )}
-        {selection.destination === 'design' && selection.tab === 'view' && (
-          <ViewControlPanel
+        {selection.destination === 'design' && (
+          <DesignPanel
             showNumbering={showNumbering}
             onToggleNumbering={onToggleNumbering}
             showDecoration={showDecoration}
             onToggleDecoration={onToggleDecoration}
             uiLanguagePreference={uiLanguagePreference}
             onUiLanguagePreferenceChange={onUiLanguagePreferenceChange}
-          />
-        )}
-        {selection.destination === 'design' && selection.tab === 'document' && (
-          <DocumentSettingsPanel
-            exportMode="settings"
-            onUpdateSettings={onUpdateDocSettings}
+            onUpdateDocSettings={onUpdateDocSettings}
             onSelectCssFile={onPostMessage
               ? (target) => onPostMessage({ type: 'selectCssFile', target })
               : undefined}

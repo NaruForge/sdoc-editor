@@ -2713,6 +2713,17 @@ html.is-resizing-side-panel * {
   margin-bottom: 4px;
 }
 
+.settings-panel-description {
+  padding: 2px 14px 10px;
+  color: var(--vscode-descriptionForeground);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.design-panel {
+  min-height: 0;
+}
+
 .settings-section {
   border-bottom: 1px solid var(--vscode-panel-border);
 }

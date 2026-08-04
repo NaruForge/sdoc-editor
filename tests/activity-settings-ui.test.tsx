@@ -9,6 +9,7 @@ import {
   transitionActivityDestination,
 } from '../shared/editor/activityState';
 import { ActivityBar } from '../shared/editor/components/ActivityBar';
+import { DesignPanel } from '../shared/editor/components/DesignPanel';
 import { ViewControlPanel } from '../shared/editor/components/ViewControlPanel';
 import { SidePanelTabs } from '../shared/editor/components/SidePanelTabs';
 import { SidePanelBody } from '../shared/editor/components/SidePanelBody';
@@ -43,7 +44,7 @@ describe('activity hubs and settings UI', () => {
       { showTemplates: true },
     );
     state = transitionActivityDestination(state, 'design', { showTemplates: true });
-    expect(state.selection).toEqual({ destination: 'design', tab: 'view' });
+    expect(state.selection).toEqual({ destination: 'design' });
 
     state = transitionActivityDestination(state, 'navigate', { showTemplates: true });
     expect(state.selection).toEqual({ destination: 'navigate', tab: 'figures' });
@@ -115,7 +116,6 @@ describe('activity hubs and settings UI', () => {
 
   it.each([
     { destination: 'navigate', tab: 'figures' },
-    { destination: 'design', tab: 'document' },
     { destination: 'publish', tab: 'import' },
   ] satisfies TabbedSidePanelSelection[])(
     'connects every $destination tab to the shared panel and labels it from the selected tab',
@@ -149,6 +149,7 @@ describe('activity hubs and settings UI', () => {
 
   it.each([
     { destination: 'workspace' },
+    { destination: 'design' },
     { destination: 'templates' },
   ] as const)(
     'renders $destination content without tabpanel semantics',
@@ -183,13 +184,16 @@ describe('activity hubs and settings UI', () => {
     ]) {
       const source = readFileSync(resolve(process.cwd(), path), 'utf8');
       expect(source).toContain("import { SidePanelBody } from '@shared/editor/components/SidePanelBody'");
+      expect(source).toContain("import { DesignPanel } from '@shared/editor/components/DesignPanel'");
       expect(source).toContain('<SidePanelBody selection={selection} onSelectionChange={onSelectionChange}>');
+      expect(source).toContain("selection.destination === 'design'");
+      expect(source).not.toContain("selection.destination === 'design' && selection.tab");
       expect(source).not.toContain('id="side-panel-tab-content"');
     }
   });
 
   it('renders the host-shared composition with a connected selected tab and tabpanel', () => {
-    const selection = { destination: 'design', tab: 'document' } as const;
+    const selection = { destination: 'publish', tab: 'export' } as const;
     const markup = renderToStaticMarkup(
       <EditorI18nProvider locale="en">
         <SidePanelBody selection={selection} onSelectionChange={vi.fn()}>
@@ -202,6 +206,33 @@ describe('activity hubs and settings UI', () => {
     expect(markup).toContain(`aria-controls="${SIDE_PANEL_TAB_CONTENT_ID}"`);
     expect(markup).toContain(`id="${SIDE_PANEL_TAB_CONTENT_ID}"`);
     expect(markup).toContain(`aria-labelledby="${getSidePanelTabId(selection)}"`);
+  });
+
+  it('renders screen-only and document-persisted controls together without Design tabs', () => {
+    const markup = renderToStaticMarkup(
+      <EditorI18nProvider locale="en">
+        <EditorProvider>
+          <SidePanelBody selection={{ destination: 'design' }} onSelectionChange={vi.fn()}>
+            <DesignPanel
+              showNumbering
+              onToggleNumbering={vi.fn()}
+              showDecoration
+              onToggleDecoration={vi.fn()}
+              uiLanguagePreference="auto"
+              onUiLanguagePreferenceChange={vi.fn()}
+              onUpdateDocSettings={vi.fn()}
+            />
+          </SidePanelBody>
+        </EditorProvider>
+      </EditorI18nProvider>,
+    );
+
+    expect(markup).toContain('View controls');
+    expect(markup).toContain('do not modify the document');
+    expect(markup).toContain('Document settings');
+    expect(markup).toContain('saved with this document');
+    expect(markup).not.toContain('role="tablist"');
+    expect(markup).not.toContain('role="tabpanel"');
   });
 
   it('renders the global UI language preference in the shared View panel', () => {
