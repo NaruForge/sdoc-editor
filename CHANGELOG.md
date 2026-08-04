@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.6] - 2026-08-04
+
+### Added
+- Added a repository-level `DESIGN.md` contract, ADR, and automated design-contract validation for shared cross-host UI work
+- Added production-parity CSS, semantic theme-token, responsive side-panel, accessibility, and visual regression guards
+
+### Changed
+- Unified the Design activity's View and Settings controls into one shared, scrollable panel with explicit screen-only and document-persisted scope
+- Replaced the vertical Heading palette list with responsive color-preview cards, a non-selectable Mixed state, and explicit Custom color editing
+- Centralized side-panel sizing and tab/tabpanel composition while narrowing Tauri CSS to host-owned theme and shell rules
+
+### Fixed
+- Preserved Custom palette editing across host acknowledgements while closing it correctly on resets, preset selection, advanced color changes, and external settings updates
+- Restored complete VS Code theme-variable coverage in the production-order UI harness across light, dark, and high-contrast scenes
+
 ## [0.7.5] - 2026-08-04
 
 ### Added

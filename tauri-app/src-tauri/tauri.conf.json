@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/nicegui/tauri-conf-schema-v2/refs/heads/main/tauri.conf.json",
   "productName": "Structured Doc Editor",
-  "version": "0.7.5",
+  "version": "0.7.6",
   "identifier": "io.github.contributor-01.sdoc-editor",
   "build": {
     "frontendDist": "../dist",
