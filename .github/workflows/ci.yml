@@ -9,6 +9,19 @@ permissions:
   contents: read
 
 jobs:
+  advisor-wrapper:
+    name: Advisor wrapper contract
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Test with Windows PowerShell 5.1
+        shell: powershell
+        run: .\.agents\skills\orchestrate-sdoc-work\tests\invoke-advisor.Tests.ps1
+      - name: Test with PowerShell 7
+        shell: pwsh
+        run: .\.agents\skills\orchestrate-sdoc-work\tests\invoke-advisor.Tests.ps1
+
   javascript:
     runs-on: ubuntu-latest
     steps:

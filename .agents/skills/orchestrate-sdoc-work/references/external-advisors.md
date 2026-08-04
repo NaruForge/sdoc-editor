@@ -22,8 +22,10 @@ the shared working tree.
   provider or additional cross-model validation.
 - Choose a provider and model from observed local evaluations. Discover current
   choices with `grok models` or `agy models`; do not hardcode a model name in
-  the project. For the required Grok critique, confirm that the selected model
-  is a Grok-family model rather than silently routing to another provider.
+  the project. For the required direct Grok critique, use an available official
+  `grok-*` model and confirm the response attests that model (the CLI may append
+  its observed `-build` runtime suffix). Do not route the required critique
+  through an `ocx-*` alias or another provider.
 - Give the advisor one bounded question using the mode-specific context below,
   but omit secrets, credentials, unrelated source or proprietary content,
   personal information, customer data, and sensitive logs.
@@ -91,20 +93,35 @@ the surrounding shell call its own finite timeout as a second guard. Use
 
 The wrapper uses plan or sandbox mode, asks for no file changes, and disables
 nested Grok agents. These are safeguards, not proof. Inspect `git status` after
-every external invocation. For Grok, the wrapper copies the complete advisory
-prompt to its own managed temporary UTF-8 file, passes it with `--prompt-file`,
-and deletes it in `finally`.
+every external invocation. For Grok, the wrapper performs an authenticated
+model preflight, copies each attempt's complete advisory prompt to its own
+managed temporary UTF-8 file, passes it with `--prompt-file`, and deletes it in
+`finally`. Scripted calls disable CLI auto-update so one review uses one stable
+binary. Grok's interactive planning feature is disabled for these one-shot
+reviews while the read-only `plan` permission mode remains enforced. Structured
+reviews require Grok CLI 0.2.118 or newer.
 
-Grok report validation is enabled by default. Exit code 0 alone does not prove
-that a review occurred. An acknowledgement such as "I will review" or an intent
-statement without both an explicit conclusion and findings (or the explicit
-`NO_ACTIONABLE_FINDINGS` result) is incomplete, must be retried, and must not
-count. `-AllowIncompleteResponse` is reserved for connectivity diagnostics and
-must never be used for a required critique.
+Grok report validation is enabled by default. The CLI is constrained with JSON
+Schema, and the wrapper exposes its own `schemaVersion: 1` result rather than
+raw Grok thought or session data. A review is complete only when
+`reviewStatus` is `pass` or `changes_required` and the semantic evidence and
+finding invariants pass. Exit code 0 alone, acknowledgement text, empty or
+contradictory results, and `incomplete`, `unavailable`, or `diagnostic` statuses
+do not prove review and must not count.
 
-Required reports use the ASCII `Conclusion` and `Findings` headings so the
-PowerShell 5.1 wrapper can validate them without locale-dependent script
-encoding. `NO_ACTIONABLE_FINDINGS` is the complete no-findings alternative.
+The default Grok output is JSON. `-OutputFormat Text` renders a validated result
+with ASCII `Conclusion` and `Findings` headings and may display
+`NO_ACTIONABLE_FINDINGS`, but those strings are compatibility presentation, not
+the validation contract. `-DiagnosticMode` and its deprecated
+`-AllowIncompleteResponse` alias are connectivity diagnostics only and must
+never be used for a required critique.
+
+The wrapper retries only bounded, plausibly transient failures within one
+overall timeout. Authentication, model-selection, argument, and deterministic
+schema errors fail immediately. Completed `pass` and `changes_required` reviews
+exit 0; incomplete protocol results exit 2, unavailable provider results exit
+3, and wrapper errors exit 4. Findings remain advisory even when the wrapper
+completed successfully.
 
 The `-PromptFile` path also keeps a long task off the wrapper's own command
 line for agy, but agy still receives the advisory text through its native

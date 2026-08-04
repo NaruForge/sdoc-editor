@@ -43,10 +43,12 @@ verification. Delegate only bounded work that can proceed independently.
    plan before coding when accepted. Disposition final findings with local
    repository and test evidence, remediate accepted findings, and rerun the
    final critique if reviewed files change materially.
-9. Treat exit code 0 plus an acknowledgement or intent statement as incomplete.
-   A valid critique must contain explicit ASCII `Conclusion` and `Findings`
-   headings or `NO_ACTIONABLE_FINDINGS`. Retry incomplete output with a bounded,
-   self-contained prompt and never report it as Grok review.
+9. Treat exit code 0 alone, an acknowledgement, or an intent statement as
+   incomplete. A valid Grok critique is the wrapper-owned versioned JSON result
+   with `reviewStatus` equal to `pass` or `changes_required`; all other statuses
+   must not count. The optional Text renderer is display-only compatibility.
+   Retry only through the wrapper's bounded policy and never report an
+   incomplete, unavailable, or diagnostic result as Grok review.
 
 ## Native agent roles
 
@@ -69,6 +71,12 @@ is normally sufficient; repeat it only after a material direction change.
 Read `references/external-advisors.md` and run `scripts/invoke-advisor.ps1` so
 the review remains non-interactive, bounded, and advisory. Use agy or another
 external advisor only when the user explicitly requests it.
+
+The wrapper's default Grok output is machine-readable JSON. Consume
+`reviewStatus`, evidence, and findings from that result instead of parsing Grok
+prose. Use `-OutputFormat Text` only when a human-readable rendering is needed,
+and never use `-DiagnosticMode` or its deprecated `-AllowIncompleteResponse`
+alias to satisfy a required critique.
 
 Do not send secrets, credentials, unrelated source or proprietary content,
 personal information, customer data, or sensitive logs. Do not let an external
