@@ -94,6 +94,11 @@
         "command": "structuredDocEditor.toggleBold",
         "title": "Toggle Bold",
         "category": "Structured Doc"
+      },
+      {
+        "command": "structuredDocEditor.cleanUpLegacySettings",
+        "title": "Clean Up Legacy Settings",
+        "category": "Structured Doc Editor"
       }
     ],
     "keybindings": [

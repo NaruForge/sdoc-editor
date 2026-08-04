@@ -299,15 +299,13 @@ Book 화면은 포함 문서를 자동으로 검사합니다. 누락되거나 �
 
 VS Code 설정에서 `Structured Doc Editor`를 검색하면 다음 항목을 조정할 수 있습니다.
 
-- 제목 번호(0 이상의 H1 시작 번호 포함)·장식·색상
 - 편집기 UI 언어(Auto, 한국어, English)
-- IEEE, ISO/IEC, Modern, Korean 캡션 스타일과 번호 방식
-- 본문·굵게·제목 폰트 굵기
-- HTML/PDF 이미지 포함 방식과 출력 경로
-- HTML/PDF/슬라이드 테마와 사용자 CSS
-- 슬라이드 분할 수준, 타이틀 슬라이드, 전환 효과
+- PlantUML, D2, Graphviz용 Kroki 렌더링 사용 여부·서버 주소·사설 네트워크 허용 여부
+- 새 이미지의 기본 정렬과 내보내기 이미지 경로 형식
 
-UI 언어는 호스트의 전역 사용자 설정에 저장됩니다. 그 밖의 문서별 설정은 `.sdoc`의 `meta.settings`에 저장되어 다른 환경에서도 동일하게 재현됩니다.
+UI 언어와 외부 렌더러 같은 호스트 설정은 VS Code 사용자 설정에 저장됩니다. 제목·캡션·폰트·색상·테마·슬라이드 같은 문서별 설정은 에디터의 `Design` 패널에서 편집하며 `.sdoc`의 `meta.settings`에 저장되어 다른 환경에서도 동일하게 재현됩니다.
+
+VS Code는 확장을 제거해도 사용자가 기록한 `settings.json` 값을 자동 삭제하지 않습니다. v0.7.4 이하에서 사용한 디자인·슬라이드 설정이 남아 있으면 명령 팔레트에서 `Structured Doc Editor: Clean Up Legacy Settings`를 실행하세요. 명령은 삭제 대상과 User·Workspace·Workspace Folder 범위를 먼저 보여 주고 확인을 받은 뒤, 더 이상 지원하지 않는 Structured Doc Editor 설정만 제거합니다. 현재 지원되는 설정과 다른 확장의 설정은 변경하지 않습니다.
 
 ## Windows 데스크톱 앱
 

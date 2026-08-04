@@ -12,6 +12,11 @@ import {
   type NewSdocDiagnostic,
   type WorkspaceTemplateRoot,
 } from './services/VsCodeTemplateService';
+import {
+  cleanUpLegacySettings,
+  formatLegacySettingsPreview,
+  type LegacySettingsScope,
+} from './legacySettingsCleanup';
 
 /** Show What's New (CHANGELOG) when extension is updated to a new version. */
 async function showWhatsNewIfNeeded(context: vscode.ExtensionContext): Promise<void> {
@@ -78,6 +83,101 @@ export function activate(context: vscode.ExtensionContext): void {
       'structuredDocEditor.exportToSlides',
       () => dispatchExport('slides'),
     ),
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      'structuredDocEditor.cleanUpLegacySettings',
+      () => runLegacySettingsCleanup(),
+    ),
+  );
+}
+
+function getLegacySettingsScopes(): LegacySettingsScope[] {
+  const configuration = vscode.workspace.getConfiguration();
+  const scopes: LegacySettingsScope[] = [
+    {
+      id: 'user',
+      kind: 'user',
+      label: 'User',
+      read: (key) => configuration.inspect<unknown>(key)?.globalValue,
+      remove: async (key) => configuration.update(
+        key,
+        undefined,
+        vscode.ConfigurationTarget.Global,
+      ),
+    },
+    {
+      id: 'workspace',
+      kind: 'workspace',
+      label: 'Workspace',
+      read: (key) => configuration.inspect<unknown>(key)?.workspaceValue,
+      remove: async (key) => configuration.update(
+        key,
+        undefined,
+        vscode.ConfigurationTarget.Workspace,
+      ),
+    },
+  ];
+
+  for (const folder of vscode.workspace.workspaceFolders ?? []) {
+    const folderConfiguration = vscode.workspace.getConfiguration(undefined, folder.uri);
+    scopes.push({
+      id: `workspaceFolder:${folder.uri.toString()}`,
+      kind: 'workspaceFolder',
+      label: `Workspace Folder: ${folder.name}`,
+      read: (key) => folderConfiguration.inspect<unknown>(key)?.workspaceFolderValue,
+      remove: async (key) => folderConfiguration.update(
+        key,
+        undefined,
+        vscode.ConfigurationTarget.WorkspaceFolder,
+      ),
+    });
+  }
+
+  return scopes;
+}
+
+async function runLegacySettingsCleanup(): Promise<void> {
+  const result = await cleanUpLegacySettings(
+    getLegacySettingsScopes(),
+    async (targets) => {
+      const action = await vscode.window.showWarningMessage(
+        `Remove ${targets.length} legacy Structured Doc Editor setting${targets.length === 1 ? '' : 's'}?`,
+        {
+          modal: true,
+          detail: [
+            'Only settings retired from older releases will be removed. Current settings are preserved.',
+            '',
+            formatLegacySettingsPreview(targets),
+          ].join('\n'),
+        },
+        'Clean Up',
+      );
+      return action === 'Clean Up';
+    },
+  );
+
+  if (result.status === 'none') {
+    await vscode.window.showInformationMessage('No legacy Structured Doc Editor settings were found.');
+    return;
+  }
+  if (result.status === 'cancelled') {
+    await vscode.window.showInformationMessage('Legacy settings cleanup was cancelled.');
+    return;
+  }
+  if (result.failures.length === 0) {
+    await vscode.window.showInformationMessage(
+      `Removed ${result.removed.length} legacy Structured Doc Editor setting${result.removed.length === 1 ? '' : 's'}.`,
+    );
+    return;
+  }
+
+  const failureDetails = result.failures.map(({ target, error }) => (
+    `${target.scopeLabel}: ${target.key}\n${error instanceof Error ? error.message : String(error)}`
+  )).join('\n\n');
+  await vscode.window.showErrorMessage(
+    `Removed ${result.removed.length} legacy setting${result.removed.length === 1 ? '' : 's'}, but ${result.failures.length} could not be removed.`,
+    { modal: true, detail: failureDetails },
   );
 }
 

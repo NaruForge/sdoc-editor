@@ -74,4 +74,14 @@ describe('VS Code package manifest', () => {
       },
     ]));
   });
+
+  it('contributes the explicit legacy settings cleanup command', () => {
+    expect(manifest.contributes?.commands).toEqual(expect.arrayContaining([
+      {
+        command: 'structuredDocEditor.cleanUpLegacySettings',
+        title: 'Clean Up Legacy Settings',
+        category: 'Structured Doc Editor',
+      },
+    ]));
+  });
 });
