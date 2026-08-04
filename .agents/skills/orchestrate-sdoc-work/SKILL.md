@@ -17,23 +17,33 @@ verification. Delegate only bounded work that can proceed independently.
    can return useful results independently.
 3. Write a short task map. For every delegated stream define its goal, allowed
    files, read/write mode, constraints, evidence to return, and completion test.
-4. Prefer parallel exploration, architecture review, test analysis, and diff
+4. Before the first judgment-material write, use Grok CLI as an independent
+   planning critic when the work involves product interpretation, UX interaction
+   choices, architecture, persistence, security or data-loss risk, cross-host
+   behavior, or another consequential assumption. Give it the proposed plan,
+   alternatives, assumptions, affected surfaces, and open questions; ask it to
+   find counterexamples, simpler approaches, and wrong-direction risk. Skip this
+   checkpoint for mechanical work and clear single-cause fixes.
+5. Prefer parallel exploration, architecture review, test analysis, and diff
    review. Partition implementation by non-overlapping files or execute it
-   sequentially.
-5. Wait for required results, verify claims against the repository, resolve
+   sequentially. A native architect supplies repository-grounded design help;
+   Grok independently challenges the chosen plan and does not replace it.
+6. Wait for required results, verify claims against the repository, resolve
    conflicts, and integrate centrally. Never accept a worker summary as proof
    when source or test evidence is available.
-6. Run the applicable commands from `AGENTS.md`, inspect the final diff, and
+7. Run the applicable commands from `AGENTS.md`, inspect the final diff, and
    invoke the Grok CLI for an independent critical review of every material
    implementation or substantive repository verification. Put full diffs and
    other long payloads in an OS temporary UTF-8 file and call the wrapper with
    `-PromptFile`; never place them in shell arguments. Grok report validation
-   is enabled by default.
-7. Disposition each actionable Grok finding by accepting or rejecting it with
-   local repository and test evidence, and remediate accepted findings. If
-   reviewed files change materially, rerun the Grok critique before reporting
-   completed work, verification, and residual risk.
-8. Treat exit code 0 plus an acknowledgement or intent statement as incomplete.
+   is enabled by default. Planning critique does not satisfy this final-diff
+   critique; both are required when their triggers fire.
+8. Treat Grok as an adversarial advisor, never an approval gate or decision
+   owner. Disposition planning findings with explicit rationale and adjust the
+   plan before coding when accepted. Disposition final findings with local
+   repository and test evidence, remediate accepted findings, and rerun the
+   final critique if reviewed files change materially.
+9. Treat exit code 0 plus an acknowledgement or intent statement as incomplete.
    A valid critique must contain explicit ASCII `Conclusion` and `Findings`
    headings or `NO_ACTIONABLE_FINDINGS`. Retry incomplete output with a bounded,
    self-contained prompt and never report it as Grok review.
@@ -52,8 +62,10 @@ thread available for the main agent and avoid recursive delegation.
 
 ## External advisors
 
-Use Grok CLI as the default independent critic for every material implementation
-and substantive repository verification, even without an explicit user request.
+Use Grok CLI as the default independent critic for judgment-material plans and
+for every material implementation or substantive repository verification, even
+without an explicit user request. One planning critique per decision boundary
+is normally sufficient; repeat it only after a material direction change.
 Read `references/external-advisors.md` and run `scripts/invoke-advisor.ps1` so
 the review remains non-interactive, bounded, and advisory. Use agy or another
 external advisor only when the user explicitly requests it.

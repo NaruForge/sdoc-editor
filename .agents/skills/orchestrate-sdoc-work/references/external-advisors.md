@@ -7,22 +7,47 @@ the shared working tree.
 
 - Prefer native Codex agents for repository exploration, edits, tests, and
   follow-up steering.
-- Use Grok CLI after local verification and final-diff inspection for every
-  material implementation and substantive repository verification. This is the
-  default critical-review step and does not require an explicit user request.
+- Use Grok CLI in two independent modes. Planning critique challenges a
+  judgment-material approach before implementation. Final-diff critique checks
+  every material implementation and substantive repository verification after
+  local checks. Neither mode replaces the other when both triggers apply, and
+  neither requires an explicit user request.
+- Use planning critique for persistence, schema, migration, security, data-loss,
+  cross-host behavior, UX interaction models, ADR-level architecture, product
+  interpretation, and material scope or direction changes. Skip it for typo or
+  wording polish, version and release mechanics, pure renames, routine dependency
+  changes without behavior impact, verification-only work whose direction is
+  settled, and clear single-cause fixes without product or architecture judgment.
 - Use agy or another external advisor only after an explicit request for that
   provider or additional cross-model validation.
 - Choose a provider and model from observed local evaluations. Discover current
   choices with `grok models` or `agy models`; do not hardcode a model name in
   the project. For the required Grok critique, confirm that the selected model
   is a Grok-family model rather than silently routing to another provider.
-- Give the advisor one bounded question. Include the final diff or exact
-  relevant paths, requirements, acceptance criteria, and local test evidence,
+- Give the advisor one bounded question using the mode-specific context below,
   but omit secrets, credentials, unrelated source or proprietary content,
   personal information, customer data, and sensitive logs.
-- Ask Grok to challenge assumptions, identify counterexamples, regressions,
-  security or data-loss risks, and missing tests rather than duplicating the
-  main agent's implementation work.
+- Ask Grok to challenge assumptions and identify counterexamples, simpler
+  alternatives, regressions, security or data-loss risks, and missing tests
+  rather than duplicating the main agent's work or merely agreeing with it.
+
+## Critique modes
+
+| Mode | Timing and inputs | Ask Grok for | Not required |
+| --- | --- | --- | --- |
+| Planning | Before the first judgment-material write; provide the goal, proposed approach, considered alternatives, assumptions, affected UX/host/persistence/security surfaces, and open questions | Adversarial questions, false assumptions, counterexamples, simpler alternatives, missing constraints, and wrong-direction risk | A full diff or test logs |
+| Final diff | After integration and applicable local checks are stable; provide the bounded final diff, requirements, acceptance criteria, and relevant test evidence | Regressions, counterexamples, security or data-loss risk, host-parity gaps, and missing tests | A plan essay unless needed to explain intent |
+
+The main agent remains the decision owner. Grok is not an approval gate, veto,
+or source of consensus. Challenge execution risks and assumptions within the
+user's explicit constraints; do not use Grok to renegotiate a product decision
+the user has already fixed unless the user asks for alternatives.
+
+Disposition planning findings with explicit rationale, and update the public
+issue or working plan when the decision is product-facing. Disposition final
+findings with repository and test evidence. A native architecture review and a
+Grok planning critique are complementary: the former develops repo-grounded
+design, while the latter independently challenges the chosen direction.
 
 ## Invocation
 
@@ -71,7 +96,7 @@ prompt to its own managed temporary UTF-8 file, passes it with `--prompt-file`,
 and deletes it in `finally`.
 
 Grok report validation is enabled by default. Exit code 0 alone does not prove
-that a review occurred. An acknowledgement such as “I will review” or an intent
+that a review occurred. An acknowledgement such as "I will review" or an intent
 statement without both an explicit conclusion and findings (or the explicit
 `NO_ACTIONABLE_FINDINGS` result) is incomplete, must be retried, and must not
 count. `-AllowIncompleteResponse` is reserved for connectivity diagnostics and
@@ -86,16 +111,21 @@ line for agy, but agy still receives the advisory text through its native
 `--print` process argument. Keep agy prompts short unless its CLI gains an
 equivalent file-input mode; the Grok large-diff guarantee does not apply to agy.
 
-Run Grok only after the integrated change and local checks are stable. If a
-review finding leads to a material change in a reviewed file, rerun the Grok
-critique on the updated final diff. If the CLI is unavailable, unauthenticated,
-times out, or cannot be safely given the necessary context, state that the Grok
-critique is missing and report the residual risk; do not claim or imply review.
+Run planning critique before the decision is implemented. One planning critique
+per decision boundary is normally sufficient; repeat it only when scope, UX,
+architecture, persistence, security, or cross-host direction changes materially.
+Run final-diff critique only after the integrated change and local checks are
+stable. If a final finding leads to a material change in a reviewed file, rerun
+the final critique on the updated diff. If the CLI is unavailable,
+unauthenticated, times out, or cannot be safely given the necessary context,
+state which critique is missing and report the residual risk; do not claim or
+imply review.
 
 ## Evaluation
 
-Score the response on repository-grounded correctness, useful file references,
-novel risks, false positives, latency, and cost. Verify adopted claims against
-source and tests. Explicitly accept or reject actionable findings with that
-evidence. Never describe an external response as consensus merely because it
-agrees with the main agent.
+Score the response on correctness, useful evidence, novel risks, false
+positives, latency, and cost. Verify final-diff claims against source and tests;
+evaluate planning claims against requirements, repository constraints, and
+explicit reasoning. Explicitly accept or reject actionable findings. Never
+describe an external response as consensus merely because it agrees with the
+main agent.
