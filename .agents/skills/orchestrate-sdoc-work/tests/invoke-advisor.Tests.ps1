@@ -88,12 +88,22 @@ function Invoke-WrapperChild {
         [string]$WorkingDirectory,
         [string]$Prompt,
         [string]$PromptFile,
+        [string]$TaskSpecFile,
+        [ValidateSet('Legacy', 'Planning', 'FinalDiff')]
+        [string]$CritiqueMode,
+        [string]$ChangeSetFile,
+        [string]$BaseRef,
         [string]$OutputFormat,
+        [ValidateSet('Summary', 'Full')]
+        [string]$OutputDetail,
+        [string]$ResultFile,
+        [string]$AdvisorContextScript,
         [string]$Model,
         [int]$TimeoutSeconds = 8,
         [switch]$DryRun,
         [switch]$DiagnosticMode,
-        [switch]$UseDiagnosticAlias
+        [switch]$UseDiagnosticAlias,
+        [switch]$AllowContextExpansion
     )
 
     $shellPath = [System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
@@ -105,16 +115,27 @@ function Invoke-WrapperChild {
         '-ProviderExecutable', $script:fakeProviderPath,
         '-TimeoutSeconds', [string]$TimeoutSeconds
     )
-    if (-not [string]::IsNullOrEmpty($PromptFile)) {
+    if (-not [string]::IsNullOrEmpty($TaskSpecFile)) {
+        $arguments += @('-TaskSpecFile', $TaskSpecFile)
+    } elseif (-not [string]::IsNullOrEmpty($PromptFile)) {
         $arguments += @('-PromptFile', $PromptFile)
     } else {
         $arguments += @('-Prompt', $Prompt)
     }
+    if (-not [string]::IsNullOrEmpty($CritiqueMode)) { $arguments += @('-CritiqueMode', $CritiqueMode) }
+    if (-not [string]::IsNullOrEmpty($ChangeSetFile)) { $arguments += @('-ChangeSetFile', $ChangeSetFile) }
+    if (-not [string]::IsNullOrEmpty($BaseRef)) { $arguments += @('-BaseRef', $BaseRef) }
     if (-not [string]::IsNullOrEmpty($OutputFormat)) { $arguments += @('-OutputFormat', $OutputFormat) }
+    if (-not [string]::IsNullOrEmpty($OutputDetail)) { $arguments += @('-OutputDetail', $OutputDetail) }
+    if (-not [string]::IsNullOrEmpty($ResultFile)) { $arguments += @('-ResultFile', $ResultFile) }
+    if (-not [string]::IsNullOrEmpty($AdvisorContextScript)) {
+        $arguments += @('-AdvisorContextScript', $AdvisorContextScript)
+    }
     if (-not [string]::IsNullOrEmpty($Model)) { $arguments += @('-Model', $Model) }
     if ($DryRun) { $arguments += '-DryRun' }
     if ($DiagnosticMode) { $arguments += '-DiagnosticMode' }
     if ($UseDiagnosticAlias) { $arguments += '-AllowIncompleteResponse' }
+    if ($AllowContextExpansion) { $arguments += '-AllowContextExpansion' }
 
     $startInfo = New-Object System.Diagnostics.ProcessStartInfo
     $startInfo.FileName = $shellPath
@@ -170,6 +191,32 @@ function Get-CallArguments {
     })
 }
 
+function New-TaskSpecFile {
+    param([string]$CaseDirectory, [string]$Name = 'task-spec.json')
+    $path = Join-Path $CaseDirectory $Name
+    $content = '{"schemaVersion":1,"goal":"Exercise the explicit critique contract.","requirements":["Keep payload-only isolation."],"acceptanceCriteria":["Return validated evidence."],"testEvidence":["Fake-provider contract fixture."],"proposedApproach":"Use the generated bounded bundle.","alternatives":["Legacy free-form prompt."],"assumptions":["The routing registry is valid."],"affectedSurfaces":["advisor wrapper"],"openQuestions":[]}'
+    [System.IO.File]::WriteAllText($path, $content, $utf8WithoutBom)
+    return $path
+}
+
+function Get-GeneratorCall {
+    param([string]$CaseDirectory, [int]$Call)
+    $path = Join-Path $CaseDirectory ('generator-call-{0:D2}.json' -f $Call)
+    return [System.IO.File]::ReadAllText($path, [System.Text.Encoding]::UTF8) |
+        ConvertFrom-Json
+}
+
+function Assert-StrictUtf8NoBomFile {
+    param([string]$Path, [string]$Message)
+    $bytes = [System.IO.File]::ReadAllBytes($Path)
+    Assert-True ($bytes.Length -gt 0) "$Message File was empty."
+    Assert-True (-not (
+        $bytes.Length -ge 3 -and $bytes[0] -eq 0xef -and
+        $bytes[1] -eq 0xbb -and $bytes[2] -eq 0xbf
+    )) "$Message File used a UTF-8 BOM."
+    [void]([System.Text.UTF8Encoding]::new($false, $true).GetString($bytes))
+}
+
 $fakeProviderSource = @'
 using System;
 using System.Collections.Generic;
@@ -184,6 +231,12 @@ internal static class FakeProvider
     private const string AckEnvelope = "{\"structuredOutput\":{\"status\":\"incomplete\",\"conclusion\":\"I will review this now.\",\"confidence\":\"low\",\"evidence\":[],\"findings\":[],\"risks\":[],\"assumptions\":[]},\"modelUsage\":{\"grok-4\":{}}}";
     private const string InvalidSchemaEnvelope = "{\"structuredOutput\":{\"status\":\"pass\",\"conclusion\":\"Review completed.\",\"confidence\":\"high\",\"evidence\":[{\"claim\":\"Missing support\"}],\"findings\":[],\"risks\":[],\"assumptions\":[]},\"modelUsage\":{\"grok-4\":{}}}";
     private const string ExtraPropertyEnvelope = "{\"structuredOutput\":{\"status\":\"pass\",\"conclusion\":\"Review completed.\",\"confidence\":\"high\",\"evidence\":[{\"claim\":\"Evidence claim\",\"support\":\"Evidence support\"}],\"findings\":[],\"risks\":[],\"assumptions\":[],\"unexpected\":true},\"modelUsage\":{\"grok-4\":{}}}";
+    private const string PlanningPassEnvelope = "{\"structuredOutput\":{\"reviewInputSha256\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"status\":\"pass\",\"contextStatus\":\"sufficient\",\"requestedContext\":[],\"conclusion\":\"Planning critique completed with no actionable findings.\",\"confidence\":\"high\",\"evidence\":[{\"claim\":\"The plan was challenged.\",\"support\":\"The generated planning bundle contains the bounded task and canonical context.\",\"file\":\"shared/example.ts\",\"line\":1}],\"findings\":[],\"risks\":[],\"assumptions\":[]},\"modelUsage\":{\"grok-4\":{}}}";
+    private const string PlanningRequestEnvelope = "{\"structuredOutput\":{\"reviewInputSha256\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"status\":\"incomplete\",\"contextStatus\":\"needs_context\",\"requestedContext\":[\"shared/example.ts\"],\"conclusion\":\"One allowlisted source file is needed.\",\"confidence\":\"low\",\"evidence\":[{\"claim\":\"The current shard omits the implementation.\",\"support\":\"Only routing metadata is present.\"}],\"findings\":[],\"risks\":[],\"assumptions\":[]},\"modelUsage\":{\"grok-4\":{}}}";
+    private const string PlanningContradictionEnvelope = "{\"structuredOutput\":{\"reviewInputSha256\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"status\":\"pass\",\"contextStatus\":\"sufficient\",\"requestedContext\":[\"shared/example.ts\"],\"conclusion\":\"Contradictory context state.\",\"confidence\":\"high\",\"evidence\":[{\"claim\":\"Evidence claim.\",\"support\":\"Evidence support.\"}],\"findings\":[],\"risks\":[],\"assumptions\":[]},\"modelUsage\":{\"grok-4\":{}}}";
+    private const string FinalMissingEvidenceEnvelope = "{\"structuredOutput\":{\"reviewInputSha256\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"status\":\"pass\",\"conclusion\":\"Unsupported pass.\",\"confidence\":\"high\",\"evidence\":[],\"findings\":[],\"risks\":[],\"assumptions\":[]},\"modelUsage\":{\"grok-4\":{}}}";
+    private const string ReviewInputSha256 = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
+    private const string FinalPassEnvelope = "{\"structuredOutput\":{\"reviewInputSha256\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"status\":\"pass\",\"conclusion\":\"Review completed with no actionable findings.\",\"confidence\":\"high\",\"evidence\":[{\"claim\":\"The requested contract was exercised.\",\"support\":\"The fake provider observed the bounded final-diff payload.\",\"file\":\"shared/example.ts\",\"line\":1}],\"findings\":[],\"risks\":[],\"assumptions\":[]},\"modelUsage\":{\"grok-4\":{}}}";
 
     private static bool HasArgument(string[] args, string value)
     {
@@ -250,7 +303,19 @@ internal static class FakeProvider
                 Console.WriteLine("Default model: claude-test\n- claude-test");
                 return 0;
             }
+            if (scenario == "directModelFallback")
+            {
+                Console.WriteLine("Default model: ocx-grok-fast\n- ocx-grok-fast\n- grok-4\n- grok-4-fast");
+                return 0;
+            }
             Console.WriteLine("Default model: grok-4\n- grok-4\n- grok-4-fast");
+            return 0;
+        }
+
+        if (args.Length == 3 && args[0] == "--no-auto-update" &&
+            args[1] == "inspect" && args[2] == "--json")
+        {
+            Console.WriteLine("{\"plugins\":[],\"mcpServers\":[],\"hooks\":[],\"configWarnings\":[]}");
             return 0;
         }
 
@@ -265,7 +330,10 @@ internal static class FakeProvider
             return 0;
         }
 
-        int reviewAttempt = call - 2;
+        string reviewSchema = ArgumentAfter(args, "--json-schema") ?? String.Empty;
+        bool planningContract = reviewSchema.IndexOf("contextStatus", StringComparison.Ordinal) >= 0;
+        bool explicitContract = reviewSchema.IndexOf("reviewInputSha256", StringComparison.Ordinal) >= 0;
+        int reviewAttempt = call - (explicitContract ? 3 : 2);
         if (scenario == "ackThenPass" && reviewAttempt == 1)
         {
             Console.WriteLine(AckEnvelope);
@@ -281,6 +349,13 @@ internal static class FakeProvider
             Console.WriteLine("{\"text\":\"A long apparent review still lacks the required structuredOutput contract and must be retried.\",\"modelUsage\":{\"grok-4\":{}}}");
             return 0;
         }
+        if (scenario == "missingStructured")
+        {
+            Console.WriteLine("{\"text\":\"No structured output was produced.\",\"modelUsage\":{\"grok-4\":{}}}");
+            return 0;
+        }
+        if (scenario == "toolAttempt")
+            return Fail("run_terminal_command approval cancelled");
         if (scenario == "truncatedThenPass" && reviewAttempt == 1)
         {
             Console.Write(new string('x', 70000));
@@ -290,6 +365,11 @@ internal static class FakeProvider
         if (scenario == "malformedEnvelope")
         {
             Console.WriteLine("{this is not json}");
+            return 0;
+        }
+        if (scenario == "malformedThenPass" && reviewAttempt == 1)
+        {
+            Console.WriteLine("{\"structuredOutput\":");
             return 0;
         }
         if (scenario == "invalidSchema")
@@ -339,6 +419,58 @@ internal static class FakeProvider
             Console.WriteLine(PassEnvelope);
             return 0;
         }
+        if (scenario == "planningContextRequest" && reviewAttempt == 1)
+        {
+            Console.WriteLine(PlanningRequestEnvelope);
+            return 0;
+        }
+        if (scenario == "planningContradiction")
+        {
+            Console.WriteLine(PlanningContradictionEnvelope);
+            return 0;
+        }
+        if (scenario == "finalMissingEvidence")
+        {
+            Console.WriteLine(FinalMissingEvidenceEnvelope);
+            return 0;
+        }
+        if (scenario == "largeValidatedResult")
+        {
+            Console.WriteLine(FinalPassEnvelope.Replace(
+                "Review completed with no actionable findings.", new string('z', 20000)));
+            return 0;
+        }
+        if (scenario == "streamingOutputLimit")
+        {
+            Console.Write(new string('x', 1200000));
+            return 0;
+        }
+        if (scenario == "payloadOnly" || scenario == "directModelFallback")
+        {
+            string promptPath = ArgumentAfter(args, "--prompt-file");
+            if (ArgumentAfter(args, "--permission-mode") != "dontAsk" ||
+                ArgumentAfter(args, "--tools") != String.Empty ||
+                ArgumentAfter(args, "--deny") != "*" ||
+                ArgumentAfter(args, "--max-turns") != "1" ||
+                !HasArgument(args, "--disallowed-tools") ||
+                !HasArgument(args, "--no-plan") || !HasArgument(args, "--no-subagents") ||
+                !HasArgument(args, "--no-memory") || !HasArgument(args, "--disable-web-search") ||
+                !HasArgument(args, "--verbatim") || String.IsNullOrEmpty(promptPath) ||
+                !File.Exists(promptPath))
+                return Fail("payload-only argument contract was not enforced");
+            File.WriteAllText(Path.Combine(directory, "managed-prompt-path.txt"), promptPath, new UTF8Encoding(false));
+            string envelope = planningContract ? PlanningPassEnvelope : FinalPassEnvelope;
+            if (scenario == "directModelFallback")
+            {
+                string selected = ArgumentAfter(args, "--model");
+                if (String.IsNullOrEmpty(selected) || !selected.StartsWith("grok-", StringComparison.Ordinal) ||
+                    selected.StartsWith("ocx-", StringComparison.Ordinal))
+                    return Fail("direct Grok model fallback was not selected");
+                envelope = envelope.Replace("\"grok-4\"", "\"" + selected + "\"");
+            }
+            Console.WriteLine(envelope);
+            return 0;
+        }
         if (scenario == "selectedModel")
         {
             if (ArgumentAfter(args, "--model") != "grok-4-fast") return Fail("selected model was not pinned");
@@ -346,10 +478,133 @@ internal static class FakeProvider
             return 0;
         }
         if (scenario == "findings") Console.WriteLine(FindingsEnvelope);
+        else if (planningContract) Console.WriteLine(PlanningPassEnvelope);
+        else if (explicitContract) Console.WriteLine(FinalPassEnvelope);
         else Console.WriteLine(PassEnvelope);
         return 0;
     }
 }
+'@
+
+$fakeContextGeneratorSource = @'
+[CmdletBinding()]
+param(
+    [Parameter(Mandatory = $true)][string]$Mode,
+    [Parameter(Mandatory = $true)][string]$WorkingDirectory,
+    [Parameter(Mandatory = $true)][string]$TaskSpecFile,
+    [string]$ChangeSetFile,
+    [string]$BaseRef,
+    [string[]]$RequestedPath,
+    [string]$ContextExpansionRequestFile,
+    [int]$MaximumBundleBytes,
+    [int]$MaximumShardCount
+)
+
+$ErrorActionPreference = 'Stop'
+$utf8 = New-Object System.Text.UTF8Encoding($false, $true)
+$scenario = [System.IO.File]::ReadAllText(
+    (Join-Path $WorkingDirectory 'scenario.txt'), $utf8
+).Trim()
+$counterPath = Join-Path $WorkingDirectory 'generator-counter.txt'
+$call = if (Test-Path -LiteralPath $counterPath) {
+    [int][System.IO.File]::ReadAllText($counterPath, $utf8)
+} else { 0 }
+$call++
+[System.IO.File]::WriteAllText($counterPath, [string]$call, $utf8)
+
+$argumentRecord = [ordered]@{
+    mode = $Mode
+    taskSpecFile = $TaskSpecFile
+    changeSetFile = $ChangeSetFile
+    baseRef = $BaseRef
+    requestedPath = @($RequestedPath)
+    contextExpansionRequestFile = $ContextExpansionRequestFile
+    expansionRequestJson = if (
+        -not [string]::IsNullOrWhiteSpace($ContextExpansionRequestFile) -and
+        (Test-Path -LiteralPath $ContextExpansionRequestFile -PathType Leaf)
+    ) {
+        [System.IO.File]::ReadAllText($ContextExpansionRequestFile, $utf8)
+    } else { $null }
+    maximumBundleBytes = $MaximumBundleBytes
+    maximumShardCount = $MaximumShardCount
+}
+[System.IO.File]::WriteAllText(
+    (Join-Path $WorkingDirectory ('generator-call-{0:D2}.json' -f $call)),
+    ($argumentRecord | ConvertTo-Json -Depth 5 -Compress),
+    $utf8
+)
+
+foreach ($failure in @('hash', 'stale', 'coverage')) {
+    if ($scenario -ceq ('generator_' + $failure)) {
+        [Console]::Error.WriteLine('deterministic ' + $failure + ' validation failure')
+        exit 4
+    }
+}
+
+$artifactDirectory = Join-Path ([System.IO.Path]::GetTempPath()) (
+    'sdoc-advisor-context-{0}' -f [System.Guid]::NewGuid().ToString('N')
+)
+[System.IO.Directory]::CreateDirectory($artifactDirectory) | Out-Null
+$bundlePath = Join-Path $artifactDirectory 'bundle-01.txt'
+$manifestPath = Join-Path $artifactDirectory 'integrity.json'
+$coveragePath = Join-Path $artifactDirectory 'coverage.json'
+[System.IO.File]::WriteAllText(
+    $bundlePath,
+    "mode=$Mode`ncall=$call`ncontext fixture`n",
+    $utf8
+)
+$bundleBytes = [System.IO.File]::ReadAllBytes($bundlePath)
+$sha256 = [System.Security.Cryptography.SHA256]::Create()
+try {
+    $bundleSha256 = (($sha256.ComputeHash($bundleBytes) | ForEach-Object {
+        $_.ToString('x2')
+    }) -join '')
+} finally {
+    $sha256.Dispose()
+}
+$manifest = [ordered]@{
+    schemaVersion = 1
+    selectedInputs = @()
+    selectedInputFingerprint = ('a' * 64)
+    configSha256 = ('b' * 64)
+    bundles = @([ordered]@{
+        fileName = [System.IO.Path]::GetFileName($bundlePath)
+        bytes = $bundleBytes.Length
+        sha256 = $bundleSha256
+    })
+}
+[System.IO.File]::WriteAllText(
+    $manifestPath,
+    ($manifest | ConvertTo-Json -Depth 6 -Compress),
+    $utf8
+)
+[System.IO.File]::WriteAllText(
+    $coveragePath,
+    '{"schemaVersion":1,"changedPaths":[],"relationships":[],"unclassifiedPaths":[],"selectionReasons":[]}',
+    $utf8
+)
+[System.IO.File]::AppendAllText(
+    (Join-Path $WorkingDirectory 'artifact-paths.txt'),
+    $artifactDirectory + [Environment]::NewLine,
+    $utf8
+)
+
+[ordered]@{
+    schemaVersion = 1
+    mode = $Mode
+    contextStatus = 'complete'
+    artifactDirectory = $artifactDirectory
+    bundlePaths = @($bundlePath)
+    integrityManifestPath = $manifestPath
+    coveragePath = $coveragePath
+    contextSha256 = ('c' * 64)
+    fingerprint = ('d' * 64)
+    selectionSha256 = ('e' * 64)
+    selectedPaths = @('shared/example.ts')
+    shards = @()
+    expansionApplied = ($call -gt 1)
+    callerMustDelete = $true
+} | ConvertTo-Json -Depth 6 -Compress
 '@
 
 try {
@@ -360,7 +615,13 @@ try {
     [System.IO.Directory]::CreateDirectory($providerDirectory) | Out-Null
     $sourcePath = Join-Path $providerDirectory 'FakeProvider.cs'
     $script:fakeProviderPath = Join-Path $providerDirectory 'fake grok provider.exe'
+    $script:fakeContextGeneratorPath = Join-Path $providerDirectory 'advisor-context.ps1'
     [System.IO.File]::WriteAllText($sourcePath, $fakeProviderSource, $utf8WithoutBom)
+    [System.IO.File]::WriteAllText(
+        $script:fakeContextGeneratorPath,
+        $fakeContextGeneratorSource,
+        $utf8WithoutBom
+    )
 
     $compilerCandidates = @(
         (Join-Path $env:WINDIR 'Microsoft.NET/Framework64/v4.0.30319/csc.exe'),
@@ -501,6 +762,232 @@ try {
     Assert-True ($selectedModelArguments -contains '--model') 'Selected model flag was omitted.'
     Assert-True ($selectedModelArguments -contains 'grok-4-fast') 'Selected model value was omitted.'
     Complete-Test 'Selected model pinning and attestation'
+
+    $case = New-TestCase 'explicit planning' 'payloadOnly'
+    $taskSpecPath = New-TaskSpecFile $case
+    $resultPath = Join-Path $case 'planning-result.json'
+    $result = Invoke-WrapperChild -Provider grok -WorkingDirectory $case `
+        -TaskSpecFile $taskSpecPath -CritiqueMode Planning `
+        -AdvisorContextScript $script:fakeContextGeneratorPath `
+        -ResultFile $resultPath
+    Assert-Equal $result.ExitCode 0 "Planning exit code mismatch. stdout=[$($result.Stdout)] stderr=[$($result.Stderr)]"
+    Assert-True ($utf8WithoutBom.GetByteCount($result.Stdout) -le 8192) 'Planning Summary exceeded 8192 bytes.'
+    $summary = $result.Stdout | ConvertFrom-Json
+    Assert-Equal $summary.critiqueMode 'Planning' 'Planning Summary mode mismatch.'
+    Assert-Equal $summary.reviewStatus 'pass' 'Planning Summary status mismatch.'
+    Assert-Equal $summary.resultFile $resultPath 'Planning Summary omitted the full-result path.'
+    Assert-True (Test-Path -LiteralPath $taskSpecPath -PathType Leaf) `
+        'Wrapper removed the caller-owned task specification.'
+    Assert-StrictUtf8NoBomFile $resultPath 'Planning ResultFile'
+    $full = [System.IO.File]::ReadAllText($resultPath, [System.Text.Encoding]::UTF8) |
+        ConvertFrom-Json
+    Assert-Equal $full.schemaVersion 2 'Planning full-result schema mismatch.'
+    Assert-Equal $full.contextStatus 'sufficient' 'Planning contextStatus mismatch.'
+    Assert-True (@($full.requestedContext).Count -eq 0) 'Planning sufficient result requested context.'
+    Assert-True (@($full.evidence).Count -eq 1) 'Planning full result omitted evidence.'
+    Assert-Equal $full.metadata.attemptCount 1 'Planning attempt count mismatch.'
+    Assert-Equal $full.metadata.critiqueMode 'Planning' 'Planning metadata mode mismatch.'
+    foreach ($hashName in @(
+        'contextSha256', 'selectionSha256', 'repositoryFingerprint',
+        'configFingerprint', 'promptSha256'
+    )) {
+        Assert-True ($full.metadata.$hashName -match '^[0-9a-f]{64}$') "Planning metadata omitted $hashName."
+    }
+    Assert-True ($full.metadata.byteCounts.taskSpec -gt 0) 'Planning task-spec byte count was omitted.'
+    Assert-True ($full.metadata.byteCounts.context -gt 0) 'Planning context byte count was omitted.'
+    Assert-True (@($full.metadata.attemptOutcomes).Count -eq 1) 'Planning attempt outcomes were omitted.'
+    $reviewArguments = Get-CallArguments @(Get-CallFiles $case)[3]
+    Assert-True ($reviewArguments -contains '--permission-mode') 'Payload-only permission mode was omitted.'
+    Assert-True ($reviewArguments -contains 'dontAsk') 'Payload-only permission mode was not dontAsk.'
+    Assert-True ($reviewArguments -contains '--tools') 'Payload-only empty tool surface was omitted.'
+    Assert-True ($reviewArguments -contains '--deny') 'Payload-only deny policy was omitted.'
+    Assert-True ($reviewArguments -contains '*') 'Payload-only deny-all value was omitted.'
+    Assert-True ($reviewArguments -contains '--max-turns') 'Payload-only turn bound was omitted.'
+    Assert-True ($reviewArguments -contains '1') 'Payload-only review was not one turn.'
+    Assert-True (-not ($reviewArguments -contains $taskSpecPath)) 'Task specification path leaked into Grok argv.'
+    $managedPromptPath = [System.IO.File]::ReadAllText(
+        (Join-Path $case 'managed-prompt-path.txt'), [System.Text.Encoding]::UTF8
+    )
+    Assert-True (-not (Test-Path -LiteralPath $managedPromptPath)) 'Explicit managed prompt was not cleaned.'
+    foreach ($artifactPath in [System.IO.File]::ReadAllLines(
+        (Join-Path $case 'artifact-paths.txt'), [System.Text.Encoding]::UTF8
+    )) {
+        Assert-True (-not (Test-Path -LiteralPath $artifactPath)) 'Generated context artifact was not cleaned.'
+    }
+    Complete-Test 'Explicit Planning payload isolation, metadata, summary, result, and cleanup'
+
+    $case = New-TestCase 'explicit mode rejects prompt' 'pass'
+    $result = Invoke-WrapperChild -Provider grok -WorkingDirectory $case `
+        -Prompt 'Free-form prompt is not a Planning task specification.' `
+        -CritiqueMode Planning -AdvisorContextScript $script:fakeContextGeneratorPath `
+        -OutputDetail Full
+    Assert-Equal $result.ExitCode 4 'Planning accepted a free-form Prompt parameter set.'
+    Assert-True ((Get-CallCount $case) -eq 0) 'Invalid Planning parameter set invoked Grok.'
+    Complete-Test 'Explicit Planning requires TaskSpecFile'
+
+    $case = New-TestCase 'explicit mode rejects agy' 'agy'
+    $taskSpecPath = New-TaskSpecFile $case
+    $result = Invoke-WrapperChild -Provider agy -WorkingDirectory $case `
+        -TaskSpecFile $taskSpecPath -CritiqueMode FinalDiff `
+        -AdvisorContextScript $script:fakeContextGeneratorPath -OutputDetail Full
+    Assert-Equal $result.ExitCode 4 'FinalDiff accepted the agy compatibility provider.'
+    Assert-True ((Get-CallCount $case) -eq 0) 'Invalid FinalDiff provider was invoked.'
+    Complete-Test 'Explicit required modes reject non-Grok providers'
+
+    $case = New-TestCase 'planning context expansion' 'planningContextRequest'
+    $taskSpecPath = New-TaskSpecFile $case
+    $resultPath = Join-Path $case 'expanded-result.json'
+    $result = Invoke-WrapperChild -Provider grok -WorkingDirectory $case `
+        -TaskSpecFile $taskSpecPath -CritiqueMode Planning -AllowContextExpansion `
+        -AdvisorContextScript $script:fakeContextGeneratorPath -ResultFile $resultPath
+    Assert-Equal $result.ExitCode 0 "Planning expansion failed. stdout=[$($result.Stdout)] stderr=[$($result.Stderr)]"
+    $full = [System.IO.File]::ReadAllText($resultPath, [System.Text.Encoding]::UTF8) |
+        ConvertFrom-Json
+    Assert-Equal $full.contextStatus 'sufficient' 'Expanded Planning result did not complete.'
+    Assert-Equal $full.metadata.attemptCount 2 'Context expansion did not consume exactly two attempts.'
+    Assert-Equal ([int][System.IO.File]::ReadAllText(
+        (Join-Path $case 'generator-counter.txt'), [System.Text.Encoding]::UTF8
+    )) 3 'Context expansion plus post-review freshness verification did not use exactly three generator calls.'
+    $secondGeneratorCall = Get-GeneratorCall $case 2
+    Assert-True (-not [string]::IsNullOrWhiteSpace($secondGeneratorCall.contextExpansionRequestFile)) `
+        'Context expansion was not passed through a host-side request file.'
+    Assert-Matches $secondGeneratorCall.expansionRequestJson 'shared/example\.ts' `
+        'Context expansion request file omitted the requested allowlisted path.'
+    Assert-True (-not (Test-Path -LiteralPath $secondGeneratorCall.contextExpansionRequestFile)) `
+        'Wrapper-owned context expansion request file was not cleaned.'
+    Complete-Test 'Planning context request and one host-side rebundle'
+
+    $case = New-TestCase 'compact summary full result' 'largeValidatedResult'
+    $taskSpecPath = New-TaskSpecFile $case
+    $changeSetPath = Join-Path $case 'change-set.json'
+    [System.IO.File]::WriteAllText($changeSetPath, '["shared/example.ts"]', $utf8WithoutBom)
+    $resultPath = Join-Path $case 'final-result.json'
+    $result = Invoke-WrapperChild -Provider grok -WorkingDirectory $case `
+        -TaskSpecFile $taskSpecPath -CritiqueMode FinalDiff `
+        -ChangeSetFile $changeSetPath `
+        -AdvisorContextScript $script:fakeContextGeneratorPath `
+        -ResultFile $resultPath
+    Assert-Equal $result.ExitCode 0 "FinalDiff summary/result failed. stdout=[$($result.Stdout)] stderr=[$($result.Stderr)]"
+    $summaryBytes = $utf8WithoutBom.GetByteCount($result.Stdout)
+    Assert-True ($summaryBytes -le 8192) 'FinalDiff compact Summary exceeded 8192 bytes.'
+    $summary = $result.Stdout | ConvertFrom-Json
+    Assert-Equal $summary.critiqueMode 'FinalDiff' 'FinalDiff Summary mode mismatch.'
+    Assert-StrictUtf8NoBomFile $resultPath 'FinalDiff ResultFile'
+    $fullBytes = [System.IO.File]::ReadAllBytes($resultPath)
+    Assert-True ($fullBytes.Length -gt $summaryBytes) 'ResultFile did not retain more detail than Summary.'
+    $full = $utf8WithoutBom.GetString($fullBytes) | ConvertFrom-Json
+    Assert-True ($full.conclusion.Length -ge 20000) 'Full ResultFile truncated validated conclusion detail.'
+    Assert-True (@($full.evidence).Count -eq 1) 'FinalDiff ResultFile omitted validated evidence.'
+    $generatorCall = Get-GeneratorCall $case 1
+    Assert-Equal $generatorCall.mode 'FinalDiff' 'Generator did not receive FinalDiff mode.'
+    Assert-Equal $generatorCall.changeSetFile $changeSetPath 'Generator did not receive the exact change-set file.'
+    Assert-Equal $generatorCall.maximumBundleBytes 262144 'Wrapper changed the 256 KiB generator cap.'
+    Assert-Equal $generatorCall.maximumShardCount 6 'Wrapper changed the six-shard cap.'
+    Complete-Test 'Compact Summary and complete strict-UTF8 ResultFile'
+
+    foreach ($explicitFailure in @(
+        @{ Scenario = 'planningContradiction'; Mode = 'Planning'; Kind = 'schema' },
+        @{ Scenario = 'finalMissingEvidence'; Mode = 'FinalDiff'; Kind = 'semantic' },
+        @{ Scenario = 'missingStructured'; Mode = 'FinalDiff'; Kind = 'structured_output' },
+        @{ Scenario = 'toolAttempt'; Mode = 'FinalDiff'; Kind = 'tool_attempt' }
+    )) {
+        $case = New-TestCase "explicit reject $($explicitFailure.Scenario)" $explicitFailure.Scenario
+        $taskSpecPath = New-TaskSpecFile $case
+        $resultPath = Join-Path $case 'failure-result.json'
+        $result = Invoke-WrapperChild -Provider grok -WorkingDirectory $case `
+            -TaskSpecFile $taskSpecPath -CritiqueMode $explicitFailure.Mode `
+            -AdvisorContextScript $script:fakeContextGeneratorPath `
+            -ResultFile $resultPath -OutputDetail Full
+        Assert-Equal $result.ExitCode 2 "$($explicitFailure.Scenario) exit code mismatch. stdout=[$($result.Stdout)] stderr=[$($result.Stderr)]"
+        $json = $result.Stdout | ConvertFrom-Json
+        Assert-Equal $json.error.kind $explicitFailure.Kind "$($explicitFailure.Scenario) kind mismatch."
+        Assert-Equal $json.metadata.attemptCount 1 "$($explicitFailure.Scenario) was unexpectedly retried."
+        Assert-True ((Get-CallCount $case) -eq 4) "$($explicitFailure.Scenario) made more than one provider attempt."
+        Complete-Test "$($explicitFailure.Scenario) explicit deterministic no-retry"
+    }
+
+    foreach ($generatorFailure in @('hash', 'stale', 'coverage')) {
+        $case = New-TestCase "generator $generatorFailure" "generator_$generatorFailure"
+        $taskSpecPath = New-TaskSpecFile $case
+        $result = Invoke-WrapperChild -Provider grok -WorkingDirectory $case `
+            -TaskSpecFile $taskSpecPath -CritiqueMode FinalDiff `
+            -AdvisorContextScript $script:fakeContextGeneratorPath -OutputDetail Full
+        Assert-Equal $result.ExitCode 2 "$generatorFailure generator failure exit code mismatch."
+        $json = $result.Stdout | ConvertFrom-Json
+        $expectedKind = if ($generatorFailure -eq 'hash') {
+            'context_digest'
+        } elseif ($generatorFailure -eq 'stale') {
+            'stale_context'
+        } else { 'coverage' }
+        Assert-Equal $json.error.kind $expectedKind "$generatorFailure generator failure kind mismatch."
+        Assert-True ((Get-CallCount $case) -eq 0) "$generatorFailure generator failure invoked Grok."
+        Assert-Equal ([int][System.IO.File]::ReadAllText(
+            (Join-Path $case 'generator-counter.txt'), [System.Text.Encoding]::UTF8
+        )) 1 "$generatorFailure generator failure was retried."
+        Complete-Test "$generatorFailure context validation fails before Grok without retry"
+    }
+
+    foreach ($retryScenario in @('transientThenPass', 'malformedThenPass')) {
+        $case = New-TestCase "explicit retry $retryScenario" $retryScenario
+        $taskSpecPath = New-TaskSpecFile $case
+        $result = Invoke-WrapperChild -Provider grok -WorkingDirectory $case `
+            -TaskSpecFile $taskSpecPath -CritiqueMode FinalDiff `
+            -AdvisorContextScript $script:fakeContextGeneratorPath -OutputDetail Full
+        Assert-Equal $result.ExitCode 0 "$retryScenario explicit retry failed."
+        $json = $result.Stdout | ConvertFrom-Json
+        Assert-Equal $json.metadata.attemptCount 2 "$retryScenario did not use exactly two attempts."
+        Assert-True ((Get-CallCount $case) -eq 5) "$retryScenario provider retry count mismatch."
+        Assert-True (@($json.metadata.attemptOutcomes).Count -eq 2) "$retryScenario attempt outcomes were incomplete."
+        Complete-Test "$retryScenario viable bounded retry"
+    }
+
+    $case = New-TestCase 'direct model fallback' 'directModelFallback'
+    $taskSpecPath = New-TaskSpecFile $case
+    $result = Invoke-WrapperChild -Provider grok -WorkingDirectory $case `
+        -TaskSpecFile $taskSpecPath -CritiqueMode FinalDiff `
+        -AdvisorContextScript $script:fakeContextGeneratorPath -OutputDetail Full
+    Assert-Equal $result.ExitCode 0 'Direct Grok model fallback failed.'
+    $json = $result.Stdout | ConvertFrom-Json
+    Assert-Matches $json.metadata.model '^grok-' 'Direct Grok fallback metadata was not a grok-* model.'
+    Assert-NotMatches $json.metadata.model '^ocx-' 'Required critique used an ocx-* model alias.'
+    Complete-Test 'Direct Grok model fallback'
+
+    $case = New-TestCase 'strict input caps' 'pass'
+    $bomTaskSpecPath = Join-Path $case 'bom-task.json'
+    [System.IO.File]::WriteAllBytes(
+        $bomTaskSpecPath,
+        [byte[]](0xef, 0xbb, 0xbf, 0x7b, 0x7d)
+    )
+    $result = Invoke-WrapperChild -Provider grok -WorkingDirectory $case `
+        -TaskSpecFile $bomTaskSpecPath -CritiqueMode Planning `
+        -AdvisorContextScript $script:fakeContextGeneratorPath -OutputDetail Full
+    Assert-Equal $result.ExitCode 4 'UTF-8 BOM task specification was accepted.'
+    Assert-True ((Get-CallCount $case) -eq 0) 'Invalid UTF-8 task specification invoked Grok.'
+    Assert-True (-not (Test-Path -LiteralPath (Join-Path $case 'generator-counter.txt'))) `
+        'Invalid UTF-8 task specification invoked the context generator.'
+
+    $oversizeTaskSpecPath = Join-Path $case 'oversize-task.json'
+    $oversizeBytes = New-Object byte[] 65537
+    [System.IO.File]::WriteAllBytes($oversizeTaskSpecPath, $oversizeBytes)
+    $result = Invoke-WrapperChild -Provider grok -WorkingDirectory $case `
+        -TaskSpecFile $oversizeTaskSpecPath -CritiqueMode FinalDiff `
+        -AdvisorContextScript $script:fakeContextGeneratorPath -OutputDetail Full
+    Assert-Equal $result.ExitCode 4 'Oversize task specification was accepted.'
+    Assert-True ((Get-CallCount $case) -eq 0) 'Oversize task specification invoked Grok.'
+    Complete-Test 'Strict UTF-8 and 64 KiB task-spec cap'
+
+    $case = New-TestCase 'streaming output cap' 'streamingOutputLimit'
+    $taskSpecPath = New-TaskSpecFile $case
+    $result = Invoke-WrapperChild -Provider grok -WorkingDirectory $case `
+        -TaskSpecFile $taskSpecPath -CritiqueMode FinalDiff `
+        -AdvisorContextScript $script:fakeContextGeneratorPath -OutputDetail Full
+    Assert-Equal $result.ExitCode 2 'Provider stdout cap failure exit code mismatch.'
+    $json = $result.Stdout | ConvertFrom-Json
+    Assert-Equal $json.error.kind 'output_limit' 'Provider stdout cap failure kind mismatch.'
+    Assert-Equal $json.metadata.attemptCount 1 'Provider stdout cap failure was retried.'
+    Assert-True ($utf8WithoutBom.GetByteCount($result.Stdout) -lt 1048576) `
+        'Wrapper emitted provider overflow output.'
+    Complete-Test 'Streaming provider output cap fails closed without retry'
 
     $case = New-TestCase 'bounded timeout' 'timeout'
     $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()

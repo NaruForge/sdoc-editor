@@ -33,10 +33,11 @@ verification. Delegate only bounded work that can proceed independently.
    when source or test evidence is available.
 7. Run the applicable commands from `AGENTS.md`, inspect the final diff, and
    invoke the Grok CLI for an independent critical review of every material
-   implementation or substantive repository verification. Put full diffs and
-   other long payloads in an OS temporary UTF-8 file and call the wrapper with
-   `-PromptFile`; never place them in shell arguments. Grok report validation
-   is enabled by default. Planning critique does not satisfy this final-diff
+   implementation or substantive repository verification. Do not copy the full
+   diff or repository bundle into agent conversation context, a prompt, or a
+   shell argument. Give the wrapper a small UTF-8 task specification and select
+   `FinalDiff`; its context generator selects, hashes, validates, and cleans up
+   the bounded bundle. Planning critique does not satisfy this final-diff
    critique; both are required when their triggers fire.
 8. Treat Grok as an adversarial advisor, never an approval gate or decision
    owner. Disposition planning findings with explicit rationale and adjust the
@@ -44,11 +45,13 @@ verification. Delegate only bounded work that can proceed independently.
    repository and test evidence, remediate accepted findings, and rerun the
    final critique if reviewed files change materially.
 9. Treat exit code 0 alone, an acknowledgement, or an intent statement as
-   incomplete. A valid Grok critique is the wrapper-owned versioned JSON result
-   with `reviewStatus` equal to `pass` or `changes_required`; all other statuses
-   must not count. The optional Text renderer is display-only compatibility.
-   Retry only through the wrapper's bounded policy and never report an
-   incomplete, unavailable, or diagnostic result as Grok review.
+   incomplete. A valid required Grok critique is the wrapper-owned,
+   mode-specific versioned JSON result with `reviewStatus` equal to `pass` or
+   `changes_required`; all other statuses must not count. Compact Summary
+   output is presentation, while `-ResultFile` carries the full validated
+   result. Legacy/Text rendering is compatibility-only. Retry only through the
+   wrapper's bounded policy and never report an incomplete, unavailable, or
+   diagnostic result as Grok review.
 
 ## Native agent roles
 
@@ -72,19 +75,23 @@ Read `references/external-advisors.md` and run `scripts/invoke-advisor.ps1` so
 the review remains non-interactive, bounded, and advisory. Use agy or another
 external advisor only when the user explicitly requests it.
 
-The wrapper's default Grok output is machine-readable JSON. Consume
-`reviewStatus`, evidence, and findings from that result instead of parsing Grok
-prose. Use `-OutputFormat Text` only when a human-readable rendering is needed,
-and never use `-DiagnosticMode` or its deprecated `-AllowIncompleteResponse`
-alias to satisfy a required critique.
+Use explicit `Planning` and `FinalDiff` contracts for required critiques.
+Consume `reviewStatus`, evidence, and findings from the full result file instead
+of parsing Grok prose or compact Summary output. The default `Legacy` contract,
+`-OutputFormat Text`, `-DiagnosticMode`, and its deprecated
+`-AllowIncompleteResponse` alias are compatibility or connectivity surfaces and
+must never satisfy a required critique.
 
 Do not send secrets, credentials, unrelated source or proprietary content,
-personal information, customer data, or sensitive logs. Do not let an external
-advisor modify the working tree. Verify every adopted claim locally,
-disposition actionable findings with evidence, and rerun Grok after material
-remediation. If Grok is unavailable, unauthenticated, or unsafe to scope,
-report the missing critique and residual risk explicitly rather than implying
-that Grok reviewed the work.
+personal information, customer data, or sensitive logs. Grok receives only the
+generated payload and no shell, repository-read, web, subagent, or other tool
+surface. If Planning requests additional context, the host-side generator may
+rebundle allowlisted paths once; Grok never expands context itself. Do not let
+an external advisor modify the working tree. Verify every adopted claim
+locally, disposition actionable findings with evidence, and rerun Grok after
+material remediation. If Grok is unavailable, unauthenticated, or unsafe to
+scope, report the missing critique and residual risk explicitly rather than
+implying that Grok reviewed the work.
 
 ## Delegation contract
 
