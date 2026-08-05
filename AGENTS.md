@@ -79,6 +79,7 @@ cargo test --manifest-path tauri-app/Cargo.toml --workspace
 - Link commits and pull requests to the issue. Use `Fixes #<number>` only when the change fully resolves the issue.
 - Before closing an issue, comment with the implemented scope, verification results, and any remaining follow-up work.
 - Do not use private local notes as the sole record of a development decision.
+- Keep the Issue Form's type label and apply `area: cli`, `area: vscode`, and `area: desktop` according to the affected delivery surfaces defined in `.github/AI_ISSUE_REPORTING.md`.
 - Trivial typo fixes, mechanical release or version operations, and routine dependency maintenance may proceed without a dedicated issue when no product decision is involved.
 - Never disclose vulnerabilities, credentials, personal information, customer data, or sensitive logs in public issues. Use GitHub Security Advisories or another appropriate private channel.
 

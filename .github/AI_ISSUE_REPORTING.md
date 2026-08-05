@@ -57,8 +57,21 @@ than opening a duplicate.
 - Remove credentials, personal information, customer data, proprietary document
   content, private paths, and unrelated logs. When in doubt, omit the material
   and follow `SECURITY.md`.
-- Apply the label supplied by the Issue Form. Add another label only when its
-  meaning is confirmed by the repository's existing label descriptions.
+- Keep the type label supplied by the Issue Form (`bug` or `enhancement`).
+- Add `area: cli` when the primary acceptance surface is an SDOC CLI command,
+  output, operations contract, installation or packaging flow, or CLI-specific
+  documentation. The CLI bug form supplies this area label automatically;
+  agents must add it explicitly to CLI feature requests.
+- Add `area: vscode` for behavior specific to the VS Code extension and
+  `area: desktop` for behavior specific to the Windows desktop app. Use both
+  labels when the issue's acceptance criteria require verification in both
+  hosts. Use the user-facing `desktop` name rather than the implementation
+  technology name `tauri`.
+- Do not add `area: cli` merely because the CLI was used to reproduce a
+  host-neutral or host-specific problem. Likewise, do not infer a host label
+  solely from an internal file path. Area labels identify affected delivery
+  surfaces and may be combined with the type label. Add another label only
+  when its meaning is confirmed by the repository's existing description.
 
 ## Creation and verification
 
@@ -88,5 +101,7 @@ linking this file instead of copying its full contents. At minimum, add:
 > `.github/ISSUE_TEMPLATE/*.yml`. Search for duplicates, never bypass required
 > form fields, keep reproduction safe and self-contained, use the private
 > `SECURITY.md` process for vulnerabilities, and verify every remote mutation by
-> reading the issue back. When operating inside this repository, also follow
+> reading the issue back. Apply `area: cli`, `area: vscode`, and
+> `area: desktop` according to the affected delivery surfaces. When operating
+> inside this repository, also follow
 > the GitHub tooling and lifecycle rules in the repository's `AGENTS.md`.

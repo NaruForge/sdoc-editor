@@ -3,6 +3,7 @@ description: Report a reproducible problem in the SDOC command-line interface.
 title: "[CLI Bug]: "
 labels:
   - bug
+  - "area: cli"
 body:
   - type: markdown
     attributes:

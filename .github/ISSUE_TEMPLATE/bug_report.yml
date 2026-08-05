@@ -11,6 +11,7 @@ body:
     id: host
     attributes:
       label: Host
+      description: "Maintainers use this selection to apply `area: vscode`, `area: desktop`, or both labels."
       options:
         - VS Code extension
         - Windows desktop app
