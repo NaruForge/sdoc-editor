@@ -31,7 +31,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Polished shared editor settings, context menus, zoom feedback, localization, and responsive side-panel behavior across both hosts
 - Reduced the VS Code Settings surface to the six current host options while retaining compatibility reads for existing configurations
-- Hardened mandatory Grok CLI review with UTF-8 prompt-file transport, cleanup, and fail-closed response validation
 
 ### Fixed
 - Updated cross-host visual regression baselines for the heading start-number control
