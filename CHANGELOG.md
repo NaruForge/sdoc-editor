@@ -7,12 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.7] - 2026-08-06
+
 ### Added
+- Added **Structured Doc Editor: Clean Up Legacy Settings** to preview and remove retired extension settings from VS Code user, workspace, and workspace-folder scopes
 - Added first-use consent for PlantUML, D2, and Graphviz online previews and export rendering without storing trust decisions in documents
 
 ### Changed
 - Renamed the Mermaid-labelled insertion action to Text Diagram and exposed the full supported language set
 - Replaced settings-discovery opt-in with an inline, globally remembered allow or source-only decision
+
+### Removed
+- Removed the repository-mandated Grok CLI review integration, scripts, tests, CI checks, and advisor-specific architecture guidance
 
 ## [0.7.6] - 2026-08-04
 
@@ -38,6 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Polished shared editor settings, context menus, zoom feedback, localization, and responsive side-panel behavior across both hosts
 - Reduced the VS Code Settings surface to the six current host options while retaining compatibility reads for existing configurations
+- Hardened mandatory Grok CLI review with UTF-8 prompt-file transport, cleanup, and fail-closed response validation
 
 ### Fixed
 - Updated cross-host visual regression baselines for the heading start-number control
@@ -530,9 +537,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Previous version features (update history to be documented)
-
-## [Unreleased]
-
-### Planned
-- Additional export format improvements
-- Enhanced diagram editing workflow
