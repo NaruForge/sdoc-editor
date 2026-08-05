@@ -172,6 +172,8 @@ Book 화면은 누락되거나 잘못된 문서, 중복 ID, 깨진 참조를 진
 
 버그 제보와 기능 제안은 [GitHub Issues](https://github.com/NaruForge/sdoc-editor/issues)에 남겨 주세요. 코드 기여 전에는 [CONTRIBUTING.md](CONTRIBUTING.md)의 개발 환경, 아키텍처 경계, 검증 절차와 기여 권리 조건을 확인해 주세요. 보안 취약점은 공개 이슈로 올리지 말고 [SECURITY.md](SECURITY.md)의 비공개 절차를 사용합니다.
 
+AI 에이전트는 이슈를 생성하거나 수정하기 전에 [AI 에이전트용 이슈 작성 가이드](.github/AI_ISSUE_REPORTING.md)와 그 문서가 지정한 기여 가이드·보안 정책·Issue Form을 반드시 읽고 따라야 합니다.
+
 ## 라이선스
 
 소스 코드와 프로젝트 문서는 기본적으로 [MIT License](LICENSE)로 배포됩니다. 제3자 의존성과 별도 자산 범위는 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)와 [ASSETS.md](ASSETS.md)를 확인해 주세요.
