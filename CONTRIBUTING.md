@@ -4,7 +4,7 @@
 
 ## 이슈와 보안 보고
 
-버그와 재현 가능한 기능 제안은 [GitHub Issues](https://github.com/NaruForge/sdoc-editor/issues)에 작성해 주세요. 현재 동작, 기대 동작, 재현 절차, 호스트(VS Code/Tauri), 운영체제와 가능하다면 최소 fixture를 포함하면 분석이 빨라집니다.
+버그와 재현 가능한 기능 제안은 [GitHub Issues](https://github.com/NaruForge/sdoc-editor/issues)에 해당 양식을 선택해 작성해 주세요. 현재 동작, 기대 동작, 재현 절차, 대상(VS Code/Tauri/CLI), 운영체제와 가능하다면 최소 fixture를 포함하면 분석이 빨라집니다. AI 에이전트가 이슈를 생성하거나 수정할 때는 [AI 이슈 작성 가이드](.github/AI_ISSUE_REPORTING.md)도 따라야 합니다.
 
 경로 탈출, 임의 파일 읽기/쓰기, 문서 손실, 코드 실행처럼 악용 가능한 문제는 공개 이슈를 만들지 말고 [SECURITY.md](SECURITY.md)의 비공개 신고 절차를 사용해 주세요.
 

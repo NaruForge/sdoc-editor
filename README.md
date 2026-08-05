@@ -347,13 +347,14 @@ npm run build:all
 - [제품 비전과 범위](PRODUCT.md)
 - [아키텍처와 의존성 규칙](docs/architecture.md)
 - [기여 가이드](CONTRIBUTING.md)
+- [AI 에이전트용 이슈 작성 가이드](.github/AI_ISSUE_REPORTING.md)
 - [보안 취약점 신고](SECURITY.md)
 - [행동 규칙](CODE_OF_CONDUCT.md)
 - [자산과 라이선스 범위](ASSETS.md)
 
 ## 기여하기
 
-버그 제보와 기능 제안은 [GitHub Issues](https://github.com/NaruForge/sdoc-editor/issues)에 남겨 주세요. 코드 기여 전에는 [CONTRIBUTING.md](CONTRIBUTING.md)의 개발 환경, 아키텍처 경계, 검증 절차와 기여 권리 조건을 확인해 주세요. 보안 취약점은 공개 이슈로 올리지 말고 [보안 정책](SECURITY.md)을 따라 신고해 주세요.
+버그 제보와 기능 제안은 [GitHub Issues](https://github.com/NaruForge/sdoc-editor/issues)에 남겨 주세요. AI 에이전트는 이슈를 생성하거나 저장소의 `AGENTS.md`에 이슈 보고 규칙을 정리하기 전에 [AI 이슈 작성 가이드](.github/AI_ISSUE_REPORTING.md)와 해당 Issue Form을 읽어야 합니다. 코드 기여 전에는 [CONTRIBUTING.md](CONTRIBUTING.md)의 개발 환경, 아키텍처 경계, 검증 절차와 기여 권리 조건을 확인해 주세요. 보안 취약점은 공개 이슈로 올리지 말고 [보안 정책](SECURITY.md)을 따라 신고해 주세요.
 
 ## 라이선스
 
