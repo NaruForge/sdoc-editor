@@ -60,11 +60,14 @@ import {
 import { createFileOperationError } from '../shared/editor/fileOperations';
 import {
   DEFAULT_DIAGRAM_RENDERER_SETTINGS,
+  type DiagramRendererConsent,
   type DiagramRendererSettings,
 } from '../shared/diagramRenderer';
 import {
+  DIAGRAM_RENDERER_CONSENT_STATE_KEY,
   KrokiDiagramService,
   KrokiRenderError,
+  resolvePersistedDiagramRendererConsent,
 } from './services/KrokiDiagramService';
 import {
   readUiLanguagePreference,
@@ -140,8 +143,13 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     panel: vscode.WebviewPanel;
     sessionId: string;
   }>();
+  private readonly diagramRendererRuntimes = new Map<vscode.WebviewPanel, {
+    service: KrokiDiagramService;
+    requests: Map<string, AbortController>;
+  }>();
   private readonly editorTextFocus = new EditorTextFocusCoordinator<vscode.WebviewPanel>();
   private focusContextUpdates: Promise<unknown> = Promise.resolve();
+  private diagramRendererConsentInitialization: Promise<DiagramRendererConsent> | undefined;
 
   constructor(private readonly context: vscode.ExtensionContext) {
     this.exportService = new VsCodeExportService(context);
@@ -188,6 +196,36 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     }
   }
 
+  private readDiagramRendererConsent(): DiagramRendererConsent {
+    const stored = this.context.globalState.get<unknown>(DIAGRAM_RENDERER_CONSENT_STATE_KEY);
+    return stored === 'undecided' || stored === 'granted' || stored === 'declined'
+      ? stored
+      : 'undecided';
+  }
+
+  private ensureDiagramRendererConsent(): Promise<DiagramRendererConsent> {
+    if (this.diagramRendererConsentInitialization) return this.diagramRendererConsentInitialization;
+    const stored = this.context.globalState.get<unknown>(DIAGRAM_RENDERER_CONSENT_STATE_KEY);
+    const config = vscode.workspace.getConfiguration('structuredDocEditor.diagramRenderer');
+    const legacyEnabled = config.inspect<unknown>('enabled')?.globalValue;
+    const resolution = resolvePersistedDiagramRendererConsent(stored, legacyEnabled);
+    if (!resolution.needsMigration) {
+      this.diagramRendererConsentInitialization = Promise.resolve(resolution.consent);
+      return this.diagramRendererConsentInitialization;
+    }
+    const initialization = Promise.resolve(this.context.globalState.update(
+      DIAGRAM_RENDERER_CONSENT_STATE_KEY,
+      resolution.consent,
+    ))
+      .then(() => this.readDiagramRendererConsent())
+      .catch((error: unknown) => {
+        console.error('Failed to migrate diagram renderer consent', error);
+        return 'undecided' as const;
+      });
+    this.diagramRendererConsentInitialization = initialization;
+    return initialization;
+  }
+
   private readDiagramRendererSettings(): DiagramRendererSettings {
     const config = vscode.workspace.getConfiguration('structuredDocEditor.diagramRenderer');
     const userValue = <T,>(key: string, fallback: T): T => {
@@ -195,13 +233,27 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       return inspected?.globalValue ?? fallback;
     };
     return {
-      enabled: userValue('enabled', DEFAULT_DIAGRAM_RENDERER_SETTINGS.enabled),
+      consent: this.readDiagramRendererConsent(),
       endpoint: userValue('endpoint', DEFAULT_DIAGRAM_RENDERER_SETTINGS.endpoint),
       allowPrivateNetwork: userValue(
         'allowPrivateNetwork',
         DEFAULT_DIAGRAM_RENDERER_SETTINGS.allowPrivateNetwork,
       ),
     };
+  }
+
+  private synchronizeDiagramRendererRuntimes(
+    settings: DiagramRendererSettings,
+    abortActive: boolean,
+  ): void {
+    for (const [panel, runtime] of this.diagramRendererRuntimes) {
+      runtime.service.updateSettings(settings);
+      if (abortActive) {
+        runtime.requests.forEach((controller) => controller.abort());
+        runtime.requests.clear();
+      }
+      void panel.webview.postMessage({ type: 'diagramRendererSettings', settings });
+    }
   }
 
   private readUiLanguagePreference(): UiLanguagePreference {
@@ -222,6 +274,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     webviewPanel: vscode.WebviewPanel,
     _token: vscode.CancellationToken
   ): Promise<void> {
+    await this.ensureDiagramRendererConsent();
     // Setup webview
     const documentDir = vscode.Uri.joinPath(document.uri, '..');
 
@@ -256,6 +309,10 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     });
     const diagramService = new KrokiDiagramService(this.readDiagramRendererSettings());
     const diagramRequests = new Map<string, AbortController>();
+    this.diagramRendererRuntimes.set(webviewPanel, {
+      service: diagramService,
+      requests: diagramRequests,
+    });
     const pendingImportAcks = new Map<string, {
       resolve: (applied: boolean) => void;
       timer: NodeJS.Timeout;
@@ -791,6 +848,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         'savePersonalTemplate', 'updatePersonalTemplate', 'duplicatePersonalTemplate',
         'deletePersonalTemplate', 'openPersonalTemplateFolder',
         'renderDiagram', 'cancelDiagramRender', 'updateDiagramRendererSettings',
+        'resolveDiagramRendererConsent',
         'testDiagramRendererConnection', 'updateUiLanguage',
       ]);
       if (writeBlockedReason && !readOnlySafeMessages.has(message.type)) {
@@ -930,7 +988,9 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
             },
           });
         }).finally(() => {
-          diagramRequests.delete(message.requestId);
+          if (diagramRequests.get(message.requestId) === controller) {
+            diagramRequests.delete(message.requestId);
+          }
         });
         return;
       }
@@ -941,8 +1001,9 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       }
       if (message.type === 'updateDiagramRendererSettings') {
         const config = vscode.workspace.getConfiguration('structuredDocEditor.diagramRenderer');
+        // Consent is host-owned globalState and is changed only through the
+        // request-correlated resolveDiagramRendererConsent path below.
         void Promise.all([
-          config.update('enabled', message.settings.enabled, vscode.ConfigurationTarget.Global),
           config.update('endpoint', message.settings.endpoint, vscode.ConfigurationTarget.Global),
           config.update(
             'allowPrivateNetwork',
@@ -950,17 +1011,27 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
             vscode.ConfigurationTarget.Global,
           ),
         ]).then(() => {
-          diagramService.updateSettings(message.settings);
+          const settings = this.readDiagramRendererSettings();
+          diagramService.updateSettings(settings);
           webviewPanel.webview.postMessage({
             type: 'diagramRendererSettings',
-            settings: message.settings,
+            settings,
           });
         });
         return;
       }
       if (message.type === 'testDiagramRendererConnection') {
-        const testService = new KrokiDiagramService({ ...message.settings, enabled: true });
-        void testService.render('graphviz', 'digraph { ready }', { timeoutMs: 3_000 })
+        const controller = new AbortController();
+        diagramRequests.get(message.requestId)?.abort();
+        diagramRequests.set(message.requestId, controller);
+        const testService = new KrokiDiagramService({
+          ...message.settings,
+          consent: this.readDiagramRendererConsent(),
+        });
+        void testService.render('graphviz', 'digraph { ready }', {
+          signal: controller.signal,
+          timeoutMs: 3_000,
+        })
           .then((result) => webviewPanel.webview.postMessage({
             type: 'diagramRenderResult',
             requestId: message.requestId,
@@ -985,6 +1056,11 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
                 retryable: renderError.retryable,
               },
             });
+          })
+          .finally(() => {
+            if (diagramRequests.get(message.requestId) === controller) {
+              diagramRequests.delete(message.requestId);
+            }
           });
         return;
       }
@@ -1078,6 +1154,37 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
               settings: this.readDiagramRendererSettings(),
             });
             break;
+          case 'resolveDiagramRendererConsent': {
+            try {
+              await this.context.globalState.update(
+                DIAGRAM_RENDERER_CONSENT_STATE_KEY,
+                message.consent,
+              );
+              if (this.readDiagramRendererConsent() !== message.consent) {
+                throw new Error('The consent choice could not be verified after saving.');
+              }
+              const settings = this.readDiagramRendererSettings();
+              this.synchronizeDiagramRendererRuntimes(
+                settings,
+                message.consent !== 'granted',
+              );
+              await webviewPanel.webview.postMessage({
+                type: 'diagramRendererConsentResult',
+                requestId: message.requestId,
+                result: { status: 'resolved', settings },
+              });
+            } catch (error: unknown) {
+              await webviewPanel.webview.postMessage({
+                type: 'diagramRendererConsentResult',
+                requestId: message.requestId,
+                result: {
+                  status: 'error',
+                  message: error instanceof Error ? error.message : String(error),
+                },
+              });
+            }
+            break;
+          }
           case 'updateUiLanguage': {
             const config = vscode.workspace.getConfiguration('structuredDocEditor.ui');
             await updateUiLanguagePreference(message.preference, {
@@ -1329,6 +1436,11 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       if (e.affectsConfiguration('structuredDocEditor.ui.language')) {
         sendUiLanguage();
       }
+      if (e.affectsConfiguration('structuredDocEditor.diagramRenderer')) {
+        const settings = this.readDiagramRendererSettings();
+        diagramService.updateSettings(settings);
+        webviewPanel.webview.postMessage({ type: 'diagramRendererSettings', settings });
+      }
     });
     const viewStateSubscription = webviewPanel.onDidChangeViewState((event) => {
       if (!event.webviewPanel.active) {
@@ -1346,6 +1458,9 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       willSaveSubscription.dispose();
       drawioWatcher.dispose();
       pendingDrawioEvents.forEach((timer) => clearTimeout(timer));
+      diagramRequests.forEach((controller) => controller.abort());
+      diagramRequests.clear();
+      this.diagramRendererRuntimes.delete(webviewPanel);
       settingsSubscription.dispose();
       viewStateSubscription.dispose();
       this.expectedDocumentChanges.clear(document.uri.toString());

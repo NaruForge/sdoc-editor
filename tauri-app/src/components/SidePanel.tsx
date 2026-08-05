@@ -10,6 +10,7 @@ import { TemplatePanel } from '@shared/editor/components/TemplatePanel';
 import { FilesPanel, type FileExportFormat, type FileImportFormat } from '@shared/editor/components/FilesPanel';
 import { SidePanelBody } from '@shared/editor/components/SidePanelBody';
 import { DiagramRendererSettingsPanel } from '@shared/editor/components/DiagramRendererSettingsPanel';
+import { DiagramRendererConsentPanel } from '@shared/editor/components/DiagramRendererConsentPanel';
 import type { DocumentSettings, ResolvedEditorSettings } from '@shared/types';
 import type { ManagedTemplateDescriptor, PersonalTemplateMetadataInput } from '@shared/types/messages';
 import type { TemplateSessionEvent, TemplateSessionState } from '@shared/editor/templateSession';
@@ -21,7 +22,10 @@ import { open as openWithSystemApp } from '@tauri-apps/plugin-shell';
 import type { SidePanelSelection } from '@shared/editor/activityState';
 import { ResponsiveSidePanel } from '@shared/editor/components/ResponsiveSidePanel';
 import { useEditorI18n, type UiLanguagePreference } from '@shared/editor/i18n';
-import type { DiagramRendererSettings } from '@shared/diagramRenderer';
+import type {
+  DiagramRendererSettings,
+  ResolvedDiagramRendererConsent,
+} from '@shared/diagramRenderer';
 
 const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'];
 
@@ -54,7 +58,11 @@ interface SidePanelProps {
   fileOperationState: FileOperationState;
   diagramRendererSettings: DiagramRendererSettings;
   onDiagramRendererSettingsChange: (settings: DiagramRendererSettings) => void;
+  onResolveDiagramRendererConsent: (consent: ResolvedDiagramRendererConsent) => Promise<void>;
   onTestDiagramRenderer?: (settings: DiagramRendererSettings) => Promise<void>;
+  pendingDiagramExportConsent: boolean;
+  onDiagramExportConsent: (consent: ResolvedDiagramRendererConsent) => Promise<void>;
+  onCancelDiagramExportConsent: () => void;
   workspaceFolder?: string | null;
   workspaceEntries?: ExplorerEntry[];
   currentPath?: string | null;
@@ -98,7 +106,11 @@ export const SidePanel: React.FC<SidePanelProps> = ({
   fileOperationState,
   diagramRendererSettings,
   onDiagramRendererSettingsChange,
+  onResolveDiagramRendererConsent,
   onTestDiagramRenderer,
+  pendingDiagramExportConsent,
+  onDiagramExportConsent,
+  onCancelDiagramExportConsent,
   workspaceFolder,
   workspaceEntries = [],
   currentPath,
@@ -185,8 +197,19 @@ export const SidePanel: React.FC<SidePanelProps> = ({
           <DiagramRendererSettingsPanel
             settings={diagramRendererSettings}
             onChange={onDiagramRendererSettingsChange}
+            onResolveConsent={onResolveDiagramRendererConsent}
             onTest={onTestDiagramRenderer}
+            showUndecidedConsent={!pendingDiagramExportConsent}
           />
+          {pendingDiagramExportConsent && (
+            <DiagramRendererConsentPanel
+              settings={diagramRendererSettings}
+              language="PlantUML, D2, Graphviz"
+              onDecision={onDiagramExportConsent}
+              onCancel={onCancelDiagramExportConsent}
+              autoFocus
+            />
+          )}
           <FilesPanel
             onViewJson={onViewJson}
             exportFormats={[

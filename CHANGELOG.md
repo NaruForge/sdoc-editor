@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Added first-use consent for PlantUML, D2, and Graphviz online previews and export rendering without storing trust decisions in documents
+
+### Changed
+- Renamed the Mermaid-labelled insertion action to Text Diagram and exposed the full supported language set
+- Replaced settings-discovery opt-in with an inline, globally remembered allow or source-only decision
+
 ## [0.7.6] - 2026-08-04
 
 ### Added

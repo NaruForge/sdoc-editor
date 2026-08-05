@@ -11,7 +11,8 @@ const hasNumber = (value: Record<string, unknown>, key: string): boolean =>
 
 const isDiagramRendererSettings = (value: unknown): boolean =>
   isRecord(value)
-  && typeof value.enabled === 'boolean'
+  && typeof value.consent === 'string'
+  && ['undecided', 'granted', 'declined'].includes(value.consent)
   && typeof value.endpoint === 'string'
   && value.endpoint.length <= 2048
   && typeof value.allowPrivateNetwork === 'boolean';
@@ -217,6 +218,9 @@ export function isEditorToHostMessage(value: unknown): value is EditorToHostMess
       return hasString(value, 'requestId');
     case 'updateDiagramRendererSettings':
       return isDiagramRendererSettings(value.settings);
+    case 'resolveDiagramRendererConsent':
+      return hasString(value, 'requestId')
+        && (value.consent === 'granted' || value.consent === 'declined');
     case 'updateUiLanguage':
       return value.preference === 'auto' || value.preference === 'en' || value.preference === 'ko';
     case 'testDiagramRendererConnection':
@@ -331,6 +335,11 @@ export function isHostToEditorMessage(value: unknown): value is HostToEditorMess
         && typeof value.result.retryable === 'boolean';
     case 'diagramRendererSettings':
       return isDiagramRendererSettings(value.settings);
+    case 'diagramRendererConsentResult':
+      if (!hasString(value, 'requestId') || !isRecord(value.result)) return false;
+      return value.result.status === 'resolved'
+        ? isDiagramRendererSettings(value.result.settings)
+        : value.result.status === 'error' && hasString(value.result, 'message');
     case 'sdocFileBrowseResult':
       return hasString(value, 'path') && hasString(value, 'fileName') && Array.isArray(value.targets);
     case 'importMarkdownText':

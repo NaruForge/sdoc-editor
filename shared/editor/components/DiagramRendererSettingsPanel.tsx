@@ -1,19 +1,33 @@
 import React, { useEffect, useState } from 'react';
-import type { DiagramRendererSettings } from '../../diagramRenderer';
+import type {
+  DiagramRendererSettings,
+  ResolvedDiagramRendererConsent,
+} from '../../diagramRenderer';
+import { useEditorI18n } from '../i18n';
+import { DiagramRendererConsentPanel } from './DiagramRendererConsentPanel';
 
 interface DiagramRendererSettingsPanelProps {
   settings: DiagramRendererSettings;
   onChange: (settings: DiagramRendererSettings) => void;
+  onResolveConsent?: (
+    consent: ResolvedDiagramRendererConsent,
+  ) => Promise<void>;
   onTest?: (settings: DiagramRendererSettings) => Promise<void>;
+  showUndecidedConsent?: boolean;
 }
 
 export const DiagramRendererSettingsPanel: React.FC<DiagramRendererSettingsPanelProps> = ({
   settings,
   onChange,
+  onResolveConsent,
   onTest,
+  showUndecidedConsent = true,
 }) => {
+  const { t } = useEditorI18n();
   const [endpoint, setEndpoint] = useState(settings.endpoint);
   const [testState, setTestState] = useState<'idle' | 'running' | 'succeeded' | 'failed'>('idle');
+  const [consentUpdateState, setConsentUpdateState] =
+    useState<'idle' | 'running' | 'failed'>('idle');
   useEffect(() => setEndpoint(settings.endpoint), [settings.endpoint]);
 
   const commitEndpoint = () => {
@@ -26,22 +40,45 @@ export const DiagramRendererSettingsPanel: React.FC<DiagramRendererSettingsPanel
   return (
     <section className="diagram-renderer-settings" aria-labelledby="diagram-renderer-title">
       <div id="diagram-renderer-title" className="side-panel-section-title">
-        External diagram rendering
+        {t('diagram.settingsTitle')}
       </div>
       <p className="side-panel-section-desc">
-        PlantUML, D2, and Graphviz use Kroki. When enabled, diagram source is sent
-        to the configured server. Mermaid stays local.
+        {t('diagram.settingsDescription')}
       </p>
-      <label className="settings-row">
-        <span className="settings-label">Enable Kroki rendering</span>
-        <input
-          type="checkbox"
-          checked={settings.enabled}
-          onChange={(event) => onChange({ ...settings, enabled: event.target.checked })}
-        />
-      </label>
+      {settings.consent === 'undecided' ? (
+        showUndecidedConsent && onResolveConsent ? (
+          <div className="diagram-renderer-settings__consent">
+            <DiagramRendererConsentPanel
+              settings={settings}
+              onDecision={onResolveConsent}
+            />
+          </div>
+        ) : null
+      ) : (
+        <label className="settings-row">
+          <span className="settings-label">{t('diagram.settingsEnable')}</span>
+          <input
+            type="checkbox"
+            checked={settings.consent === 'granted'}
+            disabled={!onResolveConsent || consentUpdateState === 'running'}
+            onChange={(event) => {
+              if (!onResolveConsent) return;
+              setConsentUpdateState('running');
+              void onResolveConsent(event.target.checked ? 'granted' : 'declined')
+                .then(() => setConsentUpdateState('idle'))
+                .catch(() => setConsentUpdateState('failed'));
+            }}
+          />
+        </label>
+      )}
+      {consentUpdateState === 'running' && (
+        <p className="settings-hint" role="status">{t('diagram.consentSaving')}</p>
+      )}
+      {consentUpdateState === 'failed' && (
+        <p className="settings-hint" role="alert">{t('diagram.consentFailure')}</p>
+      )}
       <label className="settings-stacked-row">
-        <span className="settings-label">Kroki endpoint</span>
+        <span className="settings-label">{t('diagram.settingsEndpoint')}</span>
         <input
           className="settings-text-input settings-path-input"
           value={endpoint}
@@ -59,7 +96,7 @@ export const DiagramRendererSettingsPanel: React.FC<DiagramRendererSettingsPanel
         />
       </label>
       <label className="settings-row">
-        <span className="settings-label">Allow private-network endpoints</span>
+        <span className="settings-label">{t('diagram.settingsPrivateNetwork')}</span>
         <input
           type="checkbox"
           checked={settings.allowPrivateNetwork}
@@ -73,7 +110,7 @@ export const DiagramRendererSettingsPanel: React.FC<DiagramRendererSettingsPanel
         <button
           type="button"
           className="settings-reset-btn"
-          disabled={testState === 'running'}
+          disabled={testState === 'running' || settings.consent !== 'granted'}
           onClick={() => {
             setTestState('running');
             void onTest({ ...settings, endpoint: endpoint.trim() })
@@ -81,17 +118,17 @@ export const DiagramRendererSettingsPanel: React.FC<DiagramRendererSettingsPanel
               .catch(() => setTestState('failed'));
           }}
         >
-          {testState === 'running' ? 'Testing…' : 'Test connection'}
+          {testState === 'running' ? t('diagram.settingsTesting') : t('diagram.settingsTest')}
         </button>
       )}
       {testState === 'succeeded' && (
-        <p className="settings-hint" role="status">Connection succeeded.</p>
+        <p className="settings-hint" role="status">{t('diagram.settingsTestSucceeded')}</p>
       )}
       {testState === 'failed' && (
-        <p className="settings-hint" role="alert">Connection failed. Check the endpoint and network.</p>
+        <p className="settings-hint" role="alert">{t('diagram.settingsTestFailed')}</p>
       )}
       <p className="settings-hint">
-        Rendering failures keep the language and source and export a source-only fallback.
+        {t('diagram.settingsFailureFallback')}
       </p>
     </section>
   );

@@ -1,4 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import type {
+  DiagramRendererSettings,
+  ResolvedDiagramRendererConsent,
+} from '../../diagramRenderer';
 import {
   createEditorDiagramRendererResolver,
   DiagramRenderCoordinator,
@@ -10,6 +14,7 @@ import {
   type KnownDiagramLanguage,
 } from '../diagram';
 import { useEditorI18n, type EditorTranslationKey } from '../i18n';
+import { DiagramRendererConsentPanel } from './DiagramRendererConsentPanel';
 
 interface DiagramDialogProps {
   initialCode?: string;
@@ -18,6 +23,10 @@ interface DiagramDialogProps {
   onConfirm: (code: string, language: string, pos: number | null) => void;
   onCancel: () => void;
   renderDiagram?: HostDiagramRenderer;
+  rendererSettings?: DiagramRendererSettings;
+  onResolveRendererConsent?: (
+    consent: ResolvedDiagramRendererConsent,
+  ) => Promise<void>;
 }
 
 interface DiagramExample {
@@ -132,6 +141,8 @@ export const DiagramDialog: React.FC<DiagramDialogProps> = ({
   onConfirm,
   onCancel,
   renderDiagram,
+  rendererSettings,
+  onResolveRendererConsent,
 }) => {
   const { t } = useEditorI18n();
   const initialResolvedLanguage = resolveDiagramLanguage(initialLanguage);
@@ -140,17 +151,36 @@ export const DiagramDialog: React.FC<DiagramDialogProps> = ({
   const [renderState, setRenderState] = useState<DiagramRenderState>(
     () => initialRenderState(initialResolvedLanguage, initialCode),
   );
+  const [locallyResolvedConsent, setLocallyResolvedConsent] =
+    useState<ResolvedDiagramRendererConsent | null>(null);
+  const [consentDismissed, setConsentDismissed] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const coordinator = useMemo(() => new DiagramRenderCoordinator({
-    resolveRenderer: createEditorDiagramRendererResolver(renderDiagram),
-    onStateChange: setRenderState,
-  }), [renderDiagram]);
+  const rendererConsent = locallyResolvedConsent
+    ?? rendererSettings?.consent
+    ?? 'undecided';
   const knownLanguage = getKnownDiagramLanguage(language);
+  const requiresExternalRenderer = knownLanguage !== undefined && knownLanguage !== 'mermaid';
+  const showConsent = requiresExternalRenderer
+    && rendererConsent === 'undecided'
+    && !consentDismissed;
+  const coordinator = useMemo(() => new DiagramRenderCoordinator({
+    resolveRenderer: createEditorDiagramRendererResolver(
+      renderDiagram,
+      rendererConsent === 'granted',
+    ),
+    onStateChange: setRenderState,
+  }), [renderDiagram, rendererConsent]);
   const examples = knownLanguage ? EXAMPLES_BY_LANGUAGE[knownLanguage] ?? [] : [];
 
   useEffect(() => {
-    textareaRef.current?.focus();
-  }, []);
+    if (!showConsent) textareaRef.current?.focus();
+  }, [showConsent]);
+
+  useEffect(() => {
+    if (rendererSettings?.consent !== 'undecided') {
+      setLocallyResolvedConsent(null);
+    }
+  }, [rendererSettings?.consent]);
 
   useEffect(() => {
     coordinator.setInput(language, code);
@@ -166,6 +196,15 @@ export const DiagramDialog: React.FC<DiagramDialogProps> = ({
   const handleSubmit = () => {
     if (!code.trim()) return;
     onConfirm(code.trim(), language, pos);
+  };
+
+  const resolveConsent = async (consent: ResolvedDiagramRendererConsent): Promise<void> => {
+    if (!onResolveRendererConsent) {
+      throw new Error('The host cannot save diagram renderer consent.');
+    }
+    await onResolveRendererConsent(consent);
+    setLocallyResolvedConsent(consent);
+    setConsentDismissed(consent === 'declined');
   };
 
   return (
@@ -184,13 +223,16 @@ export const DiagramDialog: React.FC<DiagramDialogProps> = ({
 
         <div className="form-group">
           <label htmlFor="diagram-language" className="form-label form-label--sm">
-            Language:
+            {t('diagram.language')}:
           </label>
           <select
             id="diagram-language"
             className="form-select"
             value={language}
-            onChange={(event) => setLanguage(event.target.value)}
+            onChange={(event) => {
+              setLanguage(event.target.value);
+              setConsentDismissed(false);
+            }}
           >
             {!knownLanguage && (
               <option value={language}>{language} (source only)</option>
@@ -247,19 +289,28 @@ export const DiagramDialog: React.FC<DiagramDialogProps> = ({
               aria-live="polite"
               aria-busy={renderState.status === 'loading'}
             >
-              {renderState.status === 'loading' && (
+              {showConsent && rendererSettings && (
+                <DiagramRendererConsentPanel
+                  settings={rendererSettings}
+                  language={knownLanguage}
+                  onDecision={resolveConsent}
+                  onCancel={() => setConsentDismissed(true)}
+                  autoFocus
+                />
+              )}
+              {!showConsent && renderState.status === 'loading' && (
                 <div className="diagram-placeholder">{t('diagram.preview')}…</div>
               )}
-              {renderState.status === 'ready' && renderState.output.kind === 'svg' && (
+              {!showConsent && renderState.status === 'ready' && renderState.output.kind === 'svg' && (
                 <div dangerouslySetInnerHTML={{ __html: renderState.output.markup }} />
               )}
-              {renderState.status === 'ready' && renderState.output.kind === 'png' && (
+              {!showConsent && renderState.status === 'ready' && renderState.output.kind === 'png' && (
                 <img
                   src={renderState.output.dataUrl}
                   alt={renderState.output.alt ?? `${language} diagram preview`}
                 />
               )}
-              {renderState.status === 'error' && (
+              {!showConsent && renderState.status === 'error' && (
                 <div className="diagram-error">
                   <div>{renderState.message || t('diagram.syntaxError')}</div>
                   {renderState.retryable && (
@@ -268,22 +319,35 @@ export const DiagramDialog: React.FC<DiagramDialogProps> = ({
                       className="btn-secondary"
                       onClick={() => coordinator.retry()}
                     >
-                      Retry
+                      {t('common.retry')}
                     </button>
                   )}
                   <pre data-language={language}><code>{code}</code></pre>
                 </div>
               )}
-              {renderState.status === 'source-only' && (
+              {!showConsent && renderState.status === 'source-only' && (
                 <div>
                   <div className="diagram-placeholder">
                     {renderState.reason === 'empty-source'
                       ? t('diagram.codePlaceholder')
                       : renderState.reason === 'unsupported-language'
                         ? `${language}: source only. You can edit and save the source.`
-                        : renderState.detail
-                          ?? t('diagram.unsupportedRenderer', { language })}
+                        : rendererConsent === 'declined' && requiresExternalRenderer
+                          ? t('diagram.rendererDisabled', { language })
+                          : rendererConsent === 'undecided' && requiresExternalRenderer
+                            ? t('diagram.rendererUndecided', { language })
+                            : renderState.detail
+                              ?? t('diagram.unsupportedRenderer', { language })}
                   </div>
+                  {rendererConsent === 'undecided' && requiresExternalRenderer && rendererSettings && (
+                    <button
+                      type="button"
+                      className="btn-secondary diagram-consent-reopen"
+                      onClick={() => setConsentDismissed(false)}
+                    >
+                      {t('diagram.choosePreviewMode')}
+                    </button>
+                  )}
                   {code.trim() && (
                     <pre data-language={language}><code>{code}</code></pre>
                   )}

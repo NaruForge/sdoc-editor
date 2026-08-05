@@ -44,9 +44,11 @@ export const NOOP_HOST_DIAGRAM_RENDERER: HostDiagramRenderer =
 
 export function createEditorDiagramRendererResolver(
   hostRenderer?: HostDiagramRenderer,
+  externalRenderingAllowed = true,
 ): DiagramRendererResolver {
   return (language: KnownDiagramLanguage) => {
     if (language === 'mermaid') return renderMermaid;
+    if (!externalRenderingAllowed) return undefined;
     if (!hostRenderer || hostRenderer === NOOP_HOST_DIAGRAM_RENDERER) return undefined;
     return async (request) => {
       const result = await hostRenderer(request);
@@ -56,4 +58,16 @@ export function createEditorDiagramRendererResolver(
       return result;
     };
   };
+}
+
+export function createInteractionGatedDiagramRendererResolver(
+  hostRenderer: HostDiagramRenderer | undefined,
+  hasExplicitInteraction: () => boolean,
+): DiagramRendererResolver {
+  const resolver = createEditorDiagramRendererResolver(hostRenderer);
+  return (language) => (
+    language === 'mermaid' || hasExplicitInteraction()
+      ? resolver(language)
+      : undefined
+  );
 }

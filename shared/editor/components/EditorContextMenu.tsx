@@ -255,7 +255,7 @@ export const EditorContextMenu: React.FC<EditorContextMenuProps> = ({
         {onInsertDiagram && (
           <Item
             icon={<GitGraph size={14} />}
-            label={t('context.mermaid')}
+            label={t('context.textDiagram')}
             onClick={() => handleItem(onInsertDiagram)}
             onMouseEnter={() => setSubMenu(null)}
           />

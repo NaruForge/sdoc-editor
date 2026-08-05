@@ -25,6 +25,7 @@ import type { FileOperationState } from '../editor/fileOperations';
 import type { KnownDiagramLanguage } from '../editor/diagram/languages';
 import type {
   DiagramRenderFailureCode,
+  ResolvedDiagramRendererConsent,
   DiagramRendererSettings,
 } from '../diagramRenderer';
 
@@ -298,6 +299,20 @@ export interface DiagramRendererSettingsMessage {
   settings: DiagramRendererSettings;
 }
 
+export interface DiagramRendererConsentResultMessage {
+  type: 'diagramRendererConsentResult';
+  requestId: string;
+  result:
+    | {
+        status: 'resolved';
+        settings: DiagramRendererSettings;
+      }
+    | {
+        status: 'error';
+        message: string;
+      };
+}
+
 export interface SdocFileBrowseResultMessage {
   type: 'sdocFileBrowseResult';
   path: string;
@@ -332,6 +347,7 @@ export type ExtensionToWebviewMessage =
   | DiagramRenderReadyMessage
   | DiagramRenderFailedMessage
   | DiagramRendererSettingsMessage
+  | DiagramRendererConsentResultMessage
   | SdocFileBrowseResultMessage
   | ImportMarkdownTextMessage
   | ShowJsonViewerMessage;
@@ -506,6 +522,12 @@ export interface UpdateDiagramRendererSettingsMessage {
   settings: DiagramRendererSettings;
 }
 
+export interface ResolveDiagramRendererConsentMessage {
+  type: 'resolveDiagramRendererConsent';
+  requestId: string;
+  consent: ResolvedDiagramRendererConsent;
+}
+
 export interface TestDiagramRendererConnectionMessage {
   type: 'testDiagramRendererConnection';
   requestId: string;
@@ -571,6 +593,7 @@ export type WebviewToExtensionMessage =
   | RenderDiagramMessage
   | CancelDiagramRenderMessage
   | UpdateDiagramRendererSettingsMessage
+  | ResolveDiagramRendererConsentMessage
   | TestDiagramRendererConnectionMessage
   | FileOperationAppliedMessage
   | FlushCompleteMessage

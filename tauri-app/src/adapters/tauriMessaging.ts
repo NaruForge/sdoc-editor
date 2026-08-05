@@ -53,6 +53,7 @@ import { createFileOperationError } from '@shared/editor/fileOperations';
 import {
   DEFAULT_DIAGRAM_RENDERER_SETTINGS,
   type DiagramRenderFailureCode,
+  type DiagramRendererSettings,
 } from '@shared/diagramRenderer';
 
 const DIAGRAM_FAILURE_CODES: readonly DiagramRenderFailureCode[] = [
@@ -69,6 +70,28 @@ const DIAGRAM_FAILURE_CODES: readonly DiagramRenderFailureCode[] = [
   'invalid-response',
   'cancelled',
 ];
+
+function readDiagramRendererSettings(value: unknown): DiagramRendererSettings {
+  const record = typeof value === 'object' && value !== null
+    ? value as Record<string, unknown>
+    : {};
+  const rawDiagram = typeof record.diagramRenderer === 'object'
+    && record.diagramRenderer !== null
+    ? record.diagramRenderer as Record<string, unknown>
+    : record;
+  const consent = rawDiagram.consent === 'granted' || rawDiagram.consent === 'declined'
+    || rawDiagram.consent === 'undecided'
+    ? rawDiagram.consent
+    : DEFAULT_DIAGRAM_RENDERER_SETTINGS.consent;
+  return {
+    consent,
+    endpoint: typeof rawDiagram.endpoint === 'string'
+      ? rawDiagram.endpoint : DEFAULT_DIAGRAM_RENDERER_SETTINGS.endpoint,
+    allowPrivateNetwork: typeof rawDiagram.allowPrivateNetwork === 'boolean'
+      ? rawDiagram.allowPrivateNetwork
+      : DEFAULT_DIAGRAM_RENDERER_SETTINGS.allowPrivateNetwork,
+  };
+}
 
 function diagramFailureCode(value: unknown): DiagramRenderFailureCode {
   return typeof value === 'string'
@@ -372,21 +395,9 @@ export function createTauriAdapter(_translate: EditorTranslator = DEFAULT_EDITOR
             const record = typeof rawSettings === 'object' && rawSettings !== null
               ? rawSettings as Record<string, unknown>
               : {};
-            const rawDiagram = typeof record.diagramRenderer === 'object'
-              && record.diagramRenderer !== null
-              ? record.diagramRenderer as Record<string, unknown>
-              : {};
             emit({
               type: 'diagramRendererSettings',
-              settings: {
-                enabled: typeof rawDiagram.enabled === 'boolean'
-                  ? rawDiagram.enabled : DEFAULT_DIAGRAM_RENDERER_SETTINGS.enabled,
-                endpoint: typeof rawDiagram.endpoint === 'string'
-                  ? rawDiagram.endpoint : DEFAULT_DIAGRAM_RENDERER_SETTINGS.endpoint,
-                allowPrivateNetwork: typeof rawDiagram.allowPrivateNetwork === 'boolean'
-                  ? rawDiagram.allowPrivateNetwork
-                  : DEFAULT_DIAGRAM_RENDERER_SETTINGS.allowPrivateNetwork,
-              },
+              settings: readDiagramRendererSettings(rawSettings),
             });
             emitUiLanguage(readUiLanguagePreference(record.uiLanguage));
           }
@@ -956,8 +967,44 @@ export function createTauriAdapter(_translate: EditorTranslator = DEFAULT_EDITOR
           break;
 
         case 'updateDiagramRendererSettings':
-          await invoke('update_settings', { updates: { diagramRenderer: msg.settings } });
-          emit({ type: 'diagramRendererSettings', settings: msg.settings });
+          await invoke('update_settings', {
+            updates: {
+              diagramRenderer: {
+                endpoint: msg.settings.endpoint,
+                allowPrivateNetwork: msg.settings.allowPrivateNetwork,
+              },
+            },
+          });
+          emit({
+            type: 'diagramRendererSettings',
+            settings: readDiagramRendererSettings(await invoke<unknown>('get_settings')),
+          });
+          break;
+
+        case 'resolveDiagramRendererConsent':
+          try {
+            await invoke('update_settings', {
+              updates: { diagramRenderer: { consent: msg.consent } },
+            });
+            const rawSettings = await invoke<unknown>('get_settings');
+            emit({
+              type: 'diagramRendererConsentResult',
+              requestId: msg.requestId,
+              result: {
+                status: 'resolved',
+                settings: readDiagramRendererSettings(rawSettings),
+              },
+            });
+          } catch {
+            emit({
+              type: 'diagramRendererConsentResult',
+              requestId: msg.requestId,
+              result: {
+                status: 'error',
+                message: 'The external diagram rendering decision could not be saved.',
+              },
+            });
+          }
           break;
 
         case 'updateUiLanguage':

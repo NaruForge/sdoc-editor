@@ -2,6 +2,7 @@ export const LEGACY_SETTING_KEYS = [
   'structuredDocEditor.caption.crossRefIncludeCaption',
   'structuredDocEditor.caption.numbering',
   'structuredDocEditor.caption.style',
+  'structuredDocEditor.diagramRenderer.enabled',
   'structuredDocEditor.equation.numbering',
   'structuredDocEditor.export.outputDir',
   'structuredDocEditor.export.pdfScale',

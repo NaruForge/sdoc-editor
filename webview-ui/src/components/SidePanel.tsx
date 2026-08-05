@@ -10,6 +10,7 @@ import { FilesPanel } from '@shared/editor/components/FilesPanel';
 import { ResponsiveSidePanel } from '@shared/editor/components/ResponsiveSidePanel';
 import { SidePanelBody } from '@shared/editor/components/SidePanelBody';
 import { DiagramRendererSettingsPanel } from '@shared/editor/components/DiagramRendererSettingsPanel';
+import { DiagramRendererConsentPanel } from '@shared/editor/components/DiagramRendererConsentPanel';
 import type { SidePanelSelection } from '@shared/editor/activityState';
 import type { FileOperationKind, FileOperationState } from '@shared/editor/fileOperations';
 import type {
@@ -20,7 +21,10 @@ import type { ManagedTemplateDescriptor, EditorToHostMessage, PersonalTemplateMe
 import type { TemplateSessionEvent, TemplateSessionState } from '@shared/editor/templateSession';
 import type { DocumentSettings, ResolvedEditorSettings } from '@shared/types';
 import { useEditorI18n, type UiLanguagePreference } from '@shared/editor/i18n';
-import type { DiagramRendererSettings } from '@shared/diagramRenderer';
+import type {
+  DiagramRendererSettings,
+  ResolvedDiagramRendererConsent,
+} from '@shared/diagramRenderer';
 
 interface SidePanelProps {
   selection: SidePanelSelection;
@@ -44,7 +48,11 @@ interface SidePanelProps {
   fileOperationState: FileOperationState;
   diagramRendererSettings: DiagramRendererSettings;
   onDiagramRendererSettingsChange: (settings: DiagramRendererSettings) => void;
+  onResolveDiagramRendererConsent: (consent: ResolvedDiagramRendererConsent) => Promise<void>;
   onTestDiagramRenderer?: (settings: DiagramRendererSettings) => Promise<void>;
+  pendingDiagramExportConsent: boolean;
+  onDiagramExportConsent: (consent: ResolvedDiagramRendererConsent) => Promise<void>;
+  onCancelDiagramExportConsent: () => void;
   templateSession: TemplateSessionState;
   dispatchTemplateSession: React.Dispatch<TemplateSessionEvent>;
   onRefreshTemplates?: () => void;
@@ -89,7 +97,11 @@ export const SidePanel: React.FC<SidePanelProps> = ({
   fileOperationState,
   diagramRendererSettings,
   onDiagramRendererSettingsChange,
+  onResolveDiagramRendererConsent,
   onTestDiagramRenderer,
+  pendingDiagramExportConsent,
+  onDiagramExportConsent,
+  onCancelDiagramExportConsent,
   templateSession,
   dispatchTemplateSession,
   onRefreshTemplates,
@@ -159,8 +171,19 @@ export const SidePanel: React.FC<SidePanelProps> = ({
             <DiagramRendererSettingsPanel
               settings={diagramRendererSettings}
               onChange={onDiagramRendererSettingsChange}
+              onResolveConsent={onResolveDiagramRendererConsent}
               onTest={onTestDiagramRenderer}
+              showUndecidedConsent={!pendingDiagramExportConsent}
             />
+            {pendingDiagramExportConsent && (
+              <DiagramRendererConsentPanel
+                settings={diagramRendererSettings}
+                language="PlantUML, D2, Graphviz"
+                onDecision={onDiagramExportConsent}
+                onCancel={onCancelDiagramExportConsent}
+                autoFocus
+              />
+            )}
             <FilesPanel
               exportFormats={EXPORT_FORMATS}
               importFormats={[]}

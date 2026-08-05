@@ -182,6 +182,10 @@ export const Editor: React.FC = () => {
     renderDiagram,
     diagramRendererSettings,
     handleDiagramRendererSettingsChange,
+    handleDiagramRendererConsent,
+    pendingDiagramExportConsent,
+    handleDiagramExportConsent,
+    cancelDiagramExportConsent,
     handleUiLanguagePreferenceChange,
     handleTestDiagramRenderer,
     handleMetaChange,
@@ -644,7 +648,13 @@ export const Editor: React.FC = () => {
             fileOperationState={fileOperationState}
             diagramRendererSettings={diagramRendererSettings}
             onDiagramRendererSettingsChange={handleDiagramRendererSettingsChange}
+            onResolveDiagramRendererConsent={async (consent) => {
+              await handleDiagramRendererConsent(consent);
+            }}
             onTestDiagramRenderer={handleTestDiagramRenderer}
+            pendingDiagramExportConsent={pendingDiagramExportConsent}
+            onDiagramExportConsent={handleDiagramExportConsent}
+            onCancelDiagramExportConsent={cancelDiagramExportConsent}
             templateSession={templateSession}
             dispatchTemplateSession={dispatchTemplateSession}
             onRefreshTemplates={handleRequestTemplateCatalog}
@@ -781,6 +791,10 @@ export const Editor: React.FC = () => {
       {dialogs.diagramDialog && (
         <DiagramDialog
           renderDiagram={renderDiagram}
+          rendererSettings={diagramRendererSettings}
+          onResolveRendererConsent={async (consent) => {
+            await handleDiagramRendererConsent(consent);
+          }}
           initialCode={dialogs.diagramDialog.code}
           initialLanguage={dialogs.diagramDialog.language}
           pos={dialogs.diagramDialog.pos}

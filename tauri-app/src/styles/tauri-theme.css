@@ -99,6 +99,7 @@
   --vscode-textCodeBlock-background: var(--code-bg);
   --vscode-toolbar-hoverBackground: var(--toolbar-hover-bg);
   --vscode-editorWidget-background: var(--widget-bg);
+  --vscode-editorWidget-foreground: var(--editor-fg);
   --vscode-editorWidget-border: var(--widget-border);
   --vscode-dropdown-background: var(--dropdown-bg);
   --vscode-dropdown-foreground: var(--dropdown-fg);

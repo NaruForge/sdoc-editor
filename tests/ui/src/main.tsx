@@ -447,6 +447,11 @@ function DiagramErrorScene({ editor, host, locale }: {
         initialLanguage="plantuml"
         pos={null}
         renderDiagram={DIAGRAM_ERROR_RENDERER}
+        rendererSettings={{
+          consent: 'granted',
+          endpoint: 'https://kroki.io',
+          allowPrivateNetwork: false,
+        }}
         onConfirm={() => undefined}
         onCancel={() => undefined}
       />

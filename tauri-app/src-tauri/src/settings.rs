@@ -15,21 +15,58 @@ pub enum UiLanguagePreference {
     Ko,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum DiagramRendererConsent {
+    #[default]
+    Undecided,
+    Granted,
+    Declined,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct DiagramRendererSettings {
-    #[serde(default)]
-    pub enabled: bool,
-    #[serde(default = "default_diagram_renderer_endpoint")]
+    pub consent: DiagramRendererConsent,
     pub endpoint: String,
-    #[serde(default)]
     pub allow_private_network: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct DiagramRendererSettingsWire {
+    #[serde(default)]
+    consent: Option<DiagramRendererConsent>,
+    #[serde(default)]
+    enabled: Option<bool>,
+    #[serde(default = "default_diagram_renderer_endpoint")]
+    endpoint: String,
+    #[serde(default)]
+    allow_private_network: bool,
+}
+
+impl<'de> Deserialize<'de> for DiagramRendererSettings {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let wire = DiagramRendererSettingsWire::deserialize(deserializer)?;
+        let consent = wire.consent.unwrap_or(match wire.enabled {
+            Some(true) => DiagramRendererConsent::Granted,
+            Some(false) | None => DiagramRendererConsent::Undecided,
+        });
+        Ok(Self {
+            consent,
+            endpoint: wire.endpoint,
+            allow_private_network: wire.allow_private_network,
+        })
+    }
 }
 
 impl Default for DiagramRendererSettings {
     fn default() -> Self {
         Self {
-            enabled: false,
+            consent: DiagramRendererConsent::Undecided,
             endpoint: default_diagram_renderer_endpoint(),
             allow_private_network: false,
         }
@@ -306,7 +343,7 @@ fn classify_ipv6(address: Ipv6Addr) -> AddressClass {
 mod tests {
     use super::{
         classify_address, validate_diagram_renderer_settings, AddressClass, AppSettings,
-        DiagramRendererSettings, UiLanguagePreference,
+        DiagramRendererConsent, DiagramRendererSettings, UiLanguagePreference,
     };
 
     #[test]
@@ -319,9 +356,59 @@ mod tests {
         assert_eq!(settings.heading_h3_color, "#2563EB");
         assert_eq!(settings.theme_primary_color, "#2563EB");
         assert_eq!(settings.theme_company_name, "Structured Doc Editor");
-        assert!(!settings.diagram_renderer.enabled);
+        assert_eq!(
+            settings.diagram_renderer.consent,
+            DiagramRendererConsent::Undecided
+        );
         assert_eq!(settings.diagram_renderer.endpoint, "https://kroki.io");
         assert!(!settings.diagram_renderer.allow_private_network);
+    }
+
+    #[test]
+    fn migrates_legacy_renderer_enabled_to_consent() {
+        for (enabled, expected) in [
+            (true, DiagramRendererConsent::Granted),
+            (false, DiagramRendererConsent::Undecided),
+        ] {
+            let settings: DiagramRendererSettings = serde_json::from_value(serde_json::json!({
+                "enabled": enabled,
+                "endpoint": "https://kroki.io",
+                "allowPrivateNetwork": false
+            }))
+            .unwrap();
+            assert_eq!(settings.consent, expected);
+        }
+
+        let absent: DiagramRendererSettings =
+            serde_json::from_value(serde_json::json!({})).unwrap();
+        assert_eq!(absent.consent, DiagramRendererConsent::Undecided);
+    }
+
+    #[test]
+    fn persists_only_the_three_state_renderer_consent() {
+        for (consent, serialized) in [
+            (DiagramRendererConsent::Undecided, "undecided"),
+            (DiagramRendererConsent::Granted, "granted"),
+            (DiagramRendererConsent::Declined, "declined"),
+        ] {
+            let settings = DiagramRendererSettings {
+                consent,
+                ..DiagramRendererSettings::default()
+            };
+            let value = serde_json::to_value(settings).unwrap();
+            assert_eq!(
+                value.get("consent").and_then(|item| item.as_str()),
+                Some(serialized)
+            );
+            assert!(value.get("enabled").is_none());
+        }
+
+        assert!(
+            serde_json::from_value::<DiagramRendererSettings>(serde_json::json!({
+                "consent": "allowed"
+            }))
+            .is_err()
+        );
     }
 
     #[test]

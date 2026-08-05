@@ -291,7 +291,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     ...(onInsertDrawio ? [{ label: t('toolbar.drawio'), keywords: 'drawio diagram 다이어그램 도형', icon: <PenTool size={15} />, run: onInsertDrawio }] : []),
     ...(onInsertMath ? [{ label: t('toolbar.math'), keywords: 'math equation 수식 latex katex', icon: <Sigma size={15} />, run: onInsertMath }] : []),
     { label: t('toolbar.codeBlock'), keywords: 'code 코드 block program 프로그램', icon: <Code size={15} />, run: () => editor.chain().focus().toggleCodeBlock().run() },
-    ...(onInsertDiagram ? [{ label: `${t('toolbar.diagram')} (Mermaid)`, keywords: 'mermaid diagram 다이어그램 차트', icon: <GitGraph size={15} />, run: onInsertDiagram }] : []),
+    ...(onInsertDiagram ? [{ label: t('toolbar.diagram'), keywords: 'text mermaid diagram 텍스트 다이어그램 차트', icon: <GitGraph size={15} />, run: onInsertDiagram }] : []),
     { label: t('toolbar.horizontalRule'), keywords: 'hr horizontal rule 수평선 구분선', icon: <span style={{ fontSize: '15px', lineHeight: '15px', width: '15px', textAlign: 'center' }}>—</span>, run: () => editor.chain().focus().setHorizontalRule().run() },
     ...(Object.entries(CALLOUT_ICONS) as [CalloutVariant, string][]).map(([variant, icon]) => ({
       label: `${t('toolbar.callout')} · ${t(CALLOUT_LABEL_KEYS[variant])}`,
@@ -839,7 +839,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             </button>
             {onInsertDiagram && (
               <button type="button" role="menuitem" className="insert-menu-item" onClick={() => { closeInsertMenu(); onInsertDiagram(); }}>
-                <GitGraph size={15} /><span>{t('toolbar.diagram')} (Mermaid)</span>
+                <GitGraph size={15} /><span>{t('toolbar.diagram')}</span>
               </button>
             )}
             <button type="button" role="menuitem" className="insert-menu-item" onClick={() => { closeInsertMenu(); editor.chain().focus().setHorizontalRule().run(); }}>

@@ -21,18 +21,19 @@ const createScope = (
 
 describe('legacy settings cleanup', () => {
   it('uses the exact historical allowlist without current host settings', () => {
-    expect(LEGACY_SETTING_KEYS).toHaveLength(32);
+    expect(LEGACY_SETTING_KEYS).toHaveLength(33);
     expect(LEGACY_SETTING_KEYS).toContain('structuredDocEditor.theme.customStyles');
     expect(LEGACY_SETTING_KEYS).toContain('structuredDocEditor.slide.transition');
     expect(LEGACY_SETTING_KEYS).not.toContain('structuredDocEditor.ui.language');
     expect(LEGACY_SETTING_KEYS).not.toContain('structuredDocEditor.export.imagePath');
-    expect(LEGACY_SETTING_KEYS).not.toContain('structuredDocEditor.diagramRenderer.enabled');
+    expect(LEGACY_SETTING_KEYS).toContain('structuredDocEditor.diagramRenderer.enabled');
   });
 
   it('finds and removes legacy settings from user, workspace, and folder scopes', async () => {
     const removed: string[] = [];
     const scopes = [
       createScope('user', 'User', {
+        'structuredDocEditor.diagramRenderer.enabled': true,
         'structuredDocEditor.theme.primaryColor': '#123456',
         'structuredDocEditor.ui.language': 'ko',
       }, async (key) => { removed.push(`user:${key}`); }),
@@ -50,6 +51,7 @@ describe('legacy settings cleanup', () => {
     expect(result).toEqual({
       status: 'completed',
       removed: [
+        expect.objectContaining({ key: 'structuredDocEditor.diagramRenderer.enabled', scopeKind: 'user' }),
         expect.objectContaining({ key: 'structuredDocEditor.theme.primaryColor', scopeKind: 'user' }),
         expect.objectContaining({ key: 'structuredDocEditor.slide.transition', scopeKind: 'workspace' }),
         expect.objectContaining({ key: 'structuredDocEditor.heading.numbering', scopeKind: 'workspaceFolder' }),
@@ -57,6 +59,7 @@ describe('legacy settings cleanup', () => {
       failures: [],
     });
     expect(removed).toEqual([
+      'user:structuredDocEditor.diagramRenderer.enabled',
       'user:structuredDocEditor.theme.primaryColor',
       'workspace:structuredDocEditor.slide.transition',
       'folder:a:structuredDocEditor.heading.numbering',

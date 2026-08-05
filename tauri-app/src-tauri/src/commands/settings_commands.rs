@@ -1,6 +1,7 @@
-use super::DocState;
+use super::{DiagramState, DocState};
 use crate::settings::{
-    save_settings, to_editor_settings, validate_diagram_renderer_settings, DiagramRendererSettings,
+    save_settings, to_editor_settings, validate_diagram_renderer_settings, DiagramRendererConsent,
+    DiagramRendererSettings,
 };
 use tauri::{AppHandle, Emitter};
 
@@ -20,10 +21,15 @@ pub fn get_editor_settings(state: tauri::State<DocState>) -> serde_json::Value {
 pub fn update_settings(
     updates: serde_json::Value,
     state: tauri::State<DocState>,
+    diagram_state: tauri::State<DiagramState>,
     app: AppHandle,
 ) -> Result<(), String> {
     let mut settings = state.settings.lock().unwrap();
     let renderer_update = validate_renderer_update(&updates, &settings.diagram_renderer)?;
+    let revoke_renderer = renderer_update.as_ref().is_some_and(|candidate| {
+        settings.diagram_renderer.consent == DiagramRendererConsent::Granted
+            && candidate.consent != DiagramRendererConsent::Granted
+    });
     // Merge updates into current settings
     let mut current = serde_json::to_value(&*settings).map_err(|e| e.to_string())?;
     if let (Some(cur_obj), Some(upd_obj)) = (current.as_object_mut(), updates.as_object()) {
@@ -43,6 +49,9 @@ pub fn update_settings(
     }
     *settings = serde_json::from_value(current).map_err(|e| e.to_string())?;
     save_settings(&settings)?;
+    if revoke_renderer {
+        diagram_state.cancel_all_and_clear_cache();
+    }
 
     // Notify webview of settings change
     app.emit("settings-changed", to_editor_settings(&settings))
@@ -62,16 +71,16 @@ fn validate_renderer_update(
         .ok_or_else(|| "diagramRenderer must be an object.".to_string())?;
     if object
         .keys()
-        .any(|key| !matches!(key.as_str(), "enabled" | "endpoint" | "allowPrivateNetwork"))
+        .any(|key| !matches!(key.as_str(), "consent" | "endpoint" | "allowPrivateNetwork"))
     {
         return Err("diagramRenderer contains an unsupported setting.".to_string());
     }
 
     let mut candidate = current.clone();
-    if let Some(value) = object.get("enabled") {
-        candidate.enabled = value
-            .as_bool()
-            .ok_or_else(|| "diagramRenderer.enabled must be a boolean.".to_string())?;
+    if let Some(value) = object.get("consent") {
+        candidate.consent = serde_json::from_value(value.clone()).map_err(|_| {
+            "diagramRenderer.consent must be undecided, granted, or declined.".to_string()
+        })?;
     }
     if let Some(value) = object.get("endpoint") {
         candidate.endpoint = value
@@ -96,7 +105,7 @@ pub fn get_recent_files(state: tauri::State<DocState>) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::validate_renderer_update;
-    use crate::settings::DiagramRendererSettings;
+    use crate::settings::{DiagramRendererConsent, DiagramRendererSettings};
 
     #[test]
     fn rejects_invalid_untrusted_renderer_updates() {
@@ -105,7 +114,7 @@ mod tests {
             ..DiagramRendererSettings::default()
         };
         assert!(validate_renderer_update(
-            &serde_json::json!({ "diagramRenderer": { "enabled": "yes" } }),
+            &serde_json::json!({ "diagramRenderer": { "consent": "allowed" } }),
             &current,
         )
         .is_err());
@@ -122,7 +131,7 @@ mod tests {
         assert!(validate_renderer_update(
             &serde_json::json!({
                 "diagramRenderer": {
-                    "enabled": true,
+                    "consent": "granted",
                     "endpoint": "https://kroki.io",
                     "allowPrivateNetwork": false
                 }
@@ -131,13 +140,18 @@ mod tests {
         )
         .is_ok());
         let partial = validate_renderer_update(
-            &serde_json::json!({ "diagramRenderer": { "enabled": true } }),
+            &serde_json::json!({ "diagramRenderer": { "consent": "granted" } }),
             &current,
         )
         .unwrap()
         .unwrap();
-        assert!(partial.enabled);
+        assert_eq!(partial.consent, DiagramRendererConsent::Granted);
         assert_eq!(partial.endpoint, current.endpoint);
+        assert!(validate_renderer_update(
+            &serde_json::json!({ "diagramRenderer": { "enabled": true } }),
+            &current,
+        )
+        .is_err());
     }
 }
 

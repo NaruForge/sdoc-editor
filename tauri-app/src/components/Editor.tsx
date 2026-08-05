@@ -75,7 +75,7 @@ import type { EditorExtensionRuntime } from '@shared/editor/extensionRuntime';
 import type {
   HostDiagramRenderer,
 } from '@shared/editor/diagram';
-import { DiagramRenderError } from '@shared/editor/diagram';
+import { DiagramRenderError, hasExternalDiagramNodes } from '@shared/editor/diagram';
 import {
   createFileOperationControllerState,
   createFileOperationError,
@@ -87,6 +87,7 @@ import {
 import type { FileExportFormat, FileImportFormat } from '@shared/editor/components/FilesPanel';
 import {
   DEFAULT_DIAGRAM_RENDERER_SETTINGS,
+  type ResolvedDiagramRendererConsent,
   type DiagramRendererSettings,
 } from '@shared/diagramRenderer';
 
@@ -201,10 +202,16 @@ export const Editor: React.FC<EditorProps> = ({
   );
   const [diagramRendererSettings, setDiagramRendererSettings] =
     useState<DiagramRendererSettings>({ ...DEFAULT_DIAGRAM_RENDERER_SETTINGS });
+  const [pendingDiagramExportFormat, setPendingDiagramExportFormat] =
+    useState<FileExportFormat | null>(null);
   const requestCatalogRef = useRef<() => void>(() => {});
   const catalogBootstrappedRef = useRef(false);
   const diagramRequestsRef = useRef(new Map<string, {
     resolve: (value: Awaited<ReturnType<HostDiagramRenderer>>) => void;
+    reject: (reason: unknown) => void;
+  }>());
+  const diagramConsentRequestsRef = useRef(new Map<string, {
+    resolve: (settings: DiagramRendererSettings) => void;
     reject: (reason: unknown) => void;
   }>());
   const [externalChange, setExternalChange] = useState<{
@@ -533,6 +540,18 @@ export const Editor: React.FC<EditorProps> = ({
       case 'diagramRendererSettings':
         setDiagramRendererSettings(message.settings);
         break;
+      case 'diagramRendererConsentResult': {
+        const pending = diagramConsentRequestsRef.current.get(message.requestId);
+        if (!pending) break;
+        diagramConsentRequestsRef.current.delete(message.requestId);
+        if (message.result.status === 'resolved') {
+          setDiagramRendererSettings(message.result.settings);
+          pending.resolve(message.result.settings);
+        } else {
+          pending.reject(new Error(message.result.message));
+        }
+        break;
+      }
       case 'editAcknowledged':
         if (syncCoordinatorRef.current?.acknowledge(message)) {
           const observed = syncCoordinatorRef.current.state.externalChange;
@@ -601,6 +620,9 @@ export const Editor: React.FC<EditorProps> = ({
 
   const renderDiagram: HostDiagramRenderer = ({ language, code, signal }) => {
     if (language === 'mermaid') return Promise.resolve({ kind: 'source-only' });
+    if (diagramRendererSettings.consent !== 'granted') {
+      return Promise.resolve({ kind: 'source-only', reason: 'consent-required' });
+    }
     const requestId = crypto.randomUUID();
     return new Promise((resolve, reject) => {
       const cancel = () => {
@@ -629,6 +651,16 @@ export const Editor: React.FC<EditorProps> = ({
   diagramRendererRef.current = renderDiagram;
   const handleDiagramRendererSettingsChange = (settings: DiagramRendererSettings) => {
     void postMessage({ type: 'updateDiagramRendererSettings', settings });
+  };
+  const handleDiagramRendererConsent = (consent: ResolvedDiagramRendererConsent) => {
+    const requestId = crypto.randomUUID();
+    return new Promise<DiagramRendererSettings>((resolve, reject) => {
+      diagramConsentRequestsRef.current.set(requestId, { resolve, reject });
+      void postMessage({ type: 'resolveDiagramRendererConsent', requestId, consent }).catch((error) => {
+        diagramConsentRequestsRef.current.delete(requestId);
+        reject(error);
+      });
+    });
   };
   const handleUiLanguagePreferenceChange = (preference: UiLanguagePreference) => {
     void postMessage({ type: 'updateUiLanguage', preference });
@@ -673,7 +705,19 @@ export const Editor: React.FC<EditorProps> = ({
   const handleFileOperation = (
     kind: FileOperationKind,
     format: FileExportFormat | FileImportFormat,
+    skipDiagramConsent = false,
   ) => {
+    if (
+      kind === 'export'
+      && !skipDiagramConsent
+      && format === 'html'
+      && diagramRendererSettings.consent === 'undecided'
+      && editor
+      && hasExternalDiagramNodes(editor.getJSON() as TiptapNode)
+    ) {
+      setPendingDiagramExportFormat(format as FileExportFormat);
+      return;
+    }
     const currentSession = adapter.getDocumentSession();
     if (!currentSession) return;
     const requestId = crypto.randomUUID();
@@ -776,6 +820,14 @@ export const Editor: React.FC<EditorProps> = ({
         }));
       }
     })();
+  };
+  const handleDiagramExportConsent = async (
+    consent: ResolvedDiagramRendererConsent,
+  ): Promise<void> => {
+    const format = pendingDiagramExportFormat;
+    await handleDiagramRendererConsent(consent);
+    setPendingDiagramExportFormat(null);
+    if (format) handleFileOperation('export', format, true);
   };
   const handleMetaChange = (field: string, value: string) => {
     setMeta(prev => ({ ...prev, [field]: value }));
@@ -1369,7 +1421,13 @@ export const Editor: React.FC<EditorProps> = ({
             fileOperationState={fileController.operationState}
             diagramRendererSettings={diagramRendererSettings}
             onDiagramRendererSettingsChange={handleDiagramRendererSettingsChange}
+            onResolveDiagramRendererConsent={async (consent) => {
+              await handleDiagramRendererConsent(consent);
+            }}
             onTestDiagramRenderer={handleTestDiagramRenderer}
+            pendingDiagramExportConsent={pendingDiagramExportFormat !== null}
+            onDiagramExportConsent={handleDiagramExportConsent}
+            onCancelDiagramExportConsent={() => setPendingDiagramExportFormat(null)}
             workspaceFolder={workspaceFolder}
             workspaceEntries={workspaceEntries}
             currentPath={currentPath}
@@ -1446,7 +1504,7 @@ export const Editor: React.FC<EditorProps> = ({
       {imageProperties && <ImagePropertiesDialog src={imageProperties.src} alt={imageProperties.alt} align={imageProperties.align} onConfirm={handleImagePropertiesConfirm} onReplace={handleImageReplace} onCancel={() => setImageProperties(null)} isDrawio={imageProperties.isDrawio} path={imageProperties.path} />}
       {imageContextMenu && <ImageContextMenu returnFocusRef={editorAreaRef} position={{ x: imageContextMenu.x, y: imageContextMenu.y }} onClose={() => setImageContextMenu(null)} onOpenProperties={handleImageContextMenuProperties} onReplaceImage={handleImageContextMenuReplace} onCopyPath={handleImageContextMenuCopyPath} onDelete={handleImageContextMenuDelete} isDrawio={imageContextMenu.isDrawio} />}
       {mathDialog && <MathDialog initialLatex={mathDialog.latex} isBlock={mathDialog.isBlock} onConfirm={handleMathConfirm} onCancel={() => setMathDialog(null)} />}
-      {diagramDialog && <DiagramDialog renderDiagram={renderDiagram} initialCode={diagramDialog.code} initialLanguage={diagramDialog.language} pos={diagramDialog.pos} onConfirm={handleDiagramConfirm} onCancel={() => setDiagramDialog(null)} />}
+      {diagramDialog && <DiagramDialog renderDiagram={renderDiagram} rendererSettings={diagramRendererSettings} onResolveRendererConsent={async (consent) => { await handleDiagramRendererConsent(consent); }} initialCode={diagramDialog.code} initialLanguage={diagramDialog.language} pos={diagramDialog.pos} onConfirm={handleDiagramConfirm} onCancel={() => setDiagramDialog(null)} />}
       {showCrossRefDialog && editor && <CrossReferenceDialog targets={collectTargets(editor, settings)} onSelect={(target: RefTarget) => { setShowCrossRefDialog(false); editor.chain().focus().insertContent([{ type: 'text', marks: [{ type: 'link', attrs: { href: `#${target.id}` } }], text: target.label }, { type: 'text', text: ' ' }]).run(); }} onClose={() => setShowCrossRefDialog(false)} />}
     </div>
   );

@@ -5,12 +5,34 @@ import { request as httpsRequest, type RequestOptions } from 'node:https';
 import { isIP } from 'node:net';
 import type {
   DiagramRenderFailureCode,
+  DiagramRendererConsent,
   DiagramRendererSettings,
 } from '../../shared/diagramRenderer';
 
 export type KrokiDiagramLanguage = 'plantuml' | 'd2' | 'graphviz';
 
 export type KrokiRenderErrorCode = DiagramRenderFailureCode;
+
+export const DIAGRAM_RENDERER_CONSENT_STATE_KEY =
+  'structuredDocEditor.diagramRenderer.consent.v1';
+
+export interface PersistedDiagramRendererConsentResolution {
+  consent: DiagramRendererConsent;
+  needsMigration: boolean;
+}
+
+export function resolvePersistedDiagramRendererConsent(
+  storedConsent: unknown,
+  legacyEnabled: unknown,
+): PersistedDiagramRendererConsentResolution {
+  if (storedConsent === 'undecided' || storedConsent === 'granted' || storedConsent === 'declined') {
+    return { consent: storedConsent, needsMigration: false };
+  }
+  return {
+    consent: legacyEnabled === true ? 'granted' : 'undecided',
+    needsMigration: true,
+  };
+}
 
 export class KrokiRenderError extends Error {
   constructor(
@@ -262,17 +284,24 @@ export class KrokiDiagramService {
   private cacheBytes = 0;
   private running = 0;
   private readonly waiting: Array<() => void> = [];
+  private readonly activeRequests = new Set<AbortController>();
 
   constructor(private settings: DiagramRendererSettings) {}
 
   updateSettings(settings: DiagramRendererSettings): void {
+    const consentRevoked = this.settings.consent === 'granted' && settings.consent !== 'granted';
     if (
-      settings.endpoint !== this.settings.endpoint
+      settings.consent !== this.settings.consent
+      || settings.endpoint !== this.settings.endpoint
       || settings.allowPrivateNetwork !== this.settings.allowPrivateNetwork
     ) {
       this.clearCache();
     }
     this.settings = settings;
+    if (consentRevoked) {
+      this.activeRequests.forEach((controller) => controller.abort());
+      this.activeRequests.clear();
+    }
   }
 
   clearCache(): void {
@@ -285,44 +314,58 @@ export class KrokiDiagramService {
     source: string,
     options: { signal?: AbortSignal; timeoutMs?: number } = {},
   ): Promise<KrokiRenderResult> {
-    if (!this.settings.enabled) {
-      throw new KrokiRenderError('disabled', 'External diagram rendering is turned off.', false);
+    if (this.settings.consent !== 'granted') {
+      throw new KrokiRenderError('disabled', 'External diagram rendering has not been allowed.', false);
     }
-    const sourceBytes = Buffer.from(source, 'utf8');
-    if (sourceBytes.byteLength > SOURCE_LIMIT) {
-      throw new KrokiRenderError('source-too-large', 'Diagram source exceeds the 100 KiB limit.', false);
+    const requestController = new AbortController();
+    const forwardCallerAbort = () => requestController.abort();
+    if (options.signal?.aborted) {
+      requestController.abort();
+    } else {
+      options.signal?.addEventListener('abort', forwardCallerAbort, { once: true });
     }
-    const endpoint = await validateKrokiEndpoint(
-      this.settings.endpoint,
-      this.settings.allowPrivateNetwork,
-    );
-    const key = createHash('sha256')
-      .update(endpoint.toString())
-      .update('\0')
-      .update(language)
-      .update('\0')
-      .update(sourceBytes)
-      .digest('hex');
-    const cached = this.cache.get(key);
-    if (cached) {
-      this.cache.delete(key);
-      this.cache.set(key, cached);
-      return { dataUrl: cached.dataUrl, width: cached.width, height: cached.height, cached: true };
-    }
-
-    await this.acquire(options.signal);
+    this.activeRequests.add(requestController);
+    const signal = requestController.signal;
     try {
-      const result = await this.post(
-        endpoint,
-        language,
-        sourceBytes,
-        options.signal,
-        options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+      const sourceBytes = Buffer.from(source, 'utf8');
+      if (sourceBytes.byteLength > SOURCE_LIMIT) {
+        throw new KrokiRenderError('source-too-large', 'Diagram source exceeds the 100 KiB limit.', false);
+      }
+      const endpoint = await validateKrokiEndpoint(
+        this.settings.endpoint,
+        this.settings.allowPrivateNetwork,
       );
-      this.remember(key, result);
-      return result;
+      const key = createHash('sha256')
+        .update(endpoint.toString())
+        .update('\0')
+        .update(language)
+        .update('\0')
+        .update(sourceBytes)
+        .digest('hex');
+      const cached = this.cache.get(key);
+      if (cached) {
+        this.cache.delete(key);
+        this.cache.set(key, cached);
+        return { dataUrl: cached.dataUrl, width: cached.width, height: cached.height, cached: true };
+      }
+
+      await this.acquire(signal);
+      try {
+        const result = await this.post(
+          endpoint,
+          language,
+          sourceBytes,
+          signal,
+          options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+        );
+        this.remember(key, result);
+        return result;
+      } finally {
+        this.release();
+      }
     } finally {
-      this.release();
+      options.signal?.removeEventListener('abort', forwardCallerAbort);
+      this.activeRequests.delete(requestController);
     }
   }
 

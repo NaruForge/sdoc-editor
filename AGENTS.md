@@ -89,3 +89,4 @@ cargo test --manifest-path tauri-app/Cargo.toml --workspace
 - The main agent owns requirements, architecture decisions, integration, and final verification.
 - Prefer parallel read-heavy exploration, review, and test analysis. Partition write work by non-overlapping files and never let agents edit the same file concurrently.
 - Use the project custom agents in `.codex/agents/` for architecture, review, and verification when their role fits.
+- Do not use Grok CLI, Grok-based reviewers, advisor wrappers, or Grok-specific review workflows. The project no longer maintains or requires them.

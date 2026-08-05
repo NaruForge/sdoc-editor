@@ -1,5 +1,6 @@
 use crate::settings::{
-    classify_address, validate_diagram_renderer_settings, AddressClass, DiagramRendererSettings,
+    classify_address, validate_diagram_renderer_settings, AddressClass, DiagramRendererConsent,
+    DiagramRendererSettings,
 };
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use base64::Engine;
@@ -9,6 +10,7 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, VecDeque};
 use std::net::{IpAddr, SocketAddr};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::sync::Semaphore;
@@ -155,6 +157,7 @@ pub struct DiagramState {
     semaphore: Arc<Semaphore>,
     cancellations: Mutex<HashMap<String, Arc<CancellationToken>>>,
     cache: Mutex<DiagramCache>,
+    revocation_epoch: AtomicU64,
 }
 
 impl Default for DiagramState {
@@ -163,7 +166,29 @@ impl Default for DiagramState {
             semaphore: Arc::new(Semaphore::new(2)),
             cancellations: Mutex::new(HashMap::new()),
             cache: Mutex::new(DiagramCache::default()),
+            revocation_epoch: AtomicU64::new(0),
         }
+    }
+}
+
+impl DiagramState {
+    fn revocation_epoch(&self) -> u64 {
+        self.revocation_epoch.load(Ordering::SeqCst)
+    }
+
+    pub fn cancel_all_and_clear_cache(&self) {
+        self.revocation_epoch.fetch_add(1, Ordering::SeqCst);
+        let cancellations = {
+            let mut registered = self.cancellations.lock().unwrap();
+            registered
+                .drain()
+                .map(|(_, token)| token)
+                .collect::<Vec<_>>()
+        };
+        for token in cancellations {
+            token.cancel();
+        }
+        *self.cache.lock().unwrap() = DiagramCache::default();
     }
 }
 
@@ -175,13 +200,14 @@ pub async fn render_diagram(
     document_state: tauri::State<'_, super::DocState>,
     diagram_state: tauri::State<'_, DiagramState>,
 ) -> Result<DiagramRenderResult, DiagramRenderError> {
+    let revocation_epoch = diagram_state.revocation_epoch();
     let settings = document_state
         .settings
         .lock()
         .unwrap()
         .diagram_renderer
         .clone();
-    if !settings.enabled {
+    if settings.consent != DiagramRendererConsent::Granted {
         return Err(DiagramRenderError::disabled());
     }
     run_registered_render(
@@ -191,6 +217,7 @@ pub async fn render_diagram(
         settings,
         RENDER_TIMEOUT,
         &diagram_state,
+        revocation_epoch,
     )
     .await
 }
@@ -199,11 +226,24 @@ pub async fn render_diagram(
 pub async fn test_diagram_renderer(
     request_id: String,
     settings: serde_json::Value,
+    document_state: tauri::State<'_, super::DocState>,
     diagram_state: tauri::State<'_, DiagramState>,
 ) -> Result<DiagramRenderResult, DiagramRenderError> {
-    let mut settings: DiagramRendererSettings =
+    let revocation_epoch = diagram_state.revocation_epoch();
+    let persisted_consent = document_state
+        .settings
+        .lock()
+        .unwrap()
+        .diagram_renderer
+        .consent;
+    if persisted_consent != DiagramRendererConsent::Granted {
+        return Err(DiagramRenderError::disabled());
+    }
+    let settings: DiagramRendererSettings =
         serde_json::from_value(settings).map_err(|_| DiagramRenderError::invalid_endpoint())?;
-    settings.enabled = true;
+    if settings.consent != DiagramRendererConsent::Granted {
+        return Err(DiagramRenderError::disabled());
+    }
     validate_diagram_renderer_settings(&settings).map_err(map_settings_error)?;
     run_registered_render(
         &request_id,
@@ -212,6 +252,7 @@ pub async fn test_diagram_renderer(
         settings,
         TEST_TIMEOUT,
         &diagram_state,
+        revocation_epoch,
     )
     .await
 }
@@ -241,7 +282,11 @@ async fn run_registered_render(
     settings: DiagramRendererSettings,
     timeout: Duration,
     state: &DiagramState,
+    expected_revocation_epoch: u64,
 ) -> Result<DiagramRenderResult, DiagramRenderError> {
+    if settings.consent != DiagramRendererConsent::Granted {
+        return Err(DiagramRenderError::disabled());
+    }
     if request_id.is_empty() || request_id.len() > 256 {
         return Err(DiagramRenderError::invalid_response());
     }
@@ -254,6 +299,9 @@ async fn run_registered_render(
         ));
     }
     validate_diagram_renderer_settings(&settings).map_err(map_settings_error)?;
+    if state.revocation_epoch() != expected_revocation_epoch {
+        return Err(DiagramRenderError::disabled());
+    }
 
     let token = Arc::new(CancellationToken::new());
     if let Some(previous) = state
@@ -263,6 +311,16 @@ async fn run_registered_render(
         .insert(request_id.to_string(), token.clone())
     {
         previous.cancel();
+    }
+    if state.revocation_epoch() != expected_revocation_epoch {
+        let mut cancellations = state.cancellations.lock().unwrap();
+        if cancellations
+            .get(request_id)
+            .is_some_and(|current| Arc::ptr_eq(current, &token))
+        {
+            cancellations.remove(request_id);
+        }
+        return Err(DiagramRenderError::disabled());
     }
 
     let render = render_with_limits(language, source, &settings, state);
@@ -531,12 +589,14 @@ mod tests {
         cache_key, post_diagram, run_registered_render, validate_language, validate_png,
         DiagramCache, DiagramRenderResult, DiagramState, MAX_CACHE_ENTRIES, PNG_SIGNATURE,
     };
-    use crate::settings::DiagramRendererSettings;
+    use crate::settings::{DiagramRendererConsent, DiagramRendererSettings};
     use reqwest::Url;
     use std::io::{Read, Write};
     use std::net::TcpListener;
+    use std::sync::Arc;
     use std::thread;
     use std::time::Duration;
+    use tokio_util::sync::CancellationToken;
 
     fn png_header(width: u32, height: u32) -> Vec<u8> {
         let mut bytes = Vec::from(PNG_SIGNATURE.as_slice());
@@ -659,7 +719,7 @@ mod tests {
             Duration::from_millis(150),
         );
         let settings = DiagramRendererSettings {
-            enabled: true,
+            consent: DiagramRendererConsent::Granted,
             endpoint: endpoint.to_string(),
             allow_private_network: false,
         };
@@ -671,10 +731,89 @@ mod tests {
             settings,
             Duration::from_millis(20),
             &state,
+            state.revocation_epoch(),
         )
         .await
         .unwrap_err();
         assert_eq!(error.code, "timeout");
         assert!(error.retryable);
+    }
+
+    #[tokio::test]
+    async fn registered_render_requires_granted_consent() {
+        for consent in [
+            DiagramRendererConsent::Undecided,
+            DiagramRendererConsent::Declined,
+        ] {
+            let settings = DiagramRendererSettings {
+                consent,
+                ..DiagramRendererSettings::default()
+            };
+            let error = run_registered_render(
+                "consent-test",
+                "d2",
+                "a -> b",
+                settings,
+                Duration::from_millis(20),
+                &DiagramState::default(),
+                0,
+            )
+            .await
+            .unwrap_err();
+            assert_eq!(error.code, "disabled");
+        }
+    }
+
+    #[test]
+    fn revocation_cancels_requests_and_clears_cache() {
+        let state = DiagramState::default();
+        let epoch = state.revocation_epoch();
+        let token = Arc::new(CancellationToken::new());
+        state
+            .cancellations
+            .lock()
+            .unwrap()
+            .insert("pending".to_string(), token.clone());
+        state.cache.lock().unwrap().insert(
+            "cached".to_string(),
+            &DiagramRenderResult {
+                data_url: "data:image/png;base64,AA==".to_string(),
+                width: 1,
+                height: 1,
+                cached: false,
+            },
+        );
+
+        state.cancel_all_and_clear_cache();
+
+        assert_eq!(state.revocation_epoch(), epoch + 1);
+        assert!(token.is_cancelled());
+        assert!(state.cancellations.lock().unwrap().is_empty());
+        assert!(state.cache.lock().unwrap().entries.is_empty());
+    }
+
+    #[tokio::test]
+    async fn revocation_epoch_rejects_a_render_that_started_before_revocation() {
+        let state = DiagramState::default();
+        let stale_epoch = state.revocation_epoch();
+        state.cancel_all_and_clear_cache();
+
+        let error = run_registered_render(
+            "stale-consent",
+            "graphviz",
+            "digraph { a -> b }",
+            DiagramRendererSettings {
+                consent: DiagramRendererConsent::Granted,
+                ..DiagramRendererSettings::default()
+            },
+            Duration::from_millis(20),
+            &state,
+            stale_epoch,
+        )
+        .await
+        .unwrap_err();
+
+        assert_eq!(error.code, "disabled");
+        assert!(state.cancellations.lock().unwrap().is_empty());
     }
 }

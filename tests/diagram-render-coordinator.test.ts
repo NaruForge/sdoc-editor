@@ -2,8 +2,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DiagramRenderCoordinator } from '../shared/editor/diagram/DiagramRenderCoordinator';
 import {
   createEditorDiagramRendererResolver,
+  createInteractionGatedDiagramRendererResolver,
   NOOP_HOST_DIAGRAM_RENDERER,
 } from '../shared/editor/diagram/editorRenderer';
+import {
+  getExternalDiagramLanguages,
+  hasExternalDiagramNodes,
+} from '../shared/editor/diagram/externalDiagramNodes';
 import { DiagramRenderError, type DiagramRenderState } from '../shared/editor/diagram/types';
 
 afterEach(() => {
@@ -134,6 +139,34 @@ describe('DiagramRenderCoordinator', () => {
     })]);
   });
 
+  it('gates external renderer resolution before the host renderer can be called', () => {
+    const hostRenderer = vi.fn(async () => ({ kind: 'source-only' as const }));
+    const blocked = createEditorDiagramRendererResolver(hostRenderer, false);
+    const allowed = createEditorDiagramRendererResolver(hostRenderer, true);
+
+    expect(blocked('plantuml')).toBeUndefined();
+    expect(blocked('d2')).toBeUndefined();
+    expect(blocked('graphviz')).toBeUndefined();
+    expect(blocked('mermaid')).toBeTypeOf('function');
+    expect(allowed('plantuml')).toBeTypeOf('function');
+    expect(hostRenderer).not.toHaveBeenCalled();
+  });
+
+  it('keeps passive external nodes source-only until the user interacts', () => {
+    let interacted = false;
+    const hostRenderer = vi.fn(async () => ({ kind: 'source-only' as const }));
+    const resolver = createInteractionGatedDiagramRendererResolver(
+      hostRenderer,
+      () => interacted,
+    );
+
+    expect(resolver('plantuml')).toBeUndefined();
+    expect(resolver('mermaid')).toBeTypeOf('function');
+    interacted = true;
+    expect(resolver('plantuml')).toBeTypeOf('function');
+    expect(hostRenderer).not.toHaveBeenCalled();
+  });
+
   it('only retries failures classified as retryable', async () => {
     vi.useFakeTimers();
     const retryableRender = vi.fn()
@@ -167,5 +200,42 @@ describe('DiagramRenderCoordinator', () => {
     await vi.runAllTimersAsync();
     nonRetryable.retry();
     expect(nonRetryableRender).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('external diagram document detection', () => {
+  it('finds supported external languages once in document order', () => {
+    const document = {
+      type: 'doc',
+      content: [
+        { type: 'diagram', attrs: { language: 'mermaid', code: 'graph TD' } },
+        { type: 'diagram', attrs: { language: 'plantuml', code: '@startuml' } },
+        {
+          type: 'blockquote',
+          content: [
+            { type: 'diagram', attrs: { language: 'D2', code: 'a -> b' } },
+            { type: 'diagram', attrs: { language: 'plantuml', code: '@enduml' } },
+          ],
+        },
+        { type: 'diagram', attrs: { language: 'future-language', code: 'source' } },
+      ],
+    };
+
+    expect(getExternalDiagramLanguages(document)).toEqual(['plantuml', 'd2']);
+    expect(hasExternalDiagramNodes(document)).toBe(true);
+  });
+
+  it('ignores Mermaid, unknown languages, and non-diagram code blocks', () => {
+    const document = {
+      type: 'doc',
+      content: [
+        { type: 'diagram', attrs: { language: 'mermaid', code: 'graph TD' } },
+        { type: 'diagram', attrs: { language: 'unknown', code: 'source' } },
+        { type: 'codeBlock', attrs: { language: 'plantuml' } },
+      ],
+    };
+
+    expect(getExternalDiagramLanguages(document)).toEqual([]);
+    expect(hasExternalDiagramNodes(document)).toBe(false);
   });
 });

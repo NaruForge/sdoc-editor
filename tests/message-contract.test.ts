@@ -209,7 +209,7 @@ describe('editor host message boundary', () => {
     expect(isEditorToHostMessage({
       type: 'updateDiagramRendererSettings',
       settings: {
-        enabled: true,
+        consent: 'granted',
         endpoint: 'https://kroki.io',
         allowPrivateNetwork: false,
       },
@@ -217,11 +217,54 @@ describe('editor host message boundary', () => {
     expect(isEditorToHostMessage({
       type: 'updateDiagramRendererSettings',
       settings: {
-        enabled: 'yes',
+        consent: 'yes',
         endpoint: 'https://kroki.io',
         allowPrivateNetwork: false,
       },
     })).toBe(false);
+    expect(isEditorToHostMessage({
+      type: 'updateDiagramRendererSettings',
+      settings: {
+        consent: { toString: () => 'granted' },
+        endpoint: 'https://kroki.io',
+        allowPrivateNetwork: false,
+      },
+    })).toBe(false);
+    expect(() => isEditorToHostMessage({
+      type: 'updateDiagramRendererSettings',
+      settings: {
+        consent: { [Symbol.toPrimitive]: () => { throw new Error('must not coerce'); } },
+        endpoint: 'https://kroki.io',
+        allowPrivateNetwork: false,
+      },
+    })).not.toThrow();
+    expect(isEditorToHostMessage({
+      type: 'resolveDiagramRendererConsent',
+      requestId: 'consent-1',
+      consent: 'declined',
+    })).toBe(true);
+    expect(isEditorToHostMessage({
+      type: 'resolveDiagramRendererConsent',
+      requestId: 'consent-2',
+      consent: 'undecided',
+    })).toBe(false);
+    expect(isHostToEditorMessage({
+      type: 'diagramRendererConsentResult',
+      requestId: 'consent-1',
+      result: {
+        status: 'resolved',
+        settings: {
+          consent: 'declined',
+          endpoint: 'https://kroki.io',
+          allowPrivateNetwork: false,
+        },
+      },
+    })).toBe(true);
+    expect(isHostToEditorMessage({
+      type: 'diagramRendererConsentResult',
+      requestId: 'consent-2',
+      result: { status: 'error', message: 'Could not save.' },
+    })).toBe(true);
   });
 
   it('requires validated metadata on personal template writes', () => {

@@ -46,7 +46,6 @@ describe('VS Code package manifest', () => {
 
     expect(Object.keys(properties).sort()).toEqual([
       'structuredDocEditor.diagramRenderer.allowPrivateNetwork',
-      'structuredDocEditor.diagramRenderer.enabled',
       'structuredDocEditor.diagramRenderer.endpoint',
       'structuredDocEditor.export.imagePath',
       'structuredDocEditor.image.defaultAlignment',

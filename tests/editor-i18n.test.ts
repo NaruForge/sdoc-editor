@@ -39,6 +39,8 @@ describe('editor i18n', () => {
     const translate = createEditorTranslator('ko');
     expect(translate('toolbar.bold')).toBe('굵게 (Ctrl+B)');
     expect(translate('common.apply')).toBe('적용');
+    expect(translate('toolbar.diagram')).toBe('텍스트 다이어그램');
+    expect(createEditorTranslator('en')('toolbar.diagram')).toBe('Text Diagram');
     expect(translate('toolbar.headingOption', { level: 3 })).toBe('제목 3');
     expect(translate('toolbar.headingOption')).toBe('제목 {{level}}');
   });

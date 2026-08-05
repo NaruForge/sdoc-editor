@@ -1,11 +1,15 @@
+export type DiagramRendererConsent = 'undecided' | 'granted' | 'declined';
+
+export type ResolvedDiagramRendererConsent = Exclude<DiagramRendererConsent, 'undecided'>;
+
 export interface DiagramRendererSettings {
-  enabled: boolean;
+  consent: DiagramRendererConsent;
   endpoint: string;
   allowPrivateNetwork: boolean;
 }
 
 export const DEFAULT_DIAGRAM_RENDERER_SETTINGS: Readonly<DiagramRendererSettings> = {
-  enabled: false,
+  consent: 'undecided',
   endpoint: 'https://kroki.io',
   allowPrivateNetwork: false,
 };

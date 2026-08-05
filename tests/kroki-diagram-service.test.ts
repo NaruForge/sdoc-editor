@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   KrokiDiagramService,
   KrokiRenderError,
+  resolvePersistedDiagramRendererConsent,
   validateKrokiEndpoint,
 } from '../src/services/KrokiDiagramService';
 
@@ -62,6 +63,30 @@ describe('Kroki endpoint trust boundary', () => {
   });
 });
 
+describe('diagram renderer consent migration', () => {
+  it('preserves a stored consent decision without consulting the legacy setting', () => {
+    expect(resolvePersistedDiagramRendererConsent('declined', true)).toEqual({
+      consent: 'declined',
+      needsMigration: false,
+    });
+  });
+
+  it('migrates only legacy true to granted and defaults false or absent to undecided', () => {
+    expect(resolvePersistedDiagramRendererConsent(undefined, true)).toEqual({
+      consent: 'granted',
+      needsMigration: true,
+    });
+    expect(resolvePersistedDiagramRendererConsent(undefined, false)).toEqual({
+      consent: 'undecided',
+      needsMigration: true,
+    });
+    expect(resolvePersistedDiagramRendererConsent(undefined, undefined)).toEqual({
+      consent: 'undecided',
+      needsMigration: true,
+    });
+  });
+});
+
 describe('Kroki renderer', () => {
   it('posts plain text, validates PNG, and caches in memory', async () => {
     let requests = 0;
@@ -80,7 +105,7 @@ describe('Kroki renderer', () => {
     if (!address || typeof address === 'string') throw new Error('Missing test server address');
 
     const service = new KrokiDiagramService({
-      enabled: true,
+      consent: 'granted',
       endpoint: `http://127.0.0.1:${address.port}`,
       allowPrivateNetwork: false,
     });
@@ -112,15 +137,39 @@ describe('Kroki renderer', () => {
 
     const endpoint = `http://127.0.0.1:${address.port}`;
     const service = new KrokiDiagramService({
-      enabled: true,
+      consent: 'granted',
       endpoint,
       allowPrivateNetwork: false,
     });
     await service.render('d2', 'a -> b');
-    service.updateSettings({ enabled: true, endpoint, allowPrivateNetwork: true });
+    service.updateSettings({ consent: 'granted', endpoint, allowPrivateNetwork: true });
     await service.render('d2', 'a -> b');
 
     expect(requests).toBe(2);
+  });
+
+  it('cancels an in-flight request when granted consent is revoked', async () => {
+    const server = createServer(() => {
+      // Leave the response pending so revocation owns cancellation.
+    });
+    servers.push(server);
+    server.listen(0, '127.0.0.1');
+    await once(server, 'listening');
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('Missing test server address');
+
+    const endpoint = `http://127.0.0.1:${address.port}`;
+    const service = new KrokiDiagramService({
+      consent: 'granted',
+      endpoint,
+      allowPrivateNetwork: false,
+    });
+    const pending = service.render('graphviz', 'digraph { a -> b }');
+    await once(server, 'request');
+
+    service.updateSettings({ consent: 'declined', endpoint, allowPrivateNetwork: false });
+
+    await expect(pending).rejects.toMatchObject({ code: 'cancelled' });
   });
 
   it('rejects redirects, oversized input, wrong MIME, invalid PNG, and excessive pixels', async () => {
@@ -154,23 +203,25 @@ describe('Kroki renderer', () => {
       const address = server.address();
       if (!address || typeof address === 'string') throw new Error('Missing test server address');
       const service = new KrokiDiagramService({
-        enabled: true,
+        consent: 'granted',
         endpoint: `http://127.0.0.1:${address.port}`,
         allowPrivateNetwork: false,
       });
       await expect(service.render('d2', 'a -> b')).rejects.toBeInstanceOf(KrokiRenderError);
     }
 
-    const disabled = new KrokiDiagramService({
-      enabled: false,
-      endpoint: 'https://kroki.io',
-      allowPrivateNetwork: false,
-    });
-    await expect(disabled.render('graphviz', 'x'.repeat(100 * 1024 + 1))).rejects.toMatchObject({
-      code: 'disabled',
-    });
+    for (const consent of ['undecided', 'declined'] as const) {
+      const disabled = new KrokiDiagramService({
+        consent,
+        endpoint: 'https://kroki.io',
+        allowPrivateNetwork: false,
+      });
+      await expect(disabled.render('graphviz', 'x'.repeat(100 * 1024 + 1))).rejects.toMatchObject({
+        code: 'disabled',
+      });
+    }
     const enabled = new KrokiDiagramService({
-      enabled: true,
+      consent: 'granted',
       endpoint: 'https://kroki.io',
       allowPrivateNetwork: false,
     });

@@ -1,6 +1,6 @@
 import { Node, mergeAttributes } from '@tiptap/core';
 import {
-  createEditorDiagramRendererResolver,
+  createInteractionGatedDiagramRendererResolver,
   DiagramRenderCoordinator,
   resolveDiagramLanguage,
   type DiagramRenderState,
@@ -153,8 +153,12 @@ export const DiagramBlock = Node.create<EditorExtensionOptions>({
         rendered.replaceChildren(sourceOnly);
       };
 
+      let externalRenderingRequested = false;
       coordinator = new DiagramRenderCoordinator({
-        resolveRenderer: createEditorDiagramRendererResolver(runtime.renderDiagram),
+        resolveRenderer: createInteractionGatedDiagramRendererResolver(
+          runtime.renderDiagram,
+          () => externalRenderingRequested,
+        ),
         onStateChange: showState,
       });
       coordinator.setInput(node.attrs.language, node.attrs.code);
@@ -163,6 +167,7 @@ export const DiagramBlock = Node.create<EditorExtensionOptions>({
         if (typeof getPos !== 'function') return;
         const pos = getPos();
         if (pos != null) {
+          externalRenderingRequested = true;
           runtime.openDiagramDialog(node.attrs.code, node.attrs.language, pos);
         }
       };

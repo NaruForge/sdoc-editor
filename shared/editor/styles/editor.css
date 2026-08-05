@@ -2402,6 +2402,49 @@ samp {
   word-break: break-word;
 }
 
+.diagram-consent-card {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 14px;
+  border: 1px solid var(--vscode-focusBorder, #007acc);
+  border-radius: 6px;
+  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  color: var(--vscode-editorWidget-foreground, var(--vscode-foreground));
+  overflow-wrap: anywhere;
+}
+
+.diagram-consent-card:focus-visible {
+  outline: 2px solid var(--vscode-focusBorder, #007acc);
+  outline-offset: 2px;
+}
+
+.diagram-consent-card h4 {
+  margin: 0 0 8px;
+  font-size: 13px;
+}
+
+.diagram-consent-card p {
+  margin: 6px 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.diagram-consent-card__error {
+  color: var(--vscode-errorForeground, #f48771);
+}
+
+.diagram-consent-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.diagram-consent-reopen {
+  margin: 8px;
+}
+
 .diagram-preview-area svg {
   max-width: 100%;
   height: auto;
@@ -3904,6 +3947,10 @@ html.is-resizing-side-panel * {
 
 .diagram-renderer-settings .settings-reset-btn {
   margin: 5px 12px;
+}
+
+.diagram-renderer-settings__consent {
+  padding: 6px 12px 10px;
 }
 
 .template-card small {

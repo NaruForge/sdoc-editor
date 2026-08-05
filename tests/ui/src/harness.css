@@ -71,6 +71,7 @@ body {
   --vscode-menu-selectionBackground: #d9e7f8;
   --vscode-menu-selectionForeground: #0759a5;
   --vscode-editorWidget-background: #ffffff;
+  --vscode-editorWidget-foreground: #1f2328;
   --vscode-panel-border: #afb8c1;
   --vscode-textLink-foreground: #0969da;
   --vscode-button-background: #0969da;
@@ -102,6 +103,7 @@ body {
   --vscode-menu-selectionBackground: #094771;
   --vscode-menu-selectionForeground: #ffffff;
   --vscode-editorWidget-background: #252526;
+  --vscode-editorWidget-foreground: #f0f0f0;
   --vscode-panel-border: #616161;
   --vscode-textLink-foreground: #4daafc;
   --vscode-button-background: #0e639c;
@@ -130,6 +132,7 @@ body {
   --vscode-menu-selectionBackground: #000000;
   --vscode-menu-selectionForeground: #ffff00;
   --vscode-editorWidget-background: #000000;
+  --vscode-editorWidget-foreground: #ffffff;
   --vscode-panel-border: #ffffff;
   --vscode-textLink-foreground: #00ffff;
   --vscode-button-background: #000000;

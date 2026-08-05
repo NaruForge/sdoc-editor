@@ -81,7 +81,7 @@ code --install-extension swbaek.structured-doc-editor
 | 영역 | 제공 기능 |
 |---|---|
 | 구조화 편집 | H1–H6, 자동 번호, 섹션 접기, 목차, 그림·표 목록, 문서 메타데이터 |
-| 기술 콘텐츠 | 표와 병합 셀, 이미지와 캡션, KaTeX 수식, 코드 블록, Mermaid·Draw.io 다이어그램 |
+| 기술 콘텐츠 | 표와 병합 셀, 이미지와 캡션, KaTeX 수식, 코드 블록, Mermaid·PlantUML·D2·Graphviz 텍스트 다이어그램과 Draw.io |
 | 문서 연결 | 제목·그림·표 교차 참조, 안정적인 ID, 참조 번호 자동 동기화 |
 | 콘텐츠 블록 | 인용문, Note·Info·Tip·Warning·Danger 콜아웃, 체크리스트, 정렬과 텍스트 스타일 |
 | 편집 경험 | 커서 이동 기록, 60–200% 확대/축소, 문서별 테마·폰트·캡션 설정, 사용자 CSS |
@@ -112,7 +112,7 @@ code --install-extension swbaek.structured-doc-editor
 - 왼쪽 Navigate, Design, Publish 허브에서 탐색, 화면·문서 설정, 가져오기·내보내기·템플릿을 전환합니다. Desktop은 Workspace 허브도 제공합니다.
 - `@`를 입력해 제목·그림·표·수식에 대한 교차 참조를 삽입합니다.
 - 이미지는 클립보드에서 붙여 넣고 캡션·정렬을 지정할 수 있습니다.
-- Mermaid는 로컬에서 렌더링합니다. PlantUML·D2·Graphviz용 Kroki는 기본적으로 꺼져 있으며, 활성화하면 다이어그램 소스가 설정한 서버로 전송됩니다.
+- Mermaid는 로컬에서 렌더링합니다. PlantUML·D2·Graphviz의 온라인 미리보기는 최초 사용 시 원문 전송과 엔드포인트를 안내하고 동의를 받은 뒤 활성화됩니다. 거절해도 소스는 그대로 편집·저장·내보낼 수 있습니다.
 - Draw.io 편집은 VS Code에서 [Draw.io Integration](https://marketplace.visualstudio.com/items?itemName=hediet.vscode-drawio), Windows Desktop에서 draw.io 데스크톱 애플리케이션이 필요합니다.
 - UI 언어와 외부 renderer 같은 host 설정은 사용자 환경에 저장됩니다. 제목·캡션·폰트·색상·테마·슬라이드 같은 문서 설정은 `.sdoc`의 `meta.settings`에 저장됩니다.
 
