@@ -1,7 +1,7 @@
 {
   "name": "structured-doc-editor",
   "displayName": "Structured Doc Editor",
-  "description": "WYSIWYG editor for .tiptap.json/.sdoc files with Markdown/AsciiDoc/HTML export",
+  "description": "Git으로 검토 가능한 .sdoc 기술 문서를 위한 VS Code WYSIWYG 편집기",
   "version": "0.7.6",
   "publisher": "swbaek",
   "license": "MIT",

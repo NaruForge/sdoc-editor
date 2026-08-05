@@ -12,6 +12,34 @@ Provenance record:
 - SHA-256: `a617a044d72b155947a5b5c4a39843cc5b1a777086b4a7ef23952d192d838925`.
 - No separate editable source file or embedded PNG authorship metadata is retained. Future replacements must preserve their editable source and creation/license record.
 
+## README editor overview
+
+`media/readme/editor-overview-ko.png` is the Korean README overview image. It
+shows the same sanitized editor fixture in the VS Code light theme on the left
+and the Tauri dark theme on the right, with descriptive host/theme labels and
+no host logos.
+
+Provenance and redistribution record:
+
+- Author/source: created for the project on 2026-08-05 from this repository's
+  production editor components through the existing Playwright UI quality test
+  harness (`tests/ui/`). It is a deterministic Chromium capture, not
+  AI-generated imagery.
+- Capture method: the Korean `editor` scene was rendered twice at 800 x 900
+  pixels with a UTC timezone and five table columns (`vscode`/`light` and
+  `tauri`/`dark`), then the two unretouched PNG captures were joined
+  horizontally. The resulting image is 1600 x 900 pixels and 121,095 bytes.
+- Content and asset scope: the fixture contains fixed sample text and
+  timestamps only. It contains no personal paths, accounts, customer data, or
+  company-restricted content, and it does not use the restricted legacy logo or
+  font assets listed below.
+- License and rights: the image is project documentation distributed under the
+  root MIT License. It may be copied, modified, and redistributed under that
+  license in source archives, VSIX packages, desktop installers, project
+  documentation, and related project materials. Descriptive references to VS
+  Code and Tauri do not grant rights to unrelated third-party trademarks.
+- SHA-256: `c0beb76d303f9a979d7649aa0376d404afbed9930ee8f208359869b49749943a`.
+
 ## Temporarily retained restricted assets
 
 The following legacy assets are present in the source tree pending a separate cleanup:

@@ -23,7 +23,7 @@ npm run check
 npm run build:all
 ```
 
-`npm run check`는 버전 정합성, TypeScript, ESLint, 단위 테스트를 순서대로 검사합니다. VS Code 확장만 빌드하려면 `npm run build`, Tauri 프런트엔드까지 포함하려면 `npm run build:all`을 사용합니다.
+`npm run check`는 버전 정합성, TypeScript, ESLint, 단위 테스트를 순서대로 검사합니다. VS Code 확장만 빌드하려면 `npm run build`, Tauri 프런트엔드와 CLI까지 포함하려면 `npm run build:all`을 사용합니다.
 
 ## 작업 흐름
 
@@ -45,7 +45,7 @@ npm run build:all
 | `npm test` | Vitest 단위 테스트 |
 | `npm run build` | Extension host와 VS Code 웹뷰 빌드 |
 | `npm run build:desktop` | Tauri 프런트엔드 빌드 |
-| `npm run build:all` | 두 배포면의 프런트엔드 전체 빌드 |
+| `npm run build:all` | VS Code 확장, Tauri 프런트엔드와 CLI 빌드 |
 | `npm run package` | `output/`에 VSIX 생성 |
 | `npm run build:cli` | Node.js CLI 단일 ESM bundle 빌드 |
 | `npm run package:cli` | 설치 가능한 CLI `.tgz`를 `output/`에 생성 |
