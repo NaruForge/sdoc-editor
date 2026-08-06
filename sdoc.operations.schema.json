@@ -92,7 +92,9 @@
         { "$ref": "#/definitions/deleteBlock" },
         { "$ref": "#/definitions/moveSection" },
         { "$ref": "#/definitions/deleteSection" },
+        { "$ref": "#/definitions/setHeadingLevel" },
         { "$ref": "#/definitions/setDocumentTitle" },
+        { "$ref": "#/definitions/renameBlockId" },
         { "$ref": "#/definitions/updateDocumentMetadata" },
         { "$ref": "#/definitions/updateDocumentSettings" }
       ]
@@ -126,6 +128,7 @@
         "target": { "$ref": "#/definitions/target" },
         "title": { "type": "string" },
         "id": { "type": "string" },
+        "position": { "enum": ["child", "before", "after"] },
         "blocks": {
           "type": "array",
           "items": { "$ref": "https://sdoc.dev/schema/v1.0.json#/definitions/anyNode" }
@@ -188,6 +191,31 @@
       "properties": {
         "op": { "const": "deleteSection" },
         "target": { "$ref": "#/definitions/target" }
+      },
+      "additionalProperties": false
+    },
+    "renameBlockId": {
+      "type": "object",
+      "required": ["op", "target", "newId"],
+      "properties": {
+        "op": { "const": "renameBlockId" },
+        "target": { "$ref": "#/definitions/target" },
+        "newId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "not": { "pattern": "^provisional:" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "setHeadingLevel": {
+      "type": "object",
+      "required": ["op", "target", "level"],
+      "properties": {
+        "op": { "const": "setHeadingLevel" },
+        "target": { "$ref": "#/definitions/target" },
+        "level": { "type": "integer", "minimum": 1, "maximum": 6 }
       },
       "additionalProperties": false
     },

@@ -206,6 +206,143 @@ describe('document operations core', () => {
     if (!rejected.ok) expect(rejected.diagnostics[0].code).toBe('H6_CHILD_SECTION');
   });
 
+  it('inserts sibling sections before or after the complete target section', () => {
+    const text = source([
+      heading(1, 'one', 'One'), paragraph('one body'),
+      heading(2, 'one-child', 'One child'), paragraph('child body'),
+      heading(1, 'two', 'Two'), paragraph('two body'),
+    ]);
+    const after = apply(text, [{
+      op: 'insertSection', target: target('one'), title: 'After one', id: 'after-one',
+      position: 'after', blocks: [paragraph('after body')],
+    }]);
+    expect(after.ok).toBe(true);
+    if (!after.ok) return;
+    expect(after.envelope.doc.content?.map((node) => node.attrs?.id).filter(Boolean))
+      .toEqual(['one', 'one-child', 'after-one', 'two']);
+    expect(after.envelope.doc.content?.find((node) => node.attrs?.id === 'after-one')?.attrs?.level)
+      .toBe(1);
+    const inspected = inspectDocumentBytes(JSON.stringify(after.envelope));
+    expect(inspected.ok).toBe(true);
+    if (!inspected.ok) return;
+    expect(inspected.outline.find((entry) => entry.id === 'after-one'))
+      .toMatchObject({ level: 1, path: [4] });
+
+    const before = apply(text, [{
+      op: 'insertSection', target: target('two'), title: 'Before two', id: 'before-two',
+      position: 'before',
+    }]);
+    expect(before.ok).toBe(true);
+    if (!before.ok) return;
+    expect(before.envelope.doc.content?.map((node) => node.attrs?.id).filter(Boolean))
+      .toEqual(['one', 'one-child', 'before-two', 'two']);
+    expect(before.envelope.doc.content?.find((node) => node.attrs?.id === 'before-two')?.attrs?.level)
+      .toBe(1);
+  });
+
+  it('changes an existing section level while preserving ids and relative descendants', () => {
+    const text = source([
+      heading(1, 'root', 'Root'),
+      heading(2, 'section', 'Section'), paragraph('body'),
+      heading(3, 'section-child', 'Child'), paragraph('child body'),
+      heading(2, 'next', 'Next'),
+    ]);
+    const promoted = apply(text, [{
+      op: 'setHeadingLevel', target: target('section'), level: 1,
+    }]);
+    expect(promoted.ok).toBe(true);
+    if (!promoted.ok) return;
+    const inspected = inspectDocumentBytes(JSON.stringify(promoted.envelope));
+    expect(inspected.ok).toBe(true);
+    if (!inspected.ok) return;
+    expect(inspected.outline).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'section', level: 1 }),
+      expect.objectContaining({ id: 'section-child', level: 2 }),
+    ]));
+
+    const invalidLevel = apply(text, [{
+      op: 'setHeadingLevel', target: target('section'), level: 0,
+    }]);
+    expect(invalidLevel).toMatchObject({
+      ok: false,
+      category: 'argument',
+      diagnostics: [{ code: 'INVALID_HEADING_LEVEL' }],
+    });
+    const fractionalLevel = apply(text, [{
+      op: 'setHeadingLevel', target: target('section'), level: 1.5,
+    }]);
+    expect(fractionalLevel).toMatchObject({
+      ok: false,
+      category: 'argument',
+      diagnostics: [{ code: 'INVALID_HEADING_LEVEL' }],
+    });
+
+    const deep = source([
+      heading(5, 'deep', 'Deep'),
+      heading(6, 'deep-child', 'Deep child'),
+    ]);
+    const overflow = apply(deep, [{
+      op: 'setHeadingLevel', target: target('deep'), level: 6,
+    }]);
+    expect(overflow).toMatchObject({
+      ok: false,
+      category: 'argument',
+      diagnostics: [{ code: 'SECTION_LEVEL_OUT_OF_RANGE' }],
+    });
+  });
+
+  it('renames heading and table ids atomically and rewrites internal hrefs', () => {
+    const table: TiptapNode = {
+      type: 'table', attrs: { id: 'table-old' },
+      content: [{
+        type: 'tableRow',
+        content: [{ type: 'tableCell', content: [paragraph('cell')] }],
+      }],
+    };
+    const link = (text: string, href: string): TiptapNode => ({
+      type: 'paragraph',
+      content: [{ type: 'text', text, marks: [{ type: 'link', attrs: { href } }] }],
+    });
+    const text = source([
+      heading(1, 'heading-old', 'Heading'), link('heading link', '#heading-old'),
+      table, link('table link', '#table-old'),
+    ]);
+    const result = apply(text, [
+      { op: 'renameBlockId', target: target('heading-old'), newId: 'heading-new' },
+      { op: 'renameBlockId', target: target('table-old'), newId: 'table-new' },
+    ]);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const nodes = result.envelope.doc.content ?? [];
+    expect(nodes[0].attrs?.id).toBe('heading-new');
+    expect(nodes[1].content?.[0]?.marks?.[0]?.attrs?.href).toBe('#heading-new');
+    expect(nodes[2].attrs?.id).toBe('table-new');
+    expect(nodes[3].content?.[0]?.marks?.[0]?.attrs?.href).toBe('#table-new');
+    expect(result.diff).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: 'block-id-renamed', before: 'heading-old', after: 'heading-new' }),
+      expect.objectContaining({ kind: 'block-id-renamed', before: 'table-old', after: 'table-new' }),
+    ]));
+  });
+
+  it('uses Unicode code-point limits and rejects duplicate or reserved renamed ids', () => {
+    const text = source([
+      heading(1, 'first', 'First'),
+      heading(1, 'second', 'Second'),
+    ]);
+    expect(apply(text, [{
+      op: 'renameBlockId', target: target('first'), newId: '😀'.repeat(128),
+    }]).ok).toBe(true);
+    for (const [newId, code] of [
+      ['😀'.repeat(129), 'INVALID_NEW_ID'],
+      ['second', 'DUPLICATE_ID'],
+      ['provisional:reserved', 'INVALID_NEW_ID'],
+    ] as const) {
+      const result = apply(text, [{ op: 'renameBlockId', target: target('first'), newId }]);
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.diagnostics[0].code).toBe(code);
+    }
+  });
+
   it('moves/deletes complete section ranges and rejects headings as blocks', () => {
     const text = source([
       heading(1, 'a', 'A'), paragraph('A body'),

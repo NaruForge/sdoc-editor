@@ -1,6 +1,6 @@
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { Readable } from 'node:stream';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { computeRevision } from '../../shared/document/operations/index.js';
@@ -328,6 +328,8 @@ describe('CLI integration', () => {
     stdout = '';
     expect(await run(['inspect', documentPath, '--target-path', '/1', '--human'])).toBe(0);
     expect(stdout).toContain('Selected target: paragraph at /1');
+    expect(stdout).toContain('Content: Body');
+    expect(stdout).toMatch(/Digest: sha256:[0-9a-f]{64}/);
   });
 
   it('distinguishes malformed, missing, and non-block target paths', async () => {
@@ -580,6 +582,71 @@ describe('CLI integration', () => {
     expect(outputs.map((output) => output.template.id)).toEqual(templateIds);
   });
 
+  it('prints the complete selected block text in human inspection output', async () => {
+    const { documentPath } = await fixture();
+    const content = `start-${'한글-content-'.repeat(40)}-end`;
+    await writeFile(documentPath, JSON.stringify({
+      sdoc: '1.0',
+      meta: { title: 'Long target', modified: '2025-01-01T00:00:00.000Z' },
+      doc: {
+        type: 'doc',
+        content: [
+          {
+            type: 'heading',
+            attrs: { level: 1, id: 'title' },
+            content: [{ type: 'text', text: 'Long target' }],
+          },
+          { type: 'paragraph', content: [{ type: 'text', text: content }] },
+        ],
+      },
+    }));
+    let stdout = '';
+    vi.spyOn(process.stdout, 'write').mockImplementation((chunk) => {
+      stdout += String(chunk);
+      return true;
+    });
+
+    expect(await run(['inspect', documentPath, '--target-path', '/1', '--human'])).toBe(0);
+    expect(stdout).toContain(`Content: ${content}`);
+  });
+
+  it('creates a peer H1 section in a blank document using only CLI operations', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'sdoc-sibling-cli-'));
+    temporaryDirectories.push(directory);
+    const documentPath = join(directory, 'peer-sections.sdoc');
+    vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+
+    expect(await run(['create', documentPath, '--title', 'Peer sections'])).toBe(0);
+    const bytes = await readFile(documentPath);
+    const operationsPath = join(directory, 'insert-sibling.json');
+    await writeFile(operationsPath, JSON.stringify({
+      contract: 'sdoc.operations/1',
+      expected: { revision: computeRevision(bytes) },
+      operations: [{
+        op: 'insertSection',
+        target: { kind: 'id', id: 'document-title', expectedType: 'heading' },
+        position: 'after',
+        title: 'Peer H1',
+        id: 'peer-h1',
+        blocks: [{ type: 'paragraph', content: [{ type: 'text', text: 'Peer body' }] }],
+      }],
+    }));
+    expect(await run(['apply', documentPath, '--operations', operationsPath, '--write'])).toBe(0);
+
+    let stdout = '';
+    vi.mocked(process.stdout.write).mockImplementation((chunk) => {
+      stdout += String(chunk);
+      return true;
+    });
+    expect(await run(['inspect', documentPath])).toBe(0);
+    expect(JSON.parse(stdout)).toMatchObject({
+      outline: [
+        { id: 'document-title', level: 1, path: [0] },
+        { id: 'peer-h1', level: 1, path: [2] },
+      ],
+    });
+  });
+
   it('reports invalid file templates and missing destination parents', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'sdoc-create-cli-'));
     temporaryDirectories.push(directory);
@@ -702,6 +769,147 @@ describe('CLI integration', () => {
         message: expect.stringContaining('Writing this preview'),
         suggestedPath: join(directory, 'legacy.sdoc'),
       }],
+    });
+  });
+
+  it('renames a heading persistent id and updates cross-references', async () => {
+    const { directory, documentPath } = await fixture();
+    // Create a document with an internal cross-reference to #intro
+    const doc = {
+      sdoc: '1.0',
+      meta: { title: 'Ref test', modified: '2025-01-01T00:00:00.000Z' },
+      doc: {
+        type: 'doc',
+        content: [
+          {
+            type: 'heading',
+            attrs: { level: 1, id: 'intro' },
+            content: [{ type: 'text', text: 'Intro' }],
+          },
+          {
+            type: 'paragraph',
+            content: [{
+              type: 'text',
+              text: 'See intro',
+              marks: [{ type: 'link', attrs: { href: '#intro' } }],
+            }],
+          },
+        ],
+      },
+    };
+    const docBytes = Buffer.from(JSON.stringify(doc));
+    await writeFile(documentPath, docBytes);
+    const operationsPath = join(directory, 'rename-id.json');
+    await writeFile(operationsPath, JSON.stringify({
+      contract: 'sdoc.operations/1',
+      expected: { revision: computeRevision(docBytes) },
+      operations: [{
+        op: 'renameBlockId',
+        target: { kind: 'id', id: 'intro', expectedType: 'heading' },
+        newId: 'introduction',
+      }],
+    }));
+    let stdout = '';
+    vi.spyOn(process.stdout, 'write').mockImplementation((chunk) => {
+      stdout += String(chunk);
+      return true;
+    });
+
+    // Preview
+    expect(await run(['apply', documentPath, '--operations', operationsPath])).toBe(0);
+    const preview = JSON.parse(stdout) as { ok: boolean; changed: boolean; diff: Array<{ kind: string }> };
+    expect(preview.ok).toBe(true);
+    expect(preview.changed).toBe(true);
+    expect(preview.diff).toContainEqual(expect.objectContaining({ kind: 'block-id-renamed' }));
+
+    // Write
+    stdout = '';
+    expect(await run(['apply', documentPath, '--operations', operationsPath, '--write'])).toBe(0);
+    const written = JSON.parse(await readFile(documentPath, 'utf8')) as {
+      doc: { content: Array<{ attrs?: { id?: string }; content?: Array<{ marks?: Array<{ attrs?: { href?: string } }> }> }> };
+    };
+    expect(written.doc.content[0]?.attrs?.id).toBe('introduction');
+    // Cross-reference should be updated to #introduction
+    expect(written.doc.content[1]?.content?.[0]?.marks?.[0]?.attrs?.href).toBe('#introduction');
+  });
+
+  it('rejects renaming to a duplicate id', async () => {
+    const { directory, documentPath } = await fixture();
+    const doc = {
+      sdoc: '1.0',
+      meta: { title: 'Dup test', modified: '2025-01-01T00:00:00.000Z' },
+      doc: {
+        type: 'doc',
+        content: [
+          {
+            type: 'heading',
+            attrs: { level: 1, id: 'first' },
+            content: [{ type: 'text', text: 'First' }],
+          },
+          {
+            type: 'heading',
+            attrs: { level: 2, id: 'second' },
+            content: [{ type: 'text', text: 'Second' }],
+          },
+        ],
+      },
+    };
+    const docBytes = Buffer.from(JSON.stringify(doc));
+    await writeFile(documentPath, docBytes);
+    const operationsPath = join(directory, 'dup-id.json');
+    await writeFile(operationsPath, JSON.stringify({
+      contract: 'sdoc.operations/1',
+      expected: { revision: computeRevision(docBytes) },
+      operations: [{
+        op: 'renameBlockId',
+        target: { kind: 'id', id: 'first', expectedType: 'heading' },
+        newId: 'second',
+      }],
+    }));
+    let stderr = '';
+    vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+      stderr += String(chunk);
+      return true;
+    });
+
+    expect(await run(['apply', documentPath, '--operations', operationsPath])).toBe(3);
+    expect(JSON.parse(stderr)).toMatchObject({
+      diagnostics: [{ code: 'DUPLICATE_ID' }],
+    });
+  });
+
+  it('rejects renaming a non-referenceable node id', async () => {
+    const { documentPath, bytes } = await fixture();
+    // Try renaming a paragraph (which is snapshot-targeted, not id-targeted)
+    let stdout = '';
+    vi.spyOn(process.stdout, 'write').mockImplementation((chunk) => {
+      stdout += String(chunk);
+      return true;
+    });
+    // First inspect to get the paragraph's snapshot target
+    expect(await run(['inspect', documentPath, '--target-path', '/1'])).toBe(0);
+    const inspection = JSON.parse(stdout) as {
+      target: { operationTarget: Record<string, unknown> };
+    };
+    const operationsPath = join(dirname(documentPath), 'bad-rename.json');
+    await writeFile(operationsPath, JSON.stringify({
+      contract: 'sdoc.operations/1',
+      expected: { revision: computeRevision(bytes) },
+      operations: [{
+        op: 'renameBlockId',
+        target: inspection.target.operationTarget,
+        newId: 'new-paragraph-id',
+      }],
+    }));
+    let stderr = '';
+    vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+      stderr += String(chunk);
+      return true;
+    });
+
+    expect(await run(['apply', documentPath, '--operations', operationsPath])).toBe(2);
+    expect(JSON.parse(stderr)).toMatchObject({
+      diagnostics: [{ code: 'ID_RENAME_NOT_SUPPORTED' }],
     });
   });
 });

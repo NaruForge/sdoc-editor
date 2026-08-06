@@ -26,6 +26,7 @@ const MAX_DEPTH = 128;
 const MAX_NODES = 100_000;
 const MAX_TARGET_DETAIL_BYTES = 256 * 1024;
 const REFERENCEABLE = new Set(['heading', 'image', 'table', 'mathBlock']);
+const RENAMABLE_ID_TYPES = new Set(['heading', 'table']);
 const NON_BLOCK = new Set([
   'doc', 'text', 'mathInline', 'tableRow', 'listItem',
 ]);
@@ -409,13 +410,15 @@ function narrowOperation(value: unknown): SdocOperation | undefined {
     updateDocumentMetadata: new Set(['op', 'patch']),
     updateDocumentSettings: new Set(['op', 'patch']),
     insertBlock: new Set(['op', 'destination', 'block']),
-    insertSection: new Set(['op', 'target', 'title', 'id', 'blocks']),
+    insertSection: new Set(['op', 'target', 'title', 'id', 'blocks', 'position']),
     replaceBlock: new Set(['op', 'target', 'block']),
     updateBlockAttrs: new Set(['op', 'target', 'attrs']),
     moveBlock: new Set(['op', 'target', 'destination']),
     deleteBlock: new Set(['op', 'target']),
     moveSection: new Set(['op', 'target', 'destination']),
     deleteSection: new Set(['op', 'target']),
+    setHeadingLevel: new Set(['op', 'target', 'level']),
+    renameBlockId: new Set(['op', 'target', 'newId']),
   };
   const allowed = allowedKeys[value.op];
   if (!allowed || !hasOnlyKeys(value, allowed)) return undefined;
@@ -466,11 +469,13 @@ function narrowOperation(value: unknown): SdocOperation | undefined {
   }
   if (value.op === 'insertSection' && target && typeof value.title === 'string'
     && (value.id === undefined || typeof value.id === 'string')
-    && (value.blocks === undefined || (Array.isArray(value.blocks) && value.blocks.every(isNode)))) {
+    && (value.blocks === undefined || (Array.isArray(value.blocks) && value.blocks.every(isNode)))
+    && (value.position === undefined || value.position === 'child' || value.position === 'before' || value.position === 'after')) {
     return {
       op: value.op, target, title: value.title,
       ...(typeof value.id === 'string' ? { id: value.id } : {}),
       ...(Array.isArray(value.blocks) ? { blocks: value.blocks } : {}),
+      ...(typeof value.position === 'string' ? { position: value.position } : {}),
     };
   }
   if (value.op === 'replaceBlock' && target && isNode(value.block)) {
@@ -489,6 +494,13 @@ function narrowOperation(value: unknown): SdocOperation | undefined {
     if (destination) return { op: value.op, target, destination };
   }
   if (value.op === 'deleteSection' && target) return { op: value.op, target };
+  if (value.op === 'setHeadingLevel' && target
+    && typeof value.level === 'number' && Number.isFinite(value.level)) {
+    return { op: value.op, target, level: value.level };
+  }
+  if (value.op === 'renameBlockId' && target && typeof value.newId === 'string') {
+    return { op: value.op, target, newId: value.newId };
+  }
   return undefined;
 }
 
@@ -574,6 +586,8 @@ function operationEvent(op: SdocOperation, before?: string, after?: string): Sem
     insertSection: 'section-inserted', replaceBlock: 'block-replaced',
     updateBlockAttrs: 'block-attrs-updated', moveBlock: 'block-moved',
     deleteBlock: 'block-deleted', moveSection: 'section-moved', deleteSection: 'section-deleted',
+    setHeadingLevel: 'section-level-changed',
+    renameBlockId: 'block-id-renamed',
   };
   return { kind: kinds[op.op], ...(before ? { before } : {}), ...(after ? { after } : {}) };
 }
@@ -666,9 +680,16 @@ function applyOne(
     const range = sectionRange(root, target);
     if ('ok' in range) return range;
     const level = Number(target.attrs?.level);
-    if (level >= 6) return failure('argument', 'H6_CHILD_SECTION', 'cannot insert a child section below H6');
+    const position = op.position ?? 'child';
+    const newLevel = position === 'child' ? level + 1 : level;
+    if (position === 'child' && level >= 6) {
+      return failure('argument', 'H6_CHILD_SECTION', 'cannot insert a child section below H6');
+    }
+    if (newLevel < 1 || newLevel > 6) {
+      return failure('argument', 'INVALID_HEADING_LEVEL', `resulting heading level ${newLevel} is out of range 1-6`);
+    }
     const heading: TiptapNode = {
-      type: 'heading', attrs: { level: level + 1, ...(op.id ? { id: op.id } : {}) },
+      type: 'heading', attrs: { level: newLevel, ...(op.id ? { id: op.id } : {}) },
       content: op.title ? [{ type: 'text', text: op.title }] : [],
     };
     if ((op.blocks ?? []).some((block) => block.type === 'heading')) {
@@ -676,7 +697,12 @@ function applyOne(
         'insertSection blocks cannot contain sibling headings');
     }
     range.parent.content ??= [];
-    range.parent.content.splice(range.end, 0, heading, ...(op.blocks ?? []).map(clone));
+    if (position === 'before') {
+      range.parent.content.splice(range.start, 0, heading, ...(op.blocks ?? []).map(clone));
+    } else {
+      // 'child' appends at section end (inside), 'after' appends at section end (outside)
+      range.parent.content.splice(range.end, 0, heading, ...(op.blocks ?? []).map(clone));
+    }
     return operationEvent(op, undefined, summary(heading));
   }
   if (op.op === 'replaceBlock') {
@@ -750,6 +776,74 @@ function applyOne(
       destination.parent.content.splice(destination.index, 0, ...moved);
     }
     return operationEvent(op, summary(target));
+  }
+  if (op.op === 'setHeadingLevel') {
+    if (!target) return failure('conflict', 'TARGET_REMOVED', 'target is unavailable');
+    if (target.type !== 'heading') {
+      return failure('argument', 'HEADING_TARGET_REQUIRED',
+        'setHeadingLevel requires a heading target');
+    }
+    if (!Number.isSafeInteger(op.level) || op.level < 1 || op.level > 6) {
+      return failure('argument', 'INVALID_HEADING_LEVEL', 'heading level must be an integer from 1 to 6');
+    }
+    const range = sectionRange(root, target);
+    if ('ok' in range) return range;
+    const oldLevel = Number(target.attrs?.level);
+    const delta = op.level - oldLevel;
+    const sectionNodes = (range.parent.content ?? []).slice(range.start, range.end);
+    const headings = sectionNodes.filter((node) => node.type === 'heading');
+    const invalid = headings.find((heading) => {
+      const nextLevel = Number(heading.attrs?.level) + delta;
+      return nextLevel < 1 || nextLevel > 6;
+    });
+    if (invalid) {
+      return failure('argument', 'SECTION_LEVEL_OUT_OF_RANGE',
+        'level change would move a descendant heading outside the valid range 1-6');
+    }
+    for (const heading of headings) {
+      heading.attrs = { ...heading.attrs, level: Number(heading.attrs?.level) + delta };
+    }
+    return {
+      kind: 'section-level-changed',
+      before: `H${oldLevel}`,
+      after: `H${op.level}`,
+      ...(headings.length > 1 ? { indirectChanges: headings.length - 1 } : {}),
+    };
+  }
+  if (op.op === 'renameBlockId') {
+    if (!target) return failure('conflict', 'TARGET_REMOVED', 'target is unavailable');
+    if (!RENAMABLE_ID_TYPES.has(target.type)) {
+      return failure('argument', 'ID_RENAME_NOT_SUPPORTED',
+        `renameBlockId is only supported on heading and table nodes, found ${target.type}`);
+    }
+    const oldId = typeof target.attrs?.id === 'string' && target.attrs.id ? target.attrs.id : undefined;
+    if (!oldId) {
+      return failure('argument', 'ID_RENAME_REQUIRES_EXISTING_ID',
+        'renameBlockId requires a target with an existing persistent id');
+    }
+    const newId = op.newId;
+    if (!newId || unicodeCodePointLength(newId) > 128) {
+      return failure('argument', 'INVALID_NEW_ID', 'newId must be a non-empty string of at most 128 characters');
+    }
+    if (/^provisional:/.test(newId)) {
+      return failure('argument', 'INVALID_NEW_ID', 'newId must not use the reserved provisional: prefix');
+    }
+    if (oldId === newId) return operationEvent(op, oldId, newId);
+    for (const { node } of walkDocument(root)) {
+      if (node !== target && typeof node.attrs?.id === 'string' && node.attrs.id === newId) {
+        return failure('document', 'DUPLICATE_ID', `duplicate id: ${newId}`);
+      }
+    }
+    for (const { node } of walkDocument(root)) {
+      for (const mark of node.marks ?? []) {
+        if (mark.type === 'link' && typeof mark.attrs?.href === 'string'
+          && mark.attrs.href === `#${oldId}`) {
+          mark.attrs.href = `#${newId}`;
+        }
+      }
+    }
+    target.attrs = { ...target.attrs, id: newId };
+    return operationEvent(op, oldId, newId);
   }
   return failure('argument', 'UNSUPPORTED_OPERATION', 'operation is unsupported');
 }
