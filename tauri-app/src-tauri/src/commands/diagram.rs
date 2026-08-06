@@ -963,8 +963,7 @@ fn validate_css_urls(css: &str, allow_embedded_font: bool) -> Result<(), Diagram
             .trim()
             .trim_matches(|character| matches!(character, '\'' | '"'))
             .trim();
-        if !is_internal_fragment(target)
-            && !(allow_embedded_font && is_embedded_base64_font(target))
+        if !(is_internal_fragment(target) || allow_embedded_font && is_embedded_base64_font(target))
         {
             return Err(DiagramRenderError::invalid_response());
         }
