@@ -62,5 +62,17 @@ jobs:
       - name: Package VSIX
         run: npm run package
 
+      - name: Verify packaged VSIX editor UI
+        shell: bash
+        run: |
+          vsix="$(find output -maxdepth 1 -type f -name 'structured-doc-editor-*.vsix' -print -quit)"
+          test -n "$vsix"
+          extract_dir="$RUNNER_TEMP/sdoc-vsix"
+          mkdir -p "$extract_dir"
+          unzip -q "$vsix" -d "$extract_dir"
+          test -f "$extract_dir/extension/dist/extension.js"
+          test -f "$extract_dir/extension/dist/webview/assets/index.js"
+          SDOC_EXTENSION_PATH="$extract_dir/extension" xvfb-run -a npm run test:vscode
+
       - name: Publish VSIX to Visual Studio Marketplace
         run: npx vsce publish --azure-credential --packagePath output/structured-doc-editor-*.vsix --skip-duplicate

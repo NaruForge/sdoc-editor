@@ -18,7 +18,9 @@ import {
   type LegacySettingsScope,
 } from './legacySettingsCleanup';
 
-/** Show What's New (CHANGELOG) when extension is updated to a new version. */
+const VIEW_CHANGELOG_ACTION = 'View Changelog';
+
+/** Offer What's New without taking focus from the document that activated the extension. */
 async function showWhatsNewIfNeeded(context: vscode.ExtensionContext): Promise<void> {
   try {
     const packageJsonPath = path.join(context.extensionPath, 'package.json');
@@ -31,8 +33,14 @@ async function showWhatsNewIfNeeded(context: vscode.ExtensionContext): Promise<v
     if (previousVersion !== currentVersion) {
       await context.globalState.update('sdocEditor.version', currentVersion);
       if (previousVersion) {
-        const changelogUri = vscode.Uri.joinPath(context.extensionUri, 'CHANGELOG.md');
-        await vscode.commands.executeCommand('markdown.showPreview', changelogUri);
+        const selected = await vscode.window.showInformationMessage(
+          `Structured Doc Editor was updated to v${currentVersion}.`,
+          VIEW_CHANGELOG_ACTION,
+        );
+        if (selected === VIEW_CHANGELOG_ACTION) {
+          const changelogUri = vscode.Uri.joinPath(context.extensionUri, 'CHANGELOG.md');
+          await vscode.commands.executeCommand('markdown.showPreview', changelogUri);
+        }
       }
     }
   } catch (error) {
@@ -45,6 +53,12 @@ export function activate(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(SdocEditorProvider.register(context));
   context.subscriptions.push(SdocBookProvider.register(context));
+  if (process.env.SDOC_VSCODE_UI_TEST === '1') {
+    context.subscriptions.push(vscode.commands.registerCommand(
+      'structuredDocEditor.test.waitForEditorUiReady',
+      () => SdocEditorProvider.waitForActiveEditorUiReady(),
+    ));
+  }
   const templateOutputChannel = vscode.window.createOutputChannel('Structured Doc Templates');
   context.subscriptions.push(templateOutputChannel);
 

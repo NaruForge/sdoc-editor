@@ -27,7 +27,7 @@ async function run() {
 
   const workspace = vscode.workspace.workspaceFolders?.[0];
   assert.ok(workspace, 'The test workspace must be open.');
-  const openCustomEditor = async (fileName) => {
+  const openCustomEditor = async (fileName, expectEditableUi = false) => {
     const documentUri = vscode.Uri.joinPath(workspace.uri, fileName);
     await vscode.commands.executeCommand(
       'vscode.openWith',
@@ -43,6 +43,13 @@ async function run() {
       vscode.window.tabGroups.activeTabGroup.activeTab.input.uri.toString(),
       documentUri.toString(),
     );
+    if (expectEditableUi) {
+      assert.equal(
+        await vscode.commands.executeCommand('structuredDocEditor.test.waitForEditorUiReady'),
+        true,
+        `The Structured Doc webview UI did not render ${fileName}.`,
+      );
+    }
     return documentUri;
   };
   const closeActiveEditor = () => vscode.commands.executeCommand('workbench.action.closeActiveEditor');
@@ -57,7 +64,7 @@ async function run() {
     await closeActiveEditor();
   }
 
-  const validUri = await openCustomEditor('valid.sdoc');
+  const validUri = await openCustomEditor('valid.sdoc', true);
   const invalidExternalBytes = Buffer.from('{"sdoc":"1.0","doc":', 'utf8');
   await vscode.workspace.fs.writeFile(validUri, invalidExternalBytes);
   await new Promise((resolve) => setTimeout(resolve, 500));

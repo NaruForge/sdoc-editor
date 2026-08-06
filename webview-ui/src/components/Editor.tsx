@@ -248,6 +248,50 @@ export const Editor: React.FC = () => {
       documentSettings: docSettingsRef.current,
     } satisfies DocumentMutation : null,
   });
+
+  useEffect(() => {
+    if (!editor || state.documentAccess.status !== 'editable') return;
+    const session = persistenceSessionRef.current;
+    if (!session) return;
+
+    let cancelled = false;
+    const frame = window.requestAnimationFrame(() => {
+      const shell = document.querySelector('[data-sdoc-editor-shell="true"]');
+      const titleInput = shell?.querySelector('.editor-title-input') ?? null;
+      const toolbar = shell?.querySelector('[role="toolbar"]') ?? null;
+      const proseMirror = editor.view.dom;
+      const isVisiblyRendered = (element: Element | null): element is HTMLElement => {
+        if (!(element instanceof HTMLElement) || !element.isConnected) return false;
+        const style = window.getComputedStyle(element);
+        const bounds = element.getBoundingClientRect();
+        return style.display !== 'none'
+          && style.visibility !== 'hidden'
+          && Number(style.opacity) !== 0
+          && bounds.width > 0
+          && bounds.height > 0
+          && bounds.right > 0
+          && bounds.bottom > 0
+          && bounds.left < window.innerWidth
+          && bounds.top < window.innerHeight;
+      };
+      if (cancelled
+        || !isVisiblyRendered(shell)
+        || !isVisiblyRendered(titleInput)
+        || !isVisiblyRendered(toolbar)
+        || !isVisiblyRendered(proseMirror)
+        || !proseMirror.matches('.ProseMirror[contenteditable="true"]')) return;
+      postMessage({
+        type: 'uiReady',
+        sessionId: session.sessionId,
+        documentId: session.documentId,
+      });
+    });
+
+    return () => {
+      cancelled = true;
+      window.cancelAnimationFrame(frame);
+    };
+  }, [editor, postMessage, state.documentAccess.status]);
   postMessageRef.current = postMessage;
   diagramRendererRef.current = renderDiagram;
 
@@ -641,7 +685,7 @@ export const Editor: React.FC = () => {
     : null;
 
   return (
-    <div className="editor-shell">
+    <div className="editor-shell" data-sdoc-editor-shell="true">
       <DocumentHeader
         author={meta.author}
         version={meta.version}

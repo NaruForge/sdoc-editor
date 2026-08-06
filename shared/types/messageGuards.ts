@@ -178,6 +178,8 @@ export function isEditorToHostMessage(value: unknown): value is EditorToHostMess
     case 'insertExistingImage':
     case 'browseSdocFiles':
       return true;
+    case 'uiReady':
+      return hasString(value, 'sessionId') && hasString(value, 'documentId');
     case 'editorTextFocusChanged':
       return hasString(value, 'sessionId')
         && hasString(value, 'documentId')
