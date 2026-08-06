@@ -58,11 +58,12 @@ const parseCandidate = (
     const code = contract.kind === 'unsupported-version'
       ? 'unsupported-version'
       : 'malformed-document';
+    const primary = contract.diagnostics[0];
     return {
       candidate,
-      diagnostics: contract.diagnostics.length > 0
-        ? contract.diagnostics.map((entry) => diagnostic(candidate, code, entry.message, entry.path))
-        : [diagnostic(candidate, code, '템플릿 문서 계약을 확인할 수 없습니다.')],
+      diagnostics: [primary
+        ? diagnostic(candidate, code, primary.message, primary.path)
+        : diagnostic(candidate, code, '템플릿 문서 계약을 확인할 수 없습니다.')],
     };
   }
   if (contract.legacy) {

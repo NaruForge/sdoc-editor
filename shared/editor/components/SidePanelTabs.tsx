@@ -21,6 +21,21 @@ type TabDefinition<T extends string> = {
   labelKey: EditorTranslationKey;
 };
 
+export type SidePanelTabNavigationKey = 'ArrowLeft' | 'ArrowRight' | 'Home' | 'End';
+
+export function nextSidePanelTabIndex(
+  currentIndex: number,
+  key: SidePanelTabNavigationKey,
+  tabCount: number,
+): number {
+  if (tabCount <= 0) return -1;
+  if (key === 'Home') return 0;
+  if (key === 'End') return tabCount - 1;
+  if (currentIndex < 0) return key === 'ArrowLeft' ? tabCount - 1 : 0;
+  if (key === 'ArrowRight') return (currentIndex + 1 + tabCount) % tabCount;
+  return (currentIndex - 1 + tabCount) % tabCount;
+}
+
 const NAVIGATE_TABS: readonly TabDefinition<NavigatePanelTab>[] = [
   { id: 'toc', labelKey: 'panel.contents' },
   { id: 'figures', labelKey: 'panel.figures' },
@@ -40,8 +55,39 @@ export const SidePanelTabs: React.FC<SidePanelTabsProps> = ({
     ? NAVIGATE_TABS
     : PUBLISH_TABS;
 
+  const selectTab = (id: NavigatePanelTab | PublishPanelTab): void => {
+    onSelectionChange({
+      destination: selection.destination,
+      tab: id,
+    } as SidePanelSelection);
+  };
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>): void => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+    const tabs = Array.from(
+      event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]') ?? [],
+    );
+    const currentIndex = tabs.indexOf(event.currentTarget);
+    const nextIndex = nextSidePanelTabIndex(
+      currentIndex,
+      event.key as SidePanelTabNavigationKey,
+      tabs.length,
+    );
+    if (nextIndex < 0) return;
+    event.preventDefault();
+    const nextDefinition = definitions[nextIndex];
+    if (!nextDefinition) return;
+    selectTab(nextDefinition.id);
+    tabs[nextIndex]?.focus();
+  };
+
   return (
-    <div className="side-panel-tabs" role="tablist" aria-label={t('panel.documentPanels')}>
+    <div
+      className="side-panel-tabs"
+      role="tablist"
+      aria-label={t('panel.documentPanels')}
+      aria-orientation="horizontal"
+    >
       {definitions.map(({ id, labelKey }) => {
         const selected = selection.tab === id;
         return (
@@ -57,10 +103,8 @@ export const SidePanelTabs: React.FC<SidePanelTabsProps> = ({
             aria-selected={selected}
             aria-controls={SIDE_PANEL_TAB_CONTENT_ID}
             tabIndex={selected ? 0 : -1}
-            onClick={() => onSelectionChange({
-              destination: selection.destination,
-              tab: id,
-            } as SidePanelSelection)}
+            onClick={() => selectTab(id)}
+            onKeyDown={handleKeyDown}
           >
             {t(labelKey)}
           </button>

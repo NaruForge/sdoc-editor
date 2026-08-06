@@ -111,6 +111,45 @@ describe('CLI integration', () => {
     expect(await readFile(`${documentPath}.lock`).catch(() => undefined)).toBeUndefined();
   });
 
+  it('keeps the JSON failure shape and exit code when a lock requires manual recovery', async () => {
+    const { directory, documentPath, bytes } = await fixture();
+    const operationsPath = await renameRequest(directory, bytes);
+    const lockPath = `${documentPath}.lock`;
+    const legacyOwner = '8080:legacy-token\n';
+    await writeFile(lockPath, legacyOwner);
+    let stdout = '';
+    let stderr = '';
+    vi.spyOn(process.stdout, 'write').mockImplementation((chunk) => {
+      stdout += String(chunk);
+      return true;
+    });
+    vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+      stderr += String(chunk);
+      return true;
+    });
+
+    const exitCode = await run([
+      'apply',
+      documentPath,
+      '--operations',
+      operationsPath,
+      '--write',
+      '--json',
+    ]);
+
+    expect(exitCode).toBe(5);
+    expect(stdout).toBe('');
+    expect(JSON.parse(stderr)).toEqual({
+      ok: false,
+      diagnostics: [{
+        code: 'CLI_LOCK_UNAVAILABLE',
+        message: expect.stringMatching(/manually only after confirming no writer is active/i),
+      }],
+    });
+    expect(await readFile(documentPath)).toEqual(bytes);
+    expect(await readFile(lockPath, 'utf8')).toBe(legacyOwner);
+  });
+
   it('uses the documented argument-error exit code and stderr JSON', async () => {
     const { documentPath } = await fixture();
     let stderr = '';

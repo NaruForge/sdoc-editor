@@ -12,7 +12,10 @@ import {
 import { ActivityBar } from '../shared/editor/components/ActivityBar';
 import { DesignPanel } from '../shared/editor/components/DesignPanel';
 import { ViewControlPanel } from '../shared/editor/components/ViewControlPanel';
-import { SidePanelTabs } from '../shared/editor/components/SidePanelTabs';
+import {
+  nextSidePanelTabIndex,
+  SidePanelTabs,
+} from '../shared/editor/components/SidePanelTabs';
 import { SidePanelBody } from '../shared/editor/components/SidePanelBody';
 import {
   getSidePanelTabId,
@@ -34,6 +37,16 @@ const renderActivityBar = (element: React.ReactElement): string => renderToStati
 );
 
 describe('activity hubs and settings UI', () => {
+  it('calculates wrapped side-panel tab focus for arrows, Home, and End', () => {
+    expect(nextSidePanelTabIndex(0, 'ArrowLeft', 3)).toBe(2);
+    expect(nextSidePanelTabIndex(2, 'ArrowRight', 3)).toBe(0);
+    expect(nextSidePanelTabIndex(1, 'Home', 3)).toBe(0);
+    expect(nextSidePanelTabIndex(1, 'End', 3)).toBe(2);
+    expect(nextSidePanelTabIndex(-1, 'ArrowLeft', 3)).toBe(2);
+    expect(nextSidePanelTabIndex(-1, 'ArrowRight', 3)).toBe(0);
+    expect(nextSidePanelTabIndex(0, 'ArrowRight', 0)).toBe(-1);
+  });
+
   it('remembers each hub child and closes an open hub when it is clicked again', () => {
     let state = createActivitySessionState(
       { destination: 'navigate', tab: 'toc' },

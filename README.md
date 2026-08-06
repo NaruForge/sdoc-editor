@@ -121,8 +121,10 @@ VS Code는 확장을 제거해도 사용자가 기록한 `settings.json` 값을 
 저장 형식의 기준은 [`sdoc.schema.json`](sdoc.schema.json)입니다.
 
 - 저장 전 최신 편집 내용과 문서 identity·revision을 확인해 지연된 저장이 다른 문서에 적용되지 않게 합니다.
-- 잘못된 JSON이나 지원하지 않는 미래 버전은 원본 보호를 위해 VS Code에서 읽기 전용으로 엽니다.
+- 잘못된 JSON이나 지원하지 않는 미래 버전은 편집기 대신 진단과 원본 JSON 열기 동작만 표시합니다. 유효하게 열었던 문서가 외부 변경으로 손상되면 로컬 초안은 보존하되 쓰기를 즉시 차단하며, 원본 복구 또는 명시적으로 확인한 로컬 초안 복원을 선택할 수 있습니다.
 - 이미지와 Draw.io 파일은 portable 상대 경로만 저장하며 문서 경계 밖 경로와 symlink 탈출을 거부합니다.
+- 문서·가져오기는 32 MiB, 개별 asset은 32 MiB로 제한합니다. 자체 포함 export는 최대 1,024개 asset 참조와 256 MiB를 처리합니다.
+- 전체 자체 포함 HTML/PDF export에 필요한 KaTeX·Mermaid runtime과 글꼴은 확장에 포함되어 CDN 연결 없이 동작합니다.
 - Command Palette와 편집기 Publish 패널은 같은 변환기와 설정 해석 규칙을 사용합니다.
 
 ## 여러 문서를 한 권으로 관리하기

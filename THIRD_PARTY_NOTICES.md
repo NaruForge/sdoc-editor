@@ -167,7 +167,7 @@ Dependency count: 202
 | npm | es-toolkit | 1.49.0 | MIT | [source](https://github.com/toss/es-toolkit) |
 | npm | fast-deep-equal | 3.1.3 | MIT | [source](https://github.com/epoberezkin/fast-deep-equal) |
 | npm | fast-equals | 5.4.0 | MIT | [source](https://github.com/planttheidea/fast-equals) |
-| npm | fast-uri | 3.1.4 | BSD-3-Clause | [source](https://github.com/fastify/fast-uri) |
+| npm | fast-uri | 3.1.5 | BSD-3-Clause | [source](https://github.com/fastify/fast-uri) |
 | npm | hachure-fill | 0.5.2 | MIT | [source](https://github.com/pshihn/hachure-fill) |
 | npm | highlight.js | 11.11.1 | BSD-3-Clause | [source](https://highlightjs.org/) |
 | npm | iconv-lite | 0.6.3 | MIT | [source](https://github.com/ashtuchkin/iconv-lite) |
@@ -2603,7 +2603,7 @@ SOFTWARE.
 
 ### Notice group 59 (b010b0dfdfdb)
 
-Packages: `npm:fast-uri@3.1.4`
+Packages: `npm:fast-uri@3.1.5`
 
 Source filenames: `LICENSE`
 

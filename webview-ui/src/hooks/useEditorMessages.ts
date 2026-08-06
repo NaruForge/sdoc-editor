@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useReducer, useRef, useState, MutableRefObject } from 'react';
 import { Editor as TiptapEditor, type JSONContent } from '@tiptap/react';
-import { useEditorContext, resolveFontWeight } from '@shared/editor/context/EditorContext';
+import {
+  EDITABLE_CAPABILITIES,
+  useEditorContext,
+  resolveFontWeight,
+  type EditorDocumentAccess,
+} from '@shared/editor/context/EditorContext';
 import { useVSCodeMessaging } from './useVSCodeMessaging';
 import { preprocessImportedHtml } from '@shared/editor/utils/preprocessImportedHtml';
 import { isUpdatedDrawioAsset } from '@shared/editor/drawioUpdates';
@@ -123,6 +128,21 @@ export function useEditorMessages({
     snapshot: DocumentMutation;
   } | null>(null);
   const [showExternalComparison, setShowExternalComparison] = useState(false);
+  const accessRef = useRef<EditorDocumentAccess>({
+    status: 'loading',
+    capabilities: { ...EDITABLE_CAPABILITIES, editContent: false, editMetadata: false,
+      editDocumentSettings: false, replaceDocument: false, manageAssets: false,
+      exportDocument: false, inspectSource: false },
+  });
+  const pendingInvalidRecoveryRef = useRef<string | null>(null);
+  const [invalidRecoveryPending, setInvalidRecoveryPending] = useState(false);
+  const [invalidRecoveryError, setInvalidRecoveryError] = useState<string | null>(null);
+
+  const publishAccess = (access: EditorDocumentAccess): void => {
+    accessRef.current = access;
+    dispatch({ type: 'SET_DOCUMENT_ACCESS', payload: access });
+    editorRef.current?.setEditable(access.status === 'editable');
+  };
 
   const { postMessage } = useVSCodeMessaging((message) => {
     const ed = editorRef.current;
@@ -130,7 +150,7 @@ export function useEditorMessages({
 
     switch (message.type) {
       case 'init':
-        if (initDoneRef.current) break;
+        if (initDoneRef.current && accessRef.current.status !== 'invalid-initial') break;
         dispatch({ type: 'SET_LOCALE', payload: message.locale });
         persistenceSessionRef.current = {
           sessionId: message.sessionId,
@@ -138,6 +158,28 @@ export function useEditorMessages({
           revision: message.revision,
         };
         setFileController(createFileOperationControllerState(message.sessionId));
+        if (message.documentState.status === 'invalid') {
+          syncCoordinatorRef.current = null;
+          initDoneRef.current = true;
+          dispatch({ type: 'SET_READY', payload: true });
+          publishAccess({
+            status: 'invalid-initial',
+            capabilities: {
+              ...EDITABLE_CAPABILITIES,
+              editContent: false,
+              editMetadata: false,
+              editDocumentSettings: false,
+              replaceDocument: false,
+              manageAssets: false,
+              exportDocument: false,
+            },
+            reason: message.documentState.reason,
+            diagnostics: message.documentState.diagnostics,
+            canRecoverFromLocal: false,
+          });
+          break;
+        }
+        const snapshot = message.documentState.snapshot;
         syncCoordinatorRef.current = new DocumentSyncCoordinator({
           identity: {
             sessionId: message.sessionId,
@@ -146,19 +188,20 @@ export function useEditorMessages({
           },
           send: (request) => postMessage({ type: 'edit', ...request }),
         });
-        syncCoordinatorRef.current.adoptReplacement(message.revision, message.snapshot);
-        setMeta(replaceMetaState(message.snapshot.meta));
+        syncCoordinatorRef.current.adoptReplacement(message.revision, snapshot);
+        setMeta(replaceMetaState(snapshot.meta));
         dispatch({
           type: 'SET_DOC_SETTINGS',
-          payload: message.snapshot.documentSettings,
+          payload: snapshot.documentSettings,
         });
         if (replaceEditorDocumentRef.current) {
-          replaceEditorDocumentRef.current('initial-load', message.snapshot.content);
+          replaceEditorDocumentRef.current('initial-load', snapshot.content);
           initDoneRef.current = true;
           dispatch({ type: 'SET_READY', payload: true });
-          ed?.setEditable(!message.readOnlyReason);
+          publishAccess({ status: 'editable', capabilities: EDITABLE_CAPABILITIES });
         } else {
-          dispatch({ type: 'SET_DOC', payload: message.snapshot.content });
+          dispatch({ type: 'SET_DOC', payload: snapshot.content });
+          publishAccess({ status: 'editable', capabilities: EDITABLE_CAPABILITIES });
         }
         break;
       case 'uiLanguageChanged':
@@ -197,7 +240,46 @@ export function useEditorMessages({
             error: message.error ?? { code: 'operation-failed', message: 'The template could not be applied.' },
           });
         }
-        ed?.setEditable(true);
+        ed?.setEditable(accessRef.current.status === 'editable');
+        break;
+      case 'externalInvalidDocument':
+        if (persistenceSessionRef.current?.sessionId !== message.sessionId
+          || persistenceSessionRef.current.documentId !== message.documentId) break;
+        persistenceSessionRef.current.revision = message.revision;
+        setExternalChange(null);
+        setShowExternalComparison(false);
+        setInvalidRecoveryError(null);
+        publishAccess({
+          status: 'invalid-external',
+          capabilities: {
+            ...EDITABLE_CAPABILITIES,
+            editContent: false,
+            editMetadata: false,
+            editDocumentSettings: false,
+            replaceDocument: message.canRecoverFromLocal,
+            manageAssets: false,
+            exportDocument: false,
+          },
+          reason: message.reason,
+          diagnostics: message.diagnostics,
+          canRecoverFromLocal: message.canRecoverFromLocal,
+        });
+        break;
+      case 'invalidDocumentRecoveryResult':
+        if (pendingInvalidRecoveryRef.current !== message.requestId
+          || persistenceSessionRef.current?.sessionId !== message.sessionId
+          || persistenceSessionRef.current.documentId !== message.documentId) break;
+        pendingInvalidRecoveryRef.current = null;
+        setInvalidRecoveryPending(false);
+        if (message.result === 'recovered') {
+          const mutation = getCurrentMutation();
+          if (mutation) syncCoordinatorRef.current?.adoptReplacement(message.revision, mutation);
+          persistenceSessionRef.current.revision = message.revision;
+          setInvalidRecoveryError(null);
+          publishAccess({ status: 'editable', capabilities: EDITABLE_CAPABILITIES });
+        } else {
+          setInvalidRecoveryError(message.message ?? 'The invalid source could not be recovered.');
+        }
         break;
       case 'templateOperationFinished':
         if (message.result === 'completed') {
@@ -774,11 +856,35 @@ export function useEditorMessages({
       setMeta(replaceMetaState(externalChange.snapshot.meta));
       dispatch({ type: 'SET_DOC_SETTINGS', payload: externalChange.snapshot.documentSettings });
       setExternalChange(null);
+      publishAccess({ status: 'editable', capabilities: EDITABLE_CAPABILITIES });
       setShowExternalComparison(false);
     } catch (error: unknown) {
       console.error('Failed to reload an external document change', error);
       throw error;
     }
+  };
+
+  const handleRecoverInvalidDocument = (): void => {
+    const session = persistenceSessionRef.current;
+    const mutation = getCurrentMutation();
+    if (!session || !mutation || accessRef.current.status !== 'invalid-external'
+      || !accessRef.current.canRecoverFromLocal || pendingInvalidRecoveryRef.current) return;
+    const requestId = crypto.randomUUID();
+    pendingInvalidRecoveryRef.current = requestId;
+    setInvalidRecoveryPending(true);
+    setInvalidRecoveryError(null);
+    postMessage({
+      type: 'recoverInvalidDocument',
+      requestId,
+      sessionId: session.sessionId,
+      documentId: session.documentId,
+      baseRevision: session.revision,
+      mutation,
+    });
+  };
+
+  const handleRetryInvalidDocument = (): void => {
+    postMessage({ type: 'ready' });
   };
 
   return {
@@ -810,5 +916,9 @@ export function useEditorMessages({
     setShowExternalComparison,
     handleKeepLocal,
     handleReloadExternal,
+    handleRecoverInvalidDocument,
+    handleRetryInvalidDocument,
+    invalidRecoveryPending,
+    invalidRecoveryError,
   };
 }

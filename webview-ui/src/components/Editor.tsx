@@ -21,6 +21,8 @@ import { MathDialog } from '@shared/editor/components/MathDialog';
 import { EditorContextMenu } from '@shared/editor/components/EditorContextMenu';
 import { CrossReferenceDialog } from '@shared/editor/components/CrossReferenceDialog';
 import { DiagramDialog } from '@shared/editor/components/DiagramDialog';
+import { ModalDialog } from '@shared/editor/components/ModalDialog';
+import { InvalidDocumentNotice } from '@shared/editor/components/InvalidDocumentNotice';
 import { ActivityBar } from '@shared/editor/components/ActivityBar';
 import {
   createActivitySessionState,
@@ -50,6 +52,13 @@ import { useEditorI18n } from '@shared/editor/i18n';
 import type { EditorExtensionRuntime } from '@shared/editor/extensionRuntime';
 import type { HostDiagramRenderer } from '@shared/editor/diagram';
 
+export function parseStoredZoom(value: string | null): number {
+  if (!value) return 100;
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed)) return 100;
+  return Math.min(200, Math.max(60, parsed));
+}
+
 export const Editor: React.FC = () => {
   const { state, dispatch } = useEditorContext();
   const { t } = useEditorI18n();
@@ -62,9 +71,10 @@ export const Editor: React.FC = () => {
   const activityTriggerRef = useRef<HTMLElement | null>(null);
   const editorAreaRef = useRef<HTMLDivElement | null>(null);
   const [zoom, setZoom] = useState<number>(() => {
-    const saved = localStorage.getItem('sdoc-editor-zoom');
-    return saved ? parseInt(saved, 10) : 100;
+    return parseStoredZoom(localStorage.getItem('sdoc-editor-zoom'));
   });
+  const [showInvalidRecoveryConfirm, setShowInvalidRecoveryConfirm] = useState(false);
+  const invalidRecoveryCancelRef = useRef<HTMLButtonElement>(null);
   const [meta, setMeta] = useState<MetaState>({ title: '', author: '', version: '', created: '', modified: '' });
   const { dialogs, dialogDispatch, openTableContextMenu, openEditorContextMenu } = useDialogState();
   const replaceEditorDocumentRef = useRef<(
@@ -203,6 +213,10 @@ export const Editor: React.FC = () => {
     setShowExternalComparison,
     handleKeepLocal,
     handleReloadExternal,
+    handleRecoverInvalidDocument,
+    handleRetryInvalidDocument,
+    invalidRecoveryPending,
+    invalidRecoveryError,
   } = useEditorMessages({
     editor,
     flushUpdate,
@@ -261,6 +275,7 @@ export const Editor: React.FC = () => {
   }, []);
 
   const handleUpdateDocSettings = useCallback((settings: Partial<DocumentSettings> | null) => {
+    if (!state.documentAccess.capabilities.editDocumentSettings) return;
     if (settings) dispatch({ type: 'SET_SETTINGS', payload: settings });
     dispatch({ type: 'SET_DOC_SETTINGS', payload: settings });
     if (!editor) return;
@@ -269,10 +284,11 @@ export const Editor: React.FC = () => {
       meta: metaRef.current,
       documentSettings: settings,
     });
-  }, [dispatch, editor]);
+  }, [dispatch, editor, state.documentAccess.capabilities.editDocumentSettings]);
 
   const handleContextMenu = (event: React.MouseEvent) => {
     event.preventDefault();
+    if (!state.documentAccess.capabilities.editContent) return;
     if (editor && editor.isActive('table')) {
       openTableContextMenu(event.clientX, event.clientY);
     } else {
@@ -281,6 +297,7 @@ export const Editor: React.FC = () => {
   };
 
   const handlePaste = useCallback(async (event: ClipboardEvent) => {
+    if (!state.documentAccess.capabilities.manageAssets) return;
     const items = event.clipboardData?.items;
     if (!items) return;
 
@@ -302,7 +319,7 @@ export const Editor: React.FC = () => {
         break;
       }
     }
-  }, [dialogDispatch]);
+  }, [dialogDispatch, state.documentAccess.capabilities.manageAssets]);
 
   const handleImageNameConfirm = async (name: string) => {
     if (!dialogs.pendingImage) return;
@@ -537,18 +554,55 @@ export const Editor: React.FC = () => {
         replaceEditorDocument('initial-load', state.doc);
         initDoneRef.current = true;
         dispatch({ type: 'SET_READY', payload: true });
-        editor.setEditable(true);
+        editor.setEditable(state.documentAccess.status === 'editable');
       }
     }
-  }, [editor, replaceEditorDocument, state.doc, dispatch]);
+  }, [editor, replaceEditorDocument, state.doc, state.documentAccess.status, dispatch]);
 
   useEditorDomEvents(editor, handlePaste);
+
+  useEffect(() => {
+    if (state.documentAccess.capabilities.editContent) return;
+    dialogDispatch({ type: 'CLOSE_ALL' });
+    setShowInvalidRecoveryConfirm(false);
+    setActivityState((current) => (
+      current.selection?.destination === 'navigate'
+        ? current
+        : selectSidePanel(current, null, { showTemplates: true })
+    ));
+  }, [dialogDispatch, state.documentAccess.capabilities.editContent]);
 
   if (!editor) {
     return (
       <div style={{ padding: '20px', textAlign: 'center' }}>
         {t('editor.loading')}
       </div>
+    );
+  }
+
+  const invalidLabels = {
+    title: t('invalidDocument.title'),
+    initial: t('invalidDocument.initialExplanation'),
+    external: t('invalidDocument.externalExplanation'),
+    open: t('invalidDocument.openJsonSource'),
+    retry: t('invalidDocument.retryValidation'),
+    recover: t('invalidDocument.recoverLocalDraft'),
+    confirmTitle: t('invalidDocument.recoveryConfirmTitle'),
+    confirmBody: t('invalidDocument.recoveryConfirmBody'),
+    confirm: t('invalidDocument.recoveryConfirmAction'),
+    cancel: t('common.cancel'),
+    running: t('invalidDocument.recoveryRunning'),
+  };
+
+  if (state.documentAccess.status === 'invalid-initial') {
+    return (
+      <InvalidDocumentNotice
+        variant="initial"
+        diagnostics={state.documentAccess.diagnostics}
+        labels={invalidLabels}
+        onOpenSource={handleViewJson}
+        onRetry={handleRetryInvalidDocument}
+      />
     );
   }
 
@@ -578,9 +632,11 @@ export const Editor: React.FC = () => {
         modified={meta.modified}
         onAuthorChange={(value) => handleMetaChange('author', value)}
         onVersionChange={(value) => handleMetaChange('version', value)}
+        disabled={!state.documentAccess.capabilities.editMetadata}
       />
       <Toolbar
         editor={editor}
+        disabled={!state.documentAccess.capabilities.editContent}
         onInsertLink={handleInsertLink}
         onInsertMath={handleInsertMath}
         onInsertDiagram={handleInsertDiagram}
@@ -588,6 +644,19 @@ export const Editor: React.FC = () => {
         onInsertImage={handleInsertImage}
         onInsertDrawio={handleInsertDrawio}
       />
+      {state.documentAccess.status === 'invalid-external' && (
+        <InvalidDocumentNotice
+          variant="external"
+          diagnostics={state.documentAccess.diagnostics}
+          labels={invalidLabels}
+          onOpenSource={handleViewJson}
+          onRetry={handleRetryInvalidDocument}
+          canRecover={state.documentAccess.canRecoverFromLocal}
+          recoveryPending={invalidRecoveryPending}
+          recoveryError={invalidRecoveryError}
+          onRecover={() => setShowInvalidRecoveryConfirm(true)}
+        />
+      )}
       {externalChange && (
         <ExternalChangePrompt
           isDirty={hasLocalChanges}
@@ -626,6 +695,9 @@ export const Editor: React.FC = () => {
           activeDestination={activityState.selection?.destination ?? null}
           onDestinationClick={handleActivityDestinationClick}
           showTemplates
+          disabledDestinations={state.documentAccess.capabilities.editContent
+            ? []
+            : ['design', 'templates', 'publish']}
         />
         {activityState.selection && (
           <SidePanel
@@ -675,6 +747,8 @@ export const Editor: React.FC = () => {
                   value={meta.title}
                   onChange={(e) => handleMetaChange('title', e.target.value)}
                   placeholder={t('document.titlePlaceholder')}
+                  aria-label={t('document.titlePlaceholder')}
+                  disabled={!state.documentAccess.capabilities.editMetadata}
                 />
               </div>
               <EditorContent
@@ -686,6 +760,30 @@ export const Editor: React.FC = () => {
           <ZoomBar zoom={zoom} onZoomChange={handleZoomChange} />
         </div>
       </div>
+      {showInvalidRecoveryConfirm && (
+        <ModalDialog
+          size="md"
+          role="alertdialog"
+          titleId="invalid-recovery-title"
+          descriptionId="invalid-recovery-description"
+          initialFocusRef={invalidRecoveryCancelRef}
+          fallbackFocusRef={editorAreaRef}
+          onCancel={() => setShowInvalidRecoveryConfirm(false)}
+        >
+            <div className="modal-body">
+              <h2 id="invalid-recovery-title">{invalidLabels.confirmTitle}</h2>
+              <p id="invalid-recovery-description">{invalidLabels.confirmBody}</p>
+            </div>
+            <div className="modal-footer">
+              <button ref={invalidRecoveryCancelRef} type="button" className="btn-secondary"
+                onClick={() => setShowInvalidRecoveryConfirm(false)}>{invalidLabels.cancel}</button>
+              <button type="button" className="btn-primary" onClick={() => {
+                setShowInvalidRecoveryConfirm(false);
+                handleRecoverInvalidDocument();
+              }}>{invalidLabels.confirm}</button>
+            </div>
+        </ModalDialog>
+      )}
       {dialogs.editorContextMenu && editor && (
         <EditorContextMenu
           returnFocusRef={editorAreaRef}

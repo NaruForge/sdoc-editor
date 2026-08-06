@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-08-06
+
+### Added
+- Added a diagnostic source-only surface for malformed documents and an explicit, revision-checked local-draft recovery flow for invalid external edits
+- Added real VS Code Extension Host smoke coverage for activation, commands, and `.sdoc` custom-editor opening
+- Added shared accessible modal focus management, keyboard-operable context menus and tabs, and complete Korean/English dialog and Files UI strings
+
+### Changed
+- Bundled the KaTeX, Mermaid, and KaTeX font export runtime in the VSIX so full self-contained HTML/PDF export no longer depends on a CDN
+- Serialized `.sdocbook` mutations with correlated revisions and bounded chapter loading while preserving manifest order
+- Made large-outline collapse and visibility indexing linear and bounded asset loading to four concurrent reads
+
+### Fixed
+- Prevented malformed or unsupported source from being replaced by a synthetic empty document during visual-editor initialization
+- Prevented one editor session from settling another session's save/export flush and rejected stale book edits
+- Recovered conclusively stale same-host CLI locks while preserving live, remote, legacy, malformed, and uncertain locks
+- Added canonical containment and size checks for custom CSS, imports, documents, images, Draw.io assets, and book composition
+- Added a cancellable DNS deadline for external diagram rendering and safe temporary publication for book PDF export
+
 ## [0.8.0] - 2026-08-06
 
 ### Changed

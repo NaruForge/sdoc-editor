@@ -167,6 +167,31 @@ Get-Content -Raw -Encoding utf8 operations.json |
 atomically replaces it. A no-op is not written. Do not combine `--write` and
 `--dry-run`.
 
+The sibling `<document>.lock` records structured owner metadata with a format
+version, process ID, random ownership token, hostname, and creation time. If a
+write finds an existing lock, the CLI reclaims it automatically only when all
+of these conditions are true:
+
+```json
+{"version":1,"pid":1234,"token":"0123456789abcdef0123456789abcdef","hostname":"workstation","createdAt":"2026-08-06T12:00:00.000Z"}
+```
+
+- the metadata is recognized and belongs to the current host;
+- the owner process can be conclusively shown to have exited; and
+- the lock is at least 60 seconds old.
+
+Recovery atomically moves the stale lock aside, verifies that its owner did not
+change during the move, and then retries normal exclusive acquisition. The
+document is re-read and its revision is checked only after the new lock is
+owned, and the CLI re-checks its ownership token before atomic publication.
+
+Live owners, owners on another host, and legacy, malformed, or unsupported
+metadata are never removed automatically. Wait for a known writer to finish.
+For an abandoned lock that cannot be reclaimed automatically, remove the
+`.lock` file manually only after confirming no writer is active on any reported
+host, then re-inspect the document and rebuild the operation from its current
+revision before retrying `--write`.
+
 ### `rename-heading`
 
 Convenience command for a single `renameHeading` operation:
@@ -486,7 +511,7 @@ must branch on `diagnostics[].code` from explicit `--json` output.
 | `NEW_NONPORTABLE_ASSET`, `NEW_DANGLING_REFERENCE`, `NEW_UNSAFE_LINK` | The batch introduces an invalid asset path, missing internal target, or unsafe link | Use `./images/...` or `./drawio/*.drawio.svg`, create referenced IDs, and use a safe URL |
 | `DUPLICATE_ID` | The document contains conflicting persistent IDs | Assign unique IDs before retrying |
 | `CLI_TARGET_EXISTS` | `create` would overwrite an existing file | Choose a new path; the CLI never overwrites during creation |
-| `CLI_LOCK_UNAVAILABLE` | Another writer holds the sibling lock | Wait for that writer to finish, then re-inspect before retrying |
+| `CLI_LOCK_UNAVAILABLE` | Another writer holds the sibling lock, or its owner cannot be reclaimed safely | Wait for a known writer to finish. Remove an abandoned lock manually only after confirming no writer is active, then re-inspect before retrying |
 | `CLI_READ_FAILED`, `CLI_ATOMIC_WRITE_FAILED` | Filesystem access or atomic replacement failed | Check path, permissions, free space, and filesystem support; verify the file before retrying |
 
 Warnings such as `NONPORTABLE_ASSET`, `DANGLING_REFERENCE`, `UNSAFE_LINK`, and

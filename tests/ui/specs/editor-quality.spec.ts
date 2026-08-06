@@ -4,7 +4,7 @@ import { SIDE_PANEL_TAB_CONTENT_ID } from '../../../shared/editor/components/Sid
 
 type Theme = 'light' | 'dark' | 'hc';
 type Locale = 'ko' | 'en';
-type Scene = 'editor' | 'settings' | 'templates' | 'files' | 'diagram-error' | 'external-change';
+type Scene = 'editor' | 'settings' | 'templates' | 'files' | 'diagram-error' | 'external-change' | 'invalid-document' | 'interactions';
 
 interface FixtureOptions {
   width: number;
@@ -458,6 +458,45 @@ test.describe('external change resolution prompt', () => {
   });
 });
 
+test.describe('invalid document recovery', () => {
+  test('defaults to Cancel and restores stable focus across rejection and success', async ({ page }) => {
+    await openFixture(page, {
+      width: 480,
+      height: 700,
+      locale: 'en',
+      scene: 'invalid-document',
+    });
+
+    const fallback = page.getByTestId('invalid-recovery-fallback');
+    const recover = page.getByRole('button', { name: 'Recover from local draft' });
+    await recover.click();
+    let dialog = page.getByRole('alertdialog');
+    await expect(dialog.getByRole('button', { name: 'Cancel' })).toBeFocused();
+    await dialog.getByRole('button', { name: 'Recover and overwrite' }).click();
+    await expect(fallback).toBeFocused();
+    await expect(page.getByRole('button', { name: 'Recovering from local draft…' })).toBeDisabled();
+
+    await page.getByTestId('invalid-recovery-reject').evaluate((button: HTMLButtonElement) => button.click());
+    await expect(page.getByText('The invalid source could not be recovered.')).toBeVisible();
+    await expect(fallback).toBeFocused();
+    const accessibility = await new AxeBuilder({ page })
+      .include('.quality-harness')
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+      .analyze();
+    expect(accessibility.violations).toEqual([]);
+
+    await page.getByRole('button', { name: 'Recover from local draft' }).click();
+    dialog = page.getByRole('alertdialog');
+    await expect(dialog.getByRole('button', { name: 'Cancel' })).toBeFocused();
+    await dialog.getByRole('button', { name: 'Recover and overwrite' }).click();
+    await expect(fallback).toBeFocused();
+    await page.getByTestId('invalid-recovery-resolve').evaluate((button: HTMLButtonElement) => button.click());
+    await expect(page.locator('.invalid-document-banner')).toBeHidden();
+    await expect(fallback).toBeFocused();
+
+  });
+});
+
 test.describe('accessibility and visual regions', () => {
   const scenes: Array<Required<Omit<
     FixtureOptions,
@@ -528,11 +567,111 @@ Alice -> Bob: Request
 Bob --> Alice: Response
 @enduml`);
   });
+
+  test('traps focus, restores the invoker, and fits a 320px viewport', async ({ page }) => {
+    await openFixture(page, {
+      scene: 'diagram-error',
+      width: 320,
+      height: 700,
+      theme: 'dark',
+      locale: 'en',
+    });
+
+    const initialDialog = page.getByRole('dialog', { name: 'Insert text diagram' });
+    await initialDialog.getByRole('button', { name: 'Cancel' }).click();
+    await expect(initialDialog).toBeHidden();
+
+    const opener = page.getByTestId('diagram-dialog-opener');
+    await opener.click();
+    const dialog = page.getByRole('dialog', { name: 'Insert text diagram' });
+    await expect(dialog.locator('#diagram-code')).toBeFocused();
+
+    const firstControl = dialog.locator('#diagram-language');
+    const lastControl = dialog.getByRole('button', { name: /Insert.*Ctrl\+Enter/ });
+    await firstControl.focus();
+    await page.keyboard.press('Shift+Tab');
+    await expect(lastControl).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(firstControl).toBeFocused();
+
+    const bounds = await dialog.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      return {
+        left: rect.left,
+        right: rect.right,
+        top: rect.top,
+        bottom: rect.bottom,
+        scrollWidth: element.scrollWidth,
+        clientWidth: element.clientWidth,
+      };
+    });
+    expect(bounds.left).toBeGreaterThanOrEqual(0);
+    expect(bounds.right).toBeLessThanOrEqual(320);
+    expect(bounds.top).toBeGreaterThanOrEqual(0);
+    expect(bounds.bottom).toBeLessThanOrEqual(700);
+    expect(bounds.scrollWidth).toBeLessThanOrEqual(bounds.clientWidth);
+
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    await expect(opener).toBeFocused();
+  });
+});
+
+test.describe('shared keyboard interaction foundations', () => {
+  test('table and image menu actions run on click, Enter, and Space', async ({ page }) => {
+    await openFixture(page, {
+      scene: 'interactions', width: 640, height: 480, theme: 'light', locale: 'en',
+    });
+
+    const tableTrigger = page.getByRole('button', { name: 'Open table menu' });
+    await tableTrigger.click();
+    let tableMenu = page.getByRole('menu', { name: 'Table actions' });
+    await expect(tableMenu.getByRole('menuitem', { name: 'Table properties…' })).toBeFocused();
+    await tableMenu.getByRole('menuitem', { name: 'Table properties…' }).click();
+    await expect(page.getByTestId('interaction-action')).toHaveText('table-properties');
+    await expect(tableTrigger).toBeFocused();
+
+    await tableTrigger.click();
+    tableMenu = page.getByRole('menu', { name: 'Table actions' });
+    await expect(tableMenu.getByRole('menuitem', { name: /caption/i })).toHaveCount(0);
+    await page.keyboard.press('Enter');
+    await expect(page.getByTestId('interaction-action')).toHaveText('table-properties');
+    await expect(tableTrigger).toBeFocused();
+
+    const imageTrigger = page.getByRole('button', { name: 'Open image menu' });
+    await imageTrigger.click();
+    const imageMenu = page.getByRole('menu', { name: 'Image actions' });
+    await expect(imageMenu.getByRole('menuitem', { name: 'Image properties…' })).toBeFocused();
+    await page.keyboard.press('Space');
+    await expect(page.getByTestId('interaction-action')).toHaveText('image-properties');
+    await expect(imageTrigger).toBeFocused();
+  });
+
+  test('side-panel tabs use automatic roving focus for arrows, Home, and End', async ({ page }) => {
+    await openFixture(page, {
+      scene: 'files', width: 1024, height: 800, theme: 'dark', locale: 'en',
+    });
+
+    const exportTab = page.getByRole('tab', { name: 'Export' });
+    const importTab = page.getByRole('tab', { name: 'Import' });
+    await exportTab.focus();
+    await page.keyboard.press('ArrowRight');
+    await expect(importTab).toBeFocused();
+    await expect(importTab).toHaveAttribute('aria-selected', 'true');
+    await page.keyboard.press('ArrowRight');
+    await expect(exportTab).toBeFocused();
+    await page.keyboard.press('End');
+    await expect(importTab).toBeFocused();
+    await page.keyboard.press('Home');
+    await expect(exportTab).toBeFocused();
+    await page.keyboard.press('ArrowLeft');
+    await expect(importTab).toBeFocused();
+  });
 });
 
 test.describe('commercial workflow scene gate', () => {
   interface WorkflowScene {
-    scene: Exclude<Scene, 'editor' | 'external-change'>;
+    scene: Exclude<Scene, 'editor' | 'external-change' | 'interactions'>;
     width: 800 | 1024 | 1440;
     theme: Theme;
     locale: Locale;
@@ -724,7 +863,13 @@ test.describe('template interaction contract', () => {
     const name = metadataDialog.getByLabel('Name');
     await name.fill(' ');
     await metadataDialog.getByRole('button', { name: 'Save' }).click();
-    await expect(metadataDialog.getByRole('alert')).toContainText('1 and 200');
+    const nameError = metadataDialog.getByRole('alert');
+    await expect(nameError).toContainText('1 and 200');
+    await expect(name).toHaveAttribute('aria-invalid', 'true');
+    await expect(name).toHaveAttribute(
+      'aria-errormessage',
+      await nameError.getAttribute('id') ?? '',
+    );
     await name.fill('Validated template');
     await page.keyboard.press('Enter');
     await expect(metadataDialog).toBeHidden();

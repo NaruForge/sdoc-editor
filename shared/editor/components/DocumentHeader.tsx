@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { User, Calendar, Clock, Tag, Info } from 'lucide-react';
 import { useEditorI18n } from '../i18n';
 
@@ -9,6 +9,7 @@ interface DocumentHeaderProps {
   modified: string;
   onAuthorChange: (value: string) => void;
   onVersionChange: (value: string) => void;
+  disabled?: boolean;
 }
 
 export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
@@ -18,6 +19,7 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
   modified,
   onAuthorChange,
   onVersionChange,
+  disabled = false,
 }) => {
   const { t, formatDate } = useEditorI18n();
   const [editingAuthor, setEditingAuthor] = useState(false);
@@ -26,6 +28,12 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
   const [versionDraft, setVersionDraft] = useState('');
   const authorButtonRef = useRef<HTMLButtonElement>(null);
   const versionButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!disabled) return;
+    setEditingAuthor(false);
+    setEditingVersion(false);
+  }, [disabled]);
 
   const handleAuthorClick = () => {
     setAuthorDraft(author);
@@ -97,6 +105,7 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
               onKeyDown={handleAuthorKeyDown}
               placeholder={t('document.authorPlaceholder')}
               autoFocus
+              disabled={disabled}
             />
           ) : (
             <button
@@ -105,6 +114,7 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
               className={`document-header-value editable ${!author ? 'placeholder' : ''}`}
               onClick={handleAuthorClick}
               aria-label={author || t('document.authorUnset')}
+              disabled={disabled}
             >
               {author || t('document.authorUnset')}
             </button>
@@ -123,6 +133,7 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
               onKeyDown={handleVersionKeyDown}
               placeholder={t('document.versionPlaceholder')}
               autoFocus
+              disabled={disabled}
             />
           ) : (
             <button
@@ -131,6 +142,7 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
               className={`document-header-value editable ${!version ? 'placeholder' : ''}`}
               onClick={handleVersionClick}
               aria-label={version ? `${t('document.version')} ${version}` : t('document.versionUnset')}
+              disabled={disabled}
             >
               {version ? `v${version}` : t('document.versionUnset')}
             </button>

@@ -67,7 +67,6 @@ export function printToPdf(
     const args = [
       '--headless',
       '--disable-gpu',
-      '--no-sandbox',
       '--disable-software-rasterizer',
       `--print-to-pdf=${pdfFilePath}`,
       '--no-pdf-header-footer',

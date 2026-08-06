@@ -59,6 +59,25 @@ describe('editor host message boundary', () => {
       type: 'drawioFileUpdated', documentId: 'doc-a', generation: 2,
       relativePath: './drawio/a.drawio.svg', newWebviewUri: 'asset://a',
     })).toBe(true);
+    expect(isHostToEditorMessage({
+      type: 'init', locale: 'en', sessionId: 'session-1', documentId: 'doc-a', revision: 1,
+      documentState: {
+        status: 'ready',
+        snapshot: { content: { type: 'doc', content: [] }, meta: {}, documentSettings: null },
+      },
+    })).toBe(true);
+    expect(isHostToEditorMessage({
+      type: 'init', locale: 'ko', sessionId: 'session-2', documentId: 'doc-b', revision: 2,
+      documentState: {
+        status: 'invalid', reason: 'malformed',
+        diagnostics: [{ path: '/', message: 'invalid document' }],
+      },
+    })).toBe(true);
+    expect(isEditorToHostMessage({
+      type: 'recoverInvalidDocument', requestId: 'recover-1', sessionId: 'session-1',
+      documentId: 'doc-a', baseRevision: 2,
+      mutation: { content: { type: 'doc', content: [] }, meta: {}, documentSettings: null },
+    })).toBe(true);
   });
 
   it('rejects unknown and malformed messages', () => {
@@ -80,6 +99,10 @@ describe('editor host message boundary', () => {
     expect(isEditorToHostMessage({ type: 'retiredAiSupport' })).toBe(false);
     expect(isHostToEditorMessage({ type: 'settingsChanged', settings: null })).toBe(false);
     expect(isHostToEditorMessage({ type: 'drawioFileUpdated', relativePath: './a.svg' })).toBe(false);
+    expect(isHostToEditorMessage({
+      type: 'init', locale: 'en', sessionId: 'session-1', documentId: 'doc-a', revision: 1,
+      documentState: { status: 'invalid', reason: 'malformed', diagnostics: [] },
+    })).toBe(false);
     expect(isEditorToHostMessage({ type: 'requestTemplateCatalog' })).toBe(false);
     expect(isEditorToHostMessage({ type: 'export', format: 'html' })).toBe(false);
   });
@@ -319,10 +342,13 @@ describe('editor host message boundary', () => {
   it('requires identity and revision on persistence updates', () => {
     expect(isHostToEditorMessage({
       type: 'init', locale: 'ko', sessionId: 'session-1', documentId: 'doc-a', revision: 4,
-      snapshot: {
-        content: { type: 'doc', content: [] },
-        meta: {},
-        documentSettings: null,
+      documentState: {
+        status: 'ready',
+        snapshot: {
+          content: { type: 'doc', content: [] },
+          meta: {},
+          documentSettings: null,
+        },
       },
     })).toBe(true);
     expect(isHostToEditorMessage({
@@ -330,10 +356,13 @@ describe('editor host message boundary', () => {
       sessionId: 'session-1',
       documentId: 'doc-a',
       revision: 4,
-      snapshot: {
-        content: { type: 'doc', content: [] },
-        meta: {},
-        documentSettings: null,
+      documentState: {
+        status: 'ready',
+        snapshot: {
+          content: { type: 'doc', content: [] },
+          meta: {},
+          documentSettings: null,
+        },
       },
     })).toBe(false);
     expect(isHostToEditorMessage({

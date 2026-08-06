@@ -4,21 +4,36 @@ import type { CaptionStyleName } from '../../shared/types';
 import * as path from 'path';
 import { resolveFontWeight } from './fontUtils';
 import { MIME_MAP } from './imageUtils';
+import { parseImageExtension } from '../../shared/security/portableAssets';
+import { MAX_ASSET_BYTES } from '../../shared/resourceLimits';
+import {
+  normalizeEmbeddedImageDataUrl,
+  normalizeHttpImageUrl,
+} from '../../shared/security/exportImageSource';
+import { resolveContainedRegularFile } from './containedFile';
 
 export async function resolveCompanyLogo(
   logoSetting: string,
   extensionPath: string,
 ): Promise<string> {
   if (!logoSetting) return '';
-  if (logoSetting.startsWith('data:') || logoSetting.startsWith('http')) return logoSetting;
+  if (logoSetting.startsWith('data:')) return normalizeEmbeddedImageDataUrl(logoSetting) ?? '';
+  if (logoSetting.startsWith('http')) return normalizeHttpImageUrl(logoSetting) ?? '';
 
   try {
-    const logoPath = path.join(extensionPath, 'media', logoSetting);
-    const logoUri = vscode.Uri.file(logoPath);
+    const extension = parseImageExtension(path.extname(logoSetting).slice(1));
+    if (!extension) return '';
+    const mediaRoot = path.join(extensionPath, 'media');
+    const { canonicalPath } = await resolveContainedRegularFile(mediaRoot, logoSetting, {
+      extension: `.${extension}`,
+      maximumBytes: MAX_ASSET_BYTES,
+    });
+    const logoUri = vscode.Uri.file(canonicalPath);
     const logoData = await vscode.workspace.fs.readFile(logoUri);
+    if (logoData.byteLength > MAX_ASSET_BYTES) return '';
     const base64 = Buffer.from(logoData).toString('base64');
-    const ext = path.extname(logoSetting).toLowerCase().replace('.', '');
-    const mime = ext === 'svg' ? 'image/svg+xml' : (MIME_MAP[ext] || `image/${ext || 'png'}`);
+    const mime = extension === 'svg' ? 'image/svg+xml' : MIME_MAP[extension];
+    if (!mime) return '';
     return `data:${mime};base64,${base64}`;
   } catch {
     return '';

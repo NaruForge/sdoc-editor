@@ -9,6 +9,32 @@ import {
   parseImageExtension,
   parsePortableAssetPath,
 } from '../../shared/security/portableAssets';
+import { MAX_ASSET_BYTES } from '../../shared/resourceLimits';
+
+async function assertImportableAsset(uri: vscode.Uri): Promise<void> {
+  const info = await vscode.workspace.fs.stat(uri);
+  if ((info.type & vscode.FileType.File) === 0) {
+    throw new Error('The selected asset is not a regular file.');
+  }
+  if (info.size > MAX_ASSET_BYTES) {
+    throw new Error(`The selected asset exceeds the ${MAX_ASSET_BYTES.toLocaleString('en-US')} byte limit.`);
+  }
+}
+
+async function copyImportableAsset(source: vscode.Uri, target: vscode.Uri): Promise<void> {
+  await assertImportableAsset(source);
+  await vscode.workspace.fs.copy(source, target, { overwrite: false });
+  try {
+    await assertImportableAsset(target);
+  } catch (error) {
+    try {
+      await vscode.workspace.fs.delete(target, { useTrash: false });
+    } catch {
+      // The original validation failure remains the useful error.
+    }
+    throw error;
+  }
+}
 
 function requireAssetStem(value: string): string {
   const safe = parseAssetStem(value);
@@ -141,6 +167,9 @@ export class VsCodeAssetService {
       const fileName = requireAssetFileName(`${imageName}.${extension}`);
       const imageUri = containedChildUri(imagesDir, fileName);
       const imageBuffer = Buffer.from(message.imageData, 'base64');
+      if (imageBuffer.byteLength > MAX_ASSET_BYTES) {
+        throw new Error(`The image exceeds the ${MAX_ASSET_BYTES.toLocaleString('en-US')} byte limit.`);
+      }
       if (!await writeExclusive(imageUri, imageBuffer)) {
         vscode.window.showErrorMessage(`File already exists: ${fileName}`);
         return;
@@ -265,6 +294,7 @@ export class VsCodeAssetService {
       }
 
       const sourceUri = fileUris[0];
+      await assertImportableAsset(sourceUri);
       const fileName = requireDrawioFileName(sourceUri.path.split('/').pop() || 'diagram.drawio.svg');
 
       // Verify it's a .drawio.svg file
@@ -314,7 +344,7 @@ export class VsCodeAssetService {
         }
 
         // Copy file to drawio directory
-        await vscode.workspace.fs.copy(sourceUri, targetUri, { overwrite: false });
+        await copyImportableAsset(sourceUri, targetUri);
         vscode.window.showInformationMessage(`Diagram copied and imported: ${finalFileName}`);
       }
 
@@ -354,6 +384,7 @@ export class VsCodeAssetService {
       }
 
       const sourceUri = fileUris[0];
+      await assertImportableAsset(sourceUri);
       const fileName = requireImageFileName(sourceUri.path.split('/').pop() || 'image.png');
 
       // Check if it's a draw.io file - those should use "Insert Draw.io" instead
@@ -405,7 +436,7 @@ export class VsCodeAssetService {
         }
 
         // Copy file to images directory
-        await vscode.workspace.fs.copy(sourceUri, targetUri, { overwrite: false });
+        await copyImportableAsset(sourceUri, targetUri);
         vscode.window.showInformationMessage(`Image copied and inserted: ${finalFileName}`);
       }
 
@@ -446,6 +477,7 @@ export class VsCodeAssetService {
       }
 
       const sourceUri = fileUris[0];
+      await assertImportableAsset(sourceUri);
       const fileName = requireImageFileName(sourceUri.path.split('/').pop() || 'image.png');
 
       // Check if it's a draw.io file - those cannot be used to replace regular images
@@ -482,7 +514,7 @@ export class VsCodeAssetService {
       }
 
       // Copy file to images directory
-      await vscode.workspace.fs.copy(sourceUri, targetUri, { overwrite: false });
+      await copyImportableAsset(sourceUri, targetUri);
 
       // Convert to webview URI for display
       const webviewUri = webview.asWebviewUri(targetUri);

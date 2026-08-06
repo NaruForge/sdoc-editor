@@ -55,6 +55,7 @@ export interface KrokiRenderResult {
 const SOURCE_LIMIT = 100 * 1024;
 const RESPONSE_LIMIT = 2 * 1024 * 1024;
 const DEFAULT_TIMEOUT_MS = 10_000;
+const DEFAULT_DNS_TIMEOUT_MS = 5_000;
 const MAX_DIMENSION = 8192;
 const MAX_PIXELS = 32 * 1024 * 1024;
 const MAX_CACHE_ENTRIES = 64;
@@ -253,15 +254,57 @@ export async function validateKrokiEndpoint(
   return url;
 }
 
-async function resolveEndpointAddress(
+interface EndpointResolutionOptions {
+  timeoutMs?: number;
+  signal?: AbortSignal;
+  lookup?: (hostname: string) => Promise<Array<{ address: string; family: number }>>;
+}
+
+export async function resolveEndpointAddress(
   url: URL,
   allowPrivateNetwork: boolean,
+  options: EndpointResolutionOptions = {},
 ): Promise<{ address: string; family: 4 | 6 }> {
   const hostname = url.hostname.replace(/^\[|\]$/g, '');
   const literalFamily = isIP(hostname);
-  const addresses = literalFamily
-    ? [{ address: hostname, family: literalFamily as 4 | 6 }]
-    : await dns.lookup(hostname, { all: true, verbatim: true });
+  let addresses: Array<{ address: string; family: number }>;
+  if (literalFamily) {
+    addresses = [{ address: hostname, family: literalFamily }];
+  } else {
+    const lookup = options.lookup
+      ?? ((lookupHostname: string) => dns.lookup(lookupHostname, { all: true, verbatim: true }));
+    try {
+      addresses = await new Promise((resolve, reject) => {
+        let settled = false;
+        const finish = (callback: () => void) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          options.signal?.removeEventListener('abort', cancel);
+          callback();
+        };
+        const cancel = () => finish(() => reject(
+          new KrokiRenderError('cancelled', 'Diagram rendering was cancelled.', false),
+        ));
+        const timer = setTimeout(() => finish(() => reject(
+          new KrokiRenderError('timeout', 'Resolving the Kroki endpoint timed out.', true),
+        )), options.timeoutMs ?? DEFAULT_DNS_TIMEOUT_MS);
+        timer.unref();
+        if (options.signal?.aborted) {
+          cancel();
+          return;
+        }
+        options.signal?.addEventListener('abort', cancel, { once: true });
+        void lookup(hostname).then(
+          (result) => finish(() => resolve(result)),
+          (error: unknown) => finish(() => reject(error)),
+        );
+      });
+    } catch (error) {
+      if (error instanceof KrokiRenderError) throw error;
+      throw new KrokiRenderError('offline', 'The Kroki endpoint could not be resolved.', true);
+    }
+  }
   if (addresses.length === 0) {
     throw new KrokiRenderError('offline', 'The Kroki endpoint could not be resolved.', true);
   }
@@ -722,7 +765,10 @@ export class KrokiDiagramService {
     signal: AbortSignal | undefined,
     timeoutMs: number,
   ): Promise<KrokiRenderResult> {
-    const resolved = await resolveEndpointAddress(endpoint, this.settings.allowPrivateNetwork);
+    const resolved = await resolveEndpointAddress(endpoint, this.settings.allowPrivateNetwork, {
+      signal,
+      timeoutMs: Math.min(timeoutMs, DEFAULT_DNS_TIMEOUT_MS),
+    });
     const basePath = endpoint.pathname.replace(/\/+$/, '');
     const output = language === 'd2'
       ? { format: 'svg', mimeType: 'image/svg+xml' }

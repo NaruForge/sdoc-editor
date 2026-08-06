@@ -14,6 +14,7 @@ interface ActivityBarProps {
   activeDestination: ActivityDestination | null;
   onDestinationClick: (destination: ActivityDestination) => void;
   showTemplates?: boolean;
+  disabledDestinations?: readonly ActivityDestination[];
 }
 
 const DESTINATIONS: ReadonlyArray<{
@@ -31,6 +32,7 @@ export const ActivityBar: React.FC<ActivityBarProps> = ({
   activeDestination,
   onDestinationClick,
   showTemplates = false,
+  disabledDestinations = [],
 }) => {
   const { t } = useEditorI18n();
   return (
@@ -41,6 +43,7 @@ export const ActivityBar: React.FC<ActivityBarProps> = ({
       labelKey,
     }) => {
       const isActive = activeDestination === id;
+      const disabled = disabledDestinations.includes(id);
       const label = t(labelKey);
       return (
         <button
@@ -53,6 +56,7 @@ export const ActivityBar: React.FC<ActivityBarProps> = ({
           aria-pressed={isActive}
           aria-controls={isActive ? 'editor-side-panel' : undefined}
           aria-expanded={isActive}
+          disabled={disabled}
           onClick={() => onDestinationClick(id)}
         >
           <span aria-hidden="true">{icon}</span>

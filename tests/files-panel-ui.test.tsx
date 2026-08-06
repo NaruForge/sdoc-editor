@@ -11,15 +11,18 @@ import {
 
 const renderPanel = (
   operationState: FileOperationState = FILE_OPERATION_IDLE_STATE,
+  locale: 'en' | 'ko' = 'en',
 ) => renderToStaticMarkup(
-  <EditorI18nProvider locale="en">
+  <EditorI18nProvider locale={locale}>
     <FilesPanel
       exportFormats={[
         { format: 'html', available: true },
         {
           format: 'pdf',
           available: false,
-          unavailableReason: 'PDF export is not available in the desktop host.',
+          unavailableReason: locale === 'ko'
+            ? '이 호스트에서는 PDF 내보내기를 사용할 수 없습니다.'
+            : 'PDF export is not available in this host.',
         },
       ]}
       importFormats={[
@@ -40,7 +43,7 @@ describe('files panel UI', () => {
     expect(markup).toContain('HTML');
     expect(markup).toContain('.html');
     expect(markup).toContain('Web page for sharing or publishing.');
-    expect(markup).toContain('PDF export is not available in the desktop host.');
+    expect(markup).toContain('PDF export is not available in this host.');
     expect(markup).toContain('disabled=""');
     expect(markup).toContain('Unavailable:');
   });
@@ -94,5 +97,26 @@ describe('files panel UI', () => {
     expect(failed).toContain('The selected file is invalid.');
     expect(cancelled).toContain('is-cancelled');
     expect(cancelled).toContain('File operation cancelled.');
+  });
+
+  it('localizes descriptions, statuses, disclosure labels, and availability text in Korean', () => {
+    const idle = renderPanel(FILE_OPERATION_IDLE_STATE, 'ko');
+    const fallback = renderPanel({
+      phase: 'succeeded',
+      requestId: 'request-1',
+      result: 'fallback',
+    }, 'ko');
+    const cancelled = renderPanel({
+      phase: 'cancelled',
+      requestId: 'request-1',
+    }, 'ko');
+
+    expect(idle).toContain('공유하거나 게시할 웹 페이지입니다.');
+    expect(idle).toContain('<summary>고급</summary>');
+    expect(idle).toContain('사용 불가: 이 호스트에서는 PDF 내보내기를 사용할 수 없습니다.');
+    expect(idle).toContain('구조화된 문서 원본을 확인합니다.');
+    expect(idle).not.toContain('Web page for sharing or publishing.');
+    expect(fallback).toContain('대체 방식으로 완료했습니다.');
+    expect(cancelled).toContain('파일 작업이 취소되었습니다.');
   });
 });

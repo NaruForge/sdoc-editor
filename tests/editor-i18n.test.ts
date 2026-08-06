@@ -43,6 +43,12 @@ describe('editor i18n', () => {
     expect(createEditorTranslator('en')('toolbar.diagram')).toBe('Text Diagram');
     expect(translate('toolbar.headingOption', { level: 3 })).toBe('제목 3');
     expect(translate('toolbar.headingOption')).toBe('제목 {{level}}');
+    expect(translate('context.tableActions')).toBe('표 작업');
+    expect(translate('files.unavailableReason', { reason: 'PDF' })).toBe('사용 불가: PDF');
+    expect(translate('invalidDocument.title')).toBe('잘못된 문서 원본');
+    expect(translate('invalidDocument.recoverLocalDraft')).toBe('로컬 초안에서 복구');
+    expect(createEditorTranslator('en')('invalidDocument.recoveryFailed'))
+      .toBe('The invalid source could not be recovered.');
   });
 
   it('formats valid dates for the selected locale and preserves invalid values', () => {

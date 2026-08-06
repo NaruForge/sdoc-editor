@@ -7,9 +7,9 @@ import {
   ArrowRightToLine,
   Trash2,
   Settings,
-  Hash,
   ToggleLeft,
 } from 'lucide-react';
+import { useEditorI18n } from '../i18n';
 import { Menu } from './ui/Menu';
 
 interface TableContextMenuProps {
@@ -27,6 +27,7 @@ export const TableContextMenu: React.FC<TableContextMenuProps> = ({
   onOpenProperties,
   returnFocusRef,
 }) => {
+  const { t } = useEditorI18n();
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -67,6 +68,9 @@ export const TableContextMenu: React.FC<TableContextMenuProps> = ({
       onMouseDown={(e) => {
         e.preventDefault();
         e.stopPropagation();
+      }}
+      onClick={(e) => {
+        e.stopPropagation();
         onClick();
         onClose();
       }}
@@ -79,7 +83,7 @@ export const TableContextMenu: React.FC<TableContextMenuProps> = ({
   return (
     <Menu
       ref={menuRef}
-      label="Table actions"
+      label={t('context.tableActions')}
       autoFocus
       onClose={onClose}
       returnFocusRef={returnFocusRef}
@@ -94,62 +98,54 @@ export const TableContextMenu: React.FC<TableContextMenuProps> = ({
     >
       <MenuItem
         icon={<Settings size={14} />}
-        label="Table Properties..."
+        label={t('context.tableProperties')}
         onClick={() => {
           onOpenProperties();
         }}
       />
       <MenuItem
-        icon={<Hash size={14} />}
-        label="Edit Caption (click above table)"
-        onClick={() => {
-          // Caption is now edited inline via click on the caption area above the table
-          // This menu item just reminds the user
-        }}
-      />
-      <MenuItem
         icon={<ToggleLeft size={14} />}
-        label="Toggle Header Row"
+        label={t('context.toggleHeaderRow')}
         onClick={() => editor.chain().focus().toggleHeaderRow().run()}
       />
       <div role="separator" className="context-menu-separator" />
       <MenuItem
         icon={<ArrowUpToLine size={14} />}
-        label="Add Row Above"
+        label={t('context.addRowAbove')}
         onClick={() => editor.chain().focus().addRowBefore().run()}
       />
       <MenuItem
         icon={<ArrowDownToLine size={14} />}
-        label="Add Row Below"
+        label={t('context.addRowBelow')}
         onClick={() => editor.chain().focus().addRowAfter().run()}
       />
       <div role="separator" className="context-menu-separator" />
       <MenuItem
         icon={<ArrowLeftToLine size={14} />}
-        label="Add Column Before"
+        label={t('context.addColumnBefore')}
         onClick={() => editor.chain().focus().addColumnBefore().run()}
       />
       <MenuItem
         icon={<ArrowRightToLine size={14} />}
-        label="Add Column After"
+        label={t('context.addColumnAfter')}
         onClick={() => editor.chain().focus().addColumnAfter().run()}
       />
       <div role="separator" className="context-menu-separator" />
       <MenuItem
         icon={<Trash2 size={14} />}
-        label="Delete Row"
+        label={t('context.deleteRow')}
         onClick={() => editor.chain().focus().deleteRow().run()}
         danger
       />
       <MenuItem
         icon={<Trash2 size={14} />}
-        label="Delete Column"
+        label={t('context.deleteColumn')}
         onClick={() => editor.chain().focus().deleteColumn().run()}
         danger
       />
       <MenuItem
         icon={<Trash2 size={14} />}
-        label="Delete Table"
+        label={t('context.deleteTable')}
         onClick={() => editor.chain().focus().deleteTable().run()}
         danger
       />

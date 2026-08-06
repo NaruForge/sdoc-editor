@@ -17,7 +17,7 @@ import {
   type FileOperationKind,
   type FileOperationState,
 } from '../fileOperations';
-import { useEditorI18n } from '../i18n';
+import { useEditorI18n, type EditorTranslationKey } from '../i18n';
 
 export type FileExportFormat = 'html' | 'pdf' | 'markdown' | 'adoc' | 'slides';
 export type FileImportFormat = 'markdown' | 'html';
@@ -38,69 +38,72 @@ export interface FilesPanelProps {
 }
 
 interface FormatPresentation {
-  name: string;
+  nameKey: EditorTranslationKey;
   extension: string;
-  description: string;
+  descriptionKey: EditorTranslationKey;
   icon: ReactNode;
 }
 
 const EXPORT_PRESENTATIONS: Record<FileExportFormat, FormatPresentation> = {
   html: {
-    name: 'HTML',
+    nameKey: 'files.formatHtml',
     extension: '.html',
-    description: 'Web page for sharing or publishing.',
+    descriptionKey: 'files.exportHtmlDescription',
     icon: <CodeXml size={18} aria-hidden="true" />,
   },
   pdf: {
-    name: 'PDF',
+    nameKey: 'files.formatPdf',
     extension: '.pdf',
-    description: 'Print-ready portable document.',
+    descriptionKey: 'files.exportPdfDescription',
     icon: <FileType2 size={18} aria-hidden="true" />,
   },
   markdown: {
-    name: 'Markdown',
+    nameKey: 'files.formatMarkdown',
     extension: '.md',
-    description: 'Plain-text Markdown document.',
+    descriptionKey: 'files.exportMarkdownDescription',
     icon: <FileText size={18} aria-hidden="true" />,
   },
   adoc: {
-    name: 'AsciiDoc',
+    nameKey: 'files.formatAsciiDoc',
     extension: '.adoc',
-    description: 'AsciiDoc source document.',
+    descriptionKey: 'files.exportAsciiDocDescription',
     icon: <Braces size={18} aria-hidden="true" />,
   },
   slides: {
-    name: 'Slides',
+    nameKey: 'files.formatSlides',
     extension: '.html',
-    description: 'Browser presentation powered by reveal.js.',
+    descriptionKey: 'files.exportSlidesDescription',
     icon: <Presentation size={18} aria-hidden="true" />,
   },
 };
 
 const IMPORT_PRESENTATIONS: Record<FileImportFormat, FormatPresentation> = {
   markdown: {
-    name: 'Markdown',
+    nameKey: 'files.formatMarkdown',
     extension: '.md',
-    description: 'Import Markdown content into this document.',
+    descriptionKey: 'files.importMarkdownDescription',
     icon: <FileText size={18} aria-hidden="true" />,
   },
   html: {
-    name: 'HTML',
+    nameKey: 'files.formatHtml',
     extension: '.html',
-    description: 'Import HTML content into this document.',
+    descriptionKey: 'files.importHtmlDescription',
     icon: <CodeXml size={18} aria-hidden="true" />,
   },
 };
 
 function OperationStatus({ state }: { state: FileOperationState }): React.ReactElement | null {
+  const { t } = useEditorI18n();
   if (state.phase === 'idle') return null;
 
   if (state.phase === 'running') {
-    const action = state.kind === 'export' ? 'Exporting' : 'Importing';
     return (
       <div className="file-operation-status is-running" role="status" aria-live="polite">
         <LoaderCircle size={14} aria-hidden="true" />
-        <span>{state.stage || `${action} ${state.format}…`}</span>
+        <span>{state.stage || t(
+          state.kind === 'export' ? 'files.exporting' : 'files.importing',
+          { format: state.format },
+        )}</span>
       </div>
     );
   }
@@ -109,14 +112,14 @@ function OperationStatus({ state }: { state: FileOperationState }): React.ReactE
       return (
         <div className="file-operation-status is-warning" role="status" aria-live="polite">
           <TriangleAlert size={14} aria-hidden="true" />
-          <span>Completed with fallback.</span>
+          <span>{t('files.completedWithFallback')}</span>
         </div>
       );
     }
     return (
       <div className="file-operation-status is-succeeded" role="status" aria-live="polite">
         <CircleCheck size={14} aria-hidden="true" />
-        <span>File operation completed.</span>
+        <span>{t('files.completed')}</span>
       </div>
     );
   }
@@ -131,7 +134,7 @@ function OperationStatus({ state }: { state: FileOperationState }): React.ReactE
   return (
     <div className="file-operation-status is-cancelled" role="status" aria-live="polite">
       <XCircle size={14} aria-hidden="true" />
-      <span>File operation cancelled.</span>
+      <span>{t('files.cancelled')}</span>
     </div>
   );
 }
@@ -151,6 +154,7 @@ function FormatRow<Format extends FileExportFormat | FileImportFormat>({
   running: boolean;
   onStart: (kind: FileOperationKind, format: Format) => void;
 }): React.ReactElement {
+  const { t } = useEditorI18n();
   const reasonId = useId();
   const unavailable = !capability.available;
   const disabled = busy || unavailable;
@@ -171,14 +175,14 @@ function FormatRow<Format extends FileExportFormat | FileImportFormat>({
       <span className="file-operation-format-icon">{presentation.icon}</span>
       <span className="file-operation-body">
         <span className="file-operation-heading">
-          <strong>{presentation.name}</strong>
+          <strong>{t(presentation.nameKey)}</strong>
           <span className="file-operation-extension">{presentation.extension}</span>
         </span>
-        <span className="file-operation-description">{presentation.description}</span>
+        <span className="file-operation-description">{t(presentation.descriptionKey)}</span>
         {unavailable && (
           <span id={reasonId} className="file-operation-unavailable">
             <TriangleAlert size={12} aria-hidden="true" />
-            Unavailable: {capability.unavailableReason}
+            {t('files.unavailableReason', { reason: capability.unavailableReason })}
           </span>
         )}
       </span>
@@ -250,7 +254,7 @@ export const FilesPanel: React.FC<FilesPanelProps> = ({
 
       {onViewJson && (
         <details className="files-panel-advanced">
-          <summary>Advanced</summary>
+          <summary>{t('files.advanced')}</summary>
           <button
             type="button"
             className="file-operation-row file-operation-json"
@@ -266,7 +270,7 @@ export const FilesPanel: React.FC<FilesPanelProps> = ({
                 <span className="file-operation-extension">.json</span>
               </span>
               <span className="file-operation-description">
-                Inspect the structured document source.
+                {t('files.jsonDescription')}
               </span>
             </span>
           </button>
@@ -275,7 +279,7 @@ export const FilesPanel: React.FC<FilesPanelProps> = ({
 
       {exportFormats.length === 0 && importFormats.length === 0 && !onViewJson && (
         <p className="files-panel-unavailable" role="status">
-          File operations are unavailable in this host.
+          {t('files.hostUnavailable')}
         </p>
       )}
     </section>

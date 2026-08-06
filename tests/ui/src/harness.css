@@ -42,6 +42,8 @@ body {
   --vscode-font-size: 13px;
   --vscode-font-weight: 400;
   --vscode-inputValidation-errorBorder: var(--vscode-errorForeground);
+  --vscode-inputValidation-errorBackground: #ffeef0;
+  --vscode-inputValidation-errorForeground: #82071e;
   --vscode-list-activeSelectionBackground: var(--vscode-toolbar-activeBackground);
   --vscode-list-activeSelectionForeground: var(--vscode-toolbar-activeForeground);
   --vscode-list-hoverBackground: var(--vscode-toolbar-hoverBackground);
@@ -85,6 +87,8 @@ body {
 .quality-harness[data-host="vscode"][data-theme="dark"] {
   --vscode-editorWarning-foreground: #cca700;
   --vscode-errorForeground: #f48771;
+  --vscode-inputValidation-errorBackground: #5a1d1d;
+  --vscode-inputValidation-errorForeground: #ffffff;
   --vscode-editor-background: #1e1e1e;
   --vscode-editor-foreground: #f0f0f0;
   --vscode-toolbar-hoverBackground: #34363a;
@@ -114,6 +118,8 @@ body {
 .quality-harness[data-host="vscode"][data-theme="hc"] {
   --vscode-editorWarning-foreground: #ffff00;
   --vscode-errorForeground: #ff8080;
+  --vscode-inputValidation-errorBackground: #000000;
+  --vscode-inputValidation-errorForeground: #ffffff;
   --vscode-editor-background: #000000;
   --vscode-editor-foreground: #ffffff;
   --vscode-toolbar-hoverBackground: #000000;

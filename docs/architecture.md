@@ -84,7 +84,9 @@ and filesystem access.
 Chapter loading is parallel while results and diagnostics remain in manifest
 order. Each valid chapter receives a deterministic invisible export anchor.
 Loaders accept cancellation, and host watchers subscribe only to current
-includes.
+includes. Manifest, chapter-count, per-chapter, and aggregate byte limits are
+enforced before composition. Book mutations are serialized and carry the
+manifest revision so a stale browser action cannot overwrite a newer edit.
 
 ### Editor UI
 
@@ -109,6 +111,12 @@ and never apply a host snapshot.
 
 The editor starts read-only and crosses
 `shared/editor/documentReplacement.ts` exactly once for initial hydration.
+Strict source parsing must succeed before the host grants an editable
+capability. Invalid initial source receives a diagnostic source-only surface;
+no synthetic empty document is created. If an external edit makes a previously
+valid source invalid, the local draft is preserved but all mutation
+capabilities are revoked. Reusing that draft requires explicit confirmation and
+an exact session, document, and revision match.
 Later full-document replacement is limited to explicit Reload, Import, and
 confirmed Template actions. Persistence acknowledgement/rejection, settings,
 external file changes, and asset refreshes do not cross this boundary.
@@ -125,6 +133,9 @@ failure preserves both the local draft and external-change notice. See
 A later user save or export barrier may retry a transient write or transport
 failure. Conflict and invalid-document errors never retry through that path;
 they require explicit conflict recovery or source repair.
+Flush requests and acknowledgements are owned by the exact editor session and
+document, so disposal of one panel cannot settle another panel's save barrier.
+See [ADR 0015](adr/0015-fail-closed-at-document-and-resource-boundaries.md).
 
 ### Conversion and settings
 
@@ -147,7 +158,9 @@ and [ADR 0013](adr/0013-use-validated-per-language-diagram-images.md).
 `shared/document/numbering.ts` is the single numbering index for editor
 previews, lists, cross-references, and HTML, Markdown, AsciiDoc, and Slides
 output. Export services flush the VS Code editor first and pass the current
-in-memory document to shared converters.
+in-memory document to shared converters. Full self-contained HTML/PDF export
+loads KaTeX, Mermaid, and KaTeX fonts from `dist/export-assets` shipped in the
+VSIX and performs no CDN fetch.
 
 ### Semantic document operations
 
@@ -172,7 +185,9 @@ re-read and verify the byte revision inside the lock, then use a synced sibling
 temporary file and atomic rename. The operations core itself performs no file
 or network access. The CLI also creates documents from bundled or explicitly
 named templates through the shared template core, using atomic no-replace
-publication. See
+publication. Lock ownership is versioned. A same-host lock older than the
+recovery threshold is reclaimed only when its PID is conclusively dead; live,
+remote, legacy, malformed, and uncertain locks remain blocked. See
 [ADR 0009](adr/0009-use-versioned-semantic-document-operations.md).
 
 ### Path and runtime boundaries
@@ -181,6 +196,11 @@ publication. See
   URLs and hydration metadata are runtime-only.
 - The VS Code host validates basename, extension, canonical containment, and
   symlink containment independently of the UI.
+- Documents and imports are capped at 32 MiB. A local asset is capped at 32 MiB;
+  self-contained export permits at most 1,024 references and 256 MiB of unique
+  asset bytes, read with concurrency four. Custom CSS is capped at 1 MiB.
+- Kroki resolution and requests have retryable deadlines; the resolved address
+  is validated before the connection is made.
 - Watcher events include owner document, generation, and portable relative
   path; stale generations are ignored and duplicate events are coalesced.
 

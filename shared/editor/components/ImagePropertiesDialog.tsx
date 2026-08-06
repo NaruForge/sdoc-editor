@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useId, useRef } from 'react';
 import { useEditorI18n } from '../i18n';
+import { ModalDialog } from './ModalDialog';
 
 interface ImagePropertiesDialogProps {
   src: string;
@@ -27,6 +28,12 @@ export const ImagePropertiesDialog: React.FC<ImagePropertiesDialogProps> = ({
   const { t } = useEditorI18n();
   const [altText, setAltText] = useState(alt);
   const [alignValue, setAlignValue] = useState(align);
+  const altInputRef = useRef<HTMLInputElement>(null);
+  const titleId = useId();
+  const filenameLabelId = useId();
+  const pathLabelId = useId();
+  const alignmentLabelId = useId();
+  const altInputId = useId();
 
   useEffect(() => {
     setAltText(alt);
@@ -38,16 +45,10 @@ export const ImagePropertiesDialog: React.FC<ImagePropertiesDialogProps> = ({
     onConfirm(altText.trim(), alignValue);
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      onCancel();
-    }
-  };
-
   // Extract filename from src
   const getFilename = (srcPath: string) => {
     if (relativePathOverride) {
-      return relativePathOverride.split('/').pop() || 'Unknown';
+      return relativePathOverride.split('/').pop() || t('common.unknown');
     }
     // Handle webview URIs for both images and drawio
     const match = srcPath.match(/(?:images|drawio)\/([^?#]+)/);
@@ -56,7 +57,7 @@ export const ImagePropertiesDialog: React.FC<ImagePropertiesDialogProps> = ({
     }
     // Fallback to simple extraction
     const parts = srcPath.split('/');
-    return parts[parts.length - 1] || 'Unknown';
+    return parts[parts.length - 1] || t('common.unknown');
   };
 
   // Extract relative path
@@ -75,23 +76,27 @@ export const ImagePropertiesDialog: React.FC<ImagePropertiesDialogProps> = ({
   const path = getPath(src);
 
   return (
-    <div className="modal-overlay" onClick={onCancel}>
-      <div className="modal-content" role="dialog" aria-modal="true" aria-labelledby="image-properties-title" onClick={(e) => e.stopPropagation()}>
-        <h3 id="image-properties-title">{t('image.properties')}</h3>
+    <ModalDialog
+      titleId={titleId}
+      size="md"
+      initialFocusRef={altInputRef}
+      onCancel={onCancel}
+    >
+        <h3 id={titleId}>{t('image.properties')}</h3>
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label className="form-label">{t('image.filename')}:</label>
-            <div className="form-readonly">{filename}</div>
+            <div id={filenameLabelId} className="form-label">{t('image.filename')}:</div>
+            <div className="form-readonly" aria-labelledby={filenameLabelId}>{filename}</div>
           </div>
 
           <div className="form-group">
-            <label className="form-label">{t('image.path')}:</label>
-            <div className="form-readonly">{path}</div>
+            <div id={pathLabelId} className="form-label">{t('image.path')}:</div>
+            <div className="form-readonly" aria-labelledby={pathLabelId}>{path}</div>
           </div>
 
           <div className="form-group">
-            <label className="form-label">{t('image.alignment')}:</label>
-            <div style={{ display: 'flex', gap: '6px' }}>
+            <div id={alignmentLabelId} className="form-label">{t('image.alignment')}:</div>
+            <div role="group" aria-labelledby={alignmentLabelId} style={{ display: 'flex', gap: '6px' }}>
               {(['left', 'center', 'right'] as const).map((a) => (
                 <button
                   key={a}
@@ -107,15 +112,14 @@ export const ImagePropertiesDialog: React.FC<ImagePropertiesDialogProps> = ({
           </div>
 
           <div className="form-group">
-            <label htmlFor="image-alt" className="form-label">{t('image.altText')}:</label>
+            <label htmlFor={altInputId} className="form-label">{t('image.altText')}:</label>
             <input
-              id="image-alt"
+              ref={altInputRef}
+              id={altInputId}
               type="text"
               value={altText}
               onChange={(e) => setAltText(e.target.value)}
-              onKeyDown={handleKeyDown}
               placeholder={t('image.altTextPlaceholder')}
-              autoFocus
               className="form-input"
             />
           </div>
@@ -141,7 +145,6 @@ export const ImagePropertiesDialog: React.FC<ImagePropertiesDialogProps> = ({
             </div>
           </div>
         </form>
-      </div>
-    </div>
+    </ModalDialog>
   );
 };

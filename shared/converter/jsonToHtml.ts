@@ -2,6 +2,7 @@ import hljs from 'highlight.js';
 import { escapeHtml, formatDate } from './utils';
 import { buildNumberingIndex, type NumberingIndex } from '../document/numbering';
 import { resolveDiagramLanguage } from '../editor/diagram/languages';
+import { escapeStyleElementText } from './htmlSafety';
 import type {
   HtmlExportSettings as ExportSettings,
   HtmlTheme,
@@ -384,6 +385,7 @@ function applyMarks(text: string, marks: TiptapMark[]): string {
 
 const MERMAID_INIT = `mermaid.initialize({
   startOnLoad: true,
+  securityLevel: 'strict',
   theme: 'base',
   themeVariables: {
     background: '#ffffff',
@@ -398,18 +400,24 @@ const AUTO_RENDER_CALL = `renderMathInElement(document.body, { delimiters: [
   {left: '\\\\(', right: '\\\\)', display: false}
 ]});`;
 
+const AUTO_RENDER_WHEN_READY = `if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => { ${AUTO_RENDER_CALL} }, { once: true });
+} else {
+  ${AUTO_RENDER_CALL}
+}`;
+
 function generateScriptTags(settings: ExportSettings): string {
   const assets = settings.embeddedAssets;
   if (assets && settings.selfContained === 'full') {
     const parts: string[] = [];
     if (assets.katexCss) {
-      parts.push(`<style>${assets.katexCss}</style>`);
+      parts.push(`<style>${escapeStyleElementText(assets.katexCss)}</style>`);
     }
     if (assets.katexJs) {
       parts.push(`<script>${assets.katexJs}</script>`);
     }
     if (assets.autoRenderJs) {
-      parts.push(`<script>${assets.autoRenderJs}\n${AUTO_RENDER_CALL}</script>`);
+      parts.push(`<script>${assets.autoRenderJs}\n${AUTO_RENDER_WHEN_READY}</script>`);
     }
     if (assets.mermaidJs) {
       parts.push(`<script>${assets.mermaidJs}\n${MERMAID_INIT}</script>`);
@@ -430,10 +438,10 @@ function generateScriptTags(settings: ExportSettings): string {
 function generateHtmlDocument(bodyContent: string, theme?: HtmlTheme, meta?: SdocMeta, ctx?: ConvertContext): string {
   const companyLogo = theme?.companyLogo || '';
   const companyName = theme?.companyName || '';
-  const primaryColor = theme?.primaryColor || '#2563EB';
-  const accentColor = theme?.accentColor || '#6b6b6b';
-  const fontFamily = theme?.fontFamily || "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
-  const customStyles = theme?.customStyles || '';
+  const primaryColor = escapeStyleElementText(theme?.primaryColor || '#2563EB');
+  const accentColor = escapeStyleElementText(theme?.accentColor || '#6b6b6b');
+  const fontFamily = escapeStyleElementText(theme?.fontFamily || "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif");
+  const customStyles = escapeStyleElementText(theme?.customStyles || '');
   const fw = theme?.fontWeights || { body: 400, bold: 700, h1: 700, h2: 600, h3: 600 };
 
   // Generate @font-face rules if embeddedFonts are provided
@@ -443,7 +451,7 @@ function generateHtmlDocument(bodyContent: string, theme?: HtmlTheme, meta?: Sdo
       font-weight: ${f.weight};
       font-style: normal;
       font-display: swap;
-      src: url(${f.dataUri}) format('woff2');
+      src: url(${escapeStyleElementText(f.dataUri)}) format('woff2');
     }`).join('\n');
 
   return `<!DOCTYPE html>
@@ -866,7 +874,7 @@ function generateHtmlDocument(bodyContent: string, theme?: HtmlTheme, meta?: Sdo
 <body>
   ${companyLogo || companyName ? `
   <header class="document-header">
-    ${companyLogo ? `<img src="${companyLogo}" alt="Company Logo" class="company-logo">` : ''}
+    ${companyLogo ? `<img src="${escapeHtml(companyLogo)}" alt="Company Logo" class="company-logo">` : ''}
     ${companyName ? `<div class="company-name">${escapeHtml(companyName)}</div>` : ''}
   </header>
   ` : ''}

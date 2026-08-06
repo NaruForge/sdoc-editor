@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useId, useRef } from 'react';
 import type { SdocFileBrowseResultMessage } from '../../types/messages';
 import { useEditorI18n } from '../i18n';
+import { ModalDialog } from './ModalDialog';
 
 interface ExternalTarget {
   id: string;
@@ -29,6 +30,11 @@ export const LinkDialog: React.FC<LinkDialogProps> = ({
   const [sdocPath, setSdocPath] = useState('');
   const [sdocTargets, setSdocTargets] = useState<ExternalTarget[]>([]);
   const [showTargets, setShowTargets] = useState(false);
+  const urlInputRef = useRef<HTMLInputElement>(null);
+  const titleId = useId();
+  const urlInputId = useId();
+  const textInputId = useId();
+  const targetsLabelId = useId();
 
   useEffect(() => {
     if (defaultUrl && !defaultText) {
@@ -70,33 +76,34 @@ export const LinkDialog: React.FC<LinkDialogProps> = ({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      if (showTargets) {
-        setShowTargets(false);
-      } else {
-        onCancel();
-      }
+    if (e.key === 'Escape' && showTargets) {
+      e.preventDefault();
+      setShowTargets(false);
     }
   };
 
   return (
-    <div className="modal-overlay" onClick={onCancel}>
-      <div className="modal-content" role="dialog" aria-modal="true" aria-labelledby="link-dialog-title" onClick={(e) => e.stopPropagation()}>
-        <h3 id="link-dialog-title">{t('link.insertTitle')}</h3>
+    <ModalDialog
+      titleId={titleId}
+      size="md"
+      initialFocusRef={urlInputRef}
+      onCancel={onCancel}
+      onKeyDown={handleKeyDown}
+    >
+        <h3 id={titleId}>{t('link.insertTitle')}</h3>
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label htmlFor="link-url" className="form-label">URL:</label>
+            <label htmlFor={urlInputId} className="form-label">URL:</label>
             <div style={{ display: 'flex', gap: '6px' }}>
               <input
-                id="link-url"
+                ref={urlInputRef}
+                id={urlInputId}
                 type="text"
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
-                onKeyDown={handleKeyDown}
-                autoFocus
                 className="form-input"
                 style={{ flex: 1 }}
-                placeholder="https://... or ./other.sdoc#id"
+                placeholder={t('link.urlPlaceholder')}
               />
               {onBrowseSdoc && (
                 <button type="button" onClick={onBrowseSdoc} className="btn-secondary" title={t('link.browseSdoc')} aria-label={t('link.browseSdoc')}>
@@ -108,8 +115,8 @@ export const LinkDialog: React.FC<LinkDialogProps> = ({
 
           {showTargets && sdocTargets.length > 0 && (
             <div className="form-group">
-              <label className="form-label">{t('link.sectionIn', { path: sdocPath })}:</label>
-              <div className="target-list">
+              <div id={targetsLabelId} className="form-label">{t('link.sectionIn', { path: sdocPath })}:</div>
+              <div className="target-list" role="group" aria-labelledby={targetsLabelId}>
                 <button
                   type="button"
                   className="target-list__item target-list__item--header"
@@ -135,13 +142,12 @@ export const LinkDialog: React.FC<LinkDialogProps> = ({
           )}
 
           <div className="form-group">
-            <label htmlFor="link-text" className="form-label">{t('link.textOptional')}:</label>
+            <label htmlFor={textInputId} className="form-label">{t('link.textOptional')}:</label>
             <input
-              id="link-text"
+              id={textInputId}
               type="text"
               value={text}
               onChange={(e) => setText(e.target.value)}
-              onKeyDown={handleKeyDown}
               className="form-input"
               placeholder={t('link.textPlaceholder')}
             />
@@ -157,7 +163,6 @@ export const LinkDialog: React.FC<LinkDialogProps> = ({
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </ModalDialog>
   );
 };

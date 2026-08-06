@@ -34,16 +34,18 @@ describe('context menu focus contract', () => {
 
   it('renders the image menu as one labelled menu with roving menuitems', () => {
     const markup = renderToStaticMarkup(
-      <ImageContextMenu
-        position={position}
-        onClose={vi.fn()}
-        onOpenProperties={vi.fn()}
-        onReplaceImage={vi.fn()}
-        onCopyPath={vi.fn()}
-        onDelete={vi.fn()}
-        isDrawio={false}
-        returnFocusRef={returnFocusRef}
-      />,
+      <EditorI18nProvider locale="en">
+        <ImageContextMenu
+          position={position}
+          onClose={vi.fn()}
+          onOpenProperties={vi.fn()}
+          onReplaceImage={vi.fn()}
+          onCopyPath={vi.fn()}
+          onDelete={vi.fn()}
+          isDrawio={false}
+          returnFocusRef={returnFocusRef}
+        />
+      </EditorI18nProvider>,
     );
 
     expect(markup).toContain('role="menu"');
@@ -55,19 +57,55 @@ describe('context menu focus contract', () => {
 
   it('renders every table action as a menuitem and separators as separators', () => {
     const markup = renderToStaticMarkup(
-      <TableContextMenu
-        editor={{} as TiptapEditor}
-        position={position}
-        onClose={vi.fn()}
-        onOpenProperties={vi.fn()}
-        returnFocusRef={returnFocusRef}
-      />,
+      <EditorI18nProvider locale="en">
+        <TableContextMenu
+          editor={{} as TiptapEditor}
+          position={position}
+          onClose={vi.fn()}
+          onOpenProperties={vi.fn()}
+          returnFocusRef={returnFocusRef}
+        />
+      </EditorI18nProvider>,
     );
 
     expect(markup).toContain('aria-label="Table actions"');
-    expect(markup.match(/role="menuitem"/g)).toHaveLength(10);
-    expect(markup.match(/tabindex="-1"/g)).toHaveLength(10);
+    expect(markup.match(/role="menuitem"/g)).toHaveLength(9);
+    expect(markup.match(/tabindex="-1"/g)).toHaveLength(9);
     expect(markup.match(/role="separator"/g)).toHaveLength(3);
+    expect(markup).not.toContain('Edit Caption');
+  });
+
+  it('localizes table and image menu actions in Korean', () => {
+    const imageMarkup = renderToStaticMarkup(
+      <EditorI18nProvider locale="ko">
+        <ImageContextMenu
+          position={position}
+          onClose={vi.fn()}
+          onOpenProperties={vi.fn()}
+          onReplaceImage={vi.fn()}
+          onCopyPath={vi.fn()}
+          onDelete={vi.fn()}
+          isDrawio={false}
+        />
+      </EditorI18nProvider>,
+    );
+    const tableMarkup = renderToStaticMarkup(
+      <EditorI18nProvider locale="ko">
+        <TableContextMenu
+          editor={{} as TiptapEditor}
+          position={position}
+          onClose={vi.fn()}
+          onOpenProperties={vi.fn()}
+        />
+      </EditorI18nProvider>,
+    );
+
+    expect(imageMarkup).toContain('aria-label="이미지 작업"');
+    expect(imageMarkup).toContain('이미지 교체…');
+    expect(imageMarkup).not.toContain('Image actions');
+    expect(tableMarkup).toContain('aria-label="표 작업"');
+    expect(tableMarkup).toContain('머리글 행 전환');
+    expect(tableMarkup).not.toContain('Table Properties');
   });
 
   it('exposes editor submenu triggers through menu ARIA without adding Tab stops', () => {

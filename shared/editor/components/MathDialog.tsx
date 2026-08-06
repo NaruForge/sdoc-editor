@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useId, useRef } from 'react';
 import katex from 'katex';
 import { useEditorI18n, type EditorTranslationKey } from '../i18n';
+import { ModalDialog } from './ModalDialog';
 
 interface MathDialogProps {
   initialLatex?: string;
@@ -30,12 +31,14 @@ export const MathDialog: React.FC<MathDialogProps> = ({
   const [error, setError] = useState<string | null>(null);
   const previewRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const titleId = useId();
+  const latexId = useId();
+  const previewLabelId = useId();
+  const previewId = useId();
+  const examplesLabelId = useId();
 
   useEffect(() => {
-    textareaRef.current?.focus();
-    if (initialLatex) {
-      textareaRef.current?.select();
-    }
+    if (initialLatex) queueMicrotask(() => textareaRef.current?.select());
   }, [initialLatex]);
 
   useEffect(() => {
@@ -60,10 +63,8 @@ export const MathDialog: React.FC<MathDialogProps> = ({
   }, [latex, isBlock, t]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      onCancel();
-    }
     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
       handleSubmit();
     }
   };
@@ -79,23 +80,27 @@ export const MathDialog: React.FC<MathDialogProps> = ({
   };
 
   return (
-    <div className="modal-overlay" onClick={onCancel}>
-      <div
-        className="modal-content modal-content--md"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="math-dialog-title"
-        onClick={(e) => e.stopPropagation()}
-        onKeyDown={handleKeyDown}
-      >
-        <h3 id="math-dialog-title">{t('math.insertTitle')}</h3>
+    <ModalDialog
+      titleId={titleId}
+      size="md"
+      initialFocusRef={textareaRef}
+      onCancel={onCancel}
+      onKeyDown={handleKeyDown}
+    >
+        <h3 id={titleId}>{t('math.insertTitle')}</h3>
 
         {/* Mode toggle */}
-        <div className="form-group" style={{ display: 'flex', gap: '8px' }}>
+        <div
+          className="form-group"
+          style={{ display: 'flex', gap: '8px' }}
+          role="group"
+          aria-label={t('math.displayMode')}
+        >
           <button
             type="button"
             onClick={() => setIsBlock(false)}
             className={`toggle-btn ${!isBlock ? 'btn-primary' : 'btn-secondary'}`}
+            aria-pressed={!isBlock}
           >
             {t('math.inline')} <code className="kbd-hint">$...$</code>
           </button>
@@ -103,6 +108,7 @@ export const MathDialog: React.FC<MathDialogProps> = ({
             type="button"
             onClick={() => setIsBlock(true)}
             className={`toggle-btn ${isBlock ? 'btn-primary' : 'btn-secondary'}`}
+            aria-pressed={isBlock}
           >
             {t('math.block')} <code className="kbd-hint">$$...$$</code>
           </button>
@@ -110,32 +116,43 @@ export const MathDialog: React.FC<MathDialogProps> = ({
 
         {/* LaTeX input */}
         <div className="form-group">
-          <label className="form-label">LaTeX:</label>
+          <label htmlFor={latexId} className="form-label">LaTeX:</label>
           <textarea
             ref={textareaRef}
+            id={latexId}
             value={latex}
             onChange={(e) => setLatex(e.target.value)}
             rows={3}
             placeholder={t('math.latexPlaceholder')}
             spellCheck={false}
             className={`form-textarea ${error ? 'form-input--error' : ''}`}
+            aria-invalid={Boolean(error)}
+            aria-errormessage={error ? previewId : undefined}
           />
         </div>
 
         {/* Live preview */}
         <div className="form-group">
-          <label className="form-label">{t('diagram.preview')}:</label>
+          <div id={previewLabelId} className="form-label">{t('diagram.preview')}:</div>
           <div
             ref={previewRef}
+            id={previewId}
             className="dialog-preview"
+            role={error ? 'alert' : 'status'}
+            aria-live="polite"
+            aria-labelledby={previewLabelId}
             style={{ justifyContent: isBlock ? 'center' : 'flex-start' }}
           />
         </div>
 
         {/* Examples */}
         <div className="form-group">
-          <label className="form-label">{t('math.examples')}:</label>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+          <div id={examplesLabelId} className="form-label">{t('math.examples')}:</div>
+          <div
+            style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}
+            role="group"
+            aria-labelledby={examplesLabelId}
+          >
             {EXAMPLES.map((ex) => (
               <button
                 key={ex.labelKey}
@@ -164,7 +181,6 @@ export const MathDialog: React.FC<MathDialogProps> = ({
             {t('common.insert')} <span className="kbd-hint">Ctrl+Enter</span>
           </button>
         </div>
-      </div>
-    </div>
+    </ModalDialog>
   );
 };

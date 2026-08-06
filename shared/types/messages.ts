@@ -22,6 +22,7 @@ import type {
   UiLanguagePreference,
 } from '../editor/i18n/locale';
 import type { FileOperationState } from '../editor/fileOperations';
+import type { ContractDiagnostic } from '../document/documentContract';
 import type { KnownDiagramLanguage } from '../editor/diagram/languages';
 import type {
   DiagramRenderFailureCode,
@@ -72,14 +73,43 @@ export interface EditorSettings {
 
 // ─── Extension → Webview Messages ───────────────────────────────
 
+export type InvalidDocumentReason = 'invalid-json' | 'malformed' | 'unsupported-version' | 'too-large';
+
+export type EditorDocumentState =
+  | { status: 'ready'; snapshot: DocumentMutation }
+  | {
+      status: 'invalid';
+      reason: InvalidDocumentReason;
+      diagnostics: ContractDiagnostic[];
+    };
+
 export interface InitMessage {
   type: 'init';
   locale: EditorLocale;
   sessionId: string;
   documentId: string;
   revision: number;
-  readOnlyReason?: string;
-  snapshot: DocumentMutation;
+  documentState: EditorDocumentState;
+}
+
+export interface ExternalInvalidDocumentMessage {
+  type: 'externalInvalidDocument';
+  sessionId: string;
+  documentId: string;
+  revision: number;
+  reason: InvalidDocumentReason;
+  diagnostics: ContractDiagnostic[];
+  canRecoverFromLocal: boolean;
+}
+
+export interface InvalidDocumentRecoveryResultMessage {
+  type: 'invalidDocumentRecoveryResult';
+  requestId: string;
+  sessionId: string;
+  documentId: string;
+  result: 'recovered' | 'rejected';
+  revision: number;
+  message?: string;
 }
 
 export interface TemplateCatalogMessage {
@@ -322,6 +352,8 @@ export interface SdocFileBrowseResultMessage {
 
 export type ExtensionToWebviewMessage =
   | InitMessage
+  | ExternalInvalidDocumentMessage
+  | InvalidDocumentRecoveryResultMessage
   | TemplateCatalogMessage
   | TemplateCatalogFailedMessage
   | TemplateApplicationFinishedMessage
@@ -566,6 +598,15 @@ export interface ClearCssFileMessage {
   target: 'slide' | 'html';
 }
 
+export interface RecoverInvalidDocumentMessage {
+  type: 'recoverInvalidDocument';
+  requestId: string;
+  sessionId: string;
+  documentId: string;
+  baseRevision: number;
+  mutation: DocumentMutation;
+}
+
 export type WebviewToExtensionMessage =
   | ReadyMessage
   | EditorTextFocusChangedMessage
@@ -599,7 +640,8 @@ export type WebviewToExtensionMessage =
   | FlushCompleteMessage
   | FlushFailedMessage
   | SelectCssFileMessage
-  | ClearCssFileMessage;
+  | ClearCssFileMessage
+  | RecoverInvalidDocumentMessage;
 
 /** Host-boundary names shared by the VS Code extension and its webview. */
 export type HostToEditorMessage = ExtensionToWebviewMessage;

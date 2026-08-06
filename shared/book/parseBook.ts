@@ -4,6 +4,14 @@ import type {
   SdocBook,
   SdocBookDocumentEntry,
 } from './types';
+import {
+  BOOK_MANIFEST_MAX_BYTES,
+  BOOK_MAX_DIAGNOSTICS,
+  BOOK_MAX_DOCUMENTS,
+  BOOK_MAX_DIAGNOSTIC_TEXT_LENGTH,
+  BOOK_MAX_PATH_LENGTH,
+  measureBookUtf8Bytes,
+} from './limits';
 
 const BOOK_PROPERTIES = new Set(['sdocBook', 'title', 'author', 'version', 'counterPolicy', 'documents']);
 
@@ -12,6 +20,16 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 function normalizeInput(input: unknown): { value?: unknown; diagnostic?: BookDiagnostic } {
   if (typeof input !== 'string') return { value: input };
+  const byteLength = measureBookUtf8Bytes(input);
+  if (byteLength > BOOK_MANIFEST_MAX_BYTES) {
+    return {
+      diagnostic: {
+        severity: 'error',
+        code: 'BOOK_MANIFEST_TOO_LARGE',
+        message: `.sdocbook manifest exceeds the ${BOOK_MANIFEST_MAX_BYTES.toLocaleString('en-US')} byte limit (${byteLength.toLocaleString('en-US')} bytes).`,
+      },
+    };
+  }
   if (!input.trim()) return { value: { sdocBook: '1.0', documents: [] } };
   try {
     return { value: JSON.parse(input) as unknown };
@@ -20,7 +38,8 @@ function normalizeInput(input: unknown): { value?: unknown; diagnostic?: BookDia
       diagnostic: {
         severity: 'error',
         code: 'BOOK_INVALID',
-        message: `Invalid .sdocbook JSON: ${error instanceof Error ? error.message : String(error)}`,
+        message: `Invalid .sdocbook JSON: ${error instanceof Error ? error.message : String(error)}`
+          .slice(0, BOOK_MAX_DIAGNOSTIC_TEXT_LENGTH),
       },
     };
   }
@@ -28,6 +47,7 @@ function normalizeInput(input: unknown): { value?: unknown; diagnostic?: BookDia
 
 /** Convert a document path to the stable, project-relative form used by the book core. */
 export function normalizeBookDocumentPath(input: string): string | null {
+  if (input.length > BOOK_MAX_PATH_LENGTH) return null;
   const path = input.trim().replace(/\\/g, '/');
   if (!path || path.startsWith('/') || /^[A-Za-z][A-Za-z0-9+.-]*:/.test(path) || path.startsWith('//')) {
     return null;
@@ -60,8 +80,23 @@ export function parseBook(input: unknown): BookParseResult {
   }
 
   const diagnostics: BookDiagnostic[] = [];
+  let diagnosticsTruncated = false;
+  const addDiagnostic = (diagnostic: BookDiagnostic): void => {
+    const bounded: BookDiagnostic = {
+      ...diagnostic,
+      message: diagnostic.message.slice(0, BOOK_MAX_DIAGNOSTIC_TEXT_LENGTH),
+      ...(diagnostic.documentPath
+        ? { documentPath: diagnostic.documentPath.slice(0, BOOK_MAX_PATH_LENGTH) }
+        : {}),
+      ...(diagnostic.nodeId
+        ? { nodeId: diagnostic.nodeId.slice(0, BOOK_MAX_PATH_LENGTH) }
+        : {}),
+    };
+    if (diagnostics.length < BOOK_MAX_DIAGNOSTICS - 1) diagnostics.push(bounded);
+    else diagnosticsTruncated = true;
+  };
   if (value.sdocBook !== '1.0') {
-    diagnostics.push({
+    addDiagnostic({
       severity: 'error',
       code: 'BOOK_VERSION_UNSUPPORTED',
       message: `Unsupported .sdocbook version: ${String(value.sdocBook ?? '(missing)')}`,
@@ -70,7 +105,7 @@ export function parseBook(input: unknown): BookParseResult {
 
   for (const property of Object.keys(value)) {
     if (!BOOK_PROPERTIES.has(property)) {
-      diagnostics.push({
+      addDiagnostic({
         severity: 'warning',
         code: 'BOOK_PROPERTY_UNSUPPORTED',
         message: `Unsupported .sdocbook property: ${property}`,
@@ -80,7 +115,7 @@ export function parseBook(input: unknown): BookParseResult {
 
   for (const property of ['title', 'author', 'version'] as const) {
     if (value[property] !== undefined && typeof value[property] !== 'string') {
-      diagnostics.push({
+      addDiagnostic({
         severity: 'error',
         code: 'BOOK_INVALID',
         message: `${property} must be a string.`,
@@ -88,17 +123,24 @@ export function parseBook(input: unknown): BookParseResult {
     }
   }
   if (value.counterPolicy !== undefined && value.counterPolicy !== 'continue' && value.counterPolicy !== 'reset') {
-    diagnostics.push({ severity: 'error', code: 'BOOK_INVALID', message: 'counterPolicy must be continue or reset.' });
+    addDiagnostic({ severity: 'error', code: 'BOOK_INVALID', message: 'counterPolicy must be continue or reset.' });
   }
 
   const documents: SdocBookDocumentEntry[] = [];
   const seenPaths = new Set<string>();
   if (!Array.isArray(value.documents)) {
-    diagnostics.push({ severity: 'error', code: 'BOOK_INVALID', message: 'documents must be an array.' });
+    addDiagnostic({ severity: 'error', code: 'BOOK_INVALID', message: 'documents must be an array.' });
   } else {
-    value.documents.forEach((item, index) => {
+    if (value.documents.length > BOOK_MAX_DOCUMENTS) {
+      addDiagnostic({
+        severity: 'error',
+        code: 'BOOK_DOCUMENT_LIMIT_EXCEEDED',
+        message: `.sdocbook contains ${value.documents.length.toLocaleString('en-US')} documents; the limit is ${BOOK_MAX_DOCUMENTS.toLocaleString('en-US')}.`,
+      });
+    }
+    value.documents.slice(0, BOOK_MAX_DOCUMENTS).forEach((item, index) => {
       if (!isRecord(item) || typeof item.path !== 'string' || !item.path.trim()) {
-        diagnostics.push({
+        addDiagnostic({
           severity: 'error',
           code: 'DOCUMENT_PATH_INVALID',
           message: `Document ${index + 1} must have a non-empty path.`,
@@ -108,7 +150,7 @@ export function parseBook(input: unknown): BookParseResult {
 
       const normalizedPath = normalizeBookDocumentPath(item.path);
       if (!normalizedPath) {
-        diagnostics.push({
+        addDiagnostic({
           severity: 'error',
           code: 'DOCUMENT_PATH_OUTSIDE_BOOK',
           message: `Document path must stay inside the book folder: ${item.path}`,
@@ -117,7 +159,7 @@ export function parseBook(input: unknown): BookParseResult {
         return;
       }
       if (!normalizedPath.toLowerCase().endsWith('.sdoc')) {
-        diagnostics.push({
+        addDiagnostic({
           severity: 'error',
           code: 'DOCUMENT_PATH_INVALID',
           message: `Book documents must use the .sdoc extension: ${normalizedPath}`,
@@ -126,7 +168,7 @@ export function parseBook(input: unknown): BookParseResult {
       }
       const portableCollisionKey = normalizedPath.normalize('NFC').toLocaleLowerCase('en-US');
       if (seenPaths.has(portableCollisionKey)) {
-        diagnostics.push({
+        addDiagnostic({
           severity: 'error',
           code: 'DOCUMENT_DUPLICATE',
           message: `Document is listed more than once: ${normalizedPath}`,
@@ -137,7 +179,7 @@ export function parseBook(input: unknown): BookParseResult {
 
       for (const property of Object.keys(item)) {
         if (property !== 'path' && property !== 'label') {
-          diagnostics.push({
+          addDiagnostic({
             severity: 'warning',
             code: 'BOOK_PROPERTY_UNSUPPORTED',
             message: `Unsupported document property in ${normalizedPath}: ${property}`,
@@ -146,7 +188,7 @@ export function parseBook(input: unknown): BookParseResult {
         }
       }
       if (item.label !== undefined && typeof item.label !== 'string') {
-        diagnostics.push({
+        addDiagnostic({
           severity: 'error',
           code: 'BOOK_INVALID',
           message: `Document label must be a string: ${normalizedPath}`,
@@ -161,10 +203,18 @@ export function parseBook(input: unknown): BookParseResult {
   }
 
   if (documents.length === 0) {
-    diagnostics.push({
+    addDiagnostic({
       severity: 'error',
       code: 'BOOK_NO_DOCUMENTS',
       message: 'Add at least one .sdoc document to the book.',
+    });
+  }
+
+  if (diagnosticsTruncated) {
+    diagnostics.push({
+      severity: 'warning',
+      code: 'BOOK_DIAGNOSTICS_TRUNCATED',
+      message: `Additional book diagnostics were omitted after the first ${(BOOK_MAX_DIAGNOSTICS - 1).toLocaleString('en-US')}.`,
     });
   }
 

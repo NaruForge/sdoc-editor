@@ -92,6 +92,43 @@ describe('markdown conversion', () => {
   });
 });
 
+describe('HTML export runtime safety', () => {
+  const emptyDoc: TiptapNode = { type: 'doc', content: [] };
+
+  it('keeps custom CSS inside its style element', () => {
+    const html = convertJsonToHtml(emptyDoc, {
+      companyLogo: 'https://example.com/x" onerror="globalThis.logo=true',
+      primaryColor: 'red}</style><script>globalThis.color=true</script><style>',
+      customStyles: 'body{color:red}</style><script>globalThis.pwned=true</script><style>',
+    });
+
+    expect(html).not.toContain('</style><script>globalThis.pwned');
+    expect(html).not.toContain('</style><script>globalThis.color');
+    expect(html).not.toContain('onerror="globalThis.logo');
+    expect(html).toContain('<\\/style><script>globalThis.pwned');
+    const slides = convertJsonToSlides(emptyDoc, {
+      customStyles: '</STYLE><script>globalThis.pwned=true</script><style>',
+    });
+    expect(slides).not.toMatch(/<\/style><script>globalThis\.pwned/i);
+  });
+
+  it('defers bundled KaTeX auto-render until the document body exists', () => {
+    const html = convertJsonToHtml(emptyDoc, undefined, {
+      selfContained: 'full',
+      embeddedAssets: {
+        katexCss: 'katex-css',
+        katexJs: 'katex-js',
+        autoRenderJs: 'auto-render-js',
+        mermaidJs: 'mermaid-js',
+      },
+    });
+
+    expect(html).toContain("document.addEventListener('DOMContentLoaded'");
+    expect(html.indexOf('renderMathInElement(document.body')).toBeGreaterThan(-1);
+    expect(html).not.toContain('auto-render-js\nrenderMathInElement(document.body');
+  });
+});
+
 describe('cross-format numbering', () => {
   it('preserves skipped heading levels in every export format', () => {
     const doc: TiptapNode = { type: 'doc', content: [

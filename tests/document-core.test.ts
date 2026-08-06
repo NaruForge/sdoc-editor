@@ -13,6 +13,7 @@ import type { TiptapNode } from '../shared/types';
 import {
   assertPersistedDocument,
   parseDocumentContract,
+  parseDocumentTextContract,
   validateDocumentSettings,
 } from '../shared/document/documentContract';
 
@@ -88,10 +89,74 @@ describe('sdoc envelope', () => {
   });
 
   it('fails closed for malformed and unsupported future documents', () => {
-    expect(parseDocumentContract({ unexpected: true })).toMatchObject({ ok: false, kind: 'malformed' });
+    const arbitraryRoot = parseDocumentContract({ unexpected: true });
+    expect(arbitraryRoot).toMatchObject({ ok: false, kind: 'malformed' });
+    expect(arbitraryRoot.ok || arbitraryRoot.diagnostics.length).not.toBe(0);
     expect(parseDocumentContract({
       sdoc: '2.0', meta: {}, doc: { type: 'doc', content: [] },
     })).toMatchObject({ ok: false, kind: 'unsupported-version' });
+  });
+
+  it('does not reuse mutable validator errors across malformed documents', () => {
+    const invalidEnvelope = parseDocumentContract({
+      sdoc: '1.0', meta: {}, doc: { type: 'doc', content: [] }, unexpected: true,
+    });
+    expect(invalidEnvelope.ok).toBe(false);
+
+    const arbitraryRoot = parseDocumentContract({ unexpected: true });
+    expect(arbitraryRoot.ok).toBe(false);
+    if (!arbitraryRoot.ok) {
+      expect(arbitraryRoot.diagnostics.length).toBeGreaterThan(0);
+      expect(arbitraryRoot.diagnostics).not.toEqual(
+        invalidEnvelope.ok ? [] : invalidEnvelope.diagnostics,
+      );
+    }
+  });
+
+  it('bounds diagnostics before they cross the host message boundary', () => {
+    const malformed = parseDocumentContract({
+      sdoc: '1.0',
+      doc: {
+        type: 'doc',
+        content: Array.from({ length: 150 }, () => ({ type: 'paragraph', unexpected: true })),
+      },
+    });
+    expect(malformed.ok).toBe(false);
+    if (!malformed.ok) {
+      expect(malformed.diagnostics.length).toBeGreaterThan(0);
+      expect(malformed.diagnostics.length).toBeLessThanOrEqual(100);
+      expect(malformed.diagnostics.every((item) => item.path.length <= 1_000)).toBe(true);
+      expect(malformed.diagnostics.every((item) => item.message.length <= 2_000)).toBe(true);
+    }
+
+    const future = parseDocumentContract({ sdoc: 'x'.repeat(10_000) });
+    expect(future.ok).toBe(false);
+    if (!future.ok) expect(future.diagnostics[0].message.length).toBeLessThanOrEqual(2_000);
+  });
+
+  it('fails closed without recursive overflow for deeply nested document trees', () => {
+    let node: unknown = { type: 'paragraph' };
+    for (let depth = 0; depth < 20_000; depth += 1) {
+      node = { type: 'blockquote', content: [node] };
+    }
+
+    expect(parseDocumentContract({ sdoc: '1.0', meta: {}, doc: node })).toMatchObject({
+      ok: false,
+      kind: 'malformed',
+      diagnostics: [expect.objectContaining({ message: expect.stringContaining('exceeds') })],
+    });
+  });
+
+  it('parses document text with explicit zero-byte, JSON, and size outcomes', () => {
+    const empty = parseDocumentTextContract('');
+    expect(empty).toMatchObject({ ok: true, uninitialized: true });
+
+    const invalidJson = parseDocumentTextContract('{');
+    expect(invalidJson).toMatchObject({ ok: false, kind: 'invalid-json' });
+    if (!invalidJson.ok) expect(invalidJson.diagnostics.length).toBeGreaterThan(0);
+
+    const oversized = parseDocumentTextContract('12345', { maximumBytes: 4 });
+    expect(oversized).toMatchObject({ ok: false, kind: 'too-large' });
   });
 
   it('rejects malformed external document settings without casting', () => {
