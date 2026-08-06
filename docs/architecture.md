@@ -101,12 +101,15 @@ repair.
 Mermaid diagrams render locally. PlantUML, D2, and Graphviz rendering requires
 first-use consent and is performed only by host adapters with a bounded
 in-memory cache; converters never access the network. Passive document opening
-never prompts or transmits source. Hosts prepare PNG assets before export only
+never prompts or transmits source. Hosts prepare validated image assets before export only
 after authoritative global consent, while converters preserve a source-only
 fallback when rendering is declined or unavailable. Consent and renderer trust
 settings never enter `.sdoc` or `DocumentSettings`. See
 [ADR 0011](adr/0011-use-opt-in-host-diagram-rendering.md) and
 [ADR 0012](adr/0012-use-first-use-consent-for-external-diagram-rendering.md).
+D2 uses validated SVG image data while PlantUML and Graphviz use validated PNG;
+explicit insert rendering intent remains session-only. See
+[ADR 0013](adr/0013-use-validated-per-language-diagram-images.md).
 
 `shared/document/numbering.ts` is the single numbering index for editor previews, lists, cross-references, and HTML, Markdown, AsciiDoc, and Slides output. Export services flush host editors first and pass current in-memory documents to shared converters.
 

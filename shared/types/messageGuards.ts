@@ -1,4 +1,5 @@
 import type { EditorToHostMessage, HostToEditorMessage } from './messages';
+import { isDiagramImageDataUrl } from '../diagramRenderer';
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -326,7 +327,7 @@ export function isHostToEditorMessage(value: unknown): value is HostToEditorMess
       if (!hasString(value, 'requestId') || !isRecord(value.result)) return false;
       if (value.result.status === 'ready') {
         return hasString(value.result, 'dataUrl')
-          && /^data:image\/png;base64,[A-Za-z0-9+/=\r\n]+$/.test(String(value.result.dataUrl))
+          && isDiagramImageDataUrl(String(value.result.dataUrl))
           && hasNumber(value.result, 'width') && hasNumber(value.result, 'height');
       }
       return value.result.status === 'error'

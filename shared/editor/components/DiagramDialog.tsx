@@ -198,6 +198,16 @@ export const DiagramDialog: React.FC<DiagramDialogProps> = ({
     onConfirm(code.trim(), language, pos);
   };
 
+  const handleLanguageChange = (nextLanguage: string) => {
+    const nextKnownLanguage = getKnownDiagramLanguage(nextLanguage);
+    const defaultExample = nextKnownLanguage
+      ? EXAMPLES_BY_LANGUAGE[nextKnownLanguage]?.[0]
+      : undefined;
+    setLanguage(nextLanguage);
+    setCode(defaultExample?.code ?? '');
+    setConsentDismissed(false);
+  };
+
   const resolveConsent = async (consent: ResolvedDiagramRendererConsent): Promise<void> => {
     if (!onResolveRendererConsent) {
       throw new Error('The host cannot save diagram renderer consent.');
@@ -229,10 +239,7 @@ export const DiagramDialog: React.FC<DiagramDialogProps> = ({
             id="diagram-language"
             className="form-select"
             value={language}
-            onChange={(event) => {
-              setLanguage(event.target.value);
-              setConsentDismissed(false);
-            }}
+            onChange={(event) => handleLanguageChange(event.target.value)}
           >
             {!knownLanguage && (
               <option value={language}>{language} (source only)</option>
@@ -304,7 +311,7 @@ export const DiagramDialog: React.FC<DiagramDialogProps> = ({
               {!showConsent && renderState.status === 'ready' && renderState.output.kind === 'svg' && (
                 <div dangerouslySetInnerHTML={{ __html: renderState.output.markup }} />
               )}
-              {!showConsent && renderState.status === 'ready' && renderState.output.kind === 'png' && (
+              {!showConsent && renderState.status === 'ready' && renderState.output.kind === 'image' && (
                 <img
                   src={renderState.output.dataUrl}
                   alt={renderState.output.alt ?? `${language} diagram preview`}

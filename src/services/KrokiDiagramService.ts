@@ -60,6 +60,25 @@ const MAX_PIXELS = 32 * 1024 * 1024;
 const MAX_CACHE_ENTRIES = 64;
 const MAX_CACHE_BYTES = 32 * 1024 * 1024;
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
+const XLINK_NAMESPACE = 'http://www.w3.org/1999/xlink';
+const ACTIVE_SVG_ELEMENTS = new Set([
+  'animate',
+  'animatemotion',
+  'animatetransform',
+  'audio',
+  'canvas',
+  'discard',
+  'embed',
+  'foreignobject',
+  'iframe',
+  'object',
+  'script',
+  'set',
+  'video',
+]);
+const INTERNAL_FRAGMENT = /^#[A-Za-z_][A-Za-z0-9_.:-]*$/;
+const FONT_DATA_URL = /^data:(?:font\/[A-Za-z0-9.+-]+|application\/(?:font-[A-Za-z0-9.+-]+|x-font-[A-Za-z0-9.+-]+|vnd\.ms-fontobject))(?:;charset=[A-Za-z0-9_-]+)?;base64,[A-Za-z0-9+/=\s]+$/i;
 
 type AddressClass = 'public' | 'loopback' | 'private' | 'always-blocked';
 
@@ -275,6 +294,290 @@ function validatePng(bytes: Buffer): { width: number; height: number } {
   return { width, height };
 }
 
+function invalidSvg(message: string): KrokiRenderError {
+  return new KrokiRenderError('invalid-response', message, false);
+}
+
+function decodeXmlEntities(value: string): string {
+  let malformed = false;
+  const unmatched = value.replace(/&(?:amp|lt|gt|quot|apos|#[0-9]+|#x[0-9A-Fa-f]+);/g, '');
+  if (unmatched.includes('&')) {
+    throw invalidSvg('The renderer returned malformed SVG entity content.');
+  }
+  const decoded = value.replace(/&([^;]*);/g, (entity, body: string) => {
+    if (body === 'amp') return '&';
+    if (body === 'lt') return '<';
+    if (body === 'gt') return '>';
+    if (body === 'quot') return '"';
+    if (body === 'apos') return "'";
+    let codePoint: number | null = null;
+    if (/^#[0-9]+$/.test(body)) {
+      codePoint = Number.parseInt(body.slice(1), 10);
+    } else if (/^#x[0-9A-Fa-f]+$/.test(body)) {
+      codePoint = Number.parseInt(body.slice(2), 16);
+    }
+    if (codePoint === null || !(
+      codePoint === 0x09 || codePoint === 0x0a || codePoint === 0x0d
+      || (codePoint >= 0x20 && codePoint <= 0xd7ff)
+      || (codePoint >= 0xe000 && codePoint <= 0xfffd)
+      || (codePoint >= 0x10000 && codePoint <= 0x10ffff)
+    )) {
+      malformed = true;
+      return entity;
+    }
+    return String.fromCodePoint(codePoint);
+  });
+  if (malformed) {
+    throw invalidSvg('The renderer returned malformed SVG entity content.');
+  }
+  return decoded;
+}
+
+function validateCssReferences(css: string): void {
+  const withoutComments = css.replace(/\/\*[\s\S]*?\*\//g, '');
+  if (/\\|expression\s*\(|(?:java|vb)script\s*:|-moz-binding|behavior\s*:/i.test(withoutComments)) {
+    throw invalidSvg('The rendered SVG contains active CSS content.');
+  }
+  const atRules = [...withoutComments.matchAll(/@\s*([A-Za-z-]+)/g)];
+  if (atRules.some((match) => match[1].toLowerCase() !== 'font-face')) {
+    throw invalidSvg('The rendered SVG contains an external CSS import.');
+  }
+  const urlPattern = /url\s*\(\s*([^)]*?)\s*\)/gi;
+  let match: RegExpExecArray | null;
+  while ((match = urlPattern.exec(withoutComments)) !== null) {
+    const rawValue = match[1].trim();
+    const value = (
+      (rawValue.startsWith('"') && rawValue.endsWith('"'))
+      || (rawValue.startsWith("'") && rawValue.endsWith("'"))
+    ) ? rawValue.slice(1, -1).trim() : rawValue;
+    if (!INTERNAL_FRAGMENT.test(value) && !FONT_DATA_URL.test(value)) {
+      throw invalidSvg('The rendered SVG contains an external CSS reference.');
+    }
+  }
+  if (/url\s*\(/i.test(withoutComments.replace(urlPattern, ''))) {
+    throw invalidSvg('The rendered SVG contains a malformed CSS reference.');
+  }
+}
+
+function parseSvgDimension(value: string): number | null {
+  const match = /^\+?(?:(?:\d+(?:\.\d*)?)|(?:\.\d+))(?:[eE][+-]?\d+)?(?:px)?$/.exec(value.trim());
+  if (!match) return null;
+  const dimension = Number.parseFloat(value);
+  return Number.isFinite(dimension) && dimension > 0 ? dimension : null;
+}
+
+function validateSvgDimensions(attributes: ReadonlyMap<string, string>): { width: number; height: number } {
+  let sourceWidth: number | null = null;
+  let sourceHeight: number | null = null;
+  const widthAttribute = attributes.get('width');
+  const heightAttribute = attributes.get('height');
+  if (widthAttribute !== undefined || heightAttribute !== undefined) {
+    if (widthAttribute === undefined || heightAttribute === undefined) {
+      throw invalidSvg('The rendered SVG dimensions are incomplete.');
+    }
+    sourceWidth = parseSvgDimension(widthAttribute);
+    sourceHeight = parseSvgDimension(heightAttribute);
+  } else {
+    const viewBox = attributes.get('viewbox')?.trim().split(/[\s,]+/);
+    if (viewBox?.length === 4) {
+      const values = viewBox.map(Number);
+      if (values.every(Number.isFinite)) {
+        sourceWidth = values[2] > 0 ? values[2] : null;
+        sourceHeight = values[3] > 0 ? values[3] : null;
+      }
+    }
+  }
+  if (sourceWidth === null || sourceHeight === null) {
+    throw invalidSvg('The rendered SVG does not have valid dimensions.');
+  }
+  const width = Math.ceil(sourceWidth);
+  const height = Math.ceil(sourceHeight);
+  if (width > MAX_DIMENSION || height > MAX_DIMENSION || width * height > MAX_PIXELS) {
+    throw invalidSvg('The rendered SVG dimensions are not allowed.');
+  }
+  return { width, height };
+}
+
+interface SvgElementFrame {
+  name: string;
+  styleParts?: string[];
+}
+
+function validateSvg(bytes: Buffer): { width: number; height: number } {
+  let svg: string;
+  try {
+    svg = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    throw invalidSvg('The renderer did not return valid UTF-8 SVG content.');
+  }
+  if (/<!\s*(?:DOCTYPE|ENTITY)\b/i.test(svg)
+    || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\ufffe\uffff]/.test(svg)) {
+    throw invalidSvg('The rendered SVG contains a document type or entity declaration.');
+  }
+
+  let position = svg.charCodeAt(0) === 0xfeff ? 1 : 0;
+  let rootAttributes: Map<string, string> | null = null;
+  let rootClosed = false;
+  const stack: SvgElementFrame[] = [];
+  const skipWhitespace = () => {
+    const start = position;
+    while (position < svg.length && /\s/.test(svg[position])) position += 1;
+    return position - start;
+  };
+  const readName = (): string => {
+    const match = /^[A-Za-z_][A-Za-z0-9_.:-]*/.exec(svg.slice(position));
+    if (!match) throw invalidSvg('The renderer returned malformed SVG markup.');
+    position += match[0].length;
+    return match[0];
+  };
+
+  skipWhitespace();
+  if (svg.startsWith('<?xml', position)) {
+    const end = svg.indexOf('?>', position + 5);
+    const declaration = end < 0 ? '' : svg.slice(position, end + 2);
+    const validDeclaration = /^<\?xml\s+version\s*=\s*(?:"1\.[01]"|'1\.[01]')(?:\s+encoding\s*=\s*(?:"UTF-8"|'UTF-8'))?(?:\s+standalone\s*=\s*(?:"(?:yes|no)"|'(?:yes|no)'))?\s*\?>$/i;
+    if (end < 0 || !validDeclaration.test(declaration)) {
+      throw invalidSvg('The renderer returned a malformed XML declaration.');
+    }
+    position = end + 2;
+  }
+
+  while (position < svg.length) {
+    if (svg[position] !== '<') {
+      const end = svg.indexOf('<', position);
+      const text = svg.slice(position, end < 0 ? svg.length : end);
+      if (stack.length === 0 && text.trim() !== '') {
+        throw invalidSvg('The rendered SVG contains content outside its root element.');
+      }
+      const decoded = decodeXmlEntities(text);
+      stack.at(-1)?.styleParts?.push(decoded);
+      position = end < 0 ? svg.length : end;
+      continue;
+    }
+    if (svg.startsWith('<!--', position)) {
+      const end = svg.indexOf('-->', position + 4);
+      if (end < 0 || svg.slice(position + 4, end).includes('--')) {
+        throw invalidSvg('The renderer returned a malformed SVG comment.');
+      }
+      position = end + 3;
+      continue;
+    }
+    if (svg.startsWith('<![CDATA[', position)) {
+      const end = svg.indexOf(']]>', position + 9);
+      if (end < 0 || stack.length === 0) {
+        throw invalidSvg('The renderer returned malformed SVG character data.');
+      }
+      stack.at(-1)?.styleParts?.push(svg.slice(position + 9, end));
+      position = end + 3;
+      continue;
+    }
+    if (svg.startsWith('<?', position) || svg.startsWith('<!', position)) {
+      throw invalidSvg('The rendered SVG contains an unsupported declaration.');
+    }
+    if (svg.startsWith('</', position)) {
+      position += 2;
+      const name = readName();
+      skipWhitespace();
+      if (svg[position] !== '>') {
+        throw invalidSvg('The renderer returned a malformed SVG closing tag.');
+      }
+      position += 1;
+      const frame = stack.pop();
+      if (!frame || frame.name !== name) {
+        throw invalidSvg('The renderer returned mismatched SVG elements.');
+      }
+      if (frame.styleParts) validateCssReferences(frame.styleParts.join(''));
+      if (stack.length === 0) rootClosed = true;
+      continue;
+    }
+
+    position += 1;
+    const name = readName();
+    const localName = name.split(':').at(-1)?.toLowerCase() ?? '';
+    if (rootClosed || ACTIVE_SVG_ELEMENTS.has(localName)) {
+      throw invalidSvg('The rendered SVG contains active or additional root content.');
+    }
+    const attributes = new Map<string, string>();
+    let selfClosing = false;
+    while (position < svg.length) {
+      const whitespace = skipWhitespace();
+      if (svg.startsWith('/>', position)) {
+        selfClosing = true;
+        position += 2;
+        break;
+      }
+      if (svg[position] === '>') {
+        position += 1;
+        break;
+      }
+      if (whitespace === 0) {
+        throw invalidSvg('The renderer returned malformed SVG attributes.');
+      }
+      const attributeName = readName();
+      const normalizedName = attributeName.toLowerCase();
+      if (attributes.has(normalizedName)) {
+        throw invalidSvg('The renderer returned duplicate SVG attributes.');
+      }
+      skipWhitespace();
+      if (svg[position] !== '=') {
+        throw invalidSvg('The renderer returned malformed SVG attributes.');
+      }
+      position += 1;
+      skipWhitespace();
+      const quote = svg[position];
+      if (quote !== '"' && quote !== "'") {
+        throw invalidSvg('The renderer returned an unquoted SVG attribute.');
+      }
+      position += 1;
+      const valueEnd = svg.indexOf(quote, position);
+      if (valueEnd < 0 || svg.slice(position, valueEnd).includes('<')) {
+        throw invalidSvg('The renderer returned malformed SVG attributes.');
+      }
+      const value = decodeXmlEntities(svg.slice(position, valueEnd));
+      position = valueEnd + 1;
+      attributes.set(normalizedName, value);
+
+      const attributeLocalName = normalizedName.split(':').at(-1) ?? '';
+      if (attributeLocalName.startsWith('on') || normalizedName === 'xml:base'
+        || attributeLocalName === 'srcdoc') {
+        throw invalidSvg('The rendered SVG contains an active attribute.');
+      }
+      if ((attributeLocalName === 'href' || attributeLocalName === 'src')
+        && !INTERNAL_FRAGMENT.test(value.trim())) {
+        throw invalidSvg('The rendered SVG contains an external reference.');
+      }
+      if (/url\s*\(|(?:java|vb)script\s*:/i.test(value)) validateCssReferences(value);
+      if (normalizedName === 'xmlns' && value !== SVG_NAMESPACE) {
+        throw invalidSvg('The rendered SVG uses an unsupported namespace.');
+      }
+      if (normalizedName.startsWith('xmlns:') && value !== XLINK_NAMESPACE) {
+        throw invalidSvg('The rendered SVG uses an unsupported namespace.');
+      }
+    }
+
+    if (rootAttributes === null) {
+      if (name !== 'svg' || attributes.get('xmlns') !== SVG_NAMESPACE) {
+        throw invalidSvg('The renderer response root is not an SVG image.');
+      }
+      rootAttributes = attributes;
+    }
+    const frame: SvgElementFrame = {
+      name,
+      styleParts: localName === 'style' ? [] : undefined,
+    };
+    if (selfClosing) {
+      if (frame.styleParts) validateCssReferences('');
+      if (stack.length === 0) rootClosed = true;
+    } else {
+      stack.push(frame);
+    }
+  }
+  if (!rootAttributes || !rootClosed || stack.length !== 0) {
+    throw invalidSvg('The renderer returned incomplete SVG markup.');
+  }
+  return validateSvgDimensions(rootAttributes);
+}
+
 interface CachedRender extends KrokiRenderResult {
   byteLength: number;
 }
@@ -421,7 +724,10 @@ export class KrokiDiagramService {
   ): Promise<KrokiRenderResult> {
     const resolved = await resolveEndpointAddress(endpoint, this.settings.allowPrivateNetwork);
     const basePath = endpoint.pathname.replace(/\/+$/, '');
-    const path = `${basePath}/${language}/png`.replace(/^\/?/, '/');
+    const output = language === 'd2'
+      ? { format: 'svg', mimeType: 'image/svg+xml' }
+      : { format: 'png', mimeType: 'image/png' };
+    const path = `${basePath}/${language}/${output.format}`.replace(/^\/?/, '/');
     const requestOptions: RequestOptions = {
       protocol: endpoint.protocol,
       hostname: resolved.address,
@@ -432,7 +738,7 @@ export class KrokiDiagramService {
       servername: endpoint.protocol === 'https:' ? endpoint.hostname : undefined,
       headers: {
         host: endpoint.host,
-        accept: 'image/png',
+        accept: output.mimeType,
         'content-type': 'text/plain; charset=utf-8',
         'content-length': source.byteLength,
       },
@@ -464,10 +770,17 @@ export class KrokiDiagramService {
             reject(new KrokiRenderError('invalid-response', `The renderer returned HTTP ${status}.`, false));
             return;
           }
-          const contentType = String(response.headers['content-type'] ?? '').split(';', 1)[0].trim().toLowerCase();
-          if (contentType !== 'image/png') {
+          const rawContentType = String(response.headers['content-type'] ?? '').trim().toLowerCase();
+          const contentType = output.format === 'svg'
+            ? rawContentType
+            : rawContentType.split(';', 1)[0].trim();
+          if (contentType !== output.mimeType) {
             response.resume();
-            reject(new KrokiRenderError('invalid-response', 'The renderer response is not image/png.', false));
+            reject(new KrokiRenderError(
+              'invalid-response',
+              `The renderer response is not ${output.mimeType}.`,
+              false,
+            ));
             return;
           }
 
@@ -488,9 +801,9 @@ export class KrokiDiagramService {
           response.on('end', () => {
             try {
               const bytes = Buffer.concat(chunks);
-              const dimensions = validatePng(bytes);
+              const dimensions = output.format === 'svg' ? validateSvg(bytes) : validatePng(bytes);
               resolve({
-                dataUrl: `data:image/png;base64,${bytes.toString('base64')}`,
+                dataUrl: `data:${output.mimeType};base64,${bytes.toString('base64')}`,
                 ...dimensions,
                 cached: false,
               });

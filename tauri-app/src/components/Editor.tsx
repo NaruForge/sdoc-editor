@@ -528,7 +528,7 @@ export const Editor: React.FC<EditorProps> = ({
         if (!pending) break;
         diagramRequestsRef.current.delete(message.requestId);
         if (message.result.status === 'ready') {
-          pending.resolve({ kind: 'png', dataUrl: message.result.dataUrl });
+          pending.resolve({ kind: 'image', dataUrl: message.result.dataUrl });
         } else {
           pending.reject(new DiagramRenderError(
             message.result.message,
@@ -781,7 +781,7 @@ export const Editor: React.FC<EditorProps> = ({
               code: source.code,
               signal: controller.signal,
             });
-            if (rendered.kind === 'png') diagramImages.set(key, rendered.dataUrl);
+            if (rendered.kind === 'image') diagramImages.set(key, rendered.dataUrl);
             else usedDiagramFallback = true;
           } catch {
             usedDiagramFallback = true;
@@ -1101,7 +1101,7 @@ export const Editor: React.FC<EditorProps> = ({
         return true;
       }).run();
     } else {
-      editor.chain().focus().insertDiagram(language, code).run();
+      editor.chain().focus().insertDiagram(language, code, true).run();
     }
     setDiagramDialog(null);
     flushUpdate();

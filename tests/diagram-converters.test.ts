@@ -52,6 +52,21 @@ describe.each([
     );
     expect(output).toContain('<code>@startuml\nA -&gt; B\n@enduml</code>');
   });
+
+  it('adds a prepared D2 SVG image without removing the escaped source fallback', () => {
+    const svgDataUrl = 'data:image/svg+xml;base64,PHN2ZyB2aWV3Qm94PSIwIDAgMSAxIj48L3N2Zz4=';
+    const resolveDiagramImage = vi.fn(({ language }: { language: string }) => (
+      language === 'd2'
+        ? { dataUrl: svgDataUrl, alt: 'Prepared D2 architecture' }
+        : undefined
+    ));
+    const output = convert({ resolveDiagramImage });
+
+    expect(output).toContain(
+      `<img src="${svgDataUrl}" alt="Prepared D2 architecture">`,
+    );
+    expect(output).toContain('<code>A -&gt; B</code>');
+  });
 });
 
 it('round-trips non-Mermaid language and source through the document converters', () => {

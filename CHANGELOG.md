@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Replaced the text diagram source with the selected language's default example when switching languages
+
+### Fixed
+- Restored D2 previews and prepared exports by using Kroki's supported SVG output with equivalent host-side safety validation
+- Kept explicitly previewed D2 diagrams rendered after insertion without enabling network rendering during passive document opening
+
 ## [0.7.7] - 2026-08-06
 
 ### Added

@@ -497,6 +497,50 @@ test.describe('accessibility and visual regions', () => {
   }
 });
 
+test.describe('diagram dialog language defaults', () => {
+  test('replaces the source with the selected language default example', async ({ page }) => {
+    await openFixture(page, {
+      scene: 'diagram-error',
+      width: 1024,
+      height: 900,
+      host: 'tauri',
+      theme: 'dark',
+      locale: 'en',
+    });
+
+    const language = page.locator('#diagram-language');
+    const source = page.locator('#diagram-code');
+
+    await language.selectOption('d2');
+    await expect(source).toHaveValue(`Start -> Decision
+Decision -> Process: Yes
+Decision -> End: No
+Process -> End`);
+
+    await language.selectOption('graphviz');
+    await expect(source).toHaveValue(`digraph G {
+  Start -> Decision
+  Decision -> Process [label="Yes"]
+  Decision -> End [label="No"]
+  Process -> End
+}`);
+
+    await language.selectOption('mermaid');
+    await expect(source).toHaveValue(`graph TD
+    A[Start] --> B{Decision}
+    B -->|Yes| C[Process 1]
+    B -->|No| D[Process 2]
+    C --> E[End]
+    D --> E`);
+
+    await language.selectOption('plantuml');
+    await expect(source).toHaveValue(`@startuml
+Alice -> Bob: Request
+Bob --> Alice: Response
+@enduml`);
+  });
+});
+
 test.describe('commercial workflow scene gate', () => {
   interface WorkflowScene {
     scene: Exclude<Scene, 'editor' | 'external-change'>;
