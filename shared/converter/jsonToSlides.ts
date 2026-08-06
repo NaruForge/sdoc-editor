@@ -2,6 +2,7 @@ import hljs from 'highlight.js';
 import { escapeHtml } from './utils';
 import { buildNumberingIndex, type NumberingIndex } from '../document/numbering';
 import { resolveDiagramLanguage } from '../editor/diagram/languages';
+import { escapeStyleElementText } from './htmlSafety';
 import type { SdocMeta, SlideSettings, SlideTheme, TiptapMark, TiptapNode } from '../types';
 
 interface ConvertContext {
@@ -406,12 +407,12 @@ const MERMAID_INIT = `mermaid.initialize({
 });`;
 
 function generateSlideDocument(slideSections: string, theme?: SlideTheme, meta?: SdocMeta, ctx?: ConvertContext): string {
-  const primaryColor = theme?.primaryColor || '#2563EB';
-  const accentColor = theme?.accentColor || '#6b6b6b';
-  const fontFamily = theme?.fontFamily || "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
+  const primaryColor = escapeStyleElementText(theme?.primaryColor || '#2563EB');
+  const accentColor = escapeStyleElementText(theme?.accentColor || '#6b6b6b');
+  const fontFamily = escapeStyleElementText(theme?.fontFamily || "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif");
   const companyLogo = theme?.companyLogo || '';
   const companyName = theme?.companyName || '';
-  const customStyles = theme?.customStyles || '';
+  const customStyles = escapeStyleElementText(theme?.customStyles || '');
   const fw = theme?.fontWeights || { body: 400, bold: 700, h1: 700, h2: 600, h3: 600 };
 
   const fontFaceRules = (theme?.embeddedFonts || []).map(f => `
@@ -420,14 +421,14 @@ function generateSlideDocument(slideSections: string, theme?: SlideTheme, meta?:
         font-weight: ${f.weight};
         font-style: normal;
         font-display: swap;
-        src: url(${f.dataUri}) format('woff2');
+        src: url(${escapeStyleElementText(f.dataUri)}) format('woff2');
       }`).join('\n');
 
   // Title slide
   let titleSlide = '';
   if ((ctx?.settings.showTitleSlide ?? true) && meta?.title) {
     const logoHtml = companyLogo
-      ? `\n          <img src="${companyLogo}" alt="Logo" class="title-logo">`
+      ? `\n          <img src="${escapeHtml(companyLogo)}" alt="Logo" class="title-logo">`
       : '';
     const companyHtml = companyName
       ? `\n          <p class="title-company">${escapeHtml(companyName)}</p>`

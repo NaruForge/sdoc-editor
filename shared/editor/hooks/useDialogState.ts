@@ -50,6 +50,7 @@ interface DialogState {
 }
 
 type DialogAction =
+  | { type: 'CLOSE_ALL' }
   | { type: 'OPEN_TABLE_CONTEXT_MENU'; payload: { x: number; y: number } }
   | { type: 'CLOSE_TABLE_CONTEXT_MENU' }
   | { type: 'OPEN_EDITOR_CONTEXT_MENU'; payload: { x: number; y: number } }
@@ -87,6 +88,8 @@ const initialState: DialogState = {
 
 function dialogReducer(state: DialogState, action: DialogAction): DialogState {
   switch (action.type) {
+    case 'CLOSE_ALL':
+      return initialState;
     case 'OPEN_TABLE_CONTEXT_MENU':
       return { ...state, contextMenu: action.payload };
     case 'CLOSE_TABLE_CONTEXT_MENU':

@@ -10,6 +10,7 @@ import { normalizeDocument } from '../sdocUtils';
 import { buildNumberingIndex } from '../numbering';
 import { walkDocument } from '../walker';
 import { parsePortableAssetPath } from '../../security/portableAssets';
+import { MAX_DOCUMENT_BYTES } from '../../resourceLimits';
 import { computeRevision, decodeUtf8, encodeUtf8 } from './sha256';
 import type {
   ApplyOperationResult, ApplyOptions, BlockDestination, InspectDocumentResult, InspectOptions,
@@ -20,7 +21,6 @@ import type {
 export { computeRevision } from './sha256';
 export type * from './types';
 
-const MAX_DOCUMENT_BYTES = 32 * 1024 * 1024;
 const MAX_OPERATIONS = 100;
 const MAX_DEPTH = 128;
 const MAX_NODES = 100_000;

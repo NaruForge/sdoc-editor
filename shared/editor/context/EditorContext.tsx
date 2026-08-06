@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useReducer, ReactNode } from 'react';
 import { JSONContent } from '@tiptap/react';
 import type { DocumentSettings, ResolvedEditorSettings } from '@shared/types';
+import type { ContractDiagnostic } from '@shared/document/documentContract';
+import type { InvalidDocumentReason } from '@shared/types/messages';
 import { EDITOR_SETTINGS_DEFAULTS } from '@shared/settingsResolver';
 import { EditorI18nProvider } from '../i18n/EditorI18nContext';
 import {
@@ -38,6 +40,47 @@ export const defaultSettings: EditorSettings = {
   fontWeightH3: 600,
 };
 
+export interface EditorCapabilities {
+  editContent: boolean;
+  editMetadata: boolean;
+  editDocumentSettings: boolean;
+  replaceDocument: boolean;
+  manageAssets: boolean;
+  exportDocument: boolean;
+  inspectSource: boolean;
+}
+
+export type EditorDocumentAccess =
+  | { status: 'loading'; capabilities: EditorCapabilities }
+  | { status: 'editable'; capabilities: EditorCapabilities }
+  | {
+      status: 'invalid-initial' | 'invalid-external';
+      capabilities: EditorCapabilities;
+      reason: InvalidDocumentReason;
+      diagnostics: ContractDiagnostic[];
+      canRecoverFromLocal: boolean;
+    };
+
+const VIEW_ONLY_CAPABILITIES: EditorCapabilities = {
+  editContent: false,
+  editMetadata: false,
+  editDocumentSettings: false,
+  replaceDocument: false,
+  manageAssets: false,
+  exportDocument: false,
+  inspectSource: true,
+};
+
+export const EDITABLE_CAPABILITIES: EditorCapabilities = {
+  editContent: true,
+  editMetadata: true,
+  editDocumentSettings: true,
+  replaceDocument: true,
+  manageAssets: true,
+  exportDocument: true,
+  inspectSource: true,
+};
+
 interface EditorState {
   doc: JSONContent | null;
   isReady: boolean;
@@ -46,6 +89,7 @@ interface EditorState {
   settings: EditorSettings;
   /** Raw per-document settings (null = no overrides, falls back to VS Code). */
   docSettings: Partial<DocumentSettings> | null;
+  documentAccess: EditorDocumentAccess;
 }
 
 type EditorAction =
@@ -57,7 +101,8 @@ type EditorAction =
       payload: { preference: UiLanguagePreference; detectedLanguage: unknown };
     }
   | { type: 'SET_SETTINGS'; payload: Partial<EditorSettings> }
-  | { type: 'SET_DOC_SETTINGS'; payload: Partial<DocumentSettings> | null };
+  | { type: 'SET_DOC_SETTINGS'; payload: Partial<DocumentSettings> | null }
+  | { type: 'SET_DOCUMENT_ACCESS'; payload: EditorDocumentAccess };
 
 const createInitialState = (locale: EditorLocale): EditorState => ({
   doc: null,
@@ -66,6 +111,7 @@ const createInitialState = (locale: EditorLocale): EditorState => ({
   uiLanguagePreference: 'auto',
   settings: defaultSettings,
   docSettings: null,
+  documentAccess: { status: 'loading', capabilities: { ...VIEW_ONLY_CAPABILITIES, inspectSource: false } },
 });
 
 const editorReducer = (state: EditorState, action: EditorAction): EditorState => {
@@ -89,6 +135,8 @@ const editorReducer = (state: EditorState, action: EditorAction): EditorState =>
       return { ...state, settings: { ...state.settings, ...action.payload } };
     case 'SET_DOC_SETTINGS':
       return { ...state, docSettings: action.payload };
+    case 'SET_DOCUMENT_ACCESS':
+      return { ...state, documentAccess: action.payload };
     default:
       return state;
   }

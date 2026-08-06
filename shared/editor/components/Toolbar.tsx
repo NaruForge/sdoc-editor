@@ -56,6 +56,7 @@ interface ToolbarProps {
   onInsertMath?: () => void;
   onInsertDiagram?: () => void;
   onInsertCrossRef?: () => void;
+  disabled?: boolean;
 }
 
 const TOOLBAR_GROUP_LABEL_KEYS: Record<ToolbarGroupId, EditorTranslationKey> = {
@@ -94,6 +95,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onInsertMath,
   onInsertDiagram,
   onInsertCrossRef,
+  disabled = false,
 }) => {
   const { t } = useEditorI18n();
   const [showInsertMenu, setShowInsertMenu] = useState(false);
@@ -375,7 +377,14 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   });
 
   return (
-    <div ref={toolbarRef} className="toolbar" role="toolbar" aria-label={t('toolbar.documentFormatting')}>
+    <div
+      ref={toolbarRef}
+      className="toolbar"
+      role="toolbar"
+      aria-label={t('toolbar.documentFormatting')}
+      aria-disabled={disabled}
+      inert={disabled ? true : undefined}
+    >
 
       <div {...groupProps('inline-basic')}>
         <Btn onClick={() => editor.chain().focus().toggleBold().run()} isActive={editor.isActive('bold')} title={t('toolbar.bold')}>

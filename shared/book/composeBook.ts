@@ -2,6 +2,12 @@ import { parseDocumentContract } from '../document/documentContract';
 import type { SdocMeta, TiptapMark, TiptapNode } from '../types';
 import { normalizeBookDocumentPath } from './parseBook';
 import {
+  BOOK_AGGREGATE_MAX_BYTES,
+  BOOK_CHAPTER_MAX_BYTES,
+  BOOK_LOAD_CONCURRENCY,
+  BOOK_MAX_DOCUMENTS,
+} from './limits';
+import {
   BookDocumentLoadError,
   type BookCompositionResult,
   type BookDiagnostic,
@@ -140,6 +146,20 @@ function parseLoadedDocument(value: unknown): unknown {
   return JSON.parse(value) as unknown;
 }
 
+const resolvedDocumentShell = (entry: SdocBook['documents'][number]): ResolvedBookDocument => ({
+  path: entry.path,
+  label: entry.label || basenameWithoutSdoc(entry.path),
+  status: 'invalid',
+});
+
+const createBookMeta = (book: SdocBook): SdocMeta => {
+  const meta: SdocMeta = {};
+  if (book.title !== undefined) meta.title = book.title;
+  if (book.author !== undefined) meta.author = book.author;
+  if (book.version !== undefined) meta.version = book.version;
+  return meta;
+};
+
 export async function composeBook(
   book: SdocBook,
   loader: BookDocumentLoader,
@@ -147,20 +167,50 @@ export async function composeBook(
   signal?: AbortSignal,
 ): Promise<BookCompositionResult> {
   const diagnostics = [...initialDiagnostics];
-  const loadDocument = async (entry: SdocBook['documents'][number]): Promise<{
+  if (book.documents.length > BOOK_MAX_DOCUMENTS) {
+    if (!diagnostics.some((diagnostic) => diagnostic.code === 'BOOK_DOCUMENT_LIMIT_EXCEEDED')) {
+      diagnostics.push({
+        severity: 'error',
+        code: 'BOOK_DOCUMENT_LIMIT_EXCEEDED',
+        message: `.sdocbook contains ${book.documents.length.toLocaleString('en-US')} documents; the limit is ${BOOK_MAX_DOCUMENTS.toLocaleString('en-US')}.`,
+      });
+    }
+    return {
+      doc: { type: 'doc', content: [] },
+      meta: createBookMeta(book),
+      documents: book.documents.map(resolvedDocumentShell),
+      diagnostics,
+      counterResetPaths: [],
+    };
+  }
+
+  const loadDocument = async (
+    entry: SdocBook['documents'][number],
+    loadSignal: AbortSignal,
+  ): Promise<{
     resolved: ResolvedBookDocument;
     diagnostics: BookDiagnostic[];
+    byteLength: number;
   }> => {
     const documentDiagnostics: BookDiagnostic[] = [];
-    const resolved: ResolvedBookDocument = {
-      path: entry.path,
-      label: entry.label || basenameWithoutSdoc(entry.path),
-      status: 'invalid',
-    };
+    const resolved = resolvedDocumentShell(entry);
+    let byteLength = 0;
     try {
-      signal?.throwIfAborted();
-      const parsed = parseLoadedDocument(await loader.load(entry.path, signal));
-      signal?.throwIfAborted();
+      loadSignal.throwIfAborted();
+      const loadedDocument = await loader.load(entry.path, loadSignal);
+      loadSignal.throwIfAborted();
+      if (!Number.isSafeInteger(loadedDocument.byteLength) || loadedDocument.byteLength < 0) {
+        throw new BookDocumentLoadError('read-failed', 'Loader returned an invalid byte length.');
+      }
+      if (loadedDocument.byteLength > BOOK_CHAPTER_MAX_BYTES) {
+        throw new BookDocumentLoadError(
+          'too-large',
+          `${loadedDocument.byteLength.toLocaleString('en-US')} bytes exceeds the ${BOOK_CHAPTER_MAX_BYTES.toLocaleString('en-US')} byte chapter limit`,
+        );
+      }
+      byteLength = loadedDocument.byteLength;
+      const parsed = parseLoadedDocument(loadedDocument.value);
+      loadSignal.throwIfAborted();
       const contract = parseDocumentContract(parsed);
       if (!contract.ok) {
         throw new Error(contract.diagnostics.map((item) => `${item.path}: ${item.message}`).join('; '));
@@ -169,26 +219,96 @@ export async function composeBook(
       resolved.doc = contract.envelope.doc;
       resolved.status = 'ok';
     } catch (error) {
-      if (signal?.aborted) throw error;
+      if (loadSignal.aborted) throw error;
       const loadError = error instanceof BookDocumentLoadError ? error : null;
       const missing = loadError?.failure === 'not-found';
+      const tooLarge = loadError?.failure === 'too-large';
       resolved.status = missing ? 'missing' : 'invalid';
       documentDiagnostics.push({
         severity: 'error',
-        code: missing ? 'DOCUMENT_MISSING' : loadError ? 'DOCUMENT_READ_FAILED' : 'DOCUMENT_INVALID',
-        message: `${missing ? 'Document not found' : 'Unable to load document'}: ${entry.path}${error instanceof Error ? ` (${error.message})` : ''}`,
+        code: missing ? 'DOCUMENT_MISSING' : tooLarge ? 'DOCUMENT_TOO_LARGE' : loadError ? 'DOCUMENT_READ_FAILED' : 'DOCUMENT_INVALID',
+        message: `${missing ? 'Document not found' : tooLarge ? 'Document is too large' : 'Unable to load document'}: ${entry.path}${error instanceof Error ? ` (${error.message})` : ''}`,
         documentPath: entry.path,
       });
     }
-    return { resolved, diagnostics: documentDiagnostics };
+    return { resolved, diagnostics: documentDiagnostics, byteLength };
   };
-  const loaded = await Promise.all(book.documents.map(loadDocument));
-  const documents = loaded.map((item) => item.resolved);
-  for (const item of loaded) diagnostics.push(...item.diagnostics);
+
+  const controller = new AbortController();
+  const forwardAbort = (): void => controller.abort(signal?.reason);
+  if (signal?.aborted) forwardAbort();
+  else signal?.addEventListener('abort', forwardAbort, { once: true });
+  const scheduled = new Map<number, Promise<
+    | { ok: true; value: Awaited<ReturnType<typeof loadDocument>> }
+    | { ok: false; error: unknown }
+  >>();
+  const loaded: Array<Awaited<ReturnType<typeof loadDocument>> | undefined> = [];
+  let nextIndex = 0;
+  let aggregateBytes = 0;
+  let aggregateExceededAt: number | undefined;
+  const scheduleAvailable = (): void => {
+    while (!controller.signal.aborted
+      && scheduled.size < BOOK_LOAD_CONCURRENCY
+      && nextIndex < book.documents.length) {
+      const index = nextIndex++;
+      scheduled.set(index, loadDocument(book.documents[index], controller.signal).then(
+        (value) => ({ ok: true as const, value }),
+        (error: unknown) => ({ ok: false as const, error }),
+      ));
+    }
+  };
+
+  try {
+    controller.signal.throwIfAborted();
+    scheduleAvailable();
+    for (let index = 0; index < book.documents.length; index += 1) {
+      const pending = scheduled.get(index);
+      if (!pending) break;
+      const outcome = await pending;
+      if (controller.signal.aborted) {
+        await Promise.all(scheduled.values());
+        throw signal?.aborted ? signal.reason : controller.signal.reason;
+      }
+      scheduled.delete(index);
+      if (!outcome.ok) {
+        controller.abort(outcome.error);
+        await Promise.all(scheduled.values());
+        throw signal?.aborted ? signal.reason : outcome.error;
+      }
+      loaded[index] = outcome.value;
+      if (aggregateBytes + outcome.value.byteLength > BOOK_AGGREGATE_MAX_BYTES) {
+        aggregateExceededAt = index;
+        controller.abort(new Error('Book aggregate byte limit exceeded.'));
+        await Promise.all(scheduled.values());
+        break;
+      }
+      aggregateBytes += outcome.value.byteLength;
+      scheduleAvailable();
+    }
+  } finally {
+    signal?.removeEventListener('abort', forwardAbort);
+  }
+
+  const documents = book.documents.map((entry, index) => {
+    if (index === aggregateExceededAt) return resolvedDocumentShell(entry);
+    return loaded[index]?.resolved ?? resolvedDocumentShell(entry);
+  });
+  loaded.forEach((item, index) => {
+    if (item && index !== aggregateExceededAt) diagnostics.push(...item.diagnostics);
+  });
+  if (aggregateExceededAt !== undefined) {
+    diagnostics.push({
+      severity: 'error',
+      code: 'BOOK_AGGREGATE_TOO_LARGE',
+      message: `Book chapters exceed the ${BOOK_AGGREGATE_MAX_BYTES.toLocaleString('en-US')} byte aggregate limit at ${book.documents[aggregateExceededAt].path}.`,
+      documentPath: book.documents[aggregateExceededAt].path,
+    });
+  }
 
   const idsByDocument = new Map<string, Set<string>>();
   const idOwners = new Map<string, string>();
   for (const document of documents) {
+    signal?.throwIfAborted();
     if (!document.doc) continue;
     const collectedIds: string[] = [];
     collectIds(document.doc, collectedIds);
@@ -226,6 +346,7 @@ export async function composeBook(
   const usedAnchorIds = new Set(idOwners.keys());
   const chapterAnchors = new Map<string, string>();
   for (const entry of book.documents.filter((candidate) => includedPaths.has(candidate.path))) {
+    signal?.throwIfAborted();
     const stem = entry.path.replace(/^\.\//, '').replace(/\.sdoc$/i, '')
       .normalize('NFKD').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '').toLowerCase() || 'document';
     const base = `chapter-${stem}`;
@@ -238,6 +359,7 @@ export async function composeBook(
   const mergedContent: TiptapNode[] = [];
   const counterResetPaths: string[] = [];
   for (const document of documents) {
+    signal?.throwIfAborted();
     if (!document.doc?.content) continue;
     if (book.counterPolicy === 'reset') counterResetPaths.push(String(mergedContent.length));
     const context: TransformContext = {
@@ -253,14 +375,9 @@ export async function composeBook(
     );
   }
 
-  const meta: SdocMeta = {};
-  if (book.title !== undefined) meta.title = book.title;
-  if (book.author !== undefined) meta.author = book.author;
-  if (book.version !== undefined) meta.version = book.version;
-
   return {
     doc: { type: 'doc', content: mergedContent },
-    meta,
+    meta: createBookMeta(book),
     documents,
     diagnostics,
     counterResetPaths,

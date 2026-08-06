@@ -4,7 +4,7 @@ import { Editor as TiptapEditor } from '@tiptap/react';
 import { PanelEmptyState } from './PanelEmptyState';
 import { buildNumberingIndex } from '../../document/numbering';
 import type { ResolvedEditorSettings, TiptapNode } from '../../types';
-import { findActivePosition } from '../structureIndex';
+import { buildOutlinePresentationIndex, findActivePosition } from '../structureIndex';
 import { useEditorI18n } from '../i18n';
 
 interface TocEntry {
@@ -20,37 +20,6 @@ interface TableOfContentsProps {
   editor: TiptapEditor | null;
   showNumbering: boolean;
   settings: ResolvedEditorSettings;
-}
-
-/** Returns true if the entry at idx has at least one subordinate entry */
-function hasChildren(entries: TocEntry[], idx: number): boolean {
-  const level = entries[idx].level;
-  for (let i = idx + 1; i < entries.length; i++) {
-    if (entries[i].level <= level) return false;
-    if (entries[i].level > level) return true;
-  }
-  return false;
-}
-
-/**
- * Computes visibility for each entry based on collapsed state.
- * Uses a stack-based algorithm: an entry is hidden if any ancestor
- * in its chain is currently collapsed.
- */
-function computeVisibility(entries: TocEntry[], collapsed: Set<number>): boolean[] {
-  const visible: boolean[] = new Array(entries.length).fill(true);
-  const stack: { level: number; pos: number }[] = [];
-  for (let i = 0; i < entries.length; i++) {
-    const entry = entries[i];
-    // Pop stack items at the same or deeper level (they are siblings/descendants, not ancestors)
-    while (stack.length > 0 && stack[stack.length - 1].level >= entry.level) {
-      stack.pop();
-    }
-    // If any remaining ancestor is collapsed, this entry is hidden
-    visible[i] = !stack.some(s => collapsed.has(s.pos));
-    stack.push({ level: entry.level, pos: entry.pos });
-  }
-  return visible;
 }
 
 export const TableOfContents: React.FC<TableOfContentsProps> = ({ editor, showNumbering, settings }) => {
@@ -125,7 +94,10 @@ export const TableOfContents: React.FC<TableOfContentsProps> = ({ editor, showNu
     }
   };
 
-  const visibility = computeVisibility(entries, collapsed);
+  const presentation = useMemo(
+    () => buildOutlinePresentationIndex(entries, collapsed),
+    [entries, collapsed],
+  );
 
   if (entries.length === 0) {
     return (
@@ -146,9 +118,9 @@ export const TableOfContents: React.FC<TableOfContentsProps> = ({ editor, showNu
       <div className="toc-title">{t('toc.title')}</div>
       <nav className="toc-nav">
         {entries.map((entry, idx) => {
-          if (!visibility[idx]) return null;
+          if (!presentation.visible[idx]) return null;
           const isCollapsed = collapsed.has(entry.pos);
-          const showToggle = hasChildren(entries, idx);
+          const showToggle = presentation.hasChildren[idx];
           return (
             <div
               key={`${entry.pos}-${idx}`}

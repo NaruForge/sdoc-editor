@@ -23,8 +23,12 @@ import {
   type FileImportFormat,
   type FileFormatCapability,
 } from '@shared/editor/components/FilesPanel';
+import { ImageContextMenu } from '@shared/editor/components/ImageContextMenu';
+import { InvalidDocumentNotice } from '@shared/editor/components/InvalidDocumentNotice';
+import { ModalDialog } from '@shared/editor/components/ModalDialog';
 import { ResponsiveSidePanel } from '@shared/editor/components/ResponsiveSidePanel';
 import { SidePanelBody } from '@shared/editor/components/SidePanelBody';
+import { TableContextMenu } from '@shared/editor/components/TableContextMenu';
 import { TemplatePanel } from '@shared/editor/components/TemplatePanel';
 import { Toolbar } from '@shared/editor/components/Toolbar';
 import { EditorProvider } from '@shared/editor/context/EditorContext';
@@ -45,7 +49,7 @@ import './harness.css';
 
 type Theme = 'light' | 'dark' | 'hc';
 type Locale = 'ko' | 'en';
-type Scene = 'editor' | 'settings' | 'templates' | 'files' | 'diagram-error' | 'external-change';
+type Scene = 'editor' | 'settings' | 'templates' | 'files' | 'diagram-error' | 'external-change' | 'invalid-document' | 'interactions';
 
 const TEMPLATE_FIXTURES: readonly ManagedTemplateDescriptor[] = [
   {
@@ -112,7 +116,7 @@ const TEMPLATE_FIXTURES: readonly ManagedTemplateDescriptor[] = [
   },
 ];
 
-const EXPORT_FIXTURES: readonly FileFormatCapability<FileExportFormat>[] = [
+const exportFixtures = (locale: Locale): readonly FileFormatCapability<FileExportFormat>[] => [
   { format: 'html', available: true },
   { format: 'pdf', available: true },
   { format: 'markdown', available: true },
@@ -120,7 +124,9 @@ const EXPORT_FIXTURES: readonly FileFormatCapability<FileExportFormat>[] = [
   {
     format: 'slides',
     available: false,
-    unavailableReason: 'Slides export requires the desktop presentation runtime.',
+    unavailableReason: locale === 'ko'
+      ? '이 호스트에서는 슬라이드 내보내기를 사용할 수 없습니다.'
+      : 'Slides export is unavailable in this host.',
   },
 ];
 
@@ -301,10 +307,11 @@ function SharedPanelScene({
 }: {
   editor: Editor;
   locale: Locale;
-  scene: Exclude<Scene, 'editor' | 'diagram-error' | 'external-change'>;
+  scene: 'settings' | 'templates' | 'files';
 }) {
   const returnFocusRef = useRef<HTMLButtonElement | null>(null);
   const [open, setOpen] = useState(true);
+  const [publishTab, setPublishTab] = useState<'export' | 'import'>('export');
   const [templateSession, dispatchTemplateSession] = useReducer(
     templateSessionReducer,
     undefined,
@@ -335,7 +342,7 @@ function SharedPanelScene({
     ? { destination: 'design' as const }
     : scene === 'templates'
       ? { destination: 'templates' as const }
-      : { destination: 'publish' as const, tab: 'export' as const };
+      : { destination: 'publish' as const, tab: publishTab };
   const finishFixtureAction = (operation: 'apply' | 'save' | 'update' | 'duplicate' | 'delete' | 'open-folder', templateId?: string, visibleIndex?: number) => {
     const requestId = `fixture-${operation}`;
     dispatchTemplateSession({ type: 'action-started', requestId, operation, templateId, visibleIndex });
@@ -370,7 +377,14 @@ function SharedPanelScene({
           onClose={() => setOpen(false)}
           returnFocusRef={returnFocusRef}
         >
-          <SidePanelBody selection={selection} onSelectionChange={() => undefined}>
+          <SidePanelBody
+            selection={selection}
+            onSelectionChange={(nextSelection) => {
+              if (nextSelection.destination === 'publish') {
+                setPublishTab(nextSelection.tab);
+              }
+            }}
+          >
           {scene === 'settings' && (
             <DesignPanel
               showNumbering
@@ -405,7 +419,7 @@ function SharedPanelScene({
           )}
           {scene === 'files' && (
             <FilesPanel
-              exportFormats={EXPORT_FIXTURES}
+              exportFormats={exportFixtures(locale)}
               importFormats={IMPORT_FIXTURES}
               operationState={FILE_OPERATION_IDLE_STATE}
               onStart={() => undefined}
@@ -424,6 +438,8 @@ function DiagramErrorScene({ editor, locale }: {
   editor: Editor;
   locale: Locale;
 }) {
+  const [open, setOpen] = useState(true);
+  const openerRef = useRef<HTMLButtonElement | null>(null);
   return (
     <div
       className="host-frame editor-body-layout scene-surface"
@@ -435,19 +451,95 @@ function DiagramErrorScene({ editor, locale }: {
         onDestinationClick={() => undefined}
       />
       <EditorBackdrop editor={editor} locale={locale} />
-      <DiagramDialog
-        initialCode={'@startuml\nAlice -> Bob: Create report\nBob --> Alice: Renderer unavailable\n@enduml'}
-        initialLanguage="plantuml"
-        pos={null}
-        renderDiagram={DIAGRAM_ERROR_RENDERER}
-        rendererSettings={{
-          consent: 'granted',
-          endpoint: 'https://kroki.io',
-          allowPrivateNetwork: false,
+      <button
+        ref={openerRef}
+        type="button"
+        data-testid="diagram-dialog-opener"
+        style={{
+          position: 'absolute',
+          right: '8px',
+          bottom: '8px',
+          opacity: open ? 0 : 1,
+          pointerEvents: open ? 'none' : 'auto',
         }}
-        onConfirm={() => undefined}
-        onCancel={() => undefined}
-      />
+        onClick={() => setOpen(true)}
+      >
+        {locale === 'ko' ? '다이어그램 대화상자 열기' : 'Open diagram dialog'}
+      </button>
+      {open && (
+        <DiagramDialog
+          initialCode={'@startuml\nAlice -> Bob: Create report\nBob --> Alice: Renderer unavailable\n@enduml'}
+          initialLanguage="plantuml"
+          pos={null}
+          renderDiagram={DIAGRAM_ERROR_RENDERER}
+          rendererSettings={{
+            consent: 'granted',
+            endpoint: 'https://kroki.io',
+            allowPrivateNetwork: false,
+          }}
+          onConfirm={() => undefined}
+          onCancel={() => setOpen(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+function InteractionScene({ editor, locale }: { editor: Editor; locale: Locale }) {
+  const [menu, setMenu] = useState<'table' | 'image' | null>(null);
+  const [lastAction, setLastAction] = useState('none');
+  const tableTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const imageTriggerRef = useRef<HTMLButtonElement | null>(null);
+
+  const completeAction = (action: string): void => {
+    setLastAction(action);
+    setMenu(null);
+  };
+
+  return (
+    <div className="host-frame interaction-scene" data-scene="interactions">
+      <button
+        ref={tableTriggerRef}
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation();
+          setMenu('table');
+        }}
+      >
+        {locale === 'ko' ? '표 메뉴 열기' : 'Open table menu'}
+      </button>
+      <button
+        ref={imageTriggerRef}
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation();
+          setMenu('image');
+        }}
+      >
+        {locale === 'ko' ? '이미지 메뉴 열기' : 'Open image menu'}
+      </button>
+      {menu === 'table' && (
+        <TableContextMenu
+          editor={editor}
+          position={{ x: 24, y: 64 }}
+          onClose={() => setMenu(null)}
+          onOpenProperties={() => completeAction('table-properties')}
+          returnFocusRef={tableTriggerRef}
+        />
+      )}
+      {menu === 'image' && (
+        <ImageContextMenu
+          position={{ x: 220, y: 64 }}
+          onClose={() => setMenu(null)}
+          onOpenProperties={() => completeAction('image-properties')}
+          onReplaceImage={() => completeAction('image-replace')}
+          onCopyPath={() => completeAction('image-copy-path')}
+          onDelete={() => completeAction('image-delete')}
+          isDrawio={false}
+          returnFocusRef={imageTriggerRef}
+        />
+      )}
+      <output data-testid="interaction-action">{lastAction}</output>
     </div>
   );
 }
@@ -527,6 +619,82 @@ function ExternalChangeScene({ locale }: { locale: Locale }) {
   );
 }
 
+function InvalidDocumentScene({ locale }: { locale: Locale }) {
+  const t = createEditorTranslator(locale);
+  const [invalid, setInvalid] = useState(true);
+  const [confirming, setConfirming] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const fallbackRef = useRef<HTMLButtonElement | null>(null);
+  const cancelRef = useRef<HTMLButtonElement | null>(null);
+  const labels = {
+    title: t('invalidDocument.title'),
+    initial: t('invalidDocument.initialExplanation'),
+    external: t('invalidDocument.externalExplanation'),
+    open: t('invalidDocument.openJsonSource'),
+    retry: t('invalidDocument.retryValidation'),
+    recover: t('invalidDocument.recoverLocalDraft'),
+    running: t('invalidDocument.recoveryRunning'),
+  };
+
+  return (
+    <div className="host-frame scene-surface" data-scene="invalid-document">
+      <button ref={fallbackRef} type="button" data-testid="invalid-recovery-fallback">
+        {locale === 'ko' ? '문서로 돌아가기' : 'Return to document'}
+      </button>
+      {invalid && (
+        <InvalidDocumentNotice
+          variant="external"
+          diagnostics={[{ path: '/', message: 'invalid JSON' }]}
+          labels={labels}
+          onOpenSource={() => undefined}
+          onRetry={() => undefined}
+          canRecover
+          recoveryPending={pending}
+          recoveryError={error}
+          onRecover={() => setConfirming(true)}
+        />
+      )}
+      {confirming && (
+        <ModalDialog
+          size="md"
+          role="alertdialog"
+          titleId="fixture-invalid-recovery-title"
+          descriptionId="fixture-invalid-recovery-description"
+          initialFocusRef={cancelRef}
+          fallbackFocusRef={fallbackRef}
+          onCancel={() => setConfirming(false)}
+        >
+          <div className="modal-body">
+            <h2 id="fixture-invalid-recovery-title">{t('invalidDocument.recoveryConfirmTitle')}</h2>
+            <p id="fixture-invalid-recovery-description">{t('invalidDocument.recoveryConfirmBody')}</p>
+          </div>
+          <div className="modal-footer">
+            <button ref={cancelRef} type="button" className="btn-secondary" onClick={() => setConfirming(false)}>
+              {t('common.cancel')}
+            </button>
+            <button type="button" className="btn-primary" onClick={() => {
+              setConfirming(false);
+              setPending(true);
+              setError(null);
+            }}>
+              {t('invalidDocument.recoveryConfirmAction')}
+            </button>
+          </div>
+        </ModalDialog>
+      )}
+      <button type="button" hidden data-testid="invalid-recovery-resolve" onClick={() => {
+        setPending(false);
+        setInvalid(false);
+      }}>Resolve</button>
+      <button type="button" hidden data-testid="invalid-recovery-reject" onClick={() => {
+        setPending(false);
+        setError(t('invalidDocument.recoveryFailed'));
+      }}>Reject</button>
+    </div>
+  );
+}
+
 function useSceneReady(scene: Scene): boolean {
   const [ready, setReady] = useState(scene !== 'diagram-error');
 
@@ -549,7 +717,7 @@ function App() {
   const locale = queryValue('locale', ['ko', 'en'] as const, 'en');
   const scene = queryValue(
     'scene',
-    ['editor', 'settings', 'templates', 'files', 'diagram-error', 'external-change'] as const,
+    ['editor', 'settings', 'templates', 'files', 'diagram-error', 'external-change', 'invalid-document', 'interactions'] as const,
     'editor',
   );
   const params = new URLSearchParams(window.location.search);
@@ -580,6 +748,12 @@ function App() {
         )}
         {scene === 'external-change' && (
           <ExternalChangeScene locale={locale} />
+        )}
+        {scene === 'invalid-document' && (
+          <InvalidDocumentScene locale={locale} />
+        )}
+        {scene === 'interactions' && (
+          <InteractionScene editor={editor} locale={locale} />
         )}
         {scene === 'editor' && (
         <div className="host-frame">

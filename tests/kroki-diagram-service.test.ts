@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   KrokiDiagramService,
   KrokiRenderError,
+  resolveEndpointAddress,
   resolvePersistedDiagramRendererConsent,
   validateKrokiEndpoint,
 } from '../src/services/KrokiDiagramService';
@@ -70,6 +71,14 @@ describe('Kroki endpoint trust boundary', () => {
     await expect(validateKrokiEndpoint('https://192.168.1.10', true)).resolves.toMatchObject({
       hostname: '192.168.1.10',
     });
+  });
+
+  it('bounds DNS resolution and reports a retryable timeout', async () => {
+    const unresolved = new Promise<Array<{ address: string; family: number }>>(() => undefined);
+    await expect(resolveEndpointAddress(new URL('https://kroki.example'), false, {
+      timeoutMs: 5,
+      lookup: async () => unresolved,
+    })).rejects.toMatchObject({ code: 'timeout', retryable: true });
   });
 });
 

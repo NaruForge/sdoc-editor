@@ -31,9 +31,16 @@ import {
   readDocumentMutationBestEffort,
   type DocumentMutation,
 } from '../shared/persistence/DocumentSyncCoordinator';
-import { assertPersistedDocument, parseDocumentContract, readDocumentSettings } from '../shared/document/documentContract';
+import {
+  assertPersistedDocument,
+  parseDocumentContract,
+  parseDocumentTextContract,
+  readDocumentSettings,
+  type DocumentTextContractResult,
+} from '../shared/document/documentContract';
 import { dehydrateDocumentAssets } from '../shared/document/runtimeAssets';
 import { runExportAfterFlush } from '../shared/export/runExportAfterFlush';
+import { canRecoverInvalidDocument } from '../shared/persistence/invalidDocumentRecovery';
 import {
   canApplyTemplateToCurrentDocument,
   commitCurrentDocumentTemplateApplication,
@@ -69,6 +76,9 @@ import {
   KrokiRenderError,
   resolvePersistedDiagramRendererConsent,
 } from './services/KrokiDiagramService';
+import { MAX_CUSTOM_CSS_BYTES } from './utils/cssUtils';
+import { resolveContainedRegularFile } from './utils/containedFile';
+import { MAX_DOCUMENT_BYTES, MAX_IMPORT_BYTES } from '../shared/resourceLimits';
 import {
   readUiLanguagePreference,
   resolveUiLanguagePreference,
@@ -82,6 +92,25 @@ import {
   recoverFromUiLanguageWriteFailure,
   updateUiLanguagePreference,
 } from './uiLanguagePreferenceUpdate';
+
+async function readBoundedWorkspaceFile(
+  uri: vscode.Uri,
+  maximumBytes: number,
+  label: string,
+): Promise<Uint8Array> {
+  const info = await vscode.workspace.fs.stat(uri);
+  if ((info.type & vscode.FileType.File) === 0) {
+    throw new Error(`${label} is not a regular file.`);
+  }
+  if (info.size > maximumBytes) {
+    throw new Error(`${label} exceeds the ${maximumBytes.toLocaleString('en-US')} byte limit.`);
+  }
+  const bytes = await vscode.workspace.fs.readFile(uri);
+  if (bytes.byteLength > maximumBytes) {
+    throw new Error(`${label} exceeds the ${maximumBytes.toLocaleString('en-US')} byte limit.`);
+  }
+  return bytes;
+}
 
 export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
   private static readonly SDOC_VERSION = '1.0';
@@ -134,6 +163,8 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
   /** Exact snapshots expected from our own WorkspaceEdit, never a blind event counter. */
   private readonly expectedDocumentChanges = new ExpectedDocumentChanges();
   private pendingFlushResolvers = new Map<string, {
+    sessionId: string;
+    documentId: string;
     resolve: () => void;
     reject: (error: Error) => void;
     timer: NodeJS.Timeout;
@@ -294,6 +325,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     const editorIdentity = { sessionId, documentId };
     this.editorSessions.set(documentId, { document, panel: webviewPanel, sessionId });
     let writeBlockedReason: string | undefined;
+    let hasLoadedValidDocument = false;
     let readOnlyWarningShown = false;
     let templateApplicationPending = false;
     let templateManagementPending = false;
@@ -459,78 +491,98 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       });
     };
 
+    const contractFailureDetail = (
+      contract: Extract<DocumentTextContractResult, { ok: false }>,
+    ): string => contract.diagnostics
+      .map((item) => `${item.path}: ${item.message}`)
+      .join('; ') || 'The document is invalid.';
+
+    const mutationFromEnvelope = (
+      envelope: Extract<DocumentTextContractResult, { ok: true }>['envelope'],
+    ): DocumentMutation => {
+      const { settings: documentSettings, ...persistedMeta } = envelope.meta;
+      return {
+        content: convertImagePathsToWebviewUris(envelope.doc, documentDir, webviewPanel.webview),
+        meta: persistedMeta,
+        documentSettings: documentSettings ?? null,
+      };
+    };
+
     // Send initial document content with image paths converted
     const sendUpdate = () => {
-      try {
-        const text = document.getText();
-        const parsed: unknown = isUninitializedSdocText(text)
-          ? { sdoc: SdocEditorProvider.SDOC_VERSION, meta: {}, doc: { type: 'doc', content: [] } }
-          : JSON.parse(text);
-        const contract = parseDocumentContract(parsed);
-        writeBlockedReason = contract.ok
-          ? undefined
-          : contract.diagnostics.map((item) => `${item.path}: ${item.message}`).join('; ');
-        if (writeBlockedReason && !readOnlyWarningShown) {
+      const contract = parseDocumentTextContract(document.getText());
+      if (!contract.ok) {
+        writeBlockedReason = contractFailureDetail(contract);
+        if (!readOnlyWarningShown) {
           readOnlyWarningShown = true;
-          vscode.window.showWarningMessage(
+          void vscode.window.showWarningMessage(
             `Structured Doc opened read-only to protect the original file: ${writeBlockedReason}`,
           );
         }
-        // Unwrap sdoc envelope → extract doc node
-        const { doc, meta } = sharedUnwrapSdoc(parsed);
-        const { settings: documentSettings, ...persistedMeta } = meta;
-        // Convert image paths to webview URIs
-        const convertedJson = convertImagePathsToWebviewUris(doc, documentDir, webviewPanel.webview);
-        webviewPanel.webview.postMessage({
+        void webviewPanel.webview.postMessage({
           type: 'init',
           locale: this.resolveUiLocale(),
           sessionId,
           documentId,
           revision: document.version,
-          ...(writeBlockedReason ? { readOnlyReason: writeBlockedReason } : {}),
-          snapshot: {
-            content: convertedJson,
-            meta: persistedMeta,
-            documentSettings: documentSettings ?? null,
+          documentState: {
+            status: 'invalid',
+            reason: contract.kind,
+            diagnostics: contract.diagnostics,
           },
         });
-        sendUiLanguage();
-        sendSettings();
-      } catch (error) {
-        vscode.window.showErrorMessage(
-          `Failed to parse document: ${error instanceof Error ? error.message : 'Unknown error'}`
-        );
+      } else {
+        writeBlockedReason = undefined;
+        hasLoadedValidDocument = true;
+        void webviewPanel.webview.postMessage({
+          type: 'init',
+          locale: this.resolveUiLocale(),
+          sessionId,
+          documentId,
+          revision: document.version,
+          documentState: { status: 'ready', snapshot: mutationFromEnvelope(contract.envelope) },
+        });
       }
-    };
-
-    const readCurrentDocumentValue = (): unknown => {
-      const text = document.getText();
-      return isUninitializedSdocText(text)
-        ? { sdoc: SdocEditorProvider.SDOC_VERSION, meta: {}, doc: { type: 'doc', content: [] } }
-        : JSON.parse(text);
+      sendUiLanguage();
+      sendSettings();
     };
 
     const readCurrentMutation = (): DocumentMutation => {
-      const parsed = readCurrentDocumentValue();
-      const { doc, meta } = sharedUnwrapSdoc(parsed);
-      const { settings: documentSettings, ...persistedMeta } = meta;
-      return {
-        content: convertImagePathsToWebviewUris(doc, documentDir, webviewPanel.webview),
-        meta: persistedMeta,
-        documentSettings: documentSettings ?? null,
-      };
+      const contract = parseDocumentTextContract(document.getText());
+      if (!contract.ok) throw new Error(contractFailureDetail(contract));
+      return mutationFromEnvelope(contract.envelope);
     };
 
     const tryReadCurrentMutation = (): DocumentMutation | undefined =>
       readDocumentMutationBestEffort(readCurrentMutation);
 
     const postExternalChange = (): void => {
-      webviewPanel.webview.postMessage({
-        type: 'externalChange',
-        sessionId,
-        documentId,
-        revision: document.version,
-        snapshot: readCurrentMutation(),
+      const contract = parseDocumentTextContract(document.getText());
+      if (!contract.ok) {
+        if (!hasLoadedValidDocument) {
+          sendUpdate();
+          return;
+        }
+        writeBlockedReason = contractFailureDetail(contract);
+        void webviewPanel.webview.postMessage({
+          type: 'externalInvalidDocument',
+          sessionId,
+          documentId,
+          revision: document.version,
+          reason: contract.kind,
+          diagnostics: contract.diagnostics,
+          canRecoverFromLocal: hasLoadedValidDocument,
+        });
+        return;
+      }
+      if (!hasLoadedValidDocument) {
+        sendUpdate();
+        return;
+      }
+      writeBlockedReason = undefined;
+      void webviewPanel.webview.postMessage({
+        type: 'externalChange', sessionId, documentId, revision: document.version,
+        snapshot: mutationFromEnvelope(contract.envelope),
       });
     };
 
@@ -779,7 +831,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
 
         await messageQueue.whenIdle();
         requireLiveTemplateRequest(request);
-        await this.flushEditor(webviewPanel.webview, sessionId);
+        await this.flushEditor(webviewPanel.webview, sessionId, documentId);
         await messageQueue.whenIdle();
         const baselineIdentity = currentDocumentIdentity();
         const baselineText = document.getText();
@@ -843,7 +895,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       }
       const readOnlySafeMessages = new Set([
         'ready', 'flushComplete', 'viewJson', 'export', 'openDocument', 'browseSdocFiles',
-        'importMarkdown', 'importHtml', 'fileOperationApplied',
+        'fileOperationApplied', 'recoverInvalidDocument',
         'requestTemplateCatalog',
         'savePersonalTemplate', 'updatePersonalTemplate', 'duplicatePersonalTemplate',
         'deletePersonalTemplate', 'openPersonalTemplateFolder',
@@ -901,7 +953,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         let usedDiagramFallback = false;
         let exportResult: 'completed' | 'cancelled' | 'fallback' = 'completed';
         void runExportAfterFlush(
-          () => this.flushEditor(webviewPanel.webview, sessionId),
+          () => this.flushEditor(webviewPanel.webview, sessionId, documentId),
           async () => {
             const prepared = await prepareDiagramImages(message.format);
             usedDiagramFallback = prepared.usedFallback;
@@ -1065,12 +1117,14 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         return;
       }
       if (message.type === 'flushComplete') {
-        if (message.sessionId === sessionId && message.requestId) this.resolveFlush(message.requestId);
+        if (message.sessionId === sessionId && message.requestId) {
+          this.resolveFlush(message.requestId, message.sessionId);
+        }
         return;
       }
       if (message.type === 'flushFailed') {
         if (message.sessionId === sessionId) {
-          this.rejectFlush(message.requestId, new Error(message.message));
+          this.rejectFlush(message.requestId, new Error(message.message), message.sessionId);
         }
         return;
       }
@@ -1148,12 +1202,53 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       messageQueue.enqueue(async () => {
         switch (message.type) {
           case 'ready':
-            sendUpdate();
+            if (hasLoadedValidDocument && writeBlockedReason) postExternalChange();
+            else sendUpdate();
             webviewPanel.webview.postMessage({
               type: 'diagramRendererSettings',
               settings: this.readDiagramRendererSettings(),
             });
             break;
+          case 'recoverInvalidDocument': {
+            const rejectRecovery = async (detail: string): Promise<void> => {
+              await webviewPanel.webview.postMessage({
+                type: 'invalidDocumentRecoveryResult',
+                requestId: message.requestId,
+                sessionId,
+                documentId,
+                result: 'rejected',
+                revision: document.version,
+                message: detail,
+              });
+            };
+            if (!canRecoverInvalidDocument({
+              writeBlocked: Boolean(writeBlockedReason),
+              hasLoadedValidDocument,
+              sessionId,
+              documentId,
+              revision: document.version,
+            }, message)) {
+              await rejectRecovery('The invalid source changed or is not eligible for local recovery.');
+              break;
+            }
+            try {
+              await this.updateDocument(document, message.mutation);
+              writeBlockedReason = undefined;
+              readOnlyWarningShown = false;
+              hasLoadedValidDocument = true;
+              await webviewPanel.webview.postMessage({
+                type: 'invalidDocumentRecoveryResult',
+                requestId: message.requestId,
+                sessionId,
+                documentId,
+                result: 'recovered',
+                revision: document.version,
+              });
+            } catch (error) {
+              await rejectRecovery(error instanceof Error ? error.message : String(error));
+            }
+            break;
+          }
           case 'resolveDiagramRendererConsent': {
             try {
               await this.context.globalState.update(
@@ -1274,7 +1369,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
                 editId: message.editId,
                 revision: document.version,
               });
-              if (message.flushRequestId) this.resolveFlush(message.flushRequestId);
+              if (message.flushRequestId) this.resolveFlush(message.flushRequestId, sessionId);
             } catch (error) {
               const hostSnapshot = tryReadCurrentMutation();
               webviewPanel.webview.postMessage({
@@ -1375,7 +1470,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     const willSaveSubscription = vscode.workspace.onWillSaveTextDocument((e) => {
       if (e.document.uri.toString() !== document.uri.toString()) return;
 
-      e.waitUntil(this.flushEditor(webviewPanel.webview, sessionId, 1000));
+      e.waitUntil(this.flushEditor(webviewPanel.webview, sessionId, documentId, 1000));
     });
 
     // Handle external document changes
@@ -1465,6 +1560,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       viewStateSubscription.dispose();
       this.expectedDocumentChanges.clear(document.uri.toString());
       for (const [requestId, pending] of this.pendingFlushResolvers) {
+        if (pending.sessionId !== sessionId) continue;
         clearTimeout(pending.timer);
         pending.reject(new Error('Editor was closed before its content could be flushed.'));
         this.pendingFlushResolvers.delete(requestId);
@@ -1588,7 +1684,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       ?? vscode.workspace.textDocuments.find((candidate) => candidate.uri.toString() === key)
       ?? await vscode.workspace.openTextDocument(uri);
     await runExportAfterFlush(
-      session ? () => this.flushEditor(session.panel.webview, session.sessionId) : undefined,
+      session ? () => this.flushEditor(session.panel.webview, session.sessionId, key) : undefined,
       async () => {
         await this.exportService.exportDocument(document, format);
       },
@@ -1603,17 +1699,22 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       : undefined;
     if (!uri) return;
     const session = this.editorSessions.get(uri.toString());
-    if (session) await this.flushEditor(session.panel.webview, session.sessionId);
+    if (session) await this.flushEditor(session.panel.webview, session.sessionId, uri.toString());
   }
 
-  private flushEditor(webview: vscode.Webview, sessionId: string, timeoutMs = 5000): Promise<void> {
+  private flushEditor(
+    webview: vscode.Webview,
+    sessionId: string,
+    documentId: string,
+    timeoutMs = 5000,
+  ): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       const requestId = randomUUID();
       const timer = setTimeout(() => {
         if (!this.pendingFlushResolvers.has(requestId)) return;
         this.rejectFlush(requestId, new Error('Timed out waiting for the editor to flush its latest content.'));
       }, timeoutMs);
-      this.pendingFlushResolvers.set(requestId, { resolve, reject, timer });
+      this.pendingFlushResolvers.set(requestId, { sessionId, documentId, resolve, reject, timer });
       void webview.postMessage({ type: 'requestFlush', sessionId, requestId }).then((delivered) => {
         if (!delivered) this.rejectFlush(requestId, new Error('The editor is unavailable for export.'));
       }, (error: unknown) => {
@@ -1623,18 +1724,18 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
   }
 
   /** Resolve any pending flush for this document */
-  private resolveFlush(requestId: string): void {
+  private resolveFlush(requestId: string, sessionId: string): void {
     const pending = this.pendingFlushResolvers.get(requestId);
-    if (pending) {
+    if (pending?.sessionId === sessionId) {
       clearTimeout(pending.timer);
       this.pendingFlushResolvers.delete(requestId);
       pending.resolve();
     }
   }
 
-  private rejectFlush(requestId: string, error: Error): void {
+  private rejectFlush(requestId: string, error: Error, sessionId?: string): void {
     const pending = this.pendingFlushResolvers.get(requestId);
-    if (pending) {
+    if (pending && (sessionId === undefined || pending.sessionId === sessionId)) {
       clearTimeout(pending.timer);
       this.pendingFlushResolvers.delete(requestId);
       pending.reject(error);
@@ -1678,7 +1779,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         return;
       }
 
-      const mdBytes = await vscode.workspace.fs.readFile(fileUris[0]);
+      const mdBytes = await readBoundedWorkspaceFile(fileUris[0], MAX_IMPORT_BYTES, 'Markdown import');
       const mdText = new TextDecoder('utf-8').decode(mdBytes);
       const doc = convertMarkdownToJson(mdText);
 
@@ -1749,7 +1850,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         return;
       }
 
-      const htmlBytes = await vscode.workspace.fs.readFile(fileUris[0]);
+      const htmlBytes = await readBoundedWorkspaceFile(fileUris[0], MAX_IMPORT_BYTES, 'HTML import');
       const htmlText = new TextDecoder('utf-8').decode(htmlBytes);
       const applied = waitUntilApplied();
 
@@ -1855,11 +1956,17 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     if (selected) {
       // Read the target document to get its referenceable targets
       try {
-        const data = await vscode.workspace.fs.readFile(vscode.Uri.file(selected.fsPath));
+        const data = await readBoundedWorkspaceFile(
+          vscode.Uri.file(selected.fsPath),
+          MAX_DOCUMENT_BYTES,
+          'Referenced Structured Doc',
+        );
         const text = new TextDecoder().decode(data);
-        const parsed = JSON.parse(text);
-        const { doc } = sharedUnwrapSdoc(parsed);
-        const targets = this.collectExternalTargets(doc);
+        const contract = parseDocumentTextContract(text, { maximumBytes: MAX_DOCUMENT_BYTES });
+        if (!contract.ok) {
+          throw new Error(contract.diagnostics.map((item) => `${item.path}: ${item.message}`).join('; '));
+        }
+        const targets = this.collectExternalTargets(contract.envelope.doc);
 
         webview.postMessage({
           type: 'sdocFileBrowseResult',
@@ -1973,7 +2080,21 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
 
     const selectedUri = result[0];
     const basePath = workspaceFolder?.uri.fsPath ?? path.dirname(document.uri.fsPath);
-    return './' + path.relative(basePath, selectedUri.fsPath).replace(/\\/g, '/');
+    const relativePath = `./${path.relative(basePath, selectedUri.fsPath).replace(/\\/g, '/')}`;
+    try {
+      await resolveContainedRegularFile(basePath, relativePath, {
+        extension: '.css',
+        maximumBytes: MAX_CUSTOM_CSS_BYTES,
+      });
+      return relativePath;
+    } catch (error) {
+      await vscode.window.showWarningMessage(
+        `Custom CSS must be a regular .css file inside the current workspace: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return undefined;
+    }
   }
 
 }

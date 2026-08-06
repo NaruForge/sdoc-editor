@@ -1,11 +1,15 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { realpath } from 'fs/promises';
+import { readFile, realpath, stat } from 'fs/promises';
 import type { TiptapNode } from '../../shared/types';
 import {
   parseContainedRelativeAssetPath,
   parsePortableAssetPath,
 } from '../../shared/security/portableAssets';
+import {
+  assertEmbeddedAssetBudget,
+  RESOURCE_LOAD_CONCURRENCY,
+} from '../../shared/resourceLimits';
 
 export const MIME_MAP: Record<string, string> = {
   png: 'image/png',
@@ -87,40 +91,75 @@ export async function embedImagesAsBase64(
   node: TiptapNode,
   documentDir: string,
 ): Promise<TiptapNode> {
-  const cloned: TiptapNode = { ...node };
-
-  if (cloned.type === 'image') {
-    const attrs = cloned.attrs;
-    const src = typeof attrs?.src === 'string' ? attrs.src : undefined;
-    const isExternal = src?.startsWith('data:') || src?.startsWith('http://') || src?.startsWith('https://');
-    if (src && !isExternal) {
-      const segments = parseContainedRelativeAssetPath(src);
-      if (!segments || !segments.some((segment) => segment === 'images' || segment === 'drawio')) {
-        throw new Error(`Export blocked unsafe image path: ${src}`);
-      }
-      const root = await realpath(path.resolve(documentDir));
-      const imagePath = await realpath(path.resolve(root, ...segments));
-      const relative = path.relative(root, imagePath);
-      if (!relative || path.isAbsolute(relative) || relative === '..' || relative.startsWith(`..${path.sep}`)) {
-        throw new Error(`Export blocked image outside the document root: ${src}`);
-      }
-      const imageUri = vscode.Uri.file(imagePath);
-      const imageData = await vscode.workspace.fs.readFile(imageUri);
-      const base64 = Buffer.from(imageData).toString('base64');
-      const ext = path.extname(src).toLowerCase().replace('.', '');
-      const mime = MIME_MAP[ext];
-      if (!mime) throw new Error(`Export blocked unsupported image type: ${src}`);
-      cloned.attrs = { ...attrs, src: `data:${mime};base64,${base64}` };
+  type PendingReference = { cloned: TiptapNode; src: string };
+  const pending: PendingReference[] = [];
+  const cloneTree = (current: TiptapNode): TiptapNode => {
+    const cloned: TiptapNode = { ...current, attrs: current.attrs ? { ...current.attrs } : undefined };
+    if (cloned.type === 'image') {
+      const src = typeof cloned.attrs?.src === 'string' ? cloned.attrs.src : undefined;
+      const isExternal = src?.startsWith('data:') || src?.startsWith('http://') || src?.startsWith('https://');
+      if (src && !isExternal) pending.push({ cloned, src });
     }
+    if (current.content) cloned.content = current.content.map(cloneTree);
+    return cloned;
+  };
+
+  const cloned = cloneTree(node);
+  assertEmbeddedAssetBudget([], pending.length);
+  if (pending.length === 0) return cloned;
+
+  const root = await realpath(path.resolve(documentDir));
+  const grouped = new Map<string, { imagePath: string; mime: string; references: TiptapNode[] }>();
+  for (const { cloned: imageNode, src } of pending) {
+    const segments = parseContainedRelativeAssetPath(src);
+    if (!segments || !segments.some((segment) => segment === 'images' || segment === 'drawio')) {
+      throw new Error(`Export blocked unsafe image path: ${src}`);
+    }
+    const imagePath = await realpath(path.resolve(root, ...segments));
+    const relative = path.relative(root, imagePath);
+    if (!relative || path.isAbsolute(relative) || relative === '..' || relative.startsWith(`..${path.sep}`)) {
+      throw new Error(`Export blocked image outside the document root: ${src}`);
+    }
+    const ext = path.extname(src).toLowerCase().replace('.', '');
+    const mime = MIME_MAP[ext];
+    if (!mime) throw new Error(`Export blocked unsupported image type: ${src}`);
+    const existing = grouped.get(imagePath);
+    if (existing) existing.references.push(imageNode);
+    else grouped.set(imagePath, { imagePath, mime, references: [imageNode] });
   }
 
-  if (cloned.content) {
-    cloned.content = await Promise.all(
-      cloned.content.map(
-        (child) => embedImagesAsBase64(child, documentDir),
-      ),
-    );
-  }
+  const assets = [...grouped.values()];
+  const mapBounded = async <T, R>(values: readonly T[], task: (value: T) => Promise<R>): Promise<R[]> => {
+    const results = new Array<R>(values.length);
+    let next = 0;
+    const worker = async () => {
+      while (next < values.length) {
+        const index = next++;
+        results[index] = await task(values[index]);
+      }
+    };
+    await Promise.all(Array.from(
+      { length: Math.min(RESOURCE_LOAD_CONCURRENCY, values.length) },
+      () => worker(),
+    ));
+    return results;
+  };
+  const sizes = await mapBounded(assets, async (asset) => {
+    const info = await stat(asset.imagePath);
+    if (!info.isFile()) throw new Error(`Export blocked non-file image: ${asset.imagePath}`);
+    return info.size;
+  });
+  assertEmbeddedAssetBudget(sizes, pending.length);
 
+  const actualSizes: number[] = [];
+  await mapBounded(assets, async (asset) => {
+    const imageData = await readFile(asset.imagePath);
+    actualSizes.push(imageData.byteLength);
+    assertEmbeddedAssetBudget(actualSizes, pending.length);
+    const dataUrl = `data:${asset.mime};base64,${imageData.toString('base64')}`;
+    for (const reference of asset.references) {
+      reference.attrs = { ...reference.attrs, src: dataUrl };
+    }
+  });
   return cloned;
 }

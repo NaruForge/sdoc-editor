@@ -1,11 +1,27 @@
 import { describe, expect, it } from 'vitest';
 import {
+  applyBookManifestMutation,
+  assertBookEditApplied,
+  BOOK_AGGREGATE_MAX_BYTES,
+  BOOK_CHAPTER_MAX_BYTES,
+  BOOK_LOAD_CONCURRENCY,
+  BOOK_MANIFEST_MAX_BYTES,
+  BOOK_MAX_DIAGNOSTICS,
+  BOOK_MAX_DOCUMENTS,
+  BOOK_MAX_PATH_LENGTH,
   BookDocumentLoadError,
+  BookMutationError,
   composeBook,
+  extractBookRootBody,
   hasBookErrors,
+  isBookMutationResult,
   isBookWebviewMessage,
+  measureBookUtf8Bytes,
   parseBook,
+  prepareBookMutationSnapshot,
+  serializeBookManifestForMutation,
   type BookDocumentLoader,
+  type BookLoadedDocument,
   type SdocBook,
 } from '../shared/book';
 import type { TiptapNode } from '../shared/types';
@@ -23,12 +39,35 @@ function memoryLoader(files: Record<string, unknown>): BookDocumentLoader {
   return {
     async load(path) {
       if (!(path in files)) throw new BookDocumentLoadError('not-found', path);
-      return files[path];
+      const value = files[path];
+      return {
+        value,
+        byteLength: measureBookUtf8Bytes(typeof value === 'string' ? value : JSON.stringify(value)),
+      };
     },
   };
 }
 
+const loadedDocument = (value: unknown, byteLength?: number): BookLoadedDocument => ({
+  value,
+  byteLength: byteLength ?? measureBookUtf8Bytes(typeof value === 'string' ? value : JSON.stringify(value)),
+});
+
+const emptyDocument = { type: 'doc', content: [] };
+
+async function flushMicrotasksUntil(predicate: () => boolean): Promise<void> {
+  for (let attempt = 0; attempt < 20 && !predicate(); attempt += 1) await Promise.resolve();
+  expect(predicate()).toBe(true);
+}
+
 describe('sdocbook parsing', () => {
+  it('extracts refresh markup when the book root has accessibility attributes', () => {
+    expect(extractBookRootBody(
+      '<body><div id="book-root" role="main" aria-busy="false"><div>chapter</div></div><script>bind()</script></body>',
+    )).toBe('<div>chapter</div>');
+    expect(() => extractBookRootBody('<div id="other"></div><script></script>')).toThrow();
+  });
+
   it('normalizes document paths without changing the persisted format version', () => {
     const result = parseBook(JSON.stringify({
       sdocBook: '1.0',
@@ -70,6 +109,15 @@ describe('sdocbook parsing', () => {
     expect(result.diagnostics).toContainEqual(expect.objectContaining({ code: 'DOCUMENT_DUPLICATE' }));
   });
 
+  it('bounds persisted path and diagnostic projection text', () => {
+    const longPath = `${'a'.repeat(BOOK_MAX_PATH_LENGTH)}.sdoc`;
+    const result = parseBook({ sdocBook: '1.0', documents: [{ path: longPath }] });
+
+    expect(result.book?.documents).toEqual([]);
+    expect(result.diagnostics[0]).toMatchObject({ code: 'DOCUMENT_PATH_OUTSIDE_BOOK' });
+    expect(result.diagnostics.every((item) => item.message.length <= 2_000)).toBe(true);
+  });
+
   it('validates optional metadata instead of silently dropping invalid values', () => {
     const result = parseBook({
       sdocBook: '1.0',
@@ -87,9 +135,67 @@ describe('sdocbook parsing', () => {
 
   it('accepts only typed book webview commands', () => {
     expect(isBookWebviewMessage({ type: 'openDocument', index: 0 })).toBe(true);
-    expect(isBookWebviewMessage({ type: 'updateMeta', key: 'title', value: 'Guide' })).toBe(true);
+    expect(isBookWebviewMessage({
+      type: 'updateMeta', key: 'title', value: 'Guide', requestId: 'meta-1', baseRevision: 3,
+    })).toBe(true);
+    expect(isBookWebviewMessage({ type: 'updateMeta', key: 'title', value: 'Guide' })).toBe(false);
+    expect(isBookWebviewMessage({ type: 'addDocument', requestId: 'add-1', baseRevision: 3 })).toBe(true);
+    expect(isBookWebviewMessage({ type: 'removeDocument', index: 0, requestId: '', baseRevision: 3 })).toBe(false);
     expect(isBookWebviewMessage({ type: 'openDocument', path: './chapter.sdoc' })).toBe(false);
     expect(isBookWebviewMessage({ type: 'exportProject', format: 'docx' })).toBe(false);
+  });
+
+  it('accepts only correlated book mutation results', () => {
+    expect(isBookMutationResult({
+      type: 'bookMutationResult', requestId: 'move-1', status: 'applied', revision: 4,
+    })).toBe(true);
+    expect(isBookMutationResult({
+      type: 'bookMutationResult', requestId: 'move-1', status: 'rejected', revision: 3,
+      error: { code: 'stale-revision', message: 'stale' },
+    })).toBe(true);
+    expect(isBookMutationResult({
+      type: 'bookMutationResult', status: 'applied', revision: 4,
+    })).toBe(false);
+    expect(isBookMutationResult({
+      type: 'bookMutationResult', requestId: 'move-1', status: 'rejected', revision: 3,
+    })).toBe(false);
+  });
+
+  it('enforces the manifest byte limit at the exact UTF-8 boundary', () => {
+    const serialized = JSON.stringify({ sdocBook: '1.0', documents: [{ path: './one.sdoc' }] });
+    const atLimit = serialized + ' '.repeat(BOOK_MANIFEST_MAX_BYTES - measureBookUtf8Bytes(serialized));
+
+    expect(measureBookUtf8Bytes(atLimit)).toBe(BOOK_MANIFEST_MAX_BYTES);
+    expect(parseBook(atLimit).diagnostics).toEqual([]);
+    expect(parseBook(`${atLimit} `).diagnostics).toContainEqual(expect.objectContaining({
+      code: 'BOOK_MANIFEST_TOO_LARGE',
+    }));
+  });
+
+  it('enforces the document-count limit at the exact boundary', () => {
+    const documents = Array.from({ length: BOOK_MAX_DOCUMENTS + 1 }, (_, index) => ({
+      path: `./chapter-${index}.sdoc`,
+    }));
+
+    expect(parseBook({ sdocBook: '1.0', documents: documents.slice(0, BOOK_MAX_DOCUMENTS) }).diagnostics)
+      .not.toContainEqual(expect.objectContaining({ code: 'BOOK_DOCUMENT_LIMIT_EXCEEDED' }));
+    const oversized = parseBook({ sdocBook: '1.0', documents });
+    expect(oversized.diagnostics)
+      .toContainEqual(expect.objectContaining({ code: 'BOOK_DOCUMENT_LIMIT_EXCEEDED' }));
+    expect(oversized.book?.documents).toHaveLength(BOOK_MAX_DOCUMENTS);
+  });
+
+  it('caps diagnostic projection for hostile manifests', () => {
+    const result = parseBook({
+      sdocBook: '1.0',
+      documents: Array.from({ length: BOOK_MAX_DOCUMENTS }, (_, index) => ({
+        path: `./chapter-${index}.txt`,
+        [`unsupported-${index}`]: true,
+      })),
+    });
+
+    expect(result.diagnostics).toHaveLength(BOOK_MAX_DIAGNOSTICS);
+    expect(result.diagnostics.at(-1)).toMatchObject({ code: 'BOOK_DIAGNOSTICS_TRUNCATED' });
   });
 
   it('validates the chapter counter policy', () => {
@@ -97,6 +203,64 @@ describe('sdocbook parsing', () => {
       .toMatchObject({ counterPolicy: 'reset' });
     expect(parseBook({ sdocBook: '1.0', counterPolicy: 'sometimes', documents: [{ path: 'one.sdoc' }] })
       .diagnostics.map((item) => item.code)).toContain('BOOK_INVALID');
+  });
+});
+
+describe('sdocbook mutations', () => {
+  const manifestText = JSON.stringify({
+    sdocBook: '1.0',
+    documents: [{ path: './a.sdoc' }, { path: './b.sdoc' }, { path: './c.sdoc' }],
+  });
+
+  it('rejects a stale queue-time snapshot before parsing a mutation', () => {
+    expect(() => prepareBookMutationSnapshot(manifestText, 8, 7)).toThrowError(BookMutationError);
+    try {
+      prepareBookMutationSnapshot(manifestText, 8, 7);
+    } catch (error) {
+      expect(error).toMatchObject({ code: 'stale-revision' });
+    }
+  });
+
+  it('treats an applyEdit false result as a correlated mutation failure', () => {
+    expect(() => assertBookEditApplied(false)).toThrowError(BookMutationError);
+    try {
+      assertBookEditApplied(false);
+    } catch (error) {
+      expect(error).toMatchObject({ code: 'apply-failed' });
+    }
+    expect(() => assertBookEditApplied(true)).not.toThrow();
+  });
+
+  it('refuses to serialize a visual mutation beyond the manifest byte limit', () => {
+    const oversized: SdocBook = {
+      sdocBook: '1.0',
+      title: 'x'.repeat(BOOK_MANIFEST_MAX_BYTES),
+      documents: [{ path: './one.sdoc' }],
+    };
+
+    expect(() => serializeBookManifestForMutation(oversized)).toThrowError(BookMutationError);
+    try {
+      serializeBookManifestForMutation(oversized);
+    } catch (error) {
+      expect(error).toMatchObject({ code: 'limit-exceeded' });
+    }
+  });
+
+  it('preserves manifest order through add, move, and remove mutations', () => {
+    const original = prepareBookMutationSnapshot(manifestText, 7, 7);
+    const added = applyBookManifestMutation(original, {
+      type: 'addDocuments', paths: ['./d.sdoc', './e.sdoc', './D.sdoc'],
+    });
+    const moved = applyBookManifestMutation(added, { type: 'moveDocument', from: 4, to: 1 });
+    const removed = applyBookManifestMutation(moved, { type: 'removeDocument', index: 2 });
+
+    expect(original.documents.map((entry) => entry.path)).toEqual(['./a.sdoc', './b.sdoc', './c.sdoc']);
+    expect(added.documents.map((entry) => entry.path)).toEqual([
+      './a.sdoc', './b.sdoc', './c.sdoc', './d.sdoc', './e.sdoc',
+    ]);
+    expect(removed.documents.map((entry) => entry.path)).toEqual([
+      './a.sdoc', './e.sdoc', './c.sdoc', './d.sdoc',
+    ]);
   });
 });
 
@@ -110,6 +274,27 @@ describe('sdocbook composition', () => {
       { path: './chapters/reference.sdoc', label: 'Reference' },
     ],
   };
+
+  it('does not schedule chapter I/O when the manifest exceeds the document-count limit', async () => {
+    let loadCount = 0;
+    const result = await composeBook({
+      sdocBook: '1.0',
+      documents: Array.from({ length: BOOK_MAX_DOCUMENTS + 1 }, (_, index) => ({
+        path: `./${index}.sdoc`,
+      })),
+    }, {
+      async load() {
+        loadCount += 1;
+        return loadedDocument(emptyDocument);
+      },
+    });
+
+    expect(loadCount).toBe(0);
+    expect(result.documents).toHaveLength(BOOK_MAX_DOCUMENTS + 1);
+    expect(result.diagnostics).toContainEqual(expect.objectContaining({
+      code: 'BOOK_DOCUMENT_LIMIT_EXCEEDED',
+    }));
+  });
 
   it('preserves order, rebases assets, and resolves sibling document links', async () => {
     const result = await composeBook(book, memoryLoader({
@@ -189,6 +374,41 @@ describe('sdocbook composition', () => {
     expect(result.diagnostics.map((item) => item.documentPath)).toEqual(['./slow.sdoc', './broken.sdoc']);
   });
 
+  it('bounds chapter loading at four while filling the next manifest slot deterministically', async () => {
+    const entries = Array.from({ length: BOOK_LOAD_CONCURRENCY + 2 }, (_, index) => `./${index}.sdoc`);
+    const started: string[] = [];
+    const releases = new Map<string, () => void>();
+    let active = 0;
+    let maximumActive = 0;
+    const composing = composeBook({
+      sdocBook: '1.0', documents: entries.map((chapterPath) => ({ path: chapterPath })),
+    }, {
+      async load(chapterPath, signal) {
+        started.push(chapterPath);
+        active += 1;
+        maximumActive = Math.max(maximumActive, active);
+        await new Promise<void>((resolve, reject) => {
+          releases.set(chapterPath, resolve);
+          signal?.addEventListener('abort', () => reject(signal.reason), { once: true });
+        });
+        active -= 1;
+        return loadedDocument(emptyDocument);
+      },
+    });
+
+    await Promise.resolve();
+    expect(started).toEqual(entries.slice(0, BOOK_LOAD_CONCURRENCY));
+    releases.get(entries[0])?.();
+    await flushMicrotasksUntil(() => started.length === BOOK_LOAD_CONCURRENCY + 1);
+    expect(started).toEqual(entries.slice(0, BOOK_LOAD_CONCURRENCY + 1));
+    releases.get(entries[1])?.();
+    await flushMicrotasksUntil(() => started.length === entries.length);
+    expect(started).toEqual(entries);
+    for (const chapterPath of entries.slice(2)) releases.get(chapterPath)?.();
+    await composing;
+    expect(maximumActive).toBe(BOOK_LOAD_CONCURRENCY);
+  });
+
   it('aborts superseded composition without publishing chapter diagnostics', async () => {
     const controller = new AbortController();
     const composing = composeBook({
@@ -202,6 +422,67 @@ describe('sdocbook composition', () => {
     }, [], controller.signal);
     controller.abort(new Error('superseded'));
     await expect(composing).rejects.toThrow('superseded');
+  });
+
+  it('does not schedule new chapters after cancellation', async () => {
+    const controller = new AbortController();
+    const entries = Array.from({ length: BOOK_LOAD_CONCURRENCY + 2 }, (_, index) => `./${index}.sdoc`);
+    const started: string[] = [];
+    const composing = composeBook({
+      sdocBook: '1.0', documents: entries.map((chapterPath) => ({ path: chapterPath })),
+    }, {
+      async load(chapterPath, signal) {
+        started.push(chapterPath);
+        await new Promise<void>((_resolve, reject) => {
+          signal?.addEventListener('abort', () => reject(signal.reason), { once: true });
+        });
+        return loadedDocument(emptyDocument);
+      },
+    }, [], controller.signal);
+
+    await Promise.resolve();
+    expect(started).toEqual(entries.slice(0, BOOK_LOAD_CONCURRENCY));
+    controller.abort(new Error('cancelled'));
+    await expect(composing).rejects.toThrow('cancelled');
+    expect(started).toEqual(entries.slice(0, BOOK_LOAD_CONCURRENCY));
+  });
+
+  it('enforces chapter and aggregate byte limits at boundary plus one', async () => {
+    const atChapterLimit = await composeBook({
+      sdocBook: '1.0', documents: [{ path: './exact.sdoc' }],
+    }, { async load() { return loadedDocument(emptyDocument, BOOK_CHAPTER_MAX_BYTES); } });
+    const overChapterLimit = await composeBook({
+      sdocBook: '1.0', documents: [{ path: './large.sdoc' }],
+    }, { async load() { return loadedDocument(emptyDocument, BOOK_CHAPTER_MAX_BYTES + 1); } });
+
+    expect(atChapterLimit.documents[0].status).toBe('ok');
+    expect(overChapterLimit.diagnostics).toContainEqual(expect.objectContaining({
+      code: 'DOCUMENT_TOO_LARGE', documentPath: './large.sdoc',
+    }));
+
+    const aggregateEntries = Array.from({ length: 8 }, (_, index) => ({ path: `./${index}.sdoc` }));
+    const exactAggregate = await composeBook({ sdocBook: '1.0', documents: aggregateEntries }, {
+      async load() { return loadedDocument(emptyDocument, BOOK_CHAPTER_MAX_BYTES); },
+    });
+    const overAggregate = await composeBook({
+      sdocBook: '1.0', documents: [...aggregateEntries, { path: './overflow.sdoc' }],
+    }, {
+      async load(chapterPath) {
+        return loadedDocument(
+          emptyDocument,
+          chapterPath === './overflow.sdoc' ? 1 : BOOK_CHAPTER_MAX_BYTES,
+        );
+      },
+    });
+
+    expect(BOOK_CHAPTER_MAX_BYTES * 8).toBe(BOOK_AGGREGATE_MAX_BYTES);
+    expect(exactAggregate.diagnostics).toEqual([]);
+    expect(overAggregate.diagnostics).toContainEqual(expect.objectContaining({
+      code: 'BOOK_AGGREGATE_TOO_LARGE', documentPath: './overflow.sdoc',
+    }));
+    expect(overAggregate.documents.map((document) => document.path)).toEqual([
+      ...aggregateEntries.map((entry) => entry.path), './overflow.sdoc',
+    ]);
   });
 
   it('returns diagnostics instead of silently exporting incomplete content', async () => {

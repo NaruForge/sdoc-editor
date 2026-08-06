@@ -1,5 +1,6 @@
 import type { EditorToHostMessage, HostToEditorMessage } from './messages';
 import { isDiagramImageDataUrl } from '../diagramRenderer';
+import { MAX_ASSET_BYTES } from '../resourceLimits';
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -9,6 +10,10 @@ const hasString = (value: Record<string, unknown>, key: string): boolean =>
 
 const hasNumber = (value: Record<string, unknown>, key: string): boolean =>
   typeof value[key] === 'number' && Number.isFinite(value[key]);
+
+const isBoundedBase64Asset = (value: unknown): value is string =>
+  typeof value === 'string'
+  && value.length <= Math.ceil(MAX_ASSET_BYTES / 3) * 4 + 4;
 
 const isDiagramRendererSettings = (value: unknown): boolean =>
   isRecord(value)
@@ -61,6 +66,25 @@ const isDocumentMutation = (value: unknown): boolean =>
   && value.content.type === 'doc'
   && isRecord(value.meta)
   && (value.documentSettings === null || isRecord(value.documentSettings));
+
+const isContractDiagnostics = (value: unknown): boolean =>
+  Array.isArray(value)
+  && value.length > 0
+  && value.length <= 100
+  && value.every((item) => isRecord(item)
+    && hasString(item, 'path') && String(item.path).length <= 1_000
+    && hasString(item, 'message') && String(item.message).length <= 2_000);
+
+const isInvalidDocumentReason = (value: unknown): boolean =>
+  ['invalid-json', 'malformed', 'unsupported-version', 'too-large'].includes(String(value));
+
+const isEditorDocumentState = (value: unknown): boolean => {
+  if (!isRecord(value)) return false;
+  if (value.status === 'ready') return isDocumentMutation(value.snapshot);
+  return value.status === 'invalid'
+    && isInvalidDocumentReason(value.reason)
+    && isContractDiagnostics(value.diagnostics);
+};
 
 const isMutationErrorCode = (value: unknown): boolean =>
   ['STALE_REVISION', 'EXTERNAL_CHANGE', 'INVALID_DOCUMENT', 'WRITE_FAILED', 'TRANSPORT_ERROR', 'UNKNOWN']
@@ -193,7 +217,9 @@ export function isEditorToHostMessage(value: unknown): value is EditorToHostMess
     case 'openPersonalTemplateFolder':
       return hasString(value, 'requestId');
     case 'saveImage':
-      return hasString(value, 'imageName') && hasString(value, 'imageData') && hasString(value, 'extension');
+      return hasString(value, 'imageName')
+        && isBoundedBase64Asset(value.imageData)
+        && hasString(value, 'extension');
     case 'createDrawio':
       return hasString(value, 'fileName');
     case 'openDrawio':
@@ -229,6 +255,10 @@ export function isEditorToHostMessage(value: unknown): value is EditorToHostMess
     case 'fileOperationApplied':
       return hasString(value, 'requestId') && hasString(value, 'sessionId')
         && hasString(value, 'documentId') && typeof value.applied === 'boolean';
+    case 'recoverInvalidDocument':
+      return hasString(value, 'requestId') && hasString(value, 'sessionId')
+        && hasString(value, 'documentId') && hasNumber(value, 'baseRevision')
+        && isDocumentMutation(value.mutation);
     case 'openDocument':
       return hasString(value, 'path') && (value.anchor === undefined || typeof value.anchor === 'string');
     case 'selectCssFile':
@@ -265,8 +295,17 @@ export function isHostToEditorMessage(value: unknown): value is HostToEditorMess
       return hasString(value, 'sessionId') && hasString(value, 'documentId')
         && hasNumber(value, 'revision')
         && (value.locale === 'en' || value.locale === 'ko')
-        && (value.readOnlyReason === undefined || hasString(value, 'readOnlyReason'))
-        && isDocumentMutation(value.snapshot);
+        && isEditorDocumentState(value.documentState);
+    case 'externalInvalidDocument':
+      return hasString(value, 'sessionId') && hasString(value, 'documentId')
+        && hasNumber(value, 'revision') && isInvalidDocumentReason(value.reason)
+        && isContractDiagnostics(value.diagnostics)
+        && typeof value.canRecoverFromLocal === 'boolean';
+    case 'invalidDocumentRecoveryResult':
+      return hasString(value, 'requestId') && hasString(value, 'sessionId')
+        && hasString(value, 'documentId') && hasNumber(value, 'revision')
+        && (value.result === 'recovered' || value.result === 'rejected')
+        && (value.message === undefined || hasString(value, 'message'));
     case 'externalChange':
       return hasString(value, 'sessionId') && hasString(value, 'documentId')
         && hasNumber(value, 'revision') && isDocumentMutation(value.snapshot);

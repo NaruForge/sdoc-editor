@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useId } from 'react';
 import { FilePlus, FileUp } from 'lucide-react';
 import { useEditorI18n } from '../i18n';
+import { ModalDialog } from './ModalDialog';
 
 interface DrawioActionDialogProps {
   onCreateNew: () => void;
@@ -14,16 +15,11 @@ export const DrawioActionDialog: React.FC<DrawioActionDialogProps> = ({
   onCancel,
 }) => {
   const { t } = useEditorI18n();
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      onCancel();
-    }
-  };
+  const titleId = useId();
 
   return (
-    <div className="modal-overlay" onClick={onCancel}>
-      <div className="modal-content" role="dialog" aria-modal="true" aria-labelledby="drawio-action-title" onClick={(e) => e.stopPropagation()} onKeyDown={handleKeyDown}>
-        <h3 id="drawio-action-title">{t('drawio.insertTitle')}</h3>
+    <ModalDialog titleId={titleId} size="sm" onCancel={onCancel}>
+        <h3 id={titleId}>{t('drawio.insertTitle')}</h3>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <button
@@ -59,7 +55,6 @@ export const DrawioActionDialog: React.FC<DrawioActionDialogProps> = ({
             {t('common.cancel')}
           </button>
         </div>
-      </div>
-    </div>
+    </ModalDialog>
   );
 };

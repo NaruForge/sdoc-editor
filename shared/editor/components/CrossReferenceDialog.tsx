@@ -1,6 +1,7 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useId, useMemo } from 'react';
 import type { RefTarget } from '../extensions/CrossReference';
 import { useEditorI18n, type EditorTranslationKey } from '../i18n';
+import { ModalDialog } from './ModalDialog';
 
 interface CrossReferenceDialogProps {
   targets: RefTarget[];
@@ -31,6 +32,7 @@ export const CrossReferenceDialog: React.FC<CrossReferenceDialogProps> = ({ targ
   const [filter, setFilter] = useState<FilterType>('all');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const titleId = useId();
 
   const availableTypes = useMemo(() => new Set(targets.map(t => t.type)), [targets]);
 
@@ -42,10 +44,6 @@ export const CrossReferenceDialog: React.FC<CrossReferenceDialogProps> = ({ targ
       return t.label.toLowerCase().includes(q) || t.id.toLowerCase().includes(q);
     });
   }, [targets, query, filter]);
-
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
 
   useEffect(() => {
     setSelectedIndex(0);
@@ -60,9 +58,7 @@ export const CrossReferenceDialog: React.FC<CrossReferenceDialogProps> = ({ targ
   const flatItems = Object.values(groups).flat();
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      onClose();
-    } else if (e.key === 'ArrowDown') {
+    if (e.key === 'ArrowDown') {
       e.preventDefault();
       setSelectedIndex(i => Math.min(i + 1, flatItems.length - 1));
     } else if (e.key === 'ArrowUp') {
@@ -77,16 +73,16 @@ export const CrossReferenceDialog: React.FC<CrossReferenceDialogProps> = ({ targ
   };
 
   return (
-    <div className="crossref-dialog-overlay" onMouseDown={onClose}>
-      <div
-        className="crossref-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="crossref-dialog-title"
-        onMouseDown={(e) => e.stopPropagation()}
-        onKeyDown={handleKeyDown}
-      >
-        <div id="crossref-dialog-title" className="crossref-dialog-header">{t('crossRef.title')}</div>
+    <ModalDialog
+      titleId={titleId}
+      size="sm"
+      className="crossref-dialog"
+      overlayClassName="crossref-dialog-overlay"
+      initialFocusRef={inputRef}
+      onCancel={onClose}
+      onKeyDown={handleKeyDown}
+    >
+        <div id={titleId} className="crossref-dialog-header">{t('crossRef.title')}</div>
         <input
           ref={inputRef}
           type="text"
@@ -135,7 +131,6 @@ export const CrossReferenceDialog: React.FC<CrossReferenceDialogProps> = ({ targ
             </div>
           ))}
         </div>
-      </div>
-    </div>
+    </ModalDialog>
   );
 };

@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 interface PackageManifest {
+  scripts?: Record<string, string>;
   activationEvents?: unknown;
   contributes?: {
     customEditors?: unknown;
@@ -82,5 +83,10 @@ describe('VS Code package manifest', () => {
         category: 'Structured Doc Editor',
       },
     ]));
+  });
+
+  it('copies the offline export runtime as part of every extension build', () => {
+    expect(manifest.scripts?.build).toContain('npm run export-assets:copy');
+    expect(manifest.scripts?.['export-assets:copy']).toBe('node scripts/copy-export-assets.mjs');
   });
 });

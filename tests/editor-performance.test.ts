@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { findActivePosition } from '../shared/editor/structureIndex';
+import {
+  buildOutlinePresentationIndex,
+  findActivePosition,
+} from '../shared/editor/structureIndex';
 import { applyEditorSettingsCss } from '../shared/editor/applyEditorSettingsCss';
 import { resolveEditorSettings } from '../shared/settingsResolver';
 import { isUpdatedDrawioAsset } from '../shared/editor/drawioUpdates';
@@ -12,6 +15,22 @@ describe('large document structure lookup', () => {
     }
     expect(findActivePosition(positions, -1)).toBe(-1);
     expect(findActivePosition(positions, 100_000)).toBe(49_990);
+  });
+
+  it('indexes a large collapsed outline in a single linear pass', () => {
+    const entries = Array.from({ length: 50_000 }, (_, index) => ({
+      level: index % 5 + 1,
+      pos: index * 10,
+    }));
+    const index = buildOutlinePresentationIndex(entries, new Set([0, 50_000]));
+
+    expect(index.hasChildren).toHaveLength(entries.length);
+    expect(index.visible).toHaveLength(entries.length);
+    expect(index.hasChildren[0]).toBe(true);
+    expect(index.visible[0]).toBe(true);
+    expect(index.visible[1]).toBe(false);
+    expect(index.visible[5]).toBe(true);
+    expect(index.visible[5_001]).toBe(false);
   });
 });
 

@@ -5,6 +5,7 @@ import {
   Copy,
   Trash2
 } from 'lucide-react';
+import { useEditorI18n } from '../i18n';
 import { Menu } from './ui/Menu';
 
 interface ImageContextMenuProps {
@@ -28,6 +29,7 @@ export const ImageContextMenu: React.FC<ImageContextMenuProps> = ({
   isDrawio,
   returnFocusRef,
 }) => {
+  const { t } = useEditorI18n();
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -68,6 +70,9 @@ export const ImageContextMenu: React.FC<ImageContextMenuProps> = ({
       onMouseDown={(e) => {
         e.preventDefault();
         e.stopPropagation();
+      }}
+      onClick={(e) => {
+        e.stopPropagation();
         onClick();
         onClose();
       }}
@@ -80,7 +85,7 @@ export const ImageContextMenu: React.FC<ImageContextMenuProps> = ({
   return (
     <Menu
       ref={menuRef}
-      label="Image actions"
+      label={t('context.imageActions')}
       autoFocus
       onClose={onClose}
       returnFocusRef={returnFocusRef}
@@ -95,25 +100,25 @@ export const ImageContextMenu: React.FC<ImageContextMenuProps> = ({
     >
       <MenuItem
         icon={<Settings size={14} />}
-        label="Image Properties..."
+        label={t('context.imageProperties')}
         onClick={onOpenProperties}
       />
       {!isDrawio && (
         <MenuItem
           icon={<RefreshCw size={14} />}
-          label="Replace Image..."
+          label={t('context.replaceImage')}
           onClick={onReplaceImage}
         />
       )}
       <MenuItem
         icon={<Copy size={14} />}
-        label="Copy Path"
+        label={t('context.copyImagePath')}
         onClick={onCopyPath}
       />
       <div role="separator" className="context-menu-separator" />
       <MenuItem
         icon={<Trash2 size={14} />}
-        label="Delete Image"
+        label={t('context.deleteImage')}
         onClick={onDelete}
         danger
       />

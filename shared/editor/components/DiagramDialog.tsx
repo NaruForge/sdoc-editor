@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type {
   DiagramRendererSettings,
   ResolvedDiagramRendererConsent,
@@ -15,6 +15,7 @@ import {
 } from '../diagram';
 import { useEditorI18n, type EditorTranslationKey } from '../i18n';
 import { DiagramRendererConsentPanel } from './DiagramRendererConsentPanel';
+import { ModalDialog } from './ModalDialog';
 
 interface DiagramDialogProps {
   initialCode?: string;
@@ -155,6 +156,9 @@ export const DiagramDialog: React.FC<DiagramDialogProps> = ({
     useState<ResolvedDiagramRendererConsent | null>(null);
   const [consentDismissed, setConsentDismissed] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const titleId = useId();
+  const templatesLabelId = useId();
+  const previewLabelId = useId();
   const rendererConsent = locallyResolvedConsent
     ?? rendererSettings?.consent
     ?? 'undecided';
@@ -189,8 +193,10 @@ export const DiagramDialog: React.FC<DiagramDialogProps> = ({
   useEffect(() => () => coordinator.dispose(), [coordinator]);
 
   const handleKeyDown = (event: React.KeyboardEvent) => {
-    if (event.key === 'Escape') onCancel();
-    if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) handleSubmit();
+    if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+      event.preventDefault();
+      handleSubmit();
+    }
   };
 
   const handleSubmit = () => {
@@ -218,16 +224,14 @@ export const DiagramDialog: React.FC<DiagramDialogProps> = ({
   };
 
   return (
-    <div className="modal-overlay" onClick={onCancel}>
-      <div
-        className="modal-content modal-content--lg"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="diagram-dialog-title"
-        onClick={(event) => event.stopPropagation()}
-        onKeyDown={handleKeyDown}
-      >
-        <h3 id="diagram-dialog-title">
+    <ModalDialog
+      titleId={titleId}
+      size="lg"
+      initialFocusRef={textareaRef}
+      onCancel={onCancel}
+      onKeyDown={handleKeyDown}
+    >
+        <h3 id={titleId}>
           {pos !== null ? t('diagram.editTitle') : t('diagram.insertTitle')}
         </h3>
 
@@ -242,7 +246,7 @@ export const DiagramDialog: React.FC<DiagramDialogProps> = ({
             onChange={(event) => handleLanguageChange(event.target.value)}
           >
             {!knownLanguage && (
-              <option value={language}>{language} (source only)</option>
+              <option value={language}>{t('diagram.sourceOnlyOption', { language })}</option>
             )}
             {KNOWN_DIAGRAM_LANGUAGES.map((candidate) => (
               <option key={candidate} value={candidate}>{candidate}</option>
@@ -252,8 +256,12 @@ export const DiagramDialog: React.FC<DiagramDialogProps> = ({
 
         {examples.length > 0 && (
           <div className="form-group">
-            <label className="form-label form-label--sm">{t('diagram.templates')}:</label>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+            <div id={templatesLabelId} className="form-label form-label--sm">{t('diagram.templates')}:</div>
+            <div
+              style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}
+              role="group"
+              aria-labelledby={templatesLabelId}
+            >
               {examples.map((example) => (
                 <button
                   key={`${language}-${example.labelKey}`}
@@ -289,10 +297,11 @@ export const DiagramDialog: React.FC<DiagramDialogProps> = ({
           </div>
 
           <div className="dialog-split__pane">
-            <label className="form-label form-label--sm">{t('diagram.preview')}:</label>
+            <div id={previewLabelId} className="form-label form-label--sm">{t('diagram.preview')}:</div>
             <div
               className="diagram-preview-area dialog-preview dialog-preview--grow"
               role="status"
+              aria-labelledby={previewLabelId}
               aria-live="polite"
               aria-busy={renderState.status === 'loading'}
             >
@@ -314,7 +323,7 @@ export const DiagramDialog: React.FC<DiagramDialogProps> = ({
               {!showConsent && renderState.status === 'ready' && renderState.output.kind === 'image' && (
                 <img
                   src={renderState.output.dataUrl}
-                  alt={renderState.output.alt ?? `${language} diagram preview`}
+                  alt={renderState.output.alt ?? t('diagram.previewAlt', { language })}
                 />
               )}
               {!showConsent && renderState.status === 'error' && (
@@ -338,7 +347,7 @@ export const DiagramDialog: React.FC<DiagramDialogProps> = ({
                     {renderState.reason === 'empty-source'
                       ? t('diagram.codePlaceholder')
                       : renderState.reason === 'unsupported-language'
-                        ? `${language}: source only. You can edit and save the source.`
+                        ? t('diagram.sourceOnlyMessage', { language })
                         : rendererConsent === 'declined' && requiresExternalRenderer
                           ? t('diagram.rendererDisabled', { language })
                           : rendererConsent === 'undecided' && requiresExternalRenderer
@@ -378,7 +387,6 @@ export const DiagramDialog: React.FC<DiagramDialogProps> = ({
             <span className="kbd-hint" style={{ marginLeft: '6px' }}>Ctrl+Enter</span>
           </button>
         </div>
-      </div>
-    </div>
+    </ModalDialog>
   );
 };

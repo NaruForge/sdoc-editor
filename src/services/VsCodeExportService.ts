@@ -9,11 +9,11 @@ import { resolveCompanyLogo, readFontWeights, buildHtmlTheme } from '../utils/th
 import { resolveCustomCss } from '../utils/cssUtils';
 import { resolveSettings, getCaptionPreset } from '../../shared/settingsResolver';
 import { unwrapSdoc as sharedUnwrapSdoc } from '../../shared/document/sdocUtils';
-import { parseDocumentContract, readDocumentSettings } from '../../shared/document/documentContract';
+import { parseDocumentTextContract, readDocumentSettings } from '../../shared/document/documentContract';
 import type { CaptionStyleName, DocumentSettings } from '../../shared/types';
 import { DocumentExportQueue } from '../../shared/export/DocumentExportQueue';
 import { withTemporaryDirectory } from '../utils/temporaryDirectory';
-import { loadCachedCdnAssets } from './CdnAssetService';
+import { loadBundledExportAssets } from './BundledExportAssetService';
 
 export type ExportFormat = 'html' | 'adoc' | 'markdown' | 'pdf' | 'slides';
 export type ExportOperationResult = 'completed' | 'cancelled' | 'fallback';
@@ -96,11 +96,11 @@ export class VsCodeExportService {
   ): Promise<ExportResult> {
       progress.report({ message: '문서 읽는 중...', increment: 5 });
       const text = document.getText();
-      const parsed: unknown = text.trim() ? JSON.parse(text) : { sdoc: '1.0', meta: {}, doc: { type: 'doc', content: [] } };
-      const contract = parseDocumentContract(parsed);
+      const contract = parseDocumentTextContract(text);
       if (!contract.ok) {
         throw new Error(contract.diagnostics.map((item) => `${item.path}: ${item.message}`).join('; '));
       }
+      const parsed = contract.envelope;
 
       // Unwrap envelope
       const { doc, meta } = sharedUnwrapSdoc(parsed);
@@ -150,7 +150,7 @@ export class VsCodeExportService {
       }
       if ((format === 'html' || format === 'pdf') && resolved.selfContained === 'full') {
         progress.report({ message: 'Embedding export runtime...', increment: 10 });
-        exportSettings.embeddedAssets = await loadCachedCdnAssets(this.context);
+        exportSettings.embeddedAssets = await loadBundledExportAssets(this.context.extensionPath);
       }
       // PDF always embeds images regardless of setting
       if (format === 'pdf' && resolved.selfContained === 'none') {

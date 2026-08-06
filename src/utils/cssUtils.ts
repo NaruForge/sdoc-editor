@@ -1,6 +1,7 @@
-import * as fs from 'fs/promises';
-import * as path from 'path';
 import * as vscode from 'vscode';
+import { readContainedTextFile } from './containedFile';
+
+export const MAX_CUSTOM_CSS_BYTES = 1024 * 1024;
 
 /**
  * Resolve custom CSS content from a workspace-relative file path.
@@ -15,13 +16,15 @@ export async function resolveCustomCss(
     return fallbackCss;
   }
 
-  const absolutePath = path.resolve(workspacePath, cssPath);
   try {
-    return await fs.readFile(absolutePath, 'utf-8');
+    return await readContainedTextFile(workspacePath, cssPath, {
+      extension: '.css',
+      maximumBytes: MAX_CUSTOM_CSS_BYTES,
+    });
   } catch (error) {
     const reason = error instanceof Error ? error.message : 'unknown error';
     vscode.window.showWarningMessage(
-      `Custom CSS 파일을 읽을 수 없어 기본 스타일로 내보냅니다: ${absolutePath} (${reason})`
+      `Custom CSS 파일을 안전하게 읽을 수 없어 기본 스타일로 내보냅니다: ${cssPath} (${reason})`
     );
     return fallbackCss;
   }

@@ -1,0 +1,20 @@
+{
+  "sdoc": "1.0",
+  "meta": {
+    "title": "Extension Host smoke test"
+  },
+  "doc": {
+    "type": "doc",
+    "content": [
+      {
+        "type": "paragraph",
+        "content": [
+          {
+            "type": "text",
+            "text": "The real VS Code Extension Host opened this document."
+          }
+        ]
+      }
+    ]
+  }
+}

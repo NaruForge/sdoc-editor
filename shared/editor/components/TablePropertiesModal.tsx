@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useId, useRef } from 'react';
 import { Editor } from '@tiptap/react';
 import { X } from 'lucide-react';
 import { useEditorI18n } from '../i18n';
+import { ModalDialog } from './ModalDialog';
 
 interface TablePropertiesModalProps {
   editor: Editor;
@@ -16,6 +17,12 @@ export const TablePropertiesModal: React.FC<TablePropertiesModalProps> = ({
   const [caption, setCaption] = useState('');
   const [align, setAlign] = useState('left');
   const [width, setWidth] = useState('auto');
+  const captionInputRef = useRef<HTMLInputElement>(null);
+  const titleId = useId();
+  const captionInputId = useId();
+  const captionHintId = useId();
+  const alignmentSelectId = useId();
+  const widthSelectId = useId();
 
   useEffect(() => {
     // Get current table attributes
@@ -37,10 +44,14 @@ export const TablePropertiesModal: React.FC<TablePropertiesModalProps> = ({
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" role="dialog" aria-modal="true" aria-labelledby="table-properties-title" onClick={(e) => e.stopPropagation()}>
+    <ModalDialog
+      titleId={titleId}
+      size="sm"
+      initialFocusRef={captionInputRef}
+      onCancel={onClose}
+    >
         <div className="modal-header">
-          <h3 id="table-properties-title">{t('table.propertiesTitle')}</h3>
+          <h3 id={titleId}>{t('table.propertiesTitle')}</h3>
           <button type="button" className="modal-close" aria-label={t('common.close')} onClick={onClose}>
             <X size={18} />
           </button>
@@ -48,20 +59,24 @@ export const TablePropertiesModal: React.FC<TablePropertiesModalProps> = ({
 
         <div className="modal-body">
           <div className="form-group">
-            <label>{t('table.captionTitle')}:</label>
+            <label htmlFor={captionInputId}>{t('table.captionTitle')}:</label>
             <input
+              ref={captionInputRef}
+              id={captionInputId}
               type="text"
               value={caption}
               onChange={(e) => setCaption(e.target.value)}
               placeholder={t('table.captionExample')}
               className="form-input"
+              aria-describedby={captionHintId}
             />
-            <small>{t('table.captionNumberingHint')}</small>
+            <small id={captionHintId}>{t('table.captionNumberingHint')}</small>
           </div>
 
           <div className="form-group">
-            <label>{t('table.alignment')}:</label>
+            <label htmlFor={alignmentSelectId}>{t('table.alignment')}:</label>
             <select
+              id={alignmentSelectId}
               value={align}
               onChange={(e) => setAlign(e.target.value)}
               className="form-select"
@@ -73,8 +88,9 @@ export const TablePropertiesModal: React.FC<TablePropertiesModalProps> = ({
           </div>
 
           <div className="form-group">
-            <label>{t('table.width')}:</label>
+            <label htmlFor={widthSelectId}>{t('table.width')}:</label>
             <select
+              id={widthSelectId}
               value={width}
               onChange={(e) => setWidth(e.target.value)}
               className="form-select"
@@ -95,7 +111,6 @@ export const TablePropertiesModal: React.FC<TablePropertiesModalProps> = ({
             {t('common.save')}
           </button>
         </div>
-      </div>
-    </div>
+    </ModalDialog>
   );
 };

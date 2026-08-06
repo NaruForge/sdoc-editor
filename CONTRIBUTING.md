@@ -44,6 +44,8 @@ npm run build:all
 | `npm run typecheck` | 루트와 모든 workspace 타입 검사 |
 | `npm run lint` | 모든 TypeScript/React 소스 린트 |
 | `npm test` | Vitest 단위 테스트 |
+| `npm run test:ui` | Playwright UI 품질·접근성 테스트 |
+| `npm run test:vscode` | 실제 VS Code Extension Host 통합 smoke test |
 | `npm run build` | Extension host와 VS Code 웹뷰 빌드 |
 | `npm run build:all` | VS Code 확장과 CLI 빌드 |
 | `npm run package` | `output/`에 VSIX 생성 |

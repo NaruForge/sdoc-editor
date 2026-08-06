@@ -2,7 +2,7 @@
   "name": "structured-doc-editor",
   "displayName": "Structured Doc Editor",
   "description": "Git으로 검토 가능한 .sdoc 기술 문서를 위한 VS Code WYSIWYG 편집기",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "publisher": "swbaek",
   "license": "MIT",
   "repository": {
@@ -179,11 +179,12 @@
     "cli"
   ],
   "scripts": {
-    "build": "npm run validators:generate && npm run build:ext && npm run build:webview",
+    "build": "npm run validators:generate && npm run export-assets:copy && npm run build:ext && npm run build:webview",
     "build:all": "npm run build && npm run build:cli",
     "build:cli": "npm run build --workspace=sdoc-editor-cli",
     "build:ext": "node esbuild.mjs",
     "build:webview": "npm run build --workspace=webview-ui",
+    "export-assets:copy": "node scripts/copy-export-assets.mjs",
     "package": "node scripts/package-vsix.mjs",
     "package:cli": "node scripts/package-cli.mjs",
     "typecheck": "npm run typecheck:core && npm run typecheck --workspaces --if-present",
@@ -195,6 +196,7 @@
     "test:ui:typecheck": "tsc --noEmit -p tests/ui/tsconfig.json",
     "test:ui:update": "playwright test --config tests/ui/playwright.config.ts --update-snapshots",
     "test:ui:report": "playwright show-report tests/ui/artifacts/report",
+    "test:vscode": "node tests/vscode/run.mjs",
     "test:watch": "vitest",
     "version:check": "node scripts/check-versions.mjs",
     "design:check": "designmd lint DESIGN.md && node scripts/check-design-contract.mjs",
@@ -217,6 +219,7 @@
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
     "@types/vscode": "^1.85.0",
+    "@vscode/test-electron": "3.1.0",
     "@typescript-eslint/eslint-plugin": "^8.64.0",
     "@typescript-eslint/parser": "^8.64.0",
     "@vitejs/plugin-react": "6.0.3",

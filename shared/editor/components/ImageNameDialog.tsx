@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useId, useRef } from 'react';
 import { X } from 'lucide-react';
 import { useEditorI18n } from '../i18n';
+import { ModalDialog } from './ModalDialog';
 
 interface ImageNameDialogProps {
   onConfirm: (name: string) => void;
@@ -16,13 +17,12 @@ export const ImageNameDialog: React.FC<ImageNameDialogProps> = ({
   const { t } = useEditorI18n();
   const [name, setName] = useState(defaultName);
   const inputRef = useRef<HTMLInputElement>(null);
+  const titleId = useId();
+  const inputId = useId();
+  const hintId = useId();
 
   useEffect(() => {
-    // Focus input when dialog opens
-    if (inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.select();
-    }
+    queueMicrotask(() => inputRef.current?.select());
   }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -33,24 +33,15 @@ export const ImageNameDialog: React.FC<ImageNameDialogProps> = ({
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      onCancel();
-    }
-  };
-
   return (
-    <div className="modal-overlay" onClick={onCancel}>
-      <div
-        className="modal-content"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="image-name-title"
-        onClick={(e) => e.stopPropagation()}
-        onKeyDown={handleKeyDown}
-      >
+    <ModalDialog
+      titleId={titleId}
+      size="sm"
+      initialFocusRef={inputRef}
+      onCancel={onCancel}
+    >
         <div className="modal-header">
-          <h3 id="image-name-title">{t('image.nameDialogTitle')}</h3>
+          <h3 id={titleId}>{t('image.nameDialogTitle')}</h3>
           <button type="button" className="modal-close" onClick={onCancel} aria-label={t('common.close')}>
             <X size={18} />
           </button>
@@ -59,16 +50,18 @@ export const ImageNameDialog: React.FC<ImageNameDialogProps> = ({
         <form onSubmit={handleSubmit}>
           <div className="modal-body">
             <div className="form-group">
-              <label>{t('image.enterName')}:</label>
+              <label htmlFor={inputId}>{t('image.enterName')}:</label>
               <input
                 ref={inputRef}
+                id={inputId}
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="e.g., architecture-diagram"
+                placeholder={t('image.namePlaceholder')}
                 className="form-input"
+                aria-describedby={hintId}
               />
-              <small>{t('image.nameHint')}</small>
+              <small id={hintId}>{t('image.nameHint')}</small>
             </div>
           </div>
 
@@ -89,7 +82,6 @@ export const ImageNameDialog: React.FC<ImageNameDialogProps> = ({
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </ModalDialog>
   );
 };

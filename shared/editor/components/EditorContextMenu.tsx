@@ -4,17 +4,17 @@ import {
   MessageSquareWarning, Hash, ChevronRight, Minus,
 } from 'lucide-react';
 import { Editor as TiptapEditor } from '@tiptap/react';
-import { useEditorI18n } from '../i18n';
+import { useEditorI18n, type EditorTranslationKey } from '../i18n';
 import { Menu } from './ui/Menu';
 
 type CalloutVariant = 'note' | 'info' | 'tip' | 'warning' | 'danger';
 
-const CALLOUT_ITEMS: { variant: CalloutVariant; icon: string; label: string }[] = [
-  { variant: 'note', icon: '📝', label: 'Note' },
-  { variant: 'info', icon: 'ℹ️', label: 'Info' },
-  { variant: 'tip', icon: '💡', label: 'Tip' },
-  { variant: 'warning', icon: '⚠️', label: 'Warning' },
-  { variant: 'danger', icon: '🚨', label: 'Danger' },
+const CALLOUT_ITEMS: { variant: CalloutVariant; icon: string; labelKey: EditorTranslationKey }[] = [
+  { variant: 'note', icon: '📝', labelKey: 'callout.note' },
+  { variant: 'info', icon: 'ℹ️', labelKey: 'callout.info' },
+  { variant: 'tip', icon: '💡', labelKey: 'callout.tip' },
+  { variant: 'warning', icon: '⚠️', labelKey: 'callout.warning' },
+  { variant: 'danger', icon: '🚨', labelKey: 'callout.danger' },
 ];
 
 const TABLE_PRESETS = [3, 5, 7, 10];
@@ -377,11 +377,11 @@ export const EditorContextMenu: React.FC<EditorContextMenuProps> = ({
               calloutTriggerRef.current?.focus();
             }}
           >
-            {CALLOUT_ITEMS.map(({ variant, icon, label }) => (
+            {CALLOUT_ITEMS.map(({ variant, icon, labelKey }) => (
               <Item
                 key={variant}
                 icon={<span className="editor-context-menu-callout-icon">{icon}</span>}
-                label={label}
+                label={t(labelKey)}
                 onClick={() => handleItem(() =>
                   editor.chain().focus().insertContent({ type: 'callout', attrs: { variant }, content: [{ type: 'paragraph' }] }).run()
                 )}
