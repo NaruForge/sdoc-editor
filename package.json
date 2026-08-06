@@ -2,7 +2,7 @@
   "name": "structured-doc-editor",
   "displayName": "Structured Doc Editor",
   "description": "Git으로 검토 가능한 .sdoc 기술 문서를 위한 VS Code WYSIWYG 편집기",
-  "version": "0.7.7",
+  "version": "0.7.8",
   "publisher": "swbaek",
   "license": "MIT",
   "repository": {
