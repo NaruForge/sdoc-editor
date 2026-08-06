@@ -10,7 +10,7 @@ interface ConvertContext {
   diagramOptions?: SlideDiagramConversionOptions;
 }
 
-export interface PreparedSlideDiagramPng {
+export interface PreparedSlideDiagramImage {
   dataUrl: string;
   alt?: string;
 }
@@ -23,7 +23,7 @@ export interface SlideDiagramExportSource {
 export interface SlideDiagramConversionOptions {
   resolveDiagramImage?: (
     source: SlideDiagramExportSource,
-  ) => PreparedSlideDiagramPng | undefined;
+  ) => PreparedSlideDiagramImage | undefined;
 }
 
 /**
@@ -270,7 +270,7 @@ function convertDiagram(node: TiptapNode, ctx: ConvertContext): string {
   }
 
   const prepared = ctx.diagramOptions?.resolveDiagramImage?.({ language, code });
-  const image = prepared?.dataUrl.startsWith('data:image/png;base64,')
+  const image = prepared && /^data:image\/(?:png|svg\+xml);base64,/.test(prepared.dataUrl)
     ? `\n          <img src="${escapeHtml(prepared.dataUrl)}" alt="${escapeHtml(prepared.alt ?? `${language} diagram`)}">`
     : '';
   return `        <figure class="diagram diagram-source" data-language="${escapeHtml(language)}">`

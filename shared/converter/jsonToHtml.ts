@@ -16,7 +16,7 @@ interface ConvertContext {
   diagramOptions?: HtmlDiagramConversionOptions;
 }
 
-export interface PreparedDiagramPng {
+export interface PreparedDiagramImage {
   dataUrl: string;
   alt?: string;
 }
@@ -27,7 +27,7 @@ export interface DiagramExportSource {
 }
 
 export interface HtmlDiagramConversionOptions {
-  resolveDiagramImage?: (source: DiagramExportSource) => PreparedDiagramPng | undefined;
+  resolveDiagramImage?: (source: DiagramExportSource) => PreparedDiagramImage | undefined;
 }
 
 /**
@@ -197,7 +197,7 @@ function convertDiagram(node: TiptapNode, ctx: ConvertContext): string {
   }
 
   const prepared = ctx.diagramOptions?.resolveDiagramImage?.({ language, code });
-  const image = prepared?.dataUrl.startsWith('data:image/png;base64,')
+  const image = prepared && /^data:image\/(?:png|svg\+xml);base64,/.test(prepared.dataUrl)
     ? `<img src="${escapeHtml(prepared.dataUrl)}" alt="${escapeHtml(prepared.alt ?? `${language} diagram`)}">\n`
     : '';
   return `<figure class="diagram diagram-source" data-language="${escapeHtml(language)}">\n`

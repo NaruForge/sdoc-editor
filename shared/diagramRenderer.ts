@@ -27,3 +27,7 @@ export type DiagramRenderFailureCode =
   | 'response-too-large'
   | 'invalid-response'
   | 'cancelled';
+
+export function isDiagramImageDataUrl(value: string): boolean {
+  return /^data:image\/(?:png|svg\+xml);base64,[A-Za-z0-9+/=]+$/.test(value);
+}

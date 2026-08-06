@@ -26,6 +26,14 @@ const MAX_CACHE_ENTRIES: usize = 64;
 const MAX_CACHE_BYTES: usize = 32 * 1024 * 1024;
 const PNG_SIGNATURE: &[u8; 8] = b"\x89PNG\r\n\x1a\n";
 
+fn diagram_output(language: &str) -> (&'static str, &'static str) {
+    if language == "d2" {
+        ("svg", "image/svg+xml")
+    } else {
+        ("png", "image/png")
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DiagramRenderResult {
@@ -403,6 +411,7 @@ async fn post_diagram(
     source: &str,
     allow_private_network: bool,
 ) -> Result<DiagramRenderResult, DiagramRenderError> {
+    let (output_path, response_mime) = diagram_output(language);
     let host = endpoint
         .host_str()
         .ok_or_else(DiagramRenderError::invalid_endpoint)?
@@ -420,7 +429,7 @@ async fn post_diagram(
             .map_err(|_| DiagramRenderError::invalid_endpoint())?;
         path.pop_if_empty();
         path.push(language);
-        path.push("png");
+        path.push(output_path);
     }
 
     let mut builder = reqwest::Client::builder()
@@ -432,7 +441,7 @@ async fn post_diagram(
     let client = builder.build().map_err(|_| DiagramRenderError::offline())?;
     let mut response = client
         .post(endpoint)
-        .header(ACCEPT, "image/png")
+        .header(ACCEPT, response_mime)
         .header(CONTENT_TYPE, "text/plain; charset=utf-8")
         .body(source.as_bytes().to_vec())
         .send()
@@ -464,13 +473,18 @@ async fn post_diagram(
     if !status.is_success() {
         return Err(DiagramRenderError::invalid_response());
     }
-    let is_png = response
+    let content_type = response
         .headers()
         .get(CONTENT_TYPE)
-        .and_then(|value| value.to_str().ok())
-        .and_then(|value| value.split(';').next())
-        .is_some_and(|value| value.trim().eq_ignore_ascii_case("image/png"));
-    if !is_png {
+        .and_then(|value| value.to_str().ok());
+    let valid_content_type = if language == "d2" {
+        content_type.is_some_and(|value| value.trim().eq_ignore_ascii_case(response_mime))
+    } else {
+        content_type
+            .and_then(|value| value.split(';').next())
+            .is_some_and(|value| value.trim().eq_ignore_ascii_case(response_mime))
+    };
+    if !valid_content_type {
         return Err(DiagramRenderError::invalid_response());
     }
     if response
@@ -499,14 +513,537 @@ async fn post_diagram(
         }
         bytes.extend_from_slice(&chunk);
     }
-    let (width, height) = validate_png(&bytes)?;
+    let (width, height) = if language == "d2" {
+        validate_svg(&bytes)?
+    } else {
+        validate_png(&bytes)?
+    };
     let result = DiagramRenderResult {
-        data_url: format!("data:image/png;base64,{}", BASE64_STANDARD.encode(&bytes)),
+        data_url: format!(
+            "data:{response_mime};base64,{}",
+            BASE64_STANDARD.encode(&bytes)
+        ),
         width,
         height,
         cached: false,
     };
     Ok(result)
+}
+
+fn validate_svg(bytes: &[u8]) -> Result<(u32, u32), DiagramRenderError> {
+    let source = std::str::from_utf8(bytes).map_err(|_| DiagramRenderError::invalid_response())?;
+    if !source.chars().all(is_valid_xml_character) {
+        return Err(DiagramRenderError::invalid_response());
+    }
+    let mut parser = SvgParser::new(source.trim_start_matches('\u{feff}'));
+    parser.parse()
+}
+
+struct SvgParser<'a> {
+    source: &'a str,
+    position: usize,
+    stack: Vec<String>,
+    root_seen: bool,
+    root_closed: bool,
+    dimensions: Option<(u32, u32)>,
+    style_content: Option<String>,
+}
+
+impl<'a> SvgParser<'a> {
+    fn new(source: &'a str) -> Self {
+        Self {
+            source,
+            position: 0,
+            stack: Vec::new(),
+            root_seen: false,
+            root_closed: false,
+            dimensions: None,
+            style_content: None,
+        }
+    }
+
+    fn parse(&mut self) -> Result<(u32, u32), DiagramRenderError> {
+        while self.position < self.source.len() {
+            if self.remaining().starts_with("<!--") {
+                self.consume_comment()?;
+            } else if self.remaining().starts_with("<?xml") && !self.root_seen {
+                self.consume_xml_declaration()?;
+            } else if self.remaining().starts_with("<![CDATA[") {
+                self.consume_cdata()?;
+            } else if self.remaining().starts_with("</") {
+                self.consume_end_tag()?;
+            } else if self.remaining().starts_with('<') {
+                if self.remaining().starts_with("<!") || self.remaining().starts_with("<?") {
+                    return Err(DiagramRenderError::invalid_response());
+                }
+                self.consume_start_tag()?;
+            } else {
+                self.consume_text()?;
+            }
+        }
+
+        if !self.root_seen || !self.root_closed || !self.stack.is_empty() {
+            return Err(DiagramRenderError::invalid_response());
+        }
+        self.dimensions
+            .ok_or_else(DiagramRenderError::invalid_response)
+    }
+
+    fn remaining(&self) -> &'a str {
+        &self.source[self.position..]
+    }
+
+    fn consume_comment(&mut self) -> Result<(), DiagramRenderError> {
+        let end = self.remaining()[4..]
+            .find("-->")
+            .ok_or_else(DiagramRenderError::invalid_response)?;
+        let content = &self.remaining()[4..4 + end];
+        if content.contains("--") {
+            return Err(DiagramRenderError::invalid_response());
+        }
+        self.position += 4 + end + 3;
+        Ok(())
+    }
+
+    fn consume_xml_declaration(&mut self) -> Result<(), DiagramRenderError> {
+        let end = self
+            .remaining()
+            .find("?>")
+            .ok_or_else(DiagramRenderError::invalid_response)?;
+        let declaration = &self.remaining()[..end + 2];
+        if !declaration.starts_with("<?xml ") {
+            return Err(DiagramRenderError::invalid_response());
+        }
+        self.position += end + 2;
+        Ok(())
+    }
+
+    fn consume_cdata(&mut self) -> Result<(), DiagramRenderError> {
+        if self.stack.is_empty() {
+            return Err(DiagramRenderError::invalid_response());
+        }
+        let end = self.remaining()[9..]
+            .find("]]>")
+            .ok_or_else(DiagramRenderError::invalid_response)?;
+        let content = &self.remaining()[9..9 + end];
+        if let Some(style) = &mut self.style_content {
+            style.push_str(content);
+        }
+        self.position += 9 + end + 3;
+        Ok(())
+    }
+
+    fn consume_text(&mut self) -> Result<(), DiagramRenderError> {
+        let length = self.remaining().find('<').unwrap_or(self.remaining().len());
+        let text = &self.remaining()[..length];
+        if (self.stack.is_empty() && !text.trim().is_empty()) || text.contains("]]>") {
+            return Err(DiagramRenderError::invalid_response());
+        }
+        let decoded = decode_xml_entities(text)?;
+        if let Some(style) = &mut self.style_content {
+            style.push_str(&decoded);
+        }
+        self.position += length;
+        Ok(())
+    }
+
+    fn consume_start_tag(&mut self) -> Result<(), DiagramRenderError> {
+        if self.root_closed {
+            return Err(DiagramRenderError::invalid_response());
+        }
+        if self.style_content.is_some() {
+            return Err(DiagramRenderError::invalid_response());
+        }
+        self.position += 1;
+        let name = self.consume_name()?.to_string();
+        if !is_valid_qname(&name) {
+            return Err(DiagramRenderError::invalid_response());
+        }
+        let local_name = name
+            .rsplit(':')
+            .next()
+            .unwrap_or(&name)
+            .to_ascii_lowercase();
+        if !self.root_seen {
+            if name != "svg" {
+                return Err(DiagramRenderError::invalid_response());
+            }
+            self.root_seen = true;
+        } else if self.stack.is_empty() {
+            return Err(DiagramRenderError::invalid_response());
+        }
+        if is_forbidden_svg_element(&local_name) {
+            return Err(DiagramRenderError::invalid_response());
+        }
+
+        let mut attributes = HashMap::new();
+        let self_closing = loop {
+            self.skip_whitespace();
+            if self.remaining().starts_with("/>") {
+                self.position += 2;
+                break true;
+            }
+            if self.remaining().starts_with('>') {
+                self.position += 1;
+                break false;
+            }
+            let attribute_name = self.consume_name()?.to_string();
+            if !is_valid_qname(&attribute_name) {
+                return Err(DiagramRenderError::invalid_response());
+            }
+            self.skip_whitespace();
+            if !self.remaining().starts_with('=') {
+                return Err(DiagramRenderError::invalid_response());
+            }
+            self.position += 1;
+            self.skip_whitespace();
+            let value = self.consume_quoted_value()?;
+            if attributes.insert(attribute_name, value).is_some() {
+                return Err(DiagramRenderError::invalid_response());
+            }
+        };
+
+        validate_svg_attributes(&attributes)?;
+        if self.stack.is_empty() {
+            if attributes.get("xmlns").map(String::as_str) != Some("http://www.w3.org/2000/svg") {
+                return Err(DiagramRenderError::invalid_response());
+            }
+            self.dimensions = Some(svg_dimensions(&attributes)?);
+        }
+        if local_name == "style" {
+            if self.style_content.is_some() || self_closing {
+                return Err(DiagramRenderError::invalid_response());
+            }
+            self.style_content = Some(String::new());
+        }
+        if self_closing {
+            if self.stack.is_empty() {
+                self.root_closed = true;
+            }
+        } else {
+            self.stack.push(name);
+        }
+        Ok(())
+    }
+
+    fn consume_end_tag(&mut self) -> Result<(), DiagramRenderError> {
+        self.position += 2;
+        let name = self.consume_name()?.to_string();
+        if !is_valid_qname(&name) {
+            return Err(DiagramRenderError::invalid_response());
+        }
+        self.skip_whitespace();
+        if !self.remaining().starts_with('>') {
+            return Err(DiagramRenderError::invalid_response());
+        }
+        self.position += 1;
+        let open_name = self
+            .stack
+            .pop()
+            .ok_or_else(DiagramRenderError::invalid_response)?;
+        if name != open_name {
+            return Err(DiagramRenderError::invalid_response());
+        }
+        if name
+            .rsplit(':')
+            .next()
+            .is_some_and(|local| local.eq_ignore_ascii_case("style"))
+        {
+            let style = self
+                .style_content
+                .take()
+                .ok_or_else(DiagramRenderError::invalid_response)?;
+            validate_css(&style, true)?;
+        }
+        if self.stack.is_empty() {
+            self.root_closed = true;
+        }
+        Ok(())
+    }
+
+    fn consume_name(&mut self) -> Result<&'a str, DiagramRenderError> {
+        let start = self.position;
+        let mut characters = self.remaining().char_indices();
+        let Some((_, first)) = characters.next() else {
+            return Err(DiagramRenderError::invalid_response());
+        };
+        if !is_xml_name_start(first) {
+            return Err(DiagramRenderError::invalid_response());
+        }
+        let mut length = first.len_utf8();
+        for (offset, character) in characters {
+            if !is_xml_name_character(character) {
+                length = offset;
+                break;
+            }
+            length = offset + character.len_utf8();
+        }
+        self.position += length;
+        Ok(&self.source[start..self.position])
+    }
+
+    fn consume_quoted_value(&mut self) -> Result<String, DiagramRenderError> {
+        let quote = self
+            .remaining()
+            .chars()
+            .next()
+            .filter(|character| matches!(character, '\'' | '"'))
+            .ok_or_else(DiagramRenderError::invalid_response)?;
+        self.position += 1;
+        let end = self
+            .remaining()
+            .find(quote)
+            .ok_or_else(DiagramRenderError::invalid_response)?;
+        let value = &self.remaining()[..end];
+        if value.contains('<') {
+            return Err(DiagramRenderError::invalid_response());
+        }
+        let decoded = decode_xml_entities(value)?;
+        self.position += end + quote.len_utf8();
+        Ok(decoded)
+    }
+
+    fn skip_whitespace(&mut self) {
+        let length = self
+            .remaining()
+            .chars()
+            .take_while(|character| character.is_ascii_whitespace())
+            .map(char::len_utf8)
+            .sum::<usize>();
+        self.position += length;
+    }
+}
+
+fn is_xml_name_start(character: char) -> bool {
+    character.is_ascii_alphabetic() || matches!(character, '_' | ':')
+}
+
+fn is_xml_name_character(character: char) -> bool {
+    is_xml_name_start(character) || character.is_ascii_digit() || matches!(character, '-' | '.')
+}
+
+fn is_valid_qname(name: &str) -> bool {
+    !name.starts_with(':') && !name.ends_with(':') && name.matches(':').count() <= 1
+}
+
+fn is_valid_xml_character(character: char) -> bool {
+    matches!(character, '\u{9}' | '\u{a}' | '\u{d}')
+        || ('\u{20}'..='\u{d7ff}').contains(&character)
+        || ('\u{e000}'..='\u{fffd}').contains(&character)
+        || ('\u{10000}'..='\u{10ffff}').contains(&character)
+}
+
+fn decode_xml_entities(value: &str) -> Result<String, DiagramRenderError> {
+    let mut decoded = String::with_capacity(value.len());
+    let mut remaining = value;
+    while let Some(index) = remaining.find('&') {
+        decoded.push_str(&remaining[..index]);
+        remaining = &remaining[index + 1..];
+        let end = remaining
+            .find(';')
+            .ok_or_else(DiagramRenderError::invalid_response)?;
+        let entity = &remaining[..end];
+        let character = match entity {
+            "amp" => '&',
+            "lt" => '<',
+            "gt" => '>',
+            "apos" => '\'',
+            "quot" => '"',
+            _ => entity
+                .strip_prefix("#x")
+                .and_then(|digits| u32::from_str_radix(digits, 16).ok())
+                .or_else(|| {
+                    entity
+                        .strip_prefix('#')
+                        .and_then(|digits| digits.parse::<u32>().ok())
+                })
+                .and_then(char::from_u32)
+                .filter(|character| is_valid_xml_character(*character))
+                .ok_or_else(DiagramRenderError::invalid_response)?,
+        };
+        decoded.push(character);
+        remaining = &remaining[end + 1..];
+    }
+    decoded.push_str(remaining);
+    Ok(decoded)
+}
+
+fn is_forbidden_svg_element(local_name: &str) -> bool {
+    matches!(
+        local_name,
+        "script"
+            | "foreignobject"
+            | "iframe"
+            | "frame"
+            | "frameset"
+            | "object"
+            | "embed"
+            | "audio"
+            | "video"
+            | "canvas"
+            | "animate"
+            | "animatemotion"
+            | "animatetransform"
+            | "discard"
+            | "set"
+    )
+}
+
+fn validate_svg_attributes(attributes: &HashMap<String, String>) -> Result<(), DiagramRenderError> {
+    for (name, value) in attributes {
+        let local_name = name.rsplit(':').next().unwrap_or(name).to_ascii_lowercase();
+        if local_name.starts_with("on")
+            || matches!(
+                local_name.as_str(),
+                "src" | "action" | "formaction" | "poster"
+            )
+            || name.eq_ignore_ascii_case("xml:base")
+        {
+            return Err(DiagramRenderError::invalid_response());
+        }
+        if (name == "xmlns" && value != "http://www.w3.org/2000/svg")
+            || (name.starts_with("xmlns:") && value != "http://www.w3.org/1999/xlink")
+        {
+            return Err(DiagramRenderError::invalid_response());
+        }
+        if matches!(local_name.as_str(), "href") && !is_internal_fragment(value) {
+            return Err(DiagramRenderError::invalid_response());
+        }
+        if local_name == "style" {
+            validate_css(value, false)?;
+        } else if value.to_ascii_lowercase().contains("url(") {
+            validate_css_urls(value, false)?;
+        }
+    }
+    Ok(())
+}
+
+fn is_internal_fragment(value: &str) -> bool {
+    let value = value.trim();
+    value.starts_with('#')
+        && value.len() > 1
+        && value[1..].chars().all(|character| {
+            !character.is_ascii_whitespace() && !matches!(character, '"' | '\'' | '<' | '>')
+        })
+}
+
+fn validate_css(css: &str, allow_embedded_font: bool) -> Result<(), DiagramRenderError> {
+    let lower = css.to_ascii_lowercase();
+    if css.contains('\\')
+        || css.contains('&')
+        || lower.contains("@import")
+        || lower.contains("javascript:")
+        || lower.contains("expression(")
+        || lower.contains("-moz-binding")
+    {
+        return Err(DiagramRenderError::invalid_response());
+    }
+    for at_rule in lower.split('@').skip(1) {
+        let name: String = at_rule
+            .chars()
+            .take_while(|character| character.is_ascii_alphabetic() || *character == '-')
+            .collect();
+        if !name.is_empty() && name != "font-face" {
+            return Err(DiagramRenderError::invalid_response());
+        }
+    }
+    validate_css_urls(css, allow_embedded_font)
+}
+
+fn validate_css_urls(css: &str, allow_embedded_font: bool) -> Result<(), DiagramRenderError> {
+    let lower = css.to_ascii_lowercase();
+    let mut offset = 0;
+    while let Some(relative_start) = lower[offset..].find("url(") {
+        let start = offset + relative_start + 4;
+        let end = css[start..]
+            .find(')')
+            .map(|end| start + end)
+            .ok_or_else(DiagramRenderError::invalid_response)?;
+        let target = css[start..end]
+            .trim()
+            .trim_matches(|character| matches!(character, '\'' | '"'))
+            .trim();
+        if !(is_internal_fragment(target) || allow_embedded_font && is_embedded_base64_font(target))
+        {
+            return Err(DiagramRenderError::invalid_response());
+        }
+        offset = end + 1;
+    }
+    Ok(())
+}
+
+fn is_embedded_base64_font(value: &str) -> bool {
+    let lower = value.to_ascii_lowercase();
+    let Some(data) = lower.strip_prefix("data:") else {
+        return false;
+    };
+    let Some((media_type, payload)) = data.split_once(",") else {
+        return false;
+    };
+    let Some(media_type) = media_type.strip_suffix(";base64") else {
+        return false;
+    };
+    matches!(
+        media_type,
+        "font/woff"
+            | "font/woff2"
+            | "application/font-woff"
+            | "application/font-woff2"
+            | "application/x-font-woff"
+    ) && !payload.is_empty()
+        && payload.chars().all(|character| {
+            character.is_ascii_alphanumeric() || matches!(character, '+' | '/' | '=')
+        })
+}
+
+fn svg_dimensions(attributes: &HashMap<String, String>) -> Result<(u32, u32), DiagramRenderError> {
+    let dimensions = attributes
+        .get("width")
+        .zip(attributes.get("height"))
+        .and_then(|(width, height)| Some((parse_svg_length(width)?, parse_svg_length(height)?)))
+        .or_else(|| {
+            let view_box = attributes
+                .iter()
+                .find(|(name, _)| name.eq_ignore_ascii_case("viewBox"))?
+                .1;
+            parse_view_box(view_box)
+        })
+        .ok_or_else(DiagramRenderError::invalid_response)?;
+    bounded_dimensions(dimensions.0, dimensions.1)
+}
+
+fn parse_svg_length(value: &str) -> Option<f64> {
+    let value = value.trim();
+    let number = value.strip_suffix("px").unwrap_or(value).trim();
+    let parsed = number.parse::<f64>().ok()?;
+    (parsed.is_finite() && parsed > 0.0).then_some(parsed)
+}
+
+fn parse_view_box(value: &str) -> Option<(f64, f64)> {
+    let values = value
+        .split(|character: char| character.is_ascii_whitespace() || character == ',')
+        .filter(|value| !value.is_empty())
+        .map(str::parse::<f64>)
+        .collect::<Result<Vec<_>, _>>()
+        .ok()?;
+    if values.len() != 4 || values.iter().any(|value| !value.is_finite()) {
+        return None;
+    }
+    (values[2] > 0.0 && values[3] > 0.0).then_some((values[2], values[3]))
+}
+
+fn bounded_dimensions(width: f64, height: f64) -> Result<(u32, u32), DiagramRenderError> {
+    let width = width.ceil();
+    let height = height.ceil();
+    if width > f64::from(MAX_DIMENSION) || height > f64::from(MAX_DIMENSION) {
+        return Err(DiagramRenderError::invalid_response());
+    }
+    let width = width as u32;
+    let height = height as u32;
+    if width == 0 || height == 0 || u64::from(width) * u64::from(height) > MAX_PIXELS {
+        return Err(DiagramRenderError::invalid_response());
+    }
+    Ok((width, height))
 }
 
 async fn resolve_and_validate(
@@ -586,13 +1123,16 @@ fn validate_png(bytes: &[u8]) -> Result<(u32, u32), DiagramRenderError> {
 #[cfg(test)]
 mod tests {
     use super::{
-        cache_key, post_diagram, run_registered_render, validate_language, validate_png,
-        DiagramCache, DiagramRenderResult, DiagramState, MAX_CACHE_ENTRIES, PNG_SIGNATURE,
+        cache_key, diagram_output, post_diagram, run_registered_render, validate_language,
+        validate_png, validate_svg, DiagramCache, DiagramRenderResult, DiagramState,
+        MAX_CACHE_ENTRIES, PNG_SIGNATURE,
     };
     use crate::settings::{DiagramRendererConsent, DiagramRendererSettings};
+    use base64::Engine;
     use reqwest::Url;
     use std::io::{Read, Write};
     use std::net::TcpListener;
+    use std::sync::mpsc;
     use std::sync::Arc;
     use std::thread;
     use std::time::Duration;
@@ -611,14 +1151,25 @@ mod tests {
     }
 
     fn serve_once(status: &str, content_type: &str, body: Vec<u8>, delay: Duration) -> Url {
+        serve_once_capturing_request(status, content_type, body, delay).0
+    }
+
+    fn serve_once_capturing_request(
+        status: &str,
+        content_type: &str,
+        body: Vec<u8>,
+        delay: Duration,
+    ) -> (Url, mpsc::Receiver<String>) {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let address = listener.local_addr().unwrap();
         let status = status.to_string();
         let content_type = content_type.to_string();
+        let (request_sender, request_receiver) = mpsc::channel();
         thread::spawn(move || {
             let (mut stream, _) = listener.accept().unwrap();
             let mut request = [0_u8; 4096];
-            let _ = stream.read(&mut request);
+            let read = stream.read(&mut request).unwrap_or_default();
+            let _ = request_sender.send(String::from_utf8_lossy(&request[..read]).into_owned());
             if !delay.is_zero() {
                 thread::sleep(delay);
             }
@@ -629,7 +1180,10 @@ mod tests {
             let _ = stream.write_all(headers.as_bytes());
             let _ = stream.write_all(&body);
         });
-        Url::parse(&format!("http://{address}")).unwrap()
+        (
+            Url::parse(&format!("http://{address}")).unwrap(),
+            request_receiver,
+        )
     }
 
     #[test]
@@ -642,12 +1196,77 @@ mod tests {
     }
 
     #[test]
+    fn maps_languages_to_their_supported_kroki_output() {
+        assert_eq!(diagram_output("d2"), ("svg", "image/svg+xml"));
+        assert_eq!(diagram_output("plantuml"), ("png", "image/png"));
+        assert_eq!(diagram_output("graphviz"), ("png", "image/png"));
+    }
+
+    #[test]
     fn validates_png_signature_ihdr_and_dimensions() {
         assert_eq!(validate_png(&png_header(640, 480)).unwrap(), (640, 480));
         assert!(validate_png(b"not a png").is_err());
         assert!(validate_png(&png_header(0, 10)).is_err());
         assert!(validate_png(&png_header(8193, 10)).is_err());
         assert!(validate_png(&png_header(8192, 8192)).is_err());
+    }
+
+    #[test]
+    fn validates_safe_svg_and_derives_bounded_dimensions() {
+        let svg = br#"<svg xmlns="http://www.w3.org/2000/svg" width="640px" height="480">
+            <style>@font-face { font-family: d2; src: url('data:application/font-woff;base64,AA==') }</style>
+            <defs><clipPath id="clip"><rect width="10" height="10"/></clipPath></defs>
+            <g clip-path="url(#clip)"><text>&amp;</text></g>
+        </svg>"#;
+        assert_eq!(validate_svg(svg).unwrap(), (640, 480));
+        assert_eq!(
+            validate_svg(
+                br#"<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120.4 80.1"><path d="M0 0"/></svg>"#
+            )
+            .unwrap(),
+            (121, 81)
+        );
+        assert!(validate_svg(
+            br#"<svg xmlns="http://www.w3.org/2000/svg" width="8193" height="1"/>"#
+        )
+        .is_err());
+        assert!(validate_svg(
+            br#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8192 8192"/>"#
+        )
+        .is_err());
+        assert!(
+            validate_svg(br#"<svg xmlns="http://www.w3.org/2000/svg" width="0" height="1"/>"#)
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn rejects_malformed_or_active_svg_content() {
+        for svg in [
+            br#"not svg"#.as_slice(),
+            br#"<svg><g></svg>"#.as_slice(),
+            br#"<!DOCTYPE svg><svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>"#.as_slice(),
+            br#"<!ENTITY x SYSTEM "file:///etc/passwd"><svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>"#.as_slice(),
+            br#"<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"><script>alert(1)</script></svg>"#.as_slice(),
+            br#"<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"><foreignObject/></svg>"#.as_slice(),
+            br#"<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"><iframe/></svg>"#.as_slice(),
+            br#"<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"><animate/></svg>"#.as_slice(),
+            br#"<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"><g onclick="alert(1)"/></svg>"#.as_slice(),
+            br#"<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"><image href="https://example.com/x.png"/></svg>"#.as_slice(),
+            br#"<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"><style>@import url(https://example.com/x.css)</style></svg>"#.as_slice(),
+            br#"<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"><style>@keyframes spin {}</style></svg>"#.as_slice(),
+            br#"<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"><style>g { fill: url(https://example.com/x.svg) }</style></svg>"#.as_slice(),
+            br#"<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"><style>g { fill: u&#114;l(https://example.com/x.svg) }</style></svg>"#.as_slice(),
+            br#"<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"><a href="javascript:alert(1)"/></svg>"#.as_slice(),
+            br#"<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"><rect fill="u&#114;l(https://example.com/x.svg)"/></svg>"#.as_slice(),
+            br#"<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"><text>&#0;</text></svg>"#.as_slice(),
+        ] {
+            assert!(
+                validate_svg(svg).is_err(),
+                "unsafe SVG unexpectedly accepted: {}",
+                String::from_utf8_lossy(svg)
+            );
+        }
     }
 
     #[test]
@@ -708,6 +1327,58 @@ mod tests {
             .await
             .unwrap_err();
         assert_eq!(size_error.code, "response-too-large");
+
+        let parameterized_svg = serve_once(
+            "200 OK",
+            "image/svg+xml; charset=utf-8",
+            br#"<svg width="1" height="1"/>"#.to_vec(),
+            Duration::ZERO,
+        );
+        let mime_error = post_diagram(parameterized_svg, "d2", "a -> b", false)
+            .await
+            .unwrap_err();
+        assert_eq!(mime_error.code, "invalid-response");
+    }
+
+    #[tokio::test]
+    async fn d2_requests_svg_and_returns_validated_svg_data_url() {
+        let body = br#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180"><path d="M0 0"/></svg>"#
+            .to_vec();
+        let (endpoint, request) =
+            serve_once_capturing_request("200 OK", "image/svg+xml", body.clone(), Duration::ZERO);
+
+        let result = post_diagram(endpoint, "d2", "a -> b", false).await.unwrap();
+        let request = request.recv_timeout(Duration::from_secs(1)).unwrap();
+
+        assert!(request.starts_with("POST /d2/svg HTTP/1.1"));
+        assert!(request
+            .lines()
+            .any(|line| line.eq_ignore_ascii_case("accept: image/svg+xml")));
+        assert_eq!((result.width, result.height), (320, 180));
+        assert_eq!(
+            result.data_url,
+            format!(
+                "data:image/svg+xml;base64,{}",
+                base64::engine::general_purpose::STANDARD.encode(body)
+            )
+        );
+    }
+
+    #[tokio::test]
+    async fn non_d2_requests_remain_png() {
+        let (endpoint, request) =
+            serve_once_capturing_request("200 OK", "image/png", png_header(2, 3), Duration::ZERO);
+
+        let result = post_diagram(endpoint, "graphviz", "digraph {}", false)
+            .await
+            .unwrap();
+        let request = request.recv_timeout(Duration::from_secs(1)).unwrap();
+
+        assert!(request.starts_with("POST /graphviz/png HTTP/1.1"));
+        assert!(request
+            .lines()
+            .any(|line| line.eq_ignore_ascii_case("accept: image/png")));
+        assert!(result.data_url.starts_with("data:image/png;base64,"));
     }
 
     #[tokio::test]

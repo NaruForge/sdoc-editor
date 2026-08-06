@@ -454,7 +454,7 @@ export function useEditorMessages({
         diagramRequestsRef.current.delete(message.requestId);
         if (message.result.status === 'ready') {
           pending.resolve({
-            kind: 'png',
+            kind: 'image',
             dataUrl: message.result.dataUrl,
           });
         } else {

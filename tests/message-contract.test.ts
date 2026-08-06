@@ -206,6 +206,16 @@ describe('editor host message boundary', () => {
         retryable: true,
       },
     })).toBe(true);
+    expect(isHostToEditorMessage({
+      type: 'diagramRenderResult',
+      requestId: 'diagram-2',
+      result: {
+        status: 'ready',
+        dataUrl: 'data:image/svg+xml;base64,PHN2ZyB2aWV3Qm94PSIwIDAgMSAxIj48L3N2Zz4=',
+        width: 1,
+        height: 1,
+      },
+    })).toBe(true);
     expect(isEditorToHostMessage({
       type: 'updateDiagramRendererSettings',
       settings: {

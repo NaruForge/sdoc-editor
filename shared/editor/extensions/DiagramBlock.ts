@@ -1,6 +1,7 @@
 import { Node, mergeAttributes } from '@tiptap/core';
 import {
   createInteractionGatedDiagramRendererResolver,
+  DiagramRenderIntentStore,
   DiagramRenderCoordinator,
   resolveDiagramLanguage,
   type DiagramRenderState,
@@ -10,18 +11,30 @@ import { NOOP_EDITOR_EXTENSION_RUNTIME, type EditorExtensionOptions } from '../e
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
     diagramBlock: {
-      insertDiagram: (language: string, code: string) => ReturnType;
+      insertDiagram: (
+        language: string,
+        code: string,
+        renderAfterInsert?: boolean,
+      ) => ReturnType;
     };
   }
 }
 
-export const DiagramBlock = Node.create<EditorExtensionOptions>({
+interface DiagramBlockStorage {
+  renderIntents: DiagramRenderIntentStore;
+}
+
+export const DiagramBlock = Node.create<EditorExtensionOptions, DiagramBlockStorage>({
   name: 'diagram',
   group: 'block',
   atom: true,
 
   addOptions() {
     return { runtime: NOOP_EDITOR_EXTENSION_RUNTIME };
+  },
+
+  addStorage() {
+    return { renderIntents: new DiagramRenderIntentStore() };
   },
 
   addAttributes() {
@@ -50,16 +63,25 @@ export const DiagramBlock = Node.create<EditorExtensionOptions>({
   addCommands() {
     return {
       insertDiagram:
-        (language: string, code: string) =>
-        ({ commands }) => commands.insertContent({
-          type: this.name,
-          attrs: { language: resolveDiagramLanguage(language), code },
-        }),
+        (language: string, code: string, renderAfterInsert = false) =>
+        ({ commands }) => {
+          const resolvedLanguage = resolveDiagramLanguage(language);
+          if (renderAfterInsert) this.storage.renderIntents.mark(resolvedLanguage, code);
+          const inserted = commands.insertContent({
+            type: this.name,
+            attrs: { language: resolvedLanguage, code },
+          });
+          if (!inserted && renderAfterInsert) {
+            this.storage.renderIntents.discard(resolvedLanguage, code);
+          }
+          return inserted;
+        },
     };
   },
 
   addNodeView() {
     const runtime = this.options.runtime;
+    const { renderIntents } = this.storage;
     return ({ node, getPos }) => {
       const dom = document.createElement('div');
       dom.classList.add('diagram-block');
@@ -153,7 +175,10 @@ export const DiagramBlock = Node.create<EditorExtensionOptions>({
         rendered.replaceChildren(sourceOnly);
       };
 
-      let externalRenderingRequested = false;
+      let externalRenderingRequested = renderIntents.consume(
+        node.attrs.language,
+        node.attrs.code,
+      );
       coordinator = new DiagramRenderCoordinator({
         resolveRenderer: createInteractionGatedDiagramRendererResolver(
           runtime.renderDiagram,

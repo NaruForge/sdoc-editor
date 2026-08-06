@@ -1,4 +1,5 @@
 import { getMermaid } from '../utils/mermaid';
+import { isDiagramImageDataUrl } from '../../diagramRenderer';
 import type { KnownDiagramLanguage } from './languages';
 import {
   DiagramRenderError,
@@ -8,10 +9,6 @@ import {
 } from './types';
 
 let mermaidRenderCounter = 0;
-
-function isPngDataUrl(value: string): boolean {
-  return /^data:image\/png;base64,[A-Za-z0-9+/=\r\n]+$/.test(value);
-}
 
 const renderMermaid: DiagramRenderer = async ({ code, signal }) => {
   const id = `mermaid-render-${Date.now()}-${mermaidRenderCounter++}`;
@@ -32,7 +29,7 @@ const renderMermaid: DiagramRenderer = async ({ code, signal }) => {
 };
 
 export type HostDiagramRenderResult =
-  | { kind: 'png'; dataUrl: string; alt?: string }
+  | { kind: 'image'; dataUrl: string; alt?: string }
   | { kind: 'source-only'; reason?: string };
 
 export type HostDiagramRenderer = (
@@ -52,8 +49,8 @@ export function createEditorDiagramRendererResolver(
     if (!hostRenderer || hostRenderer === NOOP_HOST_DIAGRAM_RENDERER) return undefined;
     return async (request) => {
       const result = await hostRenderer(request);
-      if (result.kind === 'png' && !isPngDataUrl(result.dataUrl)) {
-        throw new DiagramRenderError('The diagram renderer returned an invalid PNG.', false);
+      if (result.kind === 'image' && !isDiagramImageDataUrl(result.dataUrl)) {
+        throw new DiagramRenderError('The diagram renderer returned an invalid image.', false);
       }
       return result;
     };

@@ -8,7 +8,7 @@ export interface DiagramRenderRequest {
 
 export type DiagramRenderOutput =
   | { kind: 'svg'; markup: string }
-  | { kind: 'png'; dataUrl: string; alt?: string };
+  | { kind: 'image'; dataUrl: string; alt?: string };
 
 export type DiagramRendererResult =
   | DiagramRenderOutput

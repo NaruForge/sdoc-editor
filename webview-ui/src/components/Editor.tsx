@@ -369,7 +369,7 @@ export const Editor: React.FC = () => {
         return true;
       }).run();
     } else {
-      editor.chain().focus().insertDiagram(language, code).run();
+      editor.chain().focus().insertDiagram(language, code, true).run();
     }
     dialogDispatch({ type: 'SET_DIAGRAM_DIALOG', payload: null });
     flushUpdate();
