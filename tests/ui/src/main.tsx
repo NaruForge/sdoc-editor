@@ -41,10 +41,8 @@ import { createTemplateSessionState, templateSessionReducer } from '@shared/edit
 import type { ManagedTemplateDescriptor } from '@shared/types/messages';
 import '@shared/editor/styles/fonts.css';
 import '@shared/editor/styles/editor.css';
-import '../../../tauri-app/src/styles/tauri-theme.css';
 import './harness.css';
 
-type Host = 'vscode' | 'tauri';
 type Theme = 'light' | 'dark' | 'hc';
 type Locale = 'ko' | 'en';
 type Scene = 'editor' | 'settings' | 'templates' | 'files' | 'diagram-error' | 'external-change';
@@ -298,12 +296,10 @@ function EditorBackdrop({
 
 function SharedPanelScene({
   editor,
-  host,
   locale,
   scene,
 }: {
   editor: Editor;
-  host: Host;
   locale: Locale;
   scene: Exclude<Scene, 'editor' | 'diagram-error' | 'external-change'>;
 }) {
@@ -325,7 +321,7 @@ function SharedPanelScene({
         detail: 'One workspace template could not be read.',
         recovery: 'retry' as const,
       }],
-      personalRootScope: host === 'vscode' ? 'remote' as const : 'local' as const,
+      personalRootScope: 'remote' as const,
     }),
   );
   const title = scene === 'settings'
@@ -344,7 +340,7 @@ function SharedPanelScene({
     const requestId = `fixture-${operation}`;
     dispatchTemplateSession({ type: 'action-started', requestId, operation, templateId, visibleIndex });
     queueMicrotask(() => dispatchTemplateSession(
-      operation === 'open-folder' && host === 'tauri'
+      operation === 'open-folder'
         ? {
           type: 'action-failed', requestId,
           error: { code: 'operation-failed', message: 'The template action could not be completed.' },
@@ -365,7 +361,6 @@ function SharedPanelScene({
           returnFocusRef.current = document.getElementById(`activity-destination-${clicked}`) as HTMLButtonElement | null;
           setOpen((current) => clicked === destination ? !current : true);
         }}
-        showWorkspace={host === 'tauri'}
         showTemplates
       />
       {open && (
@@ -425,9 +420,8 @@ function SharedPanelScene({
   );
 }
 
-function DiagramErrorScene({ editor, host, locale }: {
+function DiagramErrorScene({ editor, locale }: {
   editor: Editor;
-  host: Host;
   locale: Locale;
 }) {
   return (
@@ -439,7 +433,6 @@ function DiagramErrorScene({ editor, host, locale }: {
       <ActivityBar
         activeDestination={null}
         onDestinationClick={() => undefined}
-        showWorkspace={host === 'tauri'}
       />
       <EditorBackdrop editor={editor} locale={locale} />
       <DiagramDialog
@@ -552,7 +545,6 @@ function useSceneReady(scene: Scene): boolean {
 }
 
 function App() {
-  const host = queryValue('host', ['vscode', 'tauri'] as const, 'vscode');
   const theme = queryValue('theme', ['light', 'dark', 'hc'] as const, 'light');
   const locale = queryValue('locale', ['ko', 'en'] as const, 'en');
   const scene = queryValue(
@@ -568,7 +560,7 @@ function App() {
   const title = locale === 'ko' ? '제품 수준 문서 편집 경험' : 'A production-quality editing experience';
 
   document.documentElement.lang = locale;
-  document.documentElement.dataset.host = host;
+  document.documentElement.dataset.host = 'vscode';
   document.documentElement.dataset.fixtureTheme = theme;
   document.documentElement.dataset.theme = theme === 'hc' ? 'dark' : theme;
 
@@ -576,15 +568,15 @@ function App() {
     <EditorProvider initialLocale={locale}>
       <main
         className="quality-harness"
-        data-host={host}
+        data-host="vscode"
         data-theme={theme}
         data-ready={ready ? 'true' : 'false'}
       >
         {(scene === 'settings' || scene === 'templates' || scene === 'files') && (
-          <SharedPanelScene editor={editor} host={host} locale={locale} scene={scene} />
+          <SharedPanelScene editor={editor} locale={locale} scene={scene} />
         )}
         {scene === 'diagram-error' && (
-          <DiagramErrorScene editor={editor} host={host} locale={locale} />
+          <DiagramErrorScene editor={editor} locale={locale} />
         )}
         {scene === 'external-change' && (
           <ExternalChangeScene locale={locale} />
@@ -618,7 +610,7 @@ function App() {
             <ActualTable columns={Number.isFinite(columns) ? Math.min(Math.max(columns, 3), 15) : 8} locale={locale} />
           </div>
           {showPanel && <PanelFixture locale={locale} />}
-          <span className="host-badge" aria-hidden="true">{host} · {theme} · {locale}</span>
+          <span className="host-badge" aria-hidden="true">vscode · {theme} · {locale}</span>
         </div>
         )}
       </main>

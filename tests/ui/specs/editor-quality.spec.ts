@@ -2,7 +2,6 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 import { SIDE_PANEL_TAB_CONTENT_ID } from '../../../shared/editor/components/SidePanelTabPanel';
 
-type Host = 'vscode' | 'tauri';
 type Theme = 'light' | 'dark' | 'hc';
 type Locale = 'ko' | 'en';
 type Scene = 'editor' | 'settings' | 'templates' | 'files' | 'diagram-error' | 'external-change';
@@ -10,7 +9,6 @@ type Scene = 'editor' | 'settings' | 'templates' | 'files' | 'diagram-error' | '
 interface FixtureOptions {
   width: number;
   height?: number;
-  host?: Host;
   theme?: Theme;
   locale?: Locale;
   scene?: Scene;
@@ -21,7 +19,6 @@ interface FixtureOptions {
 async function openFixture(page: Page, {
   width,
   height = 800,
-  host = 'vscode',
   theme = 'light',
   locale = 'ko',
   scene = 'editor',
@@ -29,7 +26,7 @@ async function openFixture(page: Page, {
   panel = false,
 }: FixtureOptions): Promise<void> {
   await page.setViewportSize({ width, height });
-  await page.goto(`/?host=${host}&theme=${theme}&locale=${locale}&scene=${scene}&columns=${columns}&panel=${panel ? '1' : '0'}`);
+  await page.goto(`/?theme=${theme}&locale=${locale}&scene=${scene}&columns=${columns}&panel=${panel ? '1' : '0'}`);
   await page.locator('.quality-harness[data-ready="true"]').waitFor();
   await page.evaluate(() => document.fonts.ready);
   await page.addStyleTag({
@@ -230,7 +227,6 @@ test.describe('responsive side panel contract', () => {
     test(`${width}px uses the overlay contract without horizontal overflow`, async ({ page }) => {
       await openFixture(page, {
         width,
-        host: 'vscode',
         theme: 'dark',
         locale: 'en',
         panel: true,
@@ -246,7 +242,6 @@ test.describe('responsive side panel contract', () => {
   test('1440px uses a docked complementary panel', async ({ page }) => {
     await openFixture(page, {
       width: 1440,
-      host: 'tauri',
       theme: 'light',
       locale: 'ko',
       panel: true,
@@ -381,7 +376,6 @@ test.describe('external change resolution prompt', () => {
     await openFixture(page, {
       width: 800,
       height: 700,
-      host: 'vscode',
       locale: 'en',
       scene: 'external-change',
     });
@@ -406,7 +400,6 @@ test.describe('external change resolution prompt', () => {
     await openFixture(page, {
       width: 800,
       height: 700,
-      host: 'tauri',
       locale: 'en',
       scene: 'external-change',
     });
@@ -440,7 +433,6 @@ test.describe('external change resolution prompt', () => {
     await openFixture(page, {
       width: 320,
       height: 700,
-      host: 'vscode',
       locale: 'en',
       scene: 'external-change',
     });
@@ -471,15 +463,13 @@ test.describe('accessibility and visual regions', () => {
     FixtureOptions,
     'columns' | 'height' | 'panel' | 'scene'
   >>> = [
-    { width: 320, host: 'vscode', theme: 'light', locale: 'ko' },
-    { width: 480, host: 'vscode', theme: 'dark', locale: 'en' },
-    { width: 768, host: 'vscode', theme: 'hc', locale: 'ko' },
-    { width: 1024, host: 'tauri', theme: 'light', locale: 'en' },
-    { width: 1280, host: 'tauri', theme: 'dark', locale: 'ko' },
+    { width: 320, theme: 'light', locale: 'ko' },
+    { width: 480, theme: 'dark', locale: 'en' },
+    { width: 768, theme: 'hc', locale: 'ko' },
   ];
 
   for (const scene of scenes) {
-    const name = `${scene.host}-${scene.theme}-${scene.locale}-${scene.width}`;
+    const name = `vscode-${scene.theme}-${scene.locale}-${scene.width}`;
     test(`${name} has no WCAG A/AA violations`, async ({ page }) => {
       await openFixture(page, scene);
       const results = await new AxeBuilder({ page })
@@ -503,7 +493,6 @@ test.describe('diagram dialog language defaults', () => {
       scene: 'diagram-error',
       width: 1024,
       height: 900,
-      host: 'tauri',
       theme: 'dark',
       locale: 'en',
     });
@@ -545,24 +534,17 @@ test.describe('commercial workflow scene gate', () => {
   interface WorkflowScene {
     scene: Exclude<Scene, 'editor' | 'external-change'>;
     width: 800 | 1024 | 1440;
-    host: Host;
     theme: Theme;
     locale: Locale;
   }
 
   const scenes: readonly WorkflowScene[] = [
-    { scene: 'settings', width: 800, host: 'vscode', theme: 'light', locale: 'en' },
-    { scene: 'settings', width: 1024, host: 'vscode', theme: 'dark', locale: 'en' },
-    { scene: 'settings', width: 1024, host: 'tauri', theme: 'dark', locale: 'ko' },
-    { scene: 'settings', width: 1440, host: 'tauri', theme: 'light', locale: 'en' },
-    { scene: 'settings', width: 1440, host: 'vscode', theme: 'hc', locale: 'ko' },
-    { scene: 'templates', width: 800, host: 'tauri', theme: 'light', locale: 'ko' },
-    { scene: 'templates', width: 1024, host: 'vscode', theme: 'dark', locale: 'en' },
-    { scene: 'templates', width: 1440, host: 'tauri', theme: 'dark', locale: 'en' },
-    { scene: 'files', width: 800, host: 'vscode', theme: 'dark', locale: 'ko' },
-    { scene: 'files', width: 1440, host: 'tauri', theme: 'light', locale: 'en' },
-    { scene: 'diagram-error', width: 1024, host: 'tauri', theme: 'dark', locale: 'en' },
-    { scene: 'diagram-error', width: 800, host: 'vscode', theme: 'hc', locale: 'ko' },
+    { scene: 'settings', width: 800, theme: 'light', locale: 'en' },
+    { scene: 'settings', width: 1024, theme: 'dark', locale: 'en' },
+    { scene: 'settings', width: 1440, theme: 'hc', locale: 'ko' },
+    { scene: 'templates', width: 1024, theme: 'dark', locale: 'en' },
+    { scene: 'files', width: 800, theme: 'dark', locale: 'ko' },
+    { scene: 'diagram-error', width: 800, theme: 'hc', locale: 'ko' },
   ];
 
   const componentSelector: Record<WorkflowScene['scene'], string> = {
@@ -575,7 +557,7 @@ test.describe('commercial workflow scene gate', () => {
   for (const scene of scenes) {
     const name = [
       scene.scene,
-      scene.host,
+      'vscode',
       scene.theme,
       scene.locale,
       scene.width,
@@ -650,7 +632,7 @@ test.describe('commercial workflow scene gate', () => {
 test.describe('heading palette contract', () => {
   test('uses four keyboard-operable cards and reveals Custom without rewriting Mixed', async ({ page }) => {
     await openFixture(page, {
-      scene: 'settings', width: 1024, height: 900, host: 'vscode', theme: 'dark', locale: 'en',
+      scene: 'settings', width: 1024, height: 900, theme: 'dark', locale: 'en',
     });
 
     const cards = page.locator('.settings-palette-card');
@@ -699,7 +681,7 @@ test.describe('heading palette contract', () => {
 
   test('places all four palette cards in one row at the maximum panel width', async ({ page }) => {
     await openFixture(page, {
-      scene: 'settings', width: 1440, height: 900, host: 'tauri', theme: 'light', locale: 'en',
+      scene: 'settings', width: 1440, height: 900, theme: 'light', locale: 'en',
     });
     const separator = page.getByRole('separator', { name: 'Resize side panel' });
     await separator.focus();
@@ -715,7 +697,7 @@ test.describe('heading palette contract', () => {
 test.describe('template interaction contract', () => {
   test('confirmation and metadata dialogs trap focus, validate, cancel, and complete', async ({ page }) => {
     await openFixture(page, {
-      scene: 'templates', width: 1024, height: 900, host: 'vscode', theme: 'dark', locale: 'en',
+      scene: 'templates', width: 1024, height: 900, theme: 'dark', locale: 'en',
     });
 
     await page.getByRole('button', { name: /Technical report/ }).click();
@@ -767,9 +749,9 @@ test.describe('template interaction contract', () => {
     await expect(deleteDialog).toBeHidden();
   });
 
-  test('Tauri failure restores the invoking button and the activity toggles with localized focus', async ({ page }) => {
+  test('open-folder failure restores the invoking button and the activity toggles with localized focus', async ({ page }) => {
     await openFixture(page, {
-      scene: 'templates', width: 800, height: 900, host: 'tauri', theme: 'light', locale: 'ko',
+      scene: 'templates', width: 800, height: 900, theme: 'light', locale: 'ko',
     });
 
     const activity = page.locator('#activity-destination-templates');

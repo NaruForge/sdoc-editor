@@ -4,7 +4,7 @@ The root [MIT License](LICENSE) applies to project source code and documentation
 
 ## Project artwork
 
-`media/sdoc-editor-icon.png` is the Structured Doc Editor project icon used by the VS Code extension and as the source for the generated Tauri desktop icon set in `tauri-app/src-tauri/icons/`. It is distributed with the project under the root license. Project names and artwork do not grant rights to unrelated third-party trademarks.
+`media/sdoc-editor-icon.png` is the Structured Doc Editor project icon used by the VS Code extension. It also served as the source for the historical Tauri desktop icon set in `tauri-app/src-tauri/icons/` through the final v0.7.8 Desktop release. It is distributed with the project under the root license. Project names and artwork do not grant rights to unrelated third-party trademarks.
 
 Provenance record:
 
@@ -14,10 +14,11 @@ Provenance record:
 
 ## README editor overview
 
-`media/readme/editor-overview-ko.png` is the Korean README overview image. It
-shows the same sanitized editor fixture in the VS Code light theme on the left
-and the Tauri dark theme on the right, with descriptive host/theme labels and
-no host logos.
+`media/readme/editor-overview-ko.png` is a retained historical v0.7.8 overview
+image. It shows the same sanitized editor fixture in the VS Code light theme on
+the left and the retired Tauri dark theme on the right, with descriptive
+host/theme labels and no host logos. It is no longer used as the current README
+product overview after Desktop EOL.
 
 Provenance and redistribution record:
 
@@ -35,7 +36,7 @@ Provenance and redistribution record:
   font assets listed below.
 - License and rights: the image is project documentation distributed under the
   root MIT License. It may be copied, modified, and redistributed under that
-  license in source archives, VSIX packages, desktop installers, project
+  license in source archives, VSIX packages, historical desktop installers, project
   documentation, and related project materials. Descriptive references to VS
   Code and Tauri do not grant rights to unrelated third-party trademarks.
 - SHA-256: `c0beb76d303f9a979d7649aa0376d404afbed9930ee8f208359869b49749943a`.
@@ -49,13 +50,14 @@ The following legacy assets are present in the source tree pending a separate cl
 
 These files are **not licensed under the repository's MIT License**. Their presence does not grant permission to copy, modify, redistribute, or use the associated trademarks or typefaces. Downstream distributors must omit them unless they have independently obtained the necessary rights.
 
-The VS Code packaging rules exclude the restricted `media/` paths; only `media/sdoc-editor-icon.png` is included from `media/`. The desktop icon files are generated derivatives of that project icon and are not restricted legacy assets. The desktop application does not use the legacy logo or font files. Contributors must not add new references to the restricted assets.
+The VS Code packaging rules exclude the restricted `media/` paths; only `media/sdoc-editor-icon.png` is included from `media/`. The historical desktop icon files are generated derivatives of that project icon and are not restricted legacy assets. Contributors must not add new references to the restricted assets.
 
 ## Bundled open-source fonts
 
 The editor embeds the following WOFF2 files for offline use. Both fonts are
 distributed under the SIL Open Font License 1.1; the unmodified license texts
-are included in `licenses/fonts/` and in VSIX, MSI, NSIS, and portable builds.
+are included in `licenses/fonts/` and current VSIX packages. They were also
+included in the final v0.7.8 MSI, NSIS, and portable Desktop artifacts.
 
 - Pretendard Variable v1.3.9
   - Upstream: `https://github.com/orioncactus/pretendard`
@@ -79,6 +81,6 @@ Every new image, font, sample document, diagram, or media file must have reviewa
 - its author or original source
 - the applicable license and required attribution
 - whether the contributor has permission from an employer or other rights holder
-- whether redistribution in VSIX, desktop installers, source archives, and exported documents is allowed
+- whether redistribution in VSIX packages, CLI packages, source archives, and exported documents is allowed
 
 Do not commit an asset when its source or redistribution rights are uncertain. Prefer original project artwork, permissively licensed assets, and system fonts that do not need to be redistributed.

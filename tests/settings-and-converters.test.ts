@@ -6,10 +6,6 @@ import { resolveEditorSettings, resolveSettings, SETTINGS_DEFAULTS, toRoman } fr
 import { assertPersistedDocument } from '../shared/document/documentContract';
 import { normalizeDocument, wrapSdoc } from '../shared/document/sdocUtils';
 import type { ExportSettings, SlideSettings, TiptapNode } from '../shared/types';
-import {
-  dispatchTauriSettingsMessage,
-  resolveTauriEditorSettings,
-} from '../tauri-app/src/settingsAdapter';
 
 describe('settings', () => {
   it('uses host-neutral visual defaults', () => {
@@ -38,19 +34,6 @@ describe('settings', () => {
     expect(toRoman(19)).toBe('XIX');
   });
 
-  it('acknowledges persisted Tauri document settings from the host echo', () => {
-    const actions: unknown[] = [];
-    const handled = dispatchTauriSettingsMessage({
-      type: 'docSettingsChanged',
-      docSettings: { headingH4Color: '#ff0000' },
-    }, (action) => actions.push(action));
-
-    expect(handled).toBe(true);
-    expect(actions).toEqual([{
-      type: 'SET_DOC_SETTINGS',
-      payload: { headingH4Color: '#ff0000' },
-    }]);
-  });
 });
 
 describe('markdown conversion', () => {
@@ -183,7 +166,7 @@ describe('cross-format numbering', () => {
     }
   });
 
-  it('resolves identical host semantics from the shared settings resolver', () => {
+  it('resolves document settings over host settings in the shared resolver', () => {
     const documentSettings = {
       captionStyle: 'ieee' as const,
       equationNumbering: 'hierarchical' as const,
@@ -192,28 +175,20 @@ describe('cross-format numbering', () => {
       headingH5Color: '#556677',
       headingH6Color: '#667788',
     };
-    const shared = resolveEditorSettings(documentSettings);
-    const tauri = resolveTauriEditorSettings({
+    const resolved = resolveEditorSettings(documentSettings, {
       headingNumbering: false,
       headingH4Color: '#000000',
       headingH5Color: '#111111',
       headingH6Color: '#222222',
       imageCaptionPrefix: 'legacy value must not override the preset',
     }, documentSettings);
-    expect(tauri).toMatchObject(shared);
-    expect(tauri).toMatchObject({
+    expect(resolved).toMatchObject({
       headingH4Color: '#445566',
       headingH5Color: '#556677',
       headingH6Color: '#667788',
     });
-    expect(tauri.tableNumberStyle).toBe('roman');
-    expect(tauri.equationParens).toBe(true);
+    expect(resolved.tableNumberStyle).toBe('roman');
+    expect(resolved.equationParens).toBe(true);
 
-    const reset = resolveTauriEditorSettings({ headingH4Color: 'invalid' }, null);
-    expect(reset).toMatchObject({
-      headingH4Color: SETTINGS_DEFAULTS.headingH4Color,
-      headingH5Color: SETTINGS_DEFAULTS.headingH5Color,
-      headingH6Color: SETTINGS_DEFAULTS.headingH6Color,
-    });
   });
 });

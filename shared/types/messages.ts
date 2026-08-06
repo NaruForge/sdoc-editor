@@ -601,6 +601,6 @@ export type WebviewToExtensionMessage =
   | SelectCssFileMessage
   | ClearCssFileMessage;
 
-/** Host-neutral names used by both the VS Code and Tauri adapters. */
+/** Host-boundary names shared by the VS Code extension and its webview. */
 export type HostToEditorMessage = ExtensionToWebviewMessage;
 export type EditorToHostMessage = WebviewToExtensionMessage;

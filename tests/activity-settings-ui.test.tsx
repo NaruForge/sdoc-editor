@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import postcss from 'postcss';
 import { describe, expect, it, vi } from 'vitest';
 import {
   createActivitySessionState,
@@ -54,10 +55,8 @@ describe('activity hubs and settings UI', () => {
     expect(state.lastChildTabs.navigate).toBe('figures');
   });
 
-  it('keeps unavailable workspace and template destinations out of session state', () => {
+  it('keeps the capability-gated template destination out of unavailable session state', () => {
     let state = createActivitySessionState(null);
-    expect(transitionActivityDestination(state, 'workspace')).toBe(state);
-
     state = transitionActivityDestination(state, 'templates', { showTemplates: true });
     expect(state.selection).toEqual({ destination: 'templates' });
     state = transitionActivityDestination(state, 'templates', { showTemplates: true });
@@ -77,21 +76,11 @@ describe('activity hubs and settings UI', () => {
         showTemplates
       />,
     );
-    const workspaceMarkup = renderActivityBar(
-      <ActivityBar
-        activeDestination="workspace"
-        onDestinationClick={vi.fn()}
-        showWorkspace
-      />,
-    );
-
     expect(sharedMarkup.match(/class="activity-bar-icon/g)).toHaveLength(4);
     expect(sharedMarkup.indexOf('Navigate')).toBeLessThan(sharedMarkup.indexOf('Design'));
     expect(sharedMarkup.indexOf('Design')).toBeLessThan(sharedMarkup.indexOf('Templates'));
     expect(sharedMarkup.indexOf('Templates')).toBeLessThan(sharedMarkup.indexOf('Publish'));
     expect(sharedMarkup).not.toContain('Workspace');
-    expect(workspaceMarkup.match(/class="activity-bar-icon/g)).toHaveLength(4);
-    expect(workspaceMarkup).toContain('Workspace');
   });
 
   it('keeps only Export and Import in Publish and remembers its last tab', () => {
@@ -148,7 +137,6 @@ describe('activity hubs and settings UI', () => {
   );
 
   it.each([
-    { destination: 'workspace' },
     { destination: 'design' },
     { destination: 'templates' },
   ] as const)(
@@ -165,7 +153,7 @@ describe('activity hubs and settings UI', () => {
     },
   );
 
-  it('uses the shared tab-and-panel composition in both hosts', () => {
+  it('uses the shared tab-and-panel composition in the VS Code host', () => {
     const bodySource = readFileSync(
       resolve(process.cwd(), 'shared/editor/components/SidePanelBody.tsx'),
       'utf8',
@@ -178,18 +166,33 @@ describe('activity hubs and settings UI', () => {
     expect(bodySource).toContain("from './SidePanelTabPanel'");
     expect(panelSource).not.toContain("from './SidePanelTabs'");
 
-    for (const path of [
-      'webview-ui/src/components/SidePanel.tsx',
-      'tauri-app/src/components/SidePanel.tsx',
-    ]) {
-      const source = readFileSync(resolve(process.cwd(), path), 'utf8');
-      expect(source).toContain("import { SidePanelBody } from '@shared/editor/components/SidePanelBody'");
-      expect(source).toContain("import { DesignPanel } from '@shared/editor/components/DesignPanel'");
-      expect(source).toContain('<SidePanelBody selection={selection} onSelectionChange={onSelectionChange}>');
-      expect(source).toContain("selection.destination === 'design'");
-      expect(source).not.toContain("selection.destination === 'design' && selection.tab");
-      expect(source).not.toContain('id="side-panel-tab-content"');
-    }
+    const source = readFileSync(
+      resolve(process.cwd(), 'webview-ui/src/components/SidePanel.tsx'),
+      'utf8',
+    );
+    expect(source).toContain("import { SidePanelBody } from '@shared/editor/components/SidePanelBody'");
+    expect(source).toContain("import { DesignPanel } from '@shared/editor/components/DesignPanel'");
+    expect(source).toContain('<SidePanelBody selection={selection} onSelectionChange={onSelectionChange}>');
+    expect(source).toContain("selection.destination === 'design'");
+    expect(source).not.toContain("selection.destination === 'design' && selection.tab");
+    expect(source).not.toContain('id="side-panel-tab-content"');
+  });
+
+  it('defines every VS Code theme variable used by shared CSS in the UI fixture', () => {
+    const sharedStyles = readFileSync(
+      resolve(process.cwd(), 'shared/editor/styles/editor.css'),
+      'utf8',
+    );
+    const harnessStyles = readFileSync(resolve(process.cwd(), 'tests/ui/src/harness.css'), 'utf8');
+    const referencedVariables = new Set(
+      [...sharedStyles.matchAll(/var\((--vscode-[\w-]+)/gu)].map((match) => match[1]),
+    );
+    const declaredVariables = new Set<string>();
+    postcss.parse(harnessStyles).walkDecls(/^--vscode-/u, (declaration) => {
+      declaredVariables.add(declaration.prop);
+    });
+
+    expect([...referencedVariables].filter((name) => !declaredVariables.has(name)).sort()).toEqual([]);
   });
 
   it('renders the host-shared composition with a connected selected tab and tabpanel', () => {

@@ -2,12 +2,16 @@
 
 ## Product
 
-Structured Doc Editor edits `.sdoc` and `.tiptap.json` documents in two hosts:
+Structured Doc Editor edits `.sdoc` and `.tiptap.json` documents through the
+VS Code extension in `src/` with the React webview in `webview-ui/`. The `cli/`
+workspace provides non-visual inspection and semantic document operations.
 
-- VS Code extension: `src/` with the React webview in `webview-ui/`
-- Windows desktop app: `tauri-app/` with a Rust/Tauri host
+The Windows desktop app reached end of life with v0.7.8. Its source remains
+available from the `v0.7.8` tag, but it is not present on `main` and is not a
+supported host, build target, or required verification surface from v0.8.0 onward.
 
-The document model, converters, settings, and host-neutral utilities belong in `shared/`. Host APIs such as `vscode` and `@tauri-apps/*` must not enter shared modules.
+The document model, converters, settings, and host-neutral utilities belong in
+`shared/`. VS Code APIs must not enter shared modules.
 
 ## Source of truth
 
@@ -17,8 +21,8 @@ The document model, converters, settings, and host-neutral utilities belong in `
 - `shared/settingsResolver.ts`: defaults and settings resolution
 - `shared/converter/`: all import/export conversion
 - `shared/book/`: `.sdocbook` parsing, validation, and host-neutral composition
-- `shared/editor/`: UI and Tiptap code shared by both hosts
-- `DESIGN.md`: product chrome design intent, runtime ownership, host differences, and UI verification contract
+- `shared/editor/`: reusable editor UI and Tiptap code consumed by the VS Code webview
+- `DESIGN.md`: product chrome design intent, runtime ownership, and UI verification contract
 - `docs/architecture.md`: current architecture
 - `docs/adr/`: durable architectural decisions; newer ADRs may supersede older ones
 
@@ -34,34 +38,27 @@ npm run check
 npm run build:all
 ```
 
-For Rust changes also run:
-
-```powershell
-cargo fmt --manifest-path tauri-app/Cargo.toml --all -- --check
-cargo clippy --manifest-path tauri-app/Cargo.toml --workspace --all-targets -- -D warnings
-cargo test --manifest-path tauri-app/Cargo.toml --workspace
-```
-
 ## Change rules
 
 1. Preserve unrelated working-tree changes.
 2. Add behavior tests before changing migration, ID assignment, cross-references, or converters.
-3. Add common editor behavior to `shared/editor/`, not separately to both hosts.
-4. Keep host differences behind adapters or host-level components.
+3. Add reusable editor behavior to `shared/editor/`; keep VS Code integration in `src/` or `webview-ui/`.
+4. Keep extension-host and webview differences behind typed adapters or host-level components.
 5. Parse external JSON as `unknown` and validate or narrow it at the boundary.
 6. Do not add new `any`, untyped `window` globals, synchronous extension-host I/O, or copied defaults.
 7. Update schemas, examples, tests, and converters when the persisted document format changes.
 8. Keep user documentation in `README.md`, contributor workflow in `CONTRIBUTING.md`, and implementation detail in `docs/`.
 9. Keep `.sdocbook` loading behind `BookDocumentLoader`; the composition core must not access host filesystems directly.
-10. Before changing UI, read `DESIGN.md`. Keep shared structure and geometry in `shared/editor/`, and verify affected behavior in VS Code and Tauri across light and dark themes, relevant responsive widths, and accessibility states.
+10. Before changing UI, read `DESIGN.md`. Keep reusable structure and geometry in `shared/editor/`, and verify affected behavior in VS Code across light, dark, and high-contrast themes, relevant responsive widths, and accessibility states.
 
 ## Packaging
 
 - `npm run package` creates the VSIX in `output/`.
-- `npm run build:desktop` builds the Tauri frontend only.
-- Native installers are built through Tauri after the frontend and Rust checks pass (`npm run tauri:build --workspace=sdoc-editor-tauri`).
+- `npm run package:cli` creates the installable CLI `.tgz` in `output/`.
 - Versions are synchronized by `npm run version:check`.
-- Desktop GitHub Releases: push a `v*` tag matching `package.json` to run `.github/workflows/release-desktop.yml` (Windows NSIS, MSI, portable EXE).
+- A matching `v*` tag publishes the VS Code extension through
+  `.github/workflows/release-vscode.yml` and attaches the CLI package through
+  `.github/workflows/release-cli.yml`.
 
 ## GitHub operations
 
@@ -79,13 +76,13 @@ cargo test --manifest-path tauri-app/Cargo.toml --workspace
 - Link commits and pull requests to the issue. Use `Fixes #<number>` only when the change fully resolves the issue.
 - Before closing an issue, comment with the implemented scope, verification results, and any remaining follow-up work.
 - Do not use private local notes as the sole record of a development decision.
-- Keep the Issue Form's type label and apply `area: cli`, `area: vscode`, and `area: desktop` according to the affected delivery surfaces defined in `.github/AI_ISSUE_REPORTING.md`.
+- Keep the Issue Form's type label and apply `area: cli` and `area: vscode` according to the affected delivery surfaces defined in `.github/AI_ISSUE_REPORTING.md`.
 - Trivial typo fixes, mechanical release or version operations, and routine dependency maintenance may proceed without a dedicated issue when no product decision is involved.
 - Never disclose vulnerabilities, credentials, personal information, customer data, or sensitive logs in public issues. Use GitHub Security Advisories or another appropriate private channel.
 
 ## Agent orchestration
 
-- Use `$orchestrate-sdoc-work` when a task has at least two independent workstreams, spans both hosts and shared code, or explicitly requests delegation or parallel review.
+- Use `$orchestrate-sdoc-work` when a task has at least two independent workstreams, spans multiple delivery surfaces or shared code, or explicitly requests delegation or parallel review.
 - Keep small edits, single-cause debugging, and tightly coupled changes in the main agent.
 - The main agent owns requirements, architecture decisions, integration, and final verification.
 - Prefer parallel read-heavy exploration, review, and test analysis. Partition write work by non-overlapping files and never let agents edit the same file concurrently.

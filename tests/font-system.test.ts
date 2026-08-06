@@ -24,21 +24,16 @@ describe('bundled editor font system', () => {
     expect(css).not.toMatch(/\.katex[^{}]*\{[^}]*font-family/s);
   });
 
-  it('imports fonts before editor and KaTeX styles in both hosts', () => {
-    for (const entry of ['webview-ui/src/main.tsx', 'tauri-app/src/main.tsx']) {
-      const source = read(entry);
-      expect(source.indexOf("styles/fonts.css")).toBeLessThan(source.indexOf("styles/editor.css"));
-      expect(source.indexOf("styles/editor.css")).toBeLessThan(source.indexOf("katex.min.css"));
-    }
+  it('imports fonts before editor and KaTeX styles', () => {
+    const source = read('webview-ui/src/main.tsx');
+    expect(source.indexOf("styles/fonts.css")).toBeLessThan(source.indexOf("styles/editor.css"));
+    expect(source.indexOf("styles/editor.css")).toBeLessThan(source.indexOf("katex.min.css"));
   });
 
-  it('packages both OFL license files with desktop distributions', () => {
-    const config = read('tauri-app/src-tauri/tauri.conf.json');
-    const portable = read('tauri-app/scripts/copy-portable.mjs');
-
-    expect(config).toContain('FONT_LICENSES/Pretendard-OFL.txt');
-    expect(config).toContain('FONT_LICENSES/JetBrainsMono-OFL.txt');
-    expect(portable).toContain("resolve(destDir, 'FONT_LICENSES')");
+  it('includes both OFL license files in generated notices', () => {
+    const notices = read('THIRD_PARTY_NOTICES.md');
+    expect(notices).toContain('licenses/fonts/Pretendard-OFL.txt');
+    expect(notices).toContain('licenses/fonts/JetBrainsMono-OFL.txt');
   });
 
   it('uses the bundled font system in the VS Code book editor', () => {

@@ -289,7 +289,7 @@ export const CustomImage = Image.extend<EditorExtensionOptions>({
           // it from the (possibly percent-encoded) src URL.
           const drawioPath = currentNode.attrs.relativePath || extractRelativePathFromSrc(src) || src;
 
-          // Ask the host app (Tauri or VS Code webview) to open the draw.io file externally
+          // Ask the VS Code extension host to open the draw.io file externally.
           runtime.openDrawio(drawioPath);
         }
         // Regular images: do nothing on double-click (use right-click context menu instead)

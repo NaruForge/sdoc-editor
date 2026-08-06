@@ -1,6 +1,6 @@
 name: Feature request
 description: Propose a focused improvement to Structured Doc Editor.
-title: "[Feature]: "
+title: '[Feature]: '
 labels:
   - enhancement
 body:
@@ -15,7 +15,7 @@ body:
     id: proposal
     attributes:
       label: Proposed solution
-      description: Describe the smallest useful behavior and which host it affects.
+      description: Describe the smallest useful behavior and whether it affects VS Code, CLI, or shared document semantics.
     validations:
       required: true
   - type: textarea
