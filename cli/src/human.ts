@@ -4,6 +4,31 @@ interface DiagnosticLike {
   severity?: unknown;
 }
 
+interface NodeLike {
+  type?: unknown;
+  text?: unknown;
+  content?: unknown;
+  attrs?: Record<string, unknown>;
+}
+
+function extractText(node: unknown): string {
+  if (typeof node !== 'object' || node === null) return '';
+  const n = node as NodeLike;
+  if (typeof n.text === 'string') return n.text;
+  if (!Array.isArray(n.content)) return '';
+  return n.content.map(extractText).join('');
+}
+
+function nodeContent(node: unknown): string | undefined {
+  if (typeof node !== 'object' || node === null) return undefined;
+  const n = node as NodeLike;
+  const text = extractText(n);
+  if (text.length > 0) return text;
+  const attrs = n.attrs;
+  const fallback = attrs?.latex ?? attrs?.code ?? attrs?.src ?? attrs?.caption;
+  return typeof fallback === 'string' && fallback.length > 0 ? fallback : undefined;
+}
+
 const stringValue = (value: unknown): string | undefined =>
   typeof value === 'string' && value.length > 0 ? value : undefined;
 
@@ -47,6 +72,17 @@ function selectedTargetLine(value: Record<string, unknown>): string | undefined 
   return `Selected target: ${type}${id ? ` #${id}` : ''}${path ? ` at ${path}` : ''}`;
 }
 
+function selectedTargetDetailLines(value: Record<string, unknown>): string[] {
+  if (typeof value.target !== 'object' || value.target === null) return [];
+  const selected = value.target as Record<string, unknown>;
+  const content = nodeContent(selected.node);
+  const digest = stringValue(selected.digest);
+  return [
+    ...(content ? [`Content: ${content}`] : []),
+    ...(digest ? [`Digest: ${digest}`] : []),
+  ];
+}
+
 export function renderHumanSuccess(value: Record<string, unknown>): string {
   const command = stringValue(value.command) ?? 'command';
   const lines: string[] = [];
@@ -65,6 +101,7 @@ export function renderHumanSuccess(value: Record<string, unknown>): string {
     }
     const selectedTarget = selectedTargetLine(value);
     if (selectedTarget) lines.push(selectedTarget);
+    lines.push(...selectedTargetDetailLines(value));
     if (Array.isArray(value.outline) && value.outline.length > 0) {
       lines.push('Outline:');
       for (const item of value.outline) {

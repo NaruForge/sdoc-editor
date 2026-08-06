@@ -59,13 +59,19 @@ dependency:
 ```powershell
 npm install --save-dev "$env:SDOC_CLI_TGZ_URL"
 npm ls sdoc-editor-cli --depth=0
-npx --no-install sdoc --version
+node .\node_modules\sdoc-editor-cli\dist\sdoc.js --version
 ```
 
-Keep `--no-install` on every local invocation. If the local binary is missing,
-the command must fail instead of allowing npm to download and execute an
-unrelated package. Check `Get-Location` first when an agent may be operating in
-more than one project.
+> **Package name collision warning:** The npm public registry contains an
+> unrelated package named `sdoc`. Even `npx --no-install sdoc` can resolve a
+> cached copy of that unrelated package when the project-local CLI is absent.
+> For deterministic local execution, invoke the installed package entry point
+> directly with `node ./node_modules/sdoc-editor-cli/dist/sdoc.js ...` and verify
+> the dependency first with `npm ls sdoc-editor-cli --depth=0`. A missing local
+> package then fails with a path/module error instead of running another
+> package. Do not install the registry package `sdoc`; it is not part of
+> Structured Doc Editor. Check the current directory before invoking the CLI
+> when an agent may be operating in more than one project.
 
 Use a global install only when that scope was explicitly requested:
 
@@ -76,7 +82,8 @@ sdoc --version
 ```
 
 The remaining examples use `sdoc` for readability. For a local installation,
-replace it with `npx --no-install sdoc`.
+replace it with `node ./node_modules/sdoc-editor-cli/dist/sdoc.js`. Do not use
+`npx sdoc` or `npx --no-install sdoc` as a local-presence check.
 
 ## Help and output
 
@@ -279,7 +286,7 @@ Destinations are `{ "position": "before"|"after", "target": ... }` or
 `{ "position": "section-end", "target": ... }`. `section-end` targets a
 heading and appends inside that section.
 
-### The 12 operations
+### The 14 operations
 
 Each operation below has a complete file in `dist/examples/operations/`:
 
@@ -287,13 +294,15 @@ Each operation below has a complete file in `dist/examples/operations/`:
 |---|---|---|
 | `renameHeading` | `target`, `title` | Rename a heading; optional `discardFormatting` permits replacing rich heading content |
 | `insertBlock` | `destination`, `block` | Insert a non-heading Tiptap block |
-| `insertSection` | `target`, `title` | Append a child section; optional `id` and `blocks` |
+| `insertSection` | `target`, `title` | Insert a child section by default, or a same-level sibling with `position: "before"|"after"`; optional `id` and `blocks` |
 | `replaceBlock` | `target`, `block` | Replace a block with the same node type while preserving identity |
 | `updateBlockAttrs` | `target`, `attrs` | Merge block attributes |
 | `moveBlock` | `target`, `destination` | Move a non-heading block |
 | `deleteBlock` | `target` | Delete a non-heading block |
 | `moveSection` | `target`, `destination` | Move a heading and its complete descendant section |
 | `deleteSection` | `target` | Delete a heading and its complete descendant section |
+| `setHeadingLevel` | `target`, `level` | Set a heading level and shift descendant headings by the same delta while preserving IDs |
+| `renameBlockId` | `target`, `newId` | Rename a heading or table ID and rewrite matching internal links |
 | `setDocumentTitle` | `title` | Set `meta.title`; optional `headingTarget` atomically updates an explicit H1 |
 | `updateDocumentMetadata` | `patch` | Set or remove (`null`) the allowed `author` and `version` fields |
 | `updateDocumentSettings` | `patch` | Set or remove (`null`) portable document setting overrides |
@@ -307,6 +316,27 @@ changed by these operations. Portable settings are:
 `crossRefIncludeCaption`, `pdfScale`, `selfContained`, `slideBreakLevel`,
 `slideTransition`, and `showTitleSlide`. Local path settings
 `slideCssPath`, `htmlCssPath`, and `outputDir` are deliberately excluded.
+
+`insertSection` keeps its existing child behavior when `position` is omitted or
+set to `"child"`: the new heading is one level deeper and is appended at the
+target section boundary. Set `position` to `"before"` or `"after"` to insert a
+same-level sibling before the target heading or after its complete descendant
+section. This is the supported CLI route for building several peer H1 sections
+without editing raw JSON; the new heading receives the target heading's level
+and its requested persistent ID.
+
+`setHeadingLevel` changes an existing heading to level 1-6 without changing its
+persistent ID. Every descendant heading in that section moves by the same
+level delta, preserving the section's relative hierarchy; the operation is
+rejected with `INVALID_HEADING_LEVEL` or `SECTION_LEVEL_OUT_OF_RANGE` when the
+requested level or any resulting descendant level falls outside 1-6. Inspect
+again after the write to confirm the resulting outline paths and parentage.
+
+`renameBlockId` requires an existing ID target and a unique non-empty `newId`.
+It preserves the node and heading level, updates internal `#old-id` links in the
+same atomic batch, and rejects duplicate IDs. A newly assigned ID cannot be used
+as another target in that same request because all operation targets are
+resolved from the inspected input revision before mutation begins.
 
 ### One inspection, one atomic batch
 
@@ -366,8 +396,29 @@ heading/section operations.
 Portable image assets use `./images/...`. Draw.io content is an `image` node
 whose `src` is under `./drawio/` and ends in `.drawio.svg`; it is not a
 `diagram` node. The CLI validates document structure and portable references
-but does not render Mermaid/PlantUML/D2, create or copy asset files, or fetch
-assets from the network.
+but does not render diagrams, create or copy asset files, or fetch assets from
+the network.
+
+### Diagram authoring and host rendering
+
+For CLI and AI-operator workflows, the source of truth is the `diagram` node:
+`diagram.attrs.language` plus `diagram.attrs.code`. A schema-valid node with
+those attributes is sufficient to author and preserve a diagram in `.sdoc`;
+the CLI owns structural validation and source preservation, not rendering.
+
+Rendering belongs to the Structured Doc Editor host/viewer:
+
+- Mermaid renders locally in the host.
+- PlantUML, D2, and Graphviz use the host's online preview path only after the
+  user grants the required first-use consent.
+- If consent is declined or rendering is unavailable, the diagram source
+  remains valid and preserved in the document.
+
+Do not install local D2, Graphviz, PlantUML, or other renderers merely because
+the CLI does not render a diagram. Local renderers are optional tools outside
+the CLI authoring contract; AI operators should create or update the diagram
+source node and leave rendering to the host unless the user explicitly asks
+for a separate local-renderer workflow.
 
 ## Legacy documents
 
@@ -428,8 +479,10 @@ must branch on `diagnostics[].code` from explicit `--json` output.
 | `STALE_REVISION` | The document bytes changed after inspection | Re-inspect the current file and rebuild the whole request from that revision |
 | `TARGET_NOT_FOUND`, `TARGET_NOT_BLOCK`, `TARGET_TYPE_MISMATCH`, `TARGET_DIGEST_MISMATCH` | A selected path/ID is absent, is not a block, changed type, or no longer matches its snapshot | Re-inspect and use the returned `operationTarget`; do not weaken the precondition |
 | `SECTION_OPERATION_REQUIRED`, `HEADING_TARGET_REQUIRED`, `SECTION_TARGET_REQUIRED`, `TITLE_H1_TARGET_REQUIRED` | A block operation was used for a heading, or a title target was not H1 | Use the matching heading/section operation and an inspected heading target |
+| `INVALID_HEADING_LEVEL`, `SECTION_LEVEL_OUT_OF_RANGE` | A requested heading level is outside 1-6, or shifting the section would push a descendant outside that range | Choose a valid target level that keeps every descendant heading within 1-6 |
 | `FORMATTED_HEADING` | Replacing a rich heading would discard marks or inline nodes | Preserve it, or explicitly use `discardFormatting` / `--discard-formatting` |
 | `ATTRIBUTE_NOT_ALLOWED`, `NODE_TYPE_CHANGE` | An attr is not allowed for the node, or replacement changes its type | Consult the node catalog/schema and keep replacements type-compatible |
+| `ID_RENAME_NOT_SUPPORTED`, `ID_RENAME_REQUIRES_EXISTING_ID`, `INVALID_NEW_ID` | An ID rename targeted an unsupported or provisional node, or supplied an invalid new ID | Target an inspected heading/table with an existing persistent ID and choose a unique non-reserved ID |
 | `NEW_NONPORTABLE_ASSET`, `NEW_DANGLING_REFERENCE`, `NEW_UNSAFE_LINK` | The batch introduces an invalid asset path, missing internal target, or unsafe link | Use `./images/...` or `./drawio/*.drawio.svg`, create referenced IDs, and use a safe URL |
 | `DUPLICATE_ID` | The document contains conflicting persistent IDs | Assign unique IDs before retrying |
 | `CLI_TARGET_EXISTS` | `create` would overwrite an existing file | Choose a new path; the CLI never overwrites during creation |

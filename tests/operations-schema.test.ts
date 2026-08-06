@@ -23,9 +23,11 @@ const exampleNames = [
   'insert-section.json',
   'move-block.json',
   'move-section.json',
+  'rename-block-id.json',
   'rename-heading.json',
   'replace-block.json',
   'set-document-title.json',
+  'set-heading-level.json',
   'update-block-attrs.json',
   'update-document-metadata.json',
   'update-document-settings.json',
@@ -35,7 +37,7 @@ const parseJson = async (path: string): Promise<unknown> =>
   JSON.parse(await readFile(path, 'utf8')) as unknown;
 
 describe('public operation contract', () => {
-  it('validates all twelve published examples against draft-07 schemas', async () => {
+  it('validates all published examples against draft-07 schemas', async () => {
     const documentSchema = await parseJson(join(root, 'sdoc.schema.json')) as JsonSchema;
     const operationSchema = await parseJson(join(root, 'sdoc.operations.schema.json')) as JsonSchema;
     const ajv = new Ajv({ allErrors: true, strict: false });
@@ -96,6 +98,7 @@ describe('public operation contract', () => {
     for (const operation of [
       { op: 'setDocumentTitle', title: boundary },
       { op: 'updateDocumentMetadata', patch: { author: boundary, version: boundary } },
+      { op: 'renameBlockId', target: { kind: 'id', id: 'old' }, newId: '😀'.repeat(128) },
     ]) {
       expect(validate({
         contract: 'sdoc.operations/1',
@@ -109,6 +112,8 @@ describe('public operation contract', () => {
       { op: 'setDocumentTitle', title: ` ${'x'.repeat(200)}` },
       { op: 'updateDocumentMetadata', patch: { author: `${boundary}😀` } },
       { op: 'updateDocumentMetadata', patch: { version: `${boundary}😀` } },
+      { op: 'renameBlockId', target: { kind: 'id', id: 'old' }, newId: '😀'.repeat(129) },
+      { op: 'renameBlockId', target: { kind: 'id', id: 'old' }, newId: 'provisional:reserved' },
     ]) {
       expect(validate({
         contract: 'sdoc.operations/1',

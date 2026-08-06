@@ -33,13 +33,22 @@ export type SdocOperation =
   }
   | { op: 'updateDocumentSettings'; patch: DocumentSettingsPatch }
   | { op: 'insertBlock'; destination: BlockDestination; block: TiptapNode }
-  | { op: 'insertSection'; target: NodeTarget; title: string; id?: string; blocks?: TiptapNode[] }
+  | {
+    op: 'insertSection';
+    target: NodeTarget;
+    title: string;
+    id?: string;
+    blocks?: TiptapNode[];
+    position?: 'child' | 'before' | 'after';
+  }
   | { op: 'replaceBlock'; target: NodeTarget; block: TiptapNode }
   | { op: 'updateBlockAttrs'; target: NodeTarget; attrs: Record<string, unknown> }
   | { op: 'moveBlock'; target: NodeTarget; destination: BlockDestination }
   | { op: 'deleteBlock'; target: NodeTarget }
   | { op: 'moveSection'; target: NodeTarget; destination: BlockDestination }
-  | { op: 'deleteSection'; target: NodeTarget };
+  | { op: 'deleteSection'; target: NodeTarget }
+  | { op: 'setHeadingLevel'; target: NodeTarget; level: number }
+  | { op: 'renameBlockId'; target: NodeTarget; newId: string };
 
 export interface SdocOperationRequest {
   contract: 'sdoc.operations/1';
@@ -113,7 +122,8 @@ export interface SemanticDiffEvent {
     | 'section-deleted' | 'id-assigned' | 'reference-label-updated'
     | 'numbering-updated' | 'metadata-updated'
     | 'document-title-updated' | 'document-metadata-updated'
-    | 'document-settings-updated';
+    | 'document-settings-updated'
+    | 'block-id-renamed' | 'section-level-changed';
   before?: string;
   after?: string;
   indirectChanges?: number;

@@ -6,8 +6,9 @@
   "operations": [
     {
       "op": "insertSection",
-      "target": { "kind": "id", "id": "parent-heading-id-from-inspect" },
-      "title": "New child section",
+      "target": { "kind": "id", "id": "sibling-heading-id-from-inspect" },
+      "position": "after",
+      "title": "New sibling section",
       "id": "new-section-id",
       "blocks": [
         {
