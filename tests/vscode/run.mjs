@@ -5,6 +5,10 @@ import { tmpdir } from 'node:os';
 import { runTests } from '@vscode/test-electron';
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+const extensionPath = process.env.SDOC_EXTENSION_PATH
+  ? path.resolve(process.env.SDOC_EXTENSION_PATH)
+  : repositoryRoot;
+process.env.SDOC_VSCODE_UI_TEST = '1';
 
 const workspacePath = await mkdtemp(path.join(tmpdir(), 'sdoc-vscode-host-'));
 try {
@@ -13,7 +17,7 @@ try {
   });
   await runTests({
     version: process.env.VSCODE_TEST_VERSION || 'stable',
-    extensionDevelopmentPath: repositoryRoot,
+    extensionDevelopmentPath: extensionPath,
     extensionTestsPath: path.join(repositoryRoot, 'tests', 'vscode', 'suite', 'index.cjs'),
     launchArgs: [
       workspacePath,

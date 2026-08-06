@@ -25,6 +25,11 @@ describe('editor host message boundary', () => {
 
   it('accepts valid discriminated messages', () => {
     expect(isEditorToHostMessage({
+      type: 'uiReady',
+      sessionId: 'session-1',
+      documentId: 'doc-a',
+    })).toBe(true);
+    expect(isEditorToHostMessage({
       type: 'editorTextFocusChanged',
       sessionId: 'session-1',
       documentId: 'doc-a',
@@ -81,6 +86,7 @@ describe('editor host message boundary', () => {
   });
 
   it('rejects unknown and malformed messages', () => {
+    expect(isEditorToHostMessage({ type: 'uiReady', sessionId: 'session-1' })).toBe(false);
     expect(isEditorToHostMessage({
       type: 'editorTextFocusChanged',
       sessionId: 'session-1',

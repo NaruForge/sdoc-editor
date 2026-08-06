@@ -285,7 +285,12 @@ export function createDocumentStructureIndexPlugin(options: StructureIndexPlugin
       const scheduler = createTrailingStructureIndexScheduler(() => {
         ensureStructureIndexFresh(view);
       });
-      const controller: StructureIndexController = { listeners: new Set(), scheduler };
+      const pendingListeners = pendingStructureIndexListeners.get(view);
+      const controller: StructureIndexController = {
+        listeners: pendingListeners ?? new Set(),
+        scheduler,
+      };
+      pendingStructureIndexListeners.delete(view);
       structureIndexControllers.set(view, controller);
 
       const update = (nextView: EditorView) => {
@@ -305,6 +310,7 @@ export function createDocumentStructureIndexPlugin(options: StructureIndexPlugin
         destroy() {
           scheduler.cancel();
           controller.listeners.clear();
+          pendingStructureIndexListeners.delete(view);
           structureIndexControllers.delete(view);
         },
       };
@@ -376,15 +382,30 @@ interface StructureIndexController {
   scheduler: TrailingStructureIndexScheduler;
 }
 const structureIndexControllers = new WeakMap<EditorView, StructureIndexController>();
+const pendingStructureIndexListeners = new WeakMap<EditorView, Set<StructureIndexListener>>();
 
 export function subscribeToDocumentStructureIndex(
   view: EditorView,
   listener: StructureIndexListener,
 ): () => void {
   const controller = structureIndexControllers.get(view);
-  if (!controller) throw new Error('Document structure index view is not registered');
-  controller.listeners.add(listener);
-  return () => controller.listeners.delete(listener);
+  if (controller) {
+    controller.listeners.add(listener);
+    return () => controller.listeners.delete(listener);
+  }
+
+  // The editor can expose its EditorView before this plugin's view lifecycle
+  // has registered the controller. Confirm that the state plugin exists, then
+  // hold the listener until registration instead of crashing the initial
+  // React effect.
+  getDocumentStructureIndexState(view.state);
+  const pending = pendingStructureIndexListeners.get(view) ?? new Set<StructureIndexListener>();
+  pending.add(listener);
+  pendingStructureIndexListeners.set(view, pending);
+  return () => {
+    pending.delete(listener);
+    if (pending.size === 0) pendingStructureIndexListeners.delete(view);
+  };
 }
 
 export const DocumentStructureIndexExtension = Extension.create<EditorExtensionOptions>({

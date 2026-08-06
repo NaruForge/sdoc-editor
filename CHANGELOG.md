@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.3] - 2026-08-07
+
+### Fixed
+- Fixed the v0.8.2 blank VS Code editor by preserving structure-index subscriptions made before the ProseMirror plugin view mounts
+- Prevented the post-update changelog from taking focus away from the `.sdoc` document that activated the extension
+- Added source and packaged-VSIX Extension Host gates that require visible nonzero editor chrome and an editable ProseMirror surface before release verification or Marketplace publication passes
+
 ## [0.8.2] - 2026-08-06
 
 ### Added

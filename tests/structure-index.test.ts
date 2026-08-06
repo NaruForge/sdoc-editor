@@ -7,6 +7,7 @@ import { resolveEditorSettings } from '../shared/settingsResolver';
 import { createTiptapExtensions } from '../shared/editor/extensions/tiptapExtensions';
 import { NOOP_EDITOR_EXTENSION_RUNTIME } from '../shared/editor/extensionRuntime';
 import {
+  STRUCTURE_INDEX_REBUILD_DELAY_MS,
   createDocumentStructureIndexPlugin,
   ensureStructureIndexFresh,
   getDocumentStructureIndexState,
@@ -139,6 +140,65 @@ describe('document structure index', () => {
     requestStructureIndexSettingsRefresh(host);
 
     expect(getDocumentStructureIndexState(state).dirty).toBe(true);
+  });
+
+  it('keeps subscriptions made before the ProseMirror plugin view mounts', () => {
+    vi.useFakeTimers();
+    let state = createState();
+    const plugin = state.plugins[0];
+    let pluginView: PluginView | undefined;
+    const view = {
+      get state() { return state; },
+      dispatch(transaction: Transaction) {
+        state = state.apply(transaction);
+        pluginView?.update?.(view as unknown as EditorView);
+      },
+    } as unknown as EditorView;
+    const listener = vi.fn();
+
+    const unsubscribe = subscribeToDocumentStructureIndex(view, listener);
+    pluginView = plugin.spec.view?.(view);
+    view.dispatch(state.tr.insertText(' updated', 4));
+    vi.advanceTimersByTime(STRUCTURE_INDEX_REBUILD_DELAY_MS);
+
+    expect(listener).toHaveBeenCalledOnce();
+    expect(listener.mock.calls[0]?.[0].headings[0]?.title).toBe('One updated');
+
+    unsubscribe();
+    pluginView?.destroy?.();
+  });
+
+  it('still rejects subscriptions when the structure-index state plugin is absent', () => {
+    const schema = getSchema([StarterKit]);
+    const state = EditorState.create({ schema });
+    const view = { state } as unknown as EditorView;
+
+    expect(() => subscribeToDocumentStructureIndex(view, vi.fn()))
+      .toThrow('Document structure index plugin is not registered');
+  });
+
+  it('drops a pending subscription that is cancelled before the plugin view mounts', () => {
+    vi.useFakeTimers();
+    let state = createState();
+    const plugin = state.plugins[0];
+    let pluginView: PluginView | undefined;
+    const view = {
+      get state() { return state; },
+      dispatch(transaction: Transaction) {
+        state = state.apply(transaction);
+        pluginView?.update?.(view as unknown as EditorView);
+      },
+    } as unknown as EditorView;
+    const listener = vi.fn();
+
+    const unsubscribe = subscribeToDocumentStructureIndex(view, listener);
+    unsubscribe();
+    pluginView = plugin.spec.view?.(view);
+    view.dispatch(state.tr.insertText(' updated', 4));
+    vi.advanceTimersByTime(STRUCTURE_INDEX_REBUILD_DELAY_MS);
+
+    expect(listener).not.toHaveBeenCalled();
+    pluginView?.destroy?.();
   });
 
   it('wires runtime localization and keyboard semantics into generated editor widgets', () => {

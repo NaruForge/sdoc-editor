@@ -178,6 +178,20 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     panel: vscode.WebviewPanel;
     sessionId: string;
   }>();
+  private readonly uiReadySessionIds = new Set<string>();
+
+  public static async waitForActiveEditorUiReady(timeoutMs = 10_000): Promise<boolean> {
+    const provider = SdocEditorProvider.instance;
+    if (!provider) throw new Error('Structured Doc Editor is not active.');
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      const activeSession = [...provider.editorSessions.values()]
+        .find((session) => session.panel.active);
+      if (activeSession && provider.uiReadySessionIds.has(activeSession.sessionId)) return true;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    throw new Error('Timed out waiting for the Structured Doc webview UI to render.');
+  }
   private readonly diagramRendererRuntimes = new Map<vscode.WebviewPanel, {
     service: KrokiDiagramService;
     requests: Map<string, AbortController>;
@@ -1194,6 +1208,16 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
               settings: this.readDiagramRendererSettings(),
             });
             break;
+          case 'uiReady': {
+            const currentSession = this.editorSessions.get(documentId);
+            if (message.sessionId === sessionId
+              && message.documentId === documentId
+              && currentSession?.panel === webviewPanel
+              && currentSession.sessionId === sessionId) {
+              this.uiReadySessionIds.add(sessionId);
+            }
+            break;
+          }
           case 'recoverInvalidDocument': {
             const rejectRecovery = async (detail: string): Promise<void> => {
               await webviewPanel.webview.postMessage({
@@ -1573,6 +1597,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       if (this.editorSessions.get(documentId)?.panel === webviewPanel) {
         this.editorSessions.delete(documentId);
       }
+      this.uiReadySessionIds.delete(sessionId);
       changeDocumentSubscription.dispose();
       willSaveSubscription.dispose();
       didSaveSubscription.dispose();

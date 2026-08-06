@@ -406,6 +406,12 @@ export interface ReadyMessage {
   type: 'ready';
 }
 
+export interface UiReadyMessage {
+  type: 'uiReady';
+  sessionId: string;
+  documentId: string;
+}
+
 export interface EditorTextFocusChangedMessage {
   type: 'editorTextFocusChanged';
   sessionId: string;
@@ -627,6 +633,7 @@ export interface RecoverInvalidDocumentMessage {
 
 export type WebviewToExtensionMessage =
   | ReadyMessage
+  | UiReadyMessage
   | EditorTextFocusChangedMessage
   | UpdateUiLanguageMessage
   | RequestTemplateCatalogMessage
