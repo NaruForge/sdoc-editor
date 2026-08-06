@@ -1,23 +1,13 @@
 name: Bug report
-description: Report a reproducible problem in the VS Code extension or desktop app.
-title: "[Bug]: "
+description: Report a reproducible problem in the VS Code extension.
+title: '[Bug]: '
 labels:
   - bug
+  - 'area: vscode'
 body:
   - type: markdown
     attributes:
       value: Thanks for helping improve Structured Doc Editor. Please remove private or proprietary document content before attaching files.
-  - type: dropdown
-    id: host
-    attributes:
-      label: Host
-      description: "Maintainers use this selection to apply `area: vscode`, `area: desktop`, or both labels."
-      options:
-        - VS Code extension
-        - Windows desktop app
-        - Both
-    validations:
-      required: true
   - type: input
     id: version
     attributes:

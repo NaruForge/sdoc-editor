@@ -3,7 +3,7 @@ import type { SidePanelSelection } from '../activityState';
 
 export type TabbedSidePanelSelection = Exclude<
   SidePanelSelection,
-  { destination: 'workspace' | 'design' | 'templates' }
+  { destination: 'design' | 'templates' }
 >;
 
 export const SIDE_PANEL_TAB_CONTENT_ID = 'side-panel-tab-content';

@@ -16,19 +16,17 @@
 
 <p align="center">
   <a href="https://marketplace.visualstudio.com/items?itemName=swbaek.structured-doc-editor">VS Code에 설치</a>
-  · <a href="https://github.com/NaruForge/sdoc-editor/releases/latest">Windows 다운로드</a>
   · <a href="#빠른-시작">빠른 시작</a>
   · <a href="https://github.com/NaruForge/sdoc-editor/blob/main/cli/README.md">CLI</a>
   · <a href="#프로젝트-문서">문서</a>
 </p>
 
-<p align="center">
-  <img src="media/readme/editor-overview-ko.png" alt="같은 한국어 기술 문서를 편집하는 VS Code 확장과 Windows 데스크톱 앱" width="1600">
-</p>
-
 Structured Doc Editor는 `.sdoc`와 레거시 `.tiptap.json` 문서를 위한 오픈 소스 편집기입니다. 제목·표·수식·다이어그램·캡션·교차 참조를 문서 화면에서 편집하면서, 원본은 사람이 검토하고 Git으로 추적하기 쉬운 JSON으로 저장합니다.
 
-VS Code 확장과 Windows 데스크톱 앱은 같은 문서 코어와 에디터를 사용합니다. 저장 형식과 번호·참조의 의미는 같고, 각 host의 설치 방식과 일부 기능만 다릅니다.
+v0.8.0부터 지원하는 배포면은 VS Code 확장과 SDOC CLI입니다. VS Code는 시각 편집과 import/export를 제공하고, CLI는 같은 문서 계약 위에서 자동 검사와 revision-safe 의미 연산을 제공합니다.
+
+> [!WARNING]
+> Windows Desktop은 **v0.7.8을 마지막으로 지원이 종료(EOL)** 되었습니다. [v0.7.8 릴리스](https://github.com/NaruForge/sdoc-editor/releases/tag/v0.7.8)의 기존 바이너리는 기록 보존용이며 보안 수정, 호환성 업데이트, 사용자 지원을 받지 않습니다. 기존 `.sdoc` 문서와 `~/.sdoc/templates/` 데이터는 삭제되지 않으므로 백업한 뒤 v0.8.0 이상 VS Code 확장으로 여세요.
 
 ## 왜 Structured Doc Editor인가
 
@@ -45,14 +43,7 @@ VS Code 확장과 Windows 데스크톱 앱은 같은 문서 코어와 에디터�
 | 환경 | 적합한 용도 | 설치 | 현재 범위 |
 |---|---|---|---|
 | **VS Code 확장** | 코드와 기술 문서를 같은 workspace에서 관리 | [Marketplace](https://marketplace.visualstudio.com/items?itemName=swbaek.structured-doc-editor), VS Code 1.85 이상 | 전체 시각 편집, import/export, `.sdocbook` 관리 |
-| **Windows Desktop** | VS Code 없이 로컬 기술 문서를 편집 | [최신 Windows x64 릴리스](https://github.com/NaruForge/sdoc-editor/releases/latest) | 전체 시각 편집, HTML·Markdown import, 일부 export; PDF·Slides·Book 제외 |
 | **SDOC CLI** | 자동 검사와 revision-safe 의미 단위 변경 | GitHub Release의 `sdoc-editor-cli-*.tgz`, Node.js 22.22.2 이상 | 생성·검사·검증·의미 연산; 시각 편집과 변환 제외 |
-
-> [!NOTE]
-> Windows Desktop은 **Windows x64를 지원하며 일부 기능에 host 제한이 있습니다.** 일반 설치에는 `Structured.Doc.Editor_*_x64-setup.exe`를 권장합니다. MSI는 관리형 배포, portable ZIP은 설치 없는 실행에 사용할 수 있습니다.
-
-> [!WARNING]
-> 현재 Windows 설치 자산은 코드 서명되지 않아 Microsoft Defender SmartScreen이 경고할 수 있습니다. 파일은 반드시 이 저장소의 [공식 최신 Release](https://github.com/NaruForge/sdoc-editor/releases/latest)에서 받고, 출처와 릴리스 버전을 확인한 뒤 사용하세요.
 
 ## 빠른 시작
 
@@ -70,12 +61,6 @@ code --install-extension swbaek.structured-doc-editor
 
 직접 빌드한 `.vsix`는 명령 팔레트의 `Extensions: Install from VSIX...`에서 설치할 수 있습니다. GitHub Release에는 VSIX가 첨부되지 않으며 공개 배포는 Marketplace를 사용합니다.
 
-### Windows Desktop
-
-1. [최신 Release](https://github.com/NaruForge/sdoc-editor/releases/latest)에서 Windows x64 Setup EXE를 내려받아 설치합니다.
-2. 앱에서 작업 폴더를 열고 새 `.sdoc` 문서를 만들거나 기존 `.sdoc`/`.tiptap.json`을 엽니다.
-3. 같은 편집기에서 작성·저장하고 필요한 지원 형식으로 내보냅니다.
-
 ## 핵심 기능
 
 | 영역 | 제공 기능 |
@@ -86,15 +71,15 @@ code --install-extension swbaek.structured-doc-editor
 | 콘텐츠 블록 | 인용문, Note·Info·Tip·Warning·Danger 콜아웃, 체크리스트, 정렬과 텍스트 스타일 |
 | 편집 경험 | 커서 이동 기록, 60–200% 확대/축소, 문서별 테마·폰트·캡션 설정, 사용자 CSS |
 
-### Host별 형식 지원
+### 배포면별 형식 지원
 
-| 작업 | VS Code | Windows Desktop | CLI |
-|---|:---:|:---:|:---:|
-| `.sdoc` / `.tiptap.json` 열기 | ✓ | ✓ | 검사·변경 |
-| Markdown·HTML 가져오기 | ✓ | ✓ | — |
-| HTML·Markdown·AsciiDoc 내보내기 | ✓ | ✓ | — |
-| PDF·reveal.js Slides 내보내기 | ✓ | — | — |
-| `.sdocbook` 편집·통합 export | ✓ | — | — |
+| 작업 | VS Code | CLI |
+|---|:---:|:---:|
+| `.sdoc` / `.tiptap.json` 열기 | ✓ | 검사·변경 |
+| Markdown·HTML 가져오기 | ✓ | — |
+| HTML·Markdown·AsciiDoc 내보내기 | ✓ | — |
+| PDF·reveal.js Slides 내보내기 | ✓ | — |
+| `.sdocbook` 편집·통합 export | ✓ | — |
 
 ## 템플릿
 
@@ -103,17 +88,17 @@ code --install-extension swbaek.structured-doc-editor
 
 - 새 문서 명령에서 빈 문서, 기술 보고서, 설계 명세서, 시험·검증 보고서를 선택할 수 있습니다.
 - 팀 템플릿은 workspace의 `.sdoc/templates/*.sdoc`에 두고 Git으로 공유합니다.
-- 개인 템플릿은 `~/.sdoc/templates/`에 저장되며 로컬 VS Code와 Windows 앱이 함께 사용합니다. Remote·WSL·SSH에서는 원격 사용자 홈에 별도로 저장됩니다.
+- 개인 템플릿은 `~/.sdoc/templates/`에 저장됩니다. Remote·WSL·SSH에서는 원격 사용자 홈에 별도로 저장됩니다.
 - 현재 템플릿은 본문 구조와 문서 설정만 지원합니다. 이미지·Draw.io asset을 포함한 템플릿은 잘못된 경로 연결을 막기 위해 저장 또는 로드가 거부됩니다.
 - 템플릿 적용은 현재 본문과 문서 설정을 교체하기 전에 확인을 받습니다. 손상되거나 지원하지 않는 문서는 템플릿으로 덮어쓰지 않습니다.
 
 ## 문서 작성과 설정
 
-- 왼쪽 Navigate, Design, Publish 허브에서 탐색, 화면·문서 설정, 가져오기·내보내기·템플릿을 전환합니다. Desktop은 Workspace 허브도 제공합니다.
+- 왼쪽 Navigate, Design, Templates, Publish 허브에서 탐색, 화면·문서 설정, 가져오기·내보내기·템플릿을 전환합니다.
 - `@`를 입력해 제목·그림·표·수식에 대한 교차 참조를 삽입합니다.
 - 이미지는 클립보드에서 붙여 넣고 캡션·정렬을 지정할 수 있습니다.
 - Mermaid는 로컬에서 렌더링합니다. PlantUML·D2·Graphviz의 온라인 미리보기는 최초 사용 시 원문 전송과 엔드포인트를 안내하고 동의를 받은 뒤 활성화됩니다. 거절해도 소스는 그대로 편집·저장·내보낼 수 있습니다.
-- Draw.io 편집은 VS Code에서 [Draw.io Integration](https://marketplace.visualstudio.com/items?itemName=hediet.vscode-drawio), Windows Desktop에서 draw.io 데스크톱 애플리케이션이 필요합니다.
+- Draw.io 편집은 VS Code의 [Draw.io Integration](https://marketplace.visualstudio.com/items?itemName=hediet.vscode-drawio)이 필요합니다.
 - UI 언어와 외부 renderer 같은 host 설정은 사용자 환경에 저장됩니다. 제목·캡션·폰트·색상·테마·슬라이드 같은 문서 설정은 `.sdoc`의 `meta.settings`에 저장됩니다.
 
 VS Code는 확장을 제거해도 사용자가 기록한 `settings.json` 값을 자동으로 삭제하지 않습니다. v0.7.4 이하의 디자인·슬라이드 설정이 남아 있으면 명령 팔레트에서 `Structured Doc Editor: Clean Up Legacy Settings`를 실행하세요. 삭제 대상과 설정 범위를 확인받은 뒤 더 이상 지원하지 않는 Structured Doc Editor 설정만 제거합니다.
@@ -136,7 +121,7 @@ VS Code는 확장을 제거해도 사용자가 기록한 `settings.json` 값을 
 저장 형식의 기준은 [`sdoc.schema.json`](sdoc.schema.json)입니다.
 
 - 저장 전 최신 편집 내용과 문서 identity·revision을 확인해 지연된 저장이 다른 문서에 적용되지 않게 합니다.
-- 잘못된 JSON이나 지원하지 않는 미래 버전은 원본 보호를 위해 VS Code에서 읽기 전용으로 열고, Windows Desktop에서는 열기를 거부합니다.
+- 잘못된 JSON이나 지원하지 않는 미래 버전은 원본 보호를 위해 VS Code에서 읽기 전용으로 엽니다.
 - 이미지와 Draw.io 파일은 portable 상대 경로만 저장하며 문서 경계 밖 경로와 symlink 탈출을 거부합니다.
 - Command Palette와 편집기 Publish 패널은 같은 변환기와 설정 해석 규칙을 사용합니다.
 

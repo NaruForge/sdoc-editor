@@ -1,12 +1,11 @@
 ## Summary
 
-Describe the user-visible behavior and the affected host or shared module.
+Describe the user-visible behavior and the affected delivery surface or shared module.
 
 ## Validation
 
 - [ ] `npm run check`
 - [ ] `npm run build:all`
-- [ ] Rust checks were run when `tauri-app/src-tauri/` changed
 - [ ] Tests cover changed document, persistence, or converter behavior
 
 ## Contribution rights

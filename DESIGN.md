@@ -6,11 +6,11 @@ description: Design intent and implementation boundaries for shared application 
 
 ## Overview
 
-Structured Doc Editor is one focused document editor presented through VS Code
-and a Windows desktop host. Product chrome should feel native to its host while
-keeping the same information architecture, interaction model, and content
-priority. The document is the primary surface; navigation and controls should
-support the writing task without competing with it.
+Structured Doc Editor is one focused document editor presented through VS Code.
+Product chrome should feel native to VS Code while keeping a stable information
+architecture, interaction model, and content priority. The document is the
+primary surface; navigation and controls should support the writing task
+without competing with it.
 
 This contract covers application chrome and shared UI: the Activity rail,
 contextual panel, toolbar, dialogs, menus, settings controls, and editor shell.
@@ -40,30 +40,28 @@ fixed palette:
 - `error` communicates invalid or failed states and is paired with text or an
   icon, never color alone.
 
-VS Code provides these roles through its runtime `--vscode-*` variables. Tauri
-maps its light and dark palettes to the same semantic roles in
-[the desktop theme](tauri-app/src/styles/tauri-theme.css). Shared selectors use
-the mapped roles in [the shared editor stylesheet](shared/editor/styles/editor.css).
-Neither host is assigned a permanent light or dark default by this document;
-the active host or operating-system theme controls the palette.
+VS Code provides these roles through its runtime `--vscode-*` variables.
+Shared selectors consume those mapped roles in
+[the shared editor stylesheet](shared/editor/styles/editor.css). This document
+does not assign a permanent light or dark default; the active VS Code theme
+controls the palette.
 
 ## Typography
 
-Product chrome follows the host UI typeface and scale. Labels favor short,
+Product chrome follows the VS Code UI typeface and scale. Labels favor short,
 plain language and sentence case. Headings establish panel and dialog structure,
 not a decorative editorial hierarchy. Monospace is reserved for source,
 code-like values, and other content where character alignment has meaning.
 
 Document typography is separate from chrome typography and may be controlled by
-portable document settings. A host theme must not silently change the persisted
+portable document settings. The VS Code theme must not silently change the persisted
 or exported meaning of those settings.
 
 ## Layout
 
 The navigation model has one Activity rail and, when a destination is open, one
-contextual Side Panel. The destinations are `Workspace`, `Navigate`, `Design`,
-`Templates`, and `Publish`. `Workspace` is a Tauri-only shell capability because
-VS Code already owns workspace navigation. Other availability differences must
+contextual Side Panel. The destinations are `Navigate`, `Design`, `Templates`,
+and `Publish`. VS Code owns workspace navigation. Availability differences must
 be capability-driven, not a second navigation model.
 
 Each destination has an icon and a clear text label. Do not duplicate these
@@ -80,18 +78,17 @@ breakpoint, width bounds, persistence, and keyboard resizing behavior belong to
 scrolling, task-oriented panel. Screen-only view preferences and persisted
 document settings remain visibly grouped and explained within it.
 
-Shared structure and geometry live in `shared/editor/`. Host shells may arrange
-host-owned regions around that shared editor, but they must not redefine common
-component geometry. The current implementation ownership is:
+Reusable structure and geometry live in `shared/editor/`. The VS Code webview
+may arrange host-owned regions around that editor, but it must not redefine
+common component geometry. The current implementation ownership is:
 
-| Design area | Runtime source of truth | Intentional host difference |
+| Design area | Runtime source of truth | VS Code integration |
 | --- | --- | --- |
-| Destinations and selection state | [Activity state](shared/editor/activityState.ts) and [Activity rail](shared/editor/components/ActivityBar.tsx) | Tauri may show `Workspace`; capabilities may hide unavailable destinations. |
-| Panel responsiveness and resizing | [Responsive Side Panel](shared/editor/components/ResponsiveSidePanel.tsx) and [width constants](shared/editor/sidePanelWidth.ts) | None; both hosts use the shared behavior. |
-| Common component structure and geometry | [Shared editor components](shared/editor/components/) and [shared editor CSS](shared/editor/styles/editor.css) | None; host composition supplies data and adapters. |
+| Destinations and selection state | [Activity state](shared/editor/activityState.ts) and [Activity rail](shared/editor/components/ActivityBar.tsx) | Capabilities may hide unavailable destinations. |
+| Panel responsiveness and resizing | [Responsive Side Panel](shared/editor/components/ResponsiveSidePanel.tsx) and [width constants](shared/editor/sidePanelWidth.ts) | The webview supplies viewport and persistence integration. |
+| Common component structure and geometry | [Shared editor components](shared/editor/components/) and [shared editor CSS](shared/editor/styles/editor.css) | Webview composition supplies data and typed adapters. |
 | VS Code composition and theme | [VS Code editor shell](webview-ui/src/components/Editor.tsx), [VS Code panel composition](webview-ui/src/components/SidePanel.tsx), and [style entry point](webview-ui/src/main.tsx) | VS Code supplies its live theme variables and owns workspace navigation. |
-| Tauri composition and theme | [Tauri editor shell](tauri-app/src/components/Editor.tsx), [Tauri panel composition](tauri-app/src/components/SidePanel.tsx), [desktop theme mapping](tauri-app/src/styles/tauri-theme.css), and [style entry point](tauri-app/src/main.tsx) | Tauri owns the desktop shell, exposes `Workspace`, and maps native light/dark palettes to shared roles. |
-| Persisted document appearance | [Document schema](sdoc.schema.json), [document types](shared/types.ts), and [settings resolution](shared/settingsResolver.ts) | No host difference in persisted meaning. |
+| Persisted document appearance | [Document schema](sdoc.schema.json), [document types](shared/types.ts), and [settings resolution](shared/settingsResolver.ts) | Host chrome must not change persisted meaning. |
 
 ## Elevation & Depth
 
@@ -106,7 +103,7 @@ conditions.
 Shapes follow a restrained, tool-like language. Borders, corners, and control
 silhouettes should clarify grouping and affordance. Reuse the existing shared
 component treatment; promote a value to a shared runtime token only after its
-ownership and cross-host use have been verified. Decorative variation must not
+ownership and reuse have been verified. Decorative variation must not
 make equivalent controls look unrelated.
 
 ## Components
@@ -126,8 +123,8 @@ signal that state changed.
 
 Responsive changes preserve task order, labels, selection, and unsaved input.
 Controls must remain reachable without horizontal page scrolling, and touch or
-pointer targets must not overlap. UI changes are verified in both VS Code and
-Tauri, in light and dark themes, at docked and overlay widths. Verification also
+pointer targets must not overlap. UI changes are verified in VS Code in light,
+dark, and high-contrast themes at docked and overlay widths. Verification also
 includes keyboard operation, focus order and restoration, accessible names,
 contrast, zoom or text scaling, and reduced motion when the change uses motion.
 
@@ -136,9 +133,9 @@ contrast, zoom or text scaling, and reduced motion when the change uses motion.
 Do:
 
 - Read this contract before changing shared or host UI.
-- Put common behavior, structure, geometry, and stable constants in
-  `shared/editor/` and verify both host compositions.
-- Use semantic theme roles and test the resulting state in both light and dark.
+- Put reusable behavior, structure, geometry, and stable constants in
+  `shared/editor/` and verify the VS Code composition.
+- Use semantic theme roles and test the resulting state in light, dark, and high-contrast themes.
 - Keep labels and grouping explicit about screen-only versus persisted settings.
 - Treat `designmd lint` as format validation only; use host, accessibility, and
   visual checks as evidence of UI consistency.
@@ -150,7 +147,7 @@ Don't:
 - Copy fixed colors, panel widths, breakpoints, spacing, control heights, or
   radii into this file while their runtime ownership is still being consolidated.
 - Generate `design-tokens.css` from this alpha contract.
-- Put shared structure or geometry in host CSS. Host CSS is limited to theme
-  mapping and shell-only behavior.
+- Put reusable structure or geometry in webview integration CSS. Integration
+  CSS is limited to VS Code theme mapping and shell-only behavior.
 - Treat application chrome settings as part of `.sdoc`, or treat persisted
   document appearance as a host theme override.

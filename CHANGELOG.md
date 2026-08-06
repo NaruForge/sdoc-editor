@@ -7,10 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-08-06
+
+### Changed
+- Focused the supported product, architecture, design, contributor, and security contracts on the VS Code extension and SDOC CLI for v0.8.0
+- Split CLI packaging into an independent tag release workflow with artifact-only manual dispatch while retaining the VS Code Marketplace release workflow
+
+### Removed
+- Retired the Windows Desktop app after its final v0.7.8 release, including active Tauri/Rust CI, Dependabot, release, issue-form, and pull-request obligations
+
 ## [0.7.8] - 2026-08-06
 
 ### Changed
 - Replaced the text diagram source with the selected language's default example when switching languages
+- Designated v0.7.8 as the final Windows Desktop release; its archived binaries are end-of-life and receive no security or compatibility updates
 
 ### Fixed
 - Restored D2 previews and prepared exports by using Kroki's supported SVG output with equivalent host-side safety validation

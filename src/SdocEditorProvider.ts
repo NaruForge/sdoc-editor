@@ -305,7 +305,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     const templateService = new VsCodeTemplateService({
       personalSourceLabel: vscode.env.remoteName
         ? `Remote (${vscode.env.remoteName}) · extension host home`
-        : 'Local · shared with the desktop app',
+        : 'Local · extension host home',
     });
     const diagramService = new KrokiDiagramService(this.readDiagramRendererSettings());
     const diagramRequests = new Map<string, AbortController>();

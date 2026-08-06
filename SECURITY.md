@@ -1,10 +1,10 @@
 # Security Policy
 
-Structured Doc Editor opens documents and local assets in VS Code and a native desktop host. Path handling, document validation, export embedding, webview isolation, and save integrity are therefore security-sensitive.
+Structured Doc Editor opens documents and local assets in VS Code and processes documents through the SDOC CLI. Path handling, document validation, export embedding, webview isolation, and save integrity are therefore security-sensitive.
 
 ## Supported versions
 
-Security fixes target the current `main` branch and, when practical, the latest published version. Older versions do not receive guaranteed backports. Before reporting a problem, confirm that it still occurs on the latest available build or current source.
+Security fixes target the current `main` branch and, when practical, the latest published VS Code extension and CLI. Older versions do not receive guaranteed backports. Windows Desktop v0.7.8 and earlier are end-of-life and receive no security fixes or compatibility updates. Before reporting a problem, confirm that it still occurs on a supported VS Code or CLI build or in current source; a Desktop-only issue is outside the supported scope unless it also affects current shared code.
 
 ## Reporting a vulnerability
 
@@ -16,7 +16,7 @@ Use GitHub's private vulnerability reporting page:
 
 Include as much of the following as possible:
 
-- affected version, commit and host (VS Code or Tauri)
+- affected version, commit and surface (VS Code or CLI)
 - operating system and relevant environment details
 - minimal document, manifest or path needed to reproduce the issue
 - reproduction steps and observed impact

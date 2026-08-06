@@ -18,7 +18,6 @@ export default [
       '**/dist/**',
       '**/node_modules/**',
       '**/target/**',
-      'tauri-app/src-tauri/**',
       '*.mjs',
     ],
   },
@@ -35,7 +34,6 @@ export default [
   {
     files: [
       'webview-ui/src/**/*.{ts,tsx}',
-      'tauri-app/src/**/*.{ts,tsx}',
       'shared/editor/**/*.{ts,tsx}',
     ],
     languageOptions: {

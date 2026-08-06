@@ -1,17 +1,15 @@
-export type ActivityDestination = 'workspace' | 'navigate' | 'design' | 'templates' | 'publish';
+export type ActivityDestination = 'navigate' | 'design' | 'templates' | 'publish';
 
 export type NavigatePanelTab = 'toc' | 'figures' | 'tables';
 export type PublishPanelTab = 'export' | 'import';
 
 export type SidePanelSelection =
-  | { destination: 'workspace' }
   | { destination: 'navigate'; tab: NavigatePanelTab }
   | { destination: 'design' }
   | { destination: 'templates' }
   | { destination: 'publish'; tab: PublishPanelTab };
 
 export interface ActivityCapabilities {
-  showWorkspace?: boolean;
   showTemplates?: boolean;
 }
 
@@ -32,7 +30,6 @@ const isSelectionAvailable = (
   selection: SidePanelSelection,
   capabilities: ActivityCapabilities,
 ): boolean => {
-  if (selection.destination === 'workspace') return capabilities.showWorkspace === true;
   if (selection.destination === 'templates') return capabilities.showTemplates === true;
   return true;
 };
@@ -60,8 +57,7 @@ export function selectSidePanel(
 ): ActivitySessionState {
   if (selection === null) return { ...state, selection: null };
   if (!isSelectionAvailable(selection, capabilities)) return state;
-  if (selection.destination === 'workspace'
-    || selection.destination === 'design'
+  if (selection.destination === 'design'
     || selection.destination === 'templates') {
     return { ...state, selection };
   }
@@ -83,11 +79,6 @@ export function transitionActivityDestination(
     return { ...state, selection: null };
   }
 
-  if (destination === 'workspace') {
-    return capabilities.showWorkspace === true
-      ? { ...state, selection: { destination: 'workspace' } }
-      : state;
-  }
   if (destination === 'templates') {
     return capabilities.showTemplates === true
       ? { ...state, selection: { destination: 'templates' } }

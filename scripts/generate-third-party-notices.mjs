@@ -210,51 +210,8 @@ function collectNpmDependencies() {
   return [...dependencies.values()];
 }
 
-function collectCargoDependencies() {
-  const raw = execFileSync(
-    'cargo',
-    ['metadata', '--locked', '--format-version', '1', '--manifest-path', 'tauri-app/Cargo.toml'],
-    { cwd: repoRoot, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 },
-  );
-  const metadata = JSON.parse(raw);
-  const packages = new Map(metadata.packages.map((pkg) => [pkg.id, pkg]));
-  const nodes = new Map(metadata.resolve.nodes.map((node) => [node.id, node]));
-  const seen = new Set(metadata.workspace_members);
-  const pending = [...metadata.workspace_members];
-  const dependencies = new Map();
-
-  while (pending.length > 0) {
-    const id = pending.pop();
-    const node = nodes.get(id);
-    if (!node) continue;
-
-    for (const dependency of node.deps) {
-      const isRuntimeOrBuild = dependency.dep_kinds.some((kind) => kind.kind !== 'dev');
-      if (!isRuntimeOrBuild) continue;
-      if (!seen.has(dependency.pkg)) {
-        seen.add(dependency.pkg);
-        pending.push(dependency.pkg);
-      }
-      const pkg = packages.get(dependency.pkg);
-      if (pkg?.source) {
-        const key = `cargo:${pkg.name}@${pkg.version}`;
-        dependencies.set(key, {
-          ecosystem: 'Cargo',
-          name: pkg.name,
-          version: pkg.version,
-          license: licenseOverrides.get(key) ?? pkg.license ?? '',
-          source: repositoryUrl(pkg.repository) || `https://crates.io/crates/${pkg.name}/${pkg.version}`,
-          noticeFiles: noticeFiles(path.dirname(pkg.manifest_path)),
-        });
-      }
-    }
-  }
-
-  return [...dependencies.values()];
-}
-
 function generateNotice() {
-  const dependencies = [...collectNpmDependencies(), ...collectCargoDependencies()].sort((left, right) =>
+  const dependencies = collectNpmDependencies().sort((left, right) =>
     `${left.ecosystem}\0${left.name}\0${left.version}`.localeCompare(`${right.ecosystem}\0${right.name}\0${right.version}`, 'en'),
   );
   dependencies.forEach(validateLicense);
@@ -277,7 +234,7 @@ function generateNotice() {
     '',
     'Structured Doc Editor includes or builds upon the packages listed below. Each package remains governed by its own license; the project MIT license does not replace those terms.',
     '',
-    'This inventory is generated from the vendored asset manifest, installed npm production dependency graph, and locked Cargo runtime/build dependency graph. Regenerate it after dependency or bundled asset changes with `npm run licenses:generate`; CI verifies it with `npm run licenses:check`.',
+    'This inventory is generated from the vendored asset manifest and installed npm production dependency graph. Regenerate it after dependency or bundled asset changes with `npm run licenses:generate`; CI verifies it with `npm run licenses:check`.',
     '',
     'The inventory links each package source. License and notice files found in installed package distributions are reproduced after the inventory; identical texts are grouped deterministically.',
     '',

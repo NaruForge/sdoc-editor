@@ -1,7 +1,6 @@
 import React from 'react';
 import {
   Compass,
-  Files,
   LayoutTemplate,
   Palette,
   Send,
@@ -14,7 +13,6 @@ export type { ActivityDestination, SidePanelSelection } from '../activityState';
 interface ActivityBarProps {
   activeDestination: ActivityDestination | null;
   onDestinationClick: (destination: ActivityDestination) => void;
-  showWorkspace?: boolean;
   showTemplates?: boolean;
 }
 
@@ -23,7 +21,6 @@ const DESTINATIONS: ReadonlyArray<{
   icon: React.ReactNode;
   labelKey: EditorTranslationKey;
 }> = [
-  { id: 'workspace', icon: <Files size={18} />, labelKey: 'activity.workspace' },
   { id: 'navigate', icon: <Compass size={18} />, labelKey: 'activity.navigate' },
   { id: 'design', icon: <Palette size={18} />, labelKey: 'activity.design' },
   { id: 'templates', icon: <LayoutTemplate size={18} />, labelKey: 'activity.templates' },
@@ -33,15 +30,12 @@ const DESTINATIONS: ReadonlyArray<{
 export const ActivityBar: React.FC<ActivityBarProps> = ({
   activeDestination,
   onDestinationClick,
-  showWorkspace = false,
   showTemplates = false,
 }) => {
   const { t } = useEditorI18n();
   return (
   <nav className="activity-bar" aria-label={t('activity.documentActivities')}>
-    {DESTINATIONS.filter(({ id }) => (
-      (showWorkspace || id !== 'workspace') && (showTemplates || id !== 'templates')
-    )).map(({
+    {DESTINATIONS.filter(({ id }) => showTemplates || id !== 'templates').map(({
       id,
       icon,
       labelKey,

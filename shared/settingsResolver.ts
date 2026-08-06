@@ -99,7 +99,7 @@ export const SETTINGS_DEFAULTS: Required<DocumentSettings> = {
   outputDir: '',
 };
 
-/** Defaults shared by the VS Code webview and the Tauri editor. */
+/** Defaults shared by the VS Code extension, webview, converters, and CLI. */
 export const EDITOR_SETTINGS_DEFAULTS: ResolvedEditorSettings = {
   captionStyle: SETTINGS_DEFAULTS.captionStyle,
   imageCaptionPrefix: CAPTION_PRESETS.modern.figurePrefix,

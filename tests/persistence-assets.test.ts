@@ -33,7 +33,7 @@ describe('document asset persistence boundary', () => {
     expect(hydrated).toEqual(original);
   });
 
-  it('persists only a portable relative image path after Tauri hydration', () => {
+  it('persists only a portable relative image path after runtime hydration', () => {
     const dehydrated = dehydrateDocumentAssets({
       type: 'doc',
       content: [{
