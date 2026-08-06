@@ -1,4 +1,11 @@
-import type { ExternalChangeComparisonModel, ExternalChangeComparisonRow, ExternalDocumentDiff } from './types';
+import type {
+  ExternalChangeComparisonModel,
+  ExternalChangeComparisonRow,
+  ExternalDocumentDiff,
+  ExternalFieldComparisonRow,
+  ExternalFieldDiff,
+  ExternalMutationDiff,
+} from './types';
 
 export interface ExternalChangeComparisonLabels {
   readonly title?: string;
@@ -8,12 +15,23 @@ export interface ExternalChangeComparisonLabels {
 
 /** Creates a render-ready, read-only side-by-side model from a document diff. */
 export const buildExternalChangeComparison = (
-  diff: ExternalDocumentDiff,
+  diff: ExternalDocumentDiff | ExternalMutationDiff,
   labels: ExternalChangeComparisonLabels = {},
 ): ExternalChangeComparisonModel => {
   const mineLabel = labels.mine ?? 'Mine';
   const externalLabel = labels.external ?? 'On disk';
-  const rows = diff.blocks.map((block): ExternalChangeComparisonRow =>
+  const content = 'content' in diff ? diff.content : diff;
+  const fieldRows = (fields: readonly ExternalFieldDiff[]): readonly ExternalFieldComparisonRow[] =>
+    Object.freeze(fields.map((field) => Object.freeze({
+      key: field.key,
+      path: field.path,
+      mine: Object.freeze({ label: mineLabel, ...(field.mine ? { value: field.mine } : {}) }),
+      external: Object.freeze({
+        label: externalLabel,
+        ...(field.external ? { value: field.external } : {}),
+      }),
+    })));
+  const rows = content.blocks.map((block): ExternalChangeComparisonRow =>
     Object.freeze({
       key: block.key,
       kinds: block.kinds,
@@ -27,7 +45,9 @@ export const buildExternalChangeComparison = (
 
   return Object.freeze({
     title: labels.title ?? 'External document changes',
-    summary: diff.summary,
+    summary: content.summary,
     rows: Object.freeze(rows),
+    metadata: fieldRows('metadata' in diff ? diff.metadata : []),
+    settings: fieldRows('settings' in diff ? diff.settings : []),
   });
 };

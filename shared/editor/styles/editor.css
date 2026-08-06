@@ -1925,6 +1925,68 @@ samp {
   gap: 20px;
 }
 
+.document-save-status {
+  align-items: center;
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 999px;
+  display: inline-flex;
+  gap: 6px;
+  margin-left: auto;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
+.document-save-status--failed,
+.document-save-status--blocked {
+  border-color: var(--vscode-errorForeground, #f14c4c);
+  color: var(--vscode-errorForeground, #f14c4c);
+}
+
+.document-save-status--conflict,
+.document-save-status--disk-pending,
+.document-save-status--modified {
+  border-color: var(--vscode-editorWarning-foreground, #cca700);
+  color: var(--vscode-editorWarning-foreground, #9d7a00);
+}
+
+.document-save-status button {
+  align-items: center;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  gap: 3px;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.document-save-status button:focus-visible {
+  outline: 2px solid var(--vscode-focusBorder, #007acc);
+  outline-offset: 2px;
+}
+
+.link-selection-error {
+  align-items: center;
+  background: color-mix(in srgb, var(--vscode-inputValidation-errorBackground, transparent) 65%, transparent);
+  border-bottom: 1px solid var(--vscode-inputValidation-errorBorder, var(--vscode-errorForeground));
+  color: var(--vscode-errorForeground);
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  padding: 6px 12px;
+}
+
+.link-selection-error button {
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+
 .document-header-info {
   position: relative;
   display: none;
@@ -4192,4 +4254,31 @@ html.is-resizing-side-panel * {
 @keyframes spin {
   from { transform: rotate(0deg); }
   to   { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media (forced-colors: active) {
+  .document-save-status,
+  .external-comparison__kind,
+  .bubble-color-picker button,
+  .crossref-filter-chip {
+    border: 1px solid ButtonText;
+    forced-color-adjust: auto;
+  }
+
+  .document-save-status button:focus-visible,
+  .bubble-menu button:focus-visible,
+  .crossref-filter-chip:focus-visible {
+    outline-color: Highlight;
+  }
 }

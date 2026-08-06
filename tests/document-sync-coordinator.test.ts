@@ -19,6 +19,44 @@ const mutation = (text: string): DocumentMutation => ({
 });
 
 describe('DocumentSyncCoordinator', () => {
+  it('publishes immutable snapshots and accepts the authoritative modified time only from the matching ack', () => {
+    const sent: DocumentMutationRequest[] = [];
+    const sync = new DocumentSyncCoordinator({
+      identity: { sessionId: 'session-a', documentId: 'doc-a', revision: 2 },
+      createEditId: () => 'edit-current',
+      send: (request) => { sent.push(request); },
+    });
+    const observed: Array<ReturnType<typeof sync.getSnapshot>> = [];
+    const unsubscribe = sync.subscribe(() => observed.push(sync.getSnapshot()));
+
+    sync.submit(mutation('draft'));
+    expect(sync.acknowledge({
+      sessionId: 'session-a',
+      documentId: 'doc-a',
+      editId: 'older-edit',
+      revision: 3,
+      modified: '2026-08-06T00:00:00.000Z',
+    })).toBe(false);
+    expect(sync.state.acknowledgedModified).toBeUndefined();
+
+    expect(sync.acknowledge({
+      sessionId: 'session-a',
+      documentId: 'doc-a',
+      editId: 'edit-current',
+      revision: 3,
+      modified: '2026-08-06T01:00:00.000Z',
+    })).toBe(true);
+    expect(sync.state.acknowledgedModified).toBe('2026-08-06T01:00:00.000Z');
+    expect(observed.at(-1)).toBe(sync.getSnapshot());
+    expect(Object.isFrozen(sync.getSnapshot())).toBe(true);
+
+    unsubscribe();
+    const count = observed.length;
+    sync.observeExternalChange(4, mutation('external'));
+    expect(observed).toHaveLength(count);
+    expect(sent).toHaveLength(1);
+  });
+
   it('keeps one edit in flight and coalesces later input to the latest snapshot', () => {
     const sent: DocumentMutationRequest[] = [];
     const sync = new DocumentSyncCoordinator({

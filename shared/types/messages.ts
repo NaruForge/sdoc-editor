@@ -89,6 +89,7 @@ export interface InitMessage {
   sessionId: string;
   documentId: string;
   revision: number;
+  isDirty: boolean;
   documentState: EditorDocumentState;
 }
 
@@ -109,6 +110,7 @@ export interface InvalidDocumentRecoveryResultMessage {
   documentId: string;
   result: 'recovered' | 'rejected';
   revision: number;
+  modified?: string;
   message?: string;
 }
 
@@ -185,6 +187,18 @@ export interface EditAcknowledgedMessage {
   documentId: string;
   editId: string;
   revision: number;
+  modified: string;
+}
+
+export interface DocumentSaveStateMessage {
+  type: 'documentSaveState';
+  sessionId: string;
+  documentId: string;
+  saveGeneration: number;
+  revision: number;
+  phase: 'saving' | 'saved' | 'failed';
+  modified?: string;
+  message?: string;
 }
 
 export interface EditRejectedMessage {
@@ -293,6 +307,7 @@ export interface ShowJsonViewerMessage {
 export interface RequestFlushMessage {
   type: 'requestFlush';
   sessionId: string;
+  documentId: string;
   requestId: string;
 }
 
@@ -361,6 +376,7 @@ export type ExtensionToWebviewMessage =
   | ExternalChangeMessage
   | ReplaceDocumentMessage
   | EditAcknowledgedMessage
+  | DocumentSaveStateMessage
   | EditRejectedMessage
   | SettingsChangedMessage
   | UiLanguageChangedMessage
@@ -577,12 +593,14 @@ export interface FileOperationAppliedMessage {
 export interface FlushCompleteMessage {
   type: 'flushComplete';
   sessionId: string;
+  documentId: string;
   requestId: string;
 }
 
 export interface FlushFailedMessage {
   type: 'flushFailed';
   sessionId: string;
+  documentId: string;
   requestId: string;
   code: DocumentMutationErrorCode;
   message: string;

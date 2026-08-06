@@ -40,6 +40,10 @@ import {
 } from '../shared/document/documentContract';
 import { dehydrateDocumentAssets } from '../shared/document/runtimeAssets';
 import { runExportAfterFlush } from '../shared/export/runExportAfterFlush';
+import {
+  prepareExportDiagrams,
+  type DiagramPreparationResult,
+} from '../shared/export/diagramPreparation';
 import { canRecoverInvalidDocument } from '../shared/persistence/invalidDocumentRecovery';
 import {
   canApplyTemplateToCurrentDocument,
@@ -330,6 +334,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     let templateApplicationPending = false;
     let templateManagementPending = false;
     let fileOperationPending = false;
+    let saveGeneration = 0;
     let availableTemplates = new Map<string, SdocTemplate>();
     let personalTemplateFingerprints = new Map<string, string>();
     let templateCatalogGeneration = 0;
@@ -359,39 +364,22 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       });
     const prepareDiagramImages = async (
       format: ExportFormat,
-    ): Promise<{ images: Map<string, string>; usedFallback: boolean }> => {
-      const images = new Map<string, string>();
+      signal?: AbortSignal,
+    ): Promise<DiagramPreparationResult | undefined> => {
       if (format !== 'html' && format !== 'pdf' && format !== 'slides') {
-        return { images, usedFallback: false };
+        return undefined;
       }
-      const sources = new Map<string, { language: 'plantuml' | 'd2' | 'graphviz'; code: string }>();
-      let usedFallback = false;
-      const visit = (node: TiptapNode): void => {
-        if (node.type === 'diagram') {
-          const language = typeof node.attrs?.language === 'string'
-            ? node.attrs.language.toLowerCase()
-            : 'mermaid';
-          const code = typeof node.attrs?.code === 'string' ? node.attrs.code : '';
-          if (language !== 'mermaid') {
-            if (language === 'plantuml' || language === 'd2' || language === 'graphviz') {
-              sources.set(`${language}\0${code}`, { language, code });
-            } else {
-              usedFallback = true;
-            }
-          }
-        }
-        node.content?.forEach(visit);
-      };
-      visit(readCurrentMutation().content);
-      await Promise.all([...sources.entries()].map(async ([key, source]) => {
-        try {
-          const rendered = await diagramService.render(source.language, source.code);
-          images.set(key, rendered.dataUrl);
-        } catch {
-          usedFallback = true;
-        }
-      }));
-      return { images, usedFallback };
+      return prepareExportDiagrams([{
+        kind: 'document',
+        scopeId: documentId,
+        document: readCurrentMutation().content,
+      }], {
+        signal,
+        render: async ({ language, source, signal: renderSignal }) => {
+          const rendered = await diagramService.render(language, source, { signal: renderSignal });
+          return { dataUrl: rendered.dataUrl };
+        },
+      });
     };
 
     // Read and send editor settings to webview
@@ -525,6 +513,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
           sessionId,
           documentId,
           revision: document.version,
+          isDirty: document.isDirty,
           documentState: {
             status: 'invalid',
             reason: contract.kind,
@@ -540,6 +529,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
           sessionId,
           documentId,
           revision: document.version,
+          isDirty: document.isDirty,
           documentState: { status: 'ready', snapshot: mutationFromEnvelope(contract.envelope) },
         });
       }
@@ -950,17 +940,14 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
           return;
         }
         fileOperationPending = true;
-        let usedDiagramFallback = false;
         let exportResult: 'completed' | 'cancelled' | 'fallback' = 'completed';
         void runExportAfterFlush(
           () => this.flushEditor(webviewPanel.webview, sessionId, documentId),
           async () => {
-            const prepared = await prepareDiagramImages(message.format);
-            usedDiagramFallback = prepared.usedFallback;
             exportResult = await this.exportService.exportDocument(
               document,
               message.format,
-              prepared.images,
+              (signal) => prepareDiagramImages(message.format, signal),
             );
           },
         ).then(() => {
@@ -978,9 +965,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
             state: {
               phase: 'succeeded',
               requestId: message.requestId,
-              result: usedDiagramFallback || exportResult === 'fallback'
-                ? 'fallback'
-                : 'completed',
+              result: exportResult === 'fallback' ? 'fallback' : 'completed',
             },
           });
         }).catch((error: unknown) => {
@@ -1117,13 +1102,13 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         return;
       }
       if (message.type === 'flushComplete') {
-        if (message.sessionId === sessionId && message.requestId) {
+        if (message.sessionId === sessionId && message.documentId === documentId && message.requestId) {
           this.resolveFlush(message.requestId, message.sessionId);
         }
         return;
       }
       if (message.type === 'flushFailed') {
-        if (message.sessionId === sessionId) {
+        if (message.sessionId === sessionId && message.documentId === documentId) {
           this.rejectFlush(message.requestId, new Error(message.message), message.sessionId);
         }
         return;
@@ -1232,7 +1217,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
               break;
             }
             try {
-              await this.updateDocument(document, message.mutation);
+              const modified = await this.updateDocument(document, message.mutation);
               writeBlockedReason = undefined;
               readOnlyWarningShown = false;
               hasLoadedValidDocument = true;
@@ -1243,6 +1228,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
                 documentId,
                 result: 'recovered',
                 revision: document.version,
+                modified,
               });
             } catch (error) {
               await rejectRecovery(error instanceof Error ? error.message : String(error));
@@ -1361,13 +1347,14 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
               break;
             }
             try {
-              await this.updateDocument(document, message.mutation);
+              const modified = await this.updateDocument(document, message.mutation);
               webviewPanel.webview.postMessage({
                 type: 'editAcknowledged',
                 sessionId,
                 documentId,
                 editId: message.editId,
                 revision: document.version,
+                modified,
               });
               if (message.flushRequestId) this.resolveFlush(message.flushRequestId, sessionId);
             } catch (error) {
@@ -1469,8 +1456,45 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     // Flush webview state before save to prevent data loss
     const willSaveSubscription = vscode.workspace.onWillSaveTextDocument((e) => {
       if (e.document.uri.toString() !== document.uri.toString()) return;
-
-      e.waitUntil(this.flushEditor(webviewPanel.webview, sessionId, documentId, 1000));
+      const generation = ++saveGeneration;
+      void webviewPanel.webview.postMessage({
+        type: 'documentSaveState',
+        sessionId,
+        documentId,
+        saveGeneration: generation,
+        revision: document.version,
+        phase: 'saving',
+      });
+      e.waitUntil(this.flushEditor(webviewPanel.webview, sessionId, documentId, 1000)
+        .catch(async (error: unknown) => {
+          const message = error instanceof Error ? error.message : String(error);
+          await webviewPanel.webview.postMessage({
+            type: 'documentSaveState',
+            sessionId,
+            documentId,
+            saveGeneration: generation,
+            revision: document.version,
+            phase: 'failed',
+            message,
+          });
+          throw error;
+        }));
+    });
+    const didSaveSubscription = vscode.workspace.onDidSaveTextDocument((savedDocument) => {
+      if (savedDocument.uri.toString() !== document.uri.toString()) return;
+      const generation = saveGeneration === 0 ? ++saveGeneration : saveGeneration;
+      const snapshot = tryReadCurrentMutation();
+      void webviewPanel.webview.postMessage({
+        type: 'documentSaveState',
+        sessionId,
+        documentId,
+        saveGeneration: generation,
+        revision: savedDocument.version,
+        phase: 'saved',
+        ...(typeof snapshot?.meta.modified === 'string'
+          ? { modified: snapshot.meta.modified }
+          : {}),
+      });
     });
 
     // Handle external document changes
@@ -1551,6 +1575,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       }
       changeDocumentSubscription.dispose();
       willSaveSubscription.dispose();
+      didSaveSubscription.dispose();
       drawioWatcher.dispose();
       pendingDrawioEvents.forEach((timer) => clearTimeout(timer));
       diagramRequests.forEach((controller) => controller.abort());
@@ -1571,7 +1596,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
   private async updateDocument(
     document: vscode.TextDocument,
     mutation: DocumentMutation,
-  ): Promise<void> {
+  ): Promise<string> {
     const edit = new vscode.WorkspaceEdit();
     const fullRange = new vscode.Range(
       document.positionAt(0),
@@ -1620,6 +1645,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     });
 
     // Wrap in sdoc envelope, preserving settings
+    const modified = new Date().toISOString();
     const sdocFile: Record<string, unknown> = {
       sdoc: SdocEditorProvider.SDOC_VERSION,
       meta: {
@@ -1628,7 +1654,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         author: nextMeta.author || '',
         version: nextMeta.version || '0.1',
         created: nextMeta.created || new Date().toISOString(),
-        modified: new Date().toISOString(),
+        modified,
         ...(nextMeta.settings && Object.keys(nextMeta.settings).length > 0
           ? { settings: nextMeta.settings }
           : {}),
@@ -1642,6 +1668,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     edit.replace(document.uri, fullRange, json);
 
     await this.applyExpectedEdit(document, edit, json);
+    return modified;
   }
 
   private async applyExpectedEdit(
@@ -1686,7 +1713,27 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     await runExportAfterFlush(
       session ? () => this.flushEditor(session.panel.webview, session.sessionId, key) : undefined,
       async () => {
-        await this.exportService.exportDocument(document, format);
+        await this.exportService.exportDocument(document, format, async (signal) => {
+          if (format !== 'html' && format !== 'pdf' && format !== 'slides') return undefined;
+          const contract = parseDocumentTextContract(document.getText());
+          if (!contract.ok) {
+            throw new Error(contract.diagnostics
+              .map((diagnostic) => `${diagnostic.path}: ${diagnostic.message}`)
+              .join('; '));
+          }
+          const diagramService = new KrokiDiagramService(this.readDiagramRendererSettings());
+          return prepareExportDiagrams([{
+            kind: 'document',
+            scopeId: key,
+            document: contract.envelope.doc,
+          }], {
+            signal,
+            render: async ({ language, source, signal: renderSignal }) => {
+              const rendered = await diagramService.render(language, source, { signal: renderSignal });
+              return { dataUrl: rendered.dataUrl };
+            },
+          });
+        });
       },
     );
   }
@@ -1715,7 +1762,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         this.rejectFlush(requestId, new Error('Timed out waiting for the editor to flush its latest content.'));
       }, timeoutMs);
       this.pendingFlushResolvers.set(requestId, { sessionId, documentId, resolve, reject, timer });
-      void webview.postMessage({ type: 'requestFlush', sessionId, requestId }).then((delivered) => {
+      void webview.postMessage({ type: 'requestFlush', sessionId, documentId, requestId }).then((delivered) => {
         if (!delivered) this.rejectFlush(requestId, new Error('The editor is unavailable for export.'));
       }, (error: unknown) => {
         this.rejectFlush(requestId, error instanceof Error ? error : new Error(String(error)));

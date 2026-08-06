@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useId, useRef } from 'react';
 import type { SdocFileBrowseResultMessage } from '../../types/messages';
+import { normalizeSafeLinkUrl } from '../../document/linkUrl';
 import { useEditorI18n } from '../i18n';
 import { ModalDialog } from './ModalDialog';
 
@@ -9,20 +10,30 @@ interface ExternalTarget {
   label: string;
 }
 
-interface LinkDialogProps {
+export interface LinkDialogProps {
+  mode?: 'insert' | 'edit';
   defaultUrl?: string;
   defaultText?: string;
+  mixedFormatting?: boolean;
   onConfirm: (url: string, text: string) => void;
   onCancel: () => void;
   onBrowseSdoc?: () => void;
+  onOpen?: () => void;
+  onCopy?: () => void | Promise<boolean>;
+  onRemove?: () => void;
 }
 
 export const LinkDialog: React.FC<LinkDialogProps> = ({
+  mode = 'insert',
   defaultUrl = '',
   defaultText = '',
+  mixedFormatting = false,
   onConfirm,
   onCancel,
   onBrowseSdoc,
+  onOpen,
+  onCopy,
+  onRemove,
 }) => {
   const { t } = useEditorI18n();
   const [url, setUrl] = useState(defaultUrl);
@@ -30,11 +41,15 @@ export const LinkDialog: React.FC<LinkDialogProps> = ({
   const [sdocPath, setSdocPath] = useState('');
   const [sdocTargets, setSdocTargets] = useState<ExternalTarget[]>([]);
   const [showTargets, setShowTargets] = useState(false);
+  const [urlError, setUrlError] = useState('');
+  const [copyStatus, setCopyStatus] = useState('');
   const urlInputRef = useRef<HTMLInputElement>(null);
   const titleId = useId();
   const urlInputId = useId();
   const textInputId = useId();
   const targetsLabelId = useId();
+  const warningId = useId();
+  const urlErrorId = useId();
 
   useEffect(() => {
     if (defaultUrl && !defaultText) {
@@ -70,9 +85,13 @@ export const LinkDialog: React.FC<LinkDialogProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (url.trim()) {
-      onConfirm(url.trim(), text.trim() || url.trim());
+    const normalized = normalizeSafeLinkUrl(url);
+    if (!normalized.ok) {
+      setUrlError(t('link.unsafeUrl'));
+      return;
     }
+    setUrlError('');
+    onConfirm(normalized.url, text.trim() || normalized.url);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -90,20 +109,22 @@ export const LinkDialog: React.FC<LinkDialogProps> = ({
       onCancel={onCancel}
       onKeyDown={handleKeyDown}
     >
-        <h3 id={titleId}>{t('link.insertTitle')}</h3>
+        <h3 id={titleId}>{mode === 'edit' ? t('link.editTitle') : t('link.insertTitle')}</h3>
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label htmlFor={urlInputId} className="form-label">URL:</label>
+            <label htmlFor={urlInputId} className="form-label">{t('link.url')}:</label>
             <div style={{ display: 'flex', gap: '6px' }}>
               <input
                 ref={urlInputRef}
                 id={urlInputId}
                 type="text"
                 value={url}
-                onChange={(e) => setUrl(e.target.value)}
+                onChange={(e) => { setUrl(e.target.value); setUrlError(''); }}
                 className="form-input"
                 style={{ flex: 1 }}
                 placeholder={t('link.urlPlaceholder')}
+                aria-invalid={urlError ? 'true' : undefined}
+                aria-describedby={urlError ? urlErrorId : undefined}
               />
               {onBrowseSdoc && (
                 <button type="button" onClick={onBrowseSdoc} className="btn-secondary" title={t('link.browseSdoc')} aria-label={t('link.browseSdoc')}>
@@ -111,6 +132,7 @@ export const LinkDialog: React.FC<LinkDialogProps> = ({
                 </button>
               )}
             </div>
+            {urlError && <p id={urlErrorId} role="alert">{urlError}</p>}
           </div>
 
           {showTargets && sdocTargets.length > 0 && (
@@ -150,18 +172,38 @@ export const LinkDialog: React.FC<LinkDialogProps> = ({
               onChange={(e) => setText(e.target.value)}
               className="form-input"
               placeholder={t('link.textPlaceholder')}
+              aria-describedby={mixedFormatting ? warningId : undefined}
             />
           </div>
+          {mixedFormatting && (
+            <p id={warningId} role="status">
+              {t('link.mixedFormatting')}
+            </p>
+          )}
           <div className="modal-actions">
+            {mode === 'edit' && onOpen && (
+              <button type="button" onClick={onOpen} className="btn-secondary">{t('link.open')}</button>
+            )}
+            {mode === 'edit' && onCopy && (
+              <button type="button" onClick={() => {
+                void Promise.resolve(onCopy()).then((copied) => {
+                  setCopyStatus(copied === false ? t('link.copyFailed') : t('link.copySuccess'));
+                });
+              }} className="btn-secondary">{t('link.copy')}</button>
+            )}
+            {mode === 'edit' && onRemove && (
+              <button type="button" onClick={onRemove} className="btn-secondary">{t('link.remove')}</button>
+            )}
             <button type="button" onClick={onCancel} className="btn-secondary">{t('common.cancel')}</button>
             <button
               type="submit"
               disabled={!url.trim()}
               className="btn-primary"
             >
-              {t('common.insert')}
+              {mode === 'edit' ? t('common.save') : t('common.insert')}
             </button>
           </div>
+          {copyStatus && <p role="status">{copyStatus}</p>}
         </form>
     </ModalDialog>
   );

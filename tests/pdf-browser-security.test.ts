@@ -9,4 +9,13 @@ describe('PDF browser boundary', () => {
     );
     expect(source).not.toContain("'--no-sandbox'");
   });
+
+  it('passes export cancellation into the Chromium child process', () => {
+    const source = readFileSync(
+      new URL('../src/utils/browserDetect.ts', import.meta.url),
+      'utf8',
+    );
+    expect(source).toContain('{ timeout: 60_000, signal }');
+    expect(source).toContain('signal?.aborted');
+  });
 });

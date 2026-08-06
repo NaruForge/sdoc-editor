@@ -2,12 +2,17 @@ import type { Editor } from '@tiptap/core';
 import { describe, expect, it, vi } from 'vitest';
 import {
   PendingEditorUpdateGate,
+  EDITOR_ROOT_ATTRIBUTES,
   refreshTranslatedNodeViews,
   shouldEmitEditorFlush,
   shouldFlushOnSaveShortcut,
 } from '../shared/editor/hooks/useTiptapEditor';
 
 describe('editor save lifecycle', () => {
+  it('keeps browser and host spelling support enabled on editable prose', () => {
+    expect(EDITOR_ROOT_ATTRIBUTES.spellcheck).toBe('true');
+  });
+
   it('leaves Ctrl+S to the VS Code save participant when shortcut flushing is disabled', () => {
     expect(shouldFlushOnSaveShortcut({ ctrlKey: true, metaKey: false, key: 's' }, false)).toBe(false);
   });

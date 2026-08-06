@@ -9,6 +9,15 @@ import { embedImagesAsBase64 } from './utils/imageUtils';
 import { resolveCompanyLogo, readFontWeights, buildHtmlTheme, readExportSettings } from './utils/themeUtils';
 import { withTemporaryDirectory } from './utils/temporaryDirectory';
 import { loadBundledExportAssets } from './services/BundledExportAssetService';
+import {
+  DEFAULT_DIAGRAM_RENDERER_SETTINGS,
+  type DiagramRendererSettings,
+} from '../shared/diagramRenderer';
+import { prepareExportDiagrams } from '../shared/export/diagramPreparation';
+import {
+  DIAGRAM_RENDERER_CONSENT_STATE_KEY,
+  KrokiDiagramService,
+} from './services/KrokiDiagramService';
 import { resolveContainedRegularFile } from './utils/containedFile';
 import { RecoverableSerialQueue } from '../shared/persistence/RecoverableSerialQueue';
 import {
@@ -137,6 +146,23 @@ export class SdocBookProvider implements vscode.CustomTextEditorProvider {
   private static readonly VIEW_TYPE = 'structuredDocEditor.sdocBook';
 
   constructor(private readonly context: vscode.ExtensionContext) {}
+
+  private readDiagramRendererSettings(): DiagramRendererSettings {
+    const config = vscode.workspace.getConfiguration('structuredDocEditor.diagramRenderer');
+    const userValue = <T,>(key: string, fallback: T): T =>
+      config.inspect<T>(key)?.globalValue ?? fallback;
+    const storedConsent = this.context.globalState.get<unknown>(DIAGRAM_RENDERER_CONSENT_STATE_KEY);
+    return {
+      consent: storedConsent === 'granted' || storedConsent === 'declined'
+        ? storedConsent
+        : 'undecided',
+      endpoint: userValue('endpoint', DEFAULT_DIAGRAM_RENDERER_SETTINGS.endpoint),
+      allowPrivateNetwork: userValue(
+        'allowPrivateNetwork',
+        DEFAULT_DIAGRAM_RENDERER_SETTINGS.allowPrivateNetwork,
+      ),
+    };
+  }
 
   static register(context: vscode.ExtensionContext): vscode.Disposable {
     return vscode.window.registerCustomEditorProvider(
@@ -559,12 +585,26 @@ export class SdocBookProvider implements vscode.CustomTextEditorProvider {
     }
     const projectDir = path.dirname(document.uri.fsPath);
     const config = vscode.workspace.getConfiguration('structuredDocEditor');
+    const diagramService = new KrokiDiagramService(this.readDiagramRendererSettings());
+    const diagramPreparation = await prepareExportDiagrams(
+      result.composition.documents.flatMap((chapter) => chapter.status === 'ok' && chapter.doc
+        ? [{ kind: 'chapter' as const, scopeId: chapter.path, document: chapter.doc }]
+        : []),
+      {
+        signal,
+        render: async ({ language, source, signal: renderSignal }) => {
+          const rendered = await diagramService.render(language, source, { signal: renderSignal });
+          return { dataUrl: rendered.dataUrl };
+        },
+      },
+    );
+    signal?.throwIfAborted();
 
     // Embed images
     const selfContained = config.get<string>('export.selfContained', 'images-only');
     let finalDoc = result.composition.doc;
     if (selfContained !== 'none') {
-      finalDoc = await embedImagesAsBase64(finalDoc, projectDir);
+      finalDoc = await embedImagesAsBase64(finalDoc, projectDir, signal);
       signal?.throwIfAborted();
     }
 
@@ -590,7 +630,13 @@ export class SdocBookProvider implements vscode.CustomTextEditorProvider {
       signal?.throwIfAborted();
     }
 
-    let htmlContent = convertJsonToHtml(finalDoc, theme, exportSettings, result.composition.meta);
+    let htmlContent = convertJsonToHtml(
+      finalDoc,
+      theme,
+      exportSettings,
+      result.composition.meta,
+      { resolveDiagramImage: diagramPreparation.resolveDiagramImage },
+    );
 
     if (format === 'pdf') {
       const browserPath = detectBrowser();
@@ -609,12 +655,14 @@ export class SdocBookProvider implements vscode.CustomTextEditorProvider {
         const tempPdfPath = path.join(tempDir, 'document.pdf');
         await fs.promises.writeFile(tempHtmlPath, htmlContent, 'utf-8');
         signal?.throwIfAborted();
-        await printToPdf(browserPath, tempHtmlPath, tempPdfPath);
+        await printToPdf(browserPath, tempHtmlPath, tempPdfPath, signal);
         signal?.throwIfAborted();
-        await fs.promises.copyFile(tempPdfPath, pdfPath);
+        await this.writeExportFile(
+          pdfPath,
+          new Uint8Array(await fs.promises.readFile(tempPdfPath, { signal })),
+          signal,
+        );
       });
-      signal?.throwIfAborted();
-
       const action = await vscode.window.showInformationMessage(
         `Project PDF exported: ${pdfPath}`,
         'Open PDF'
@@ -625,8 +673,7 @@ export class SdocBookProvider implements vscode.CustomTextEditorProvider {
     } else {
       const htmlPath = document.uri.fsPath.replace(/\.sdocbook$/, '.html');
       signal?.throwIfAborted();
-      await fs.promises.writeFile(htmlPath, htmlContent, 'utf-8');
-      signal?.throwIfAborted();
+      await this.writeExportFile(htmlPath, new TextEncoder().encode(htmlContent), signal);
 
       const action = await vscode.window.showInformationMessage(
         `Project HTML exported: ${htmlPath}`,
@@ -634,6 +681,35 @@ export class SdocBookProvider implements vscode.CustomTextEditorProvider {
       );
       if (action === 'Open HTML') {
         await vscode.commands.executeCommand('vscode.open', vscode.Uri.file(htmlPath));
+      }
+    }
+    if (diagramPreparation.status === 'fallback') {
+      void vscode.window.showWarningMessage(
+        `${diagramPreparation.fallbackOccurrenceCount} diagram occurrence(s) in ${diagramPreparation.fallbackChapterCount} chapter(s) were exported as source because rendering was unavailable.`,
+      );
+    }
+  }
+
+  private async writeExportFile(
+    outputPath: string,
+    content: Uint8Array,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    const stagingPath = `${outputPath}.sdoc-export-${Date.now()}-${Math.random().toString(16).slice(2)}.tmp`;
+    signal?.throwIfAborted();
+    try {
+      await fs.promises.writeFile(stagingPath, content, { signal });
+      signal?.throwIfAborted();
+      await vscode.workspace.fs.rename(
+        vscode.Uri.file(stagingPath),
+        vscode.Uri.file(outputPath),
+        { overwrite: true },
+      );
+    } finally {
+      try {
+        await fs.promises.unlink(stagingPath);
+      } catch {
+        // Best-effort cleanup cannot invalidate an already committed export.
       }
     }
   }

@@ -2,9 +2,16 @@ import { Extension, type Editor } from '@tiptap/core';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Suggestion } from '@tiptap/suggestion';
 import type { SuggestionProps, SuggestionKeyDownProps } from '@tiptap/suggestion';
-import { buildNumberingIndex } from '@shared/document/numbering';
-import type { ResolvedEditorSettings, TiptapNode } from '@shared/types';
+import type { ResolvedEditorSettings } from '@shared/types';
 import { NOOP_EDITOR_EXTENSION_RUNTIME, type EditorExtensionOptions } from '../extensionRuntime';
+import {
+  STRUCTURE_INDEX_REFERENCE_SYNC_META,
+  STRUCTURE_INDEX_SETTINGS_REFRESH_META,
+  ensureStructureIndexFresh,
+  getDocumentStructureIndexState,
+  subscribeToDocumentStructureIndex,
+  type DocumentStructureIndex,
+} from '../structureIndex';
 
 export interface RefTarget {
   id: string;
@@ -17,7 +24,7 @@ const crossRefPluginKey = new PluginKey('crossReference');
 const crossRefSyncKey = new PluginKey('crossReferenceSync');
 
 /** Dispatch this meta on any transaction to force CrossRef label re-sync */
-export const CROSSREF_RESYNC_META = 'crossRefResync';
+export const CROSSREF_RESYNC_META = STRUCTURE_INDEX_SETTINGS_REFRESH_META;
 
 export const CrossReference = Extension.create<EditorExtensionOptions>({
   name: 'crossReference',
@@ -31,50 +38,73 @@ export const CrossReference = Extension.create<EditorExtensionOptions>({
     const runtime = this.options.runtime;
 
     return [
-      // Cross-reference text sync plugin
       new Plugin({
         key: crossRefSyncKey,
-        appendTransaction(transactions, _oldState, newState) {
-          const hasDocChange = transactions.some(tr => tr.docChanged);
-          const hasResync = transactions.some(tr => tr.getMeta(CROSSREF_RESYNC_META));
-          if (!hasDocChange && !hasResync) return null;
-
-          const idMap = buildIdMap(newState.doc, runtime.getSettings());
-          if (idMap.size === 0) return null;
-
-          // Collect all changes first to avoid position-shifting issues
-          const changes: Array<{
-            pos: number;
-            end: number;
-            newLabel: string;
-            mark: import('@tiptap/pm/model').Mark;
-          }> = [];
-
-          newState.doc.descendants((node, pos) => {
-            if (node.isText && node.marks.length > 0) {
-              const linkMark = node.marks.find(
-                m => m.type.name === 'link' && m.attrs.href?.startsWith('#')
-              );
-              if (linkMark) {
-                const targetId = (linkMark.attrs.href as string).slice(1);
-                const newLabel = idMap.get(targetId);
-                if (newLabel && node.text !== newLabel) {
-                  changes.push({ pos, end: pos + node.nodeSize, newLabel, mark: linkMark });
-                }
+        view(view) {
+          const synchronize = (index: DocumentStructureIndex) => {
+            const idMap = new Map([...index.byId].map(([id, entry]) => [id, entry.referenceLabel]));
+            if (idMap.size === 0) return;
+            const changes: Array<{
+              pos: number;
+              end: number;
+              newLabel: string;
+              mark: import('@tiptap/pm/model').Mark;
+            }> = [];
+            for (const reference of index.references) {
+              const node = view.state.doc.nodeAt(reference.from);
+              if (!node?.isText || node.marks.length === 0) continue;
+              const linkMark = node.marks.find((mark) =>
+                mark.type.name === 'link'
+                && typeof mark.attrs.href === 'string'
+                && mark.attrs.href.startsWith('#'));
+              if (!linkMark) continue;
+              const newLabel = idMap.get(reference.targetId);
+              if (newLabel && node.text !== newLabel) {
+                changes.push({
+                  pos: reference.from,
+                  end: reference.to,
+                  newLabel,
+                  mark: linkMark,
+                });
               }
             }
-          });
+            if (changes.length === 0) return;
 
-          if (changes.length === 0) return null;
-
-          let tr = newState.tr;
-          // Apply back-to-front so earlier changes don't shift subsequent positions
-          for (const change of changes.sort((a, b) => b.pos - a.pos)) {
-            // Use replaceWith + explicit text node to guarantee mark preservation
-            const textNode = newState.schema.text(change.newLabel, [change.mark]);
-            tr = tr.replaceWith(change.pos, change.end, textNode);
-          }
-          return tr;
+            let transaction = view.state.tr;
+            for (const change of changes.sort((a, b) => b.pos - a.pos)) {
+              transaction = transaction.replaceWith(
+                change.pos,
+                change.end,
+                view.state.schema.text(change.newLabel, [change.mark]),
+              );
+            }
+            transaction.setMeta(STRUCTURE_INDEX_REFERENCE_SYNC_META, true);
+            view.dispatch(transaction);
+          };
+          let destroyed = false;
+          let pendingIndex: DocumentStructureIndex | undefined;
+          let synchronizationScheduled = false;
+          const scheduleSynchronization = (index: DocumentStructureIndex) => {
+            pendingIndex = index;
+            if (synchronizationScheduled) return;
+            synchronizationScheduled = true;
+            queueMicrotask(() => {
+              synchronizationScheduled = false;
+              if (destroyed || !pendingIndex) return;
+              const latest = pendingIndex;
+              pendingIndex = undefined;
+              synchronize(latest);
+            });
+          };
+          const unsubscribe = subscribeToDocumentStructureIndex(view, scheduleSynchronization);
+          scheduleSynchronization(getDocumentStructureIndexState(view.state));
+          return {
+            destroy() {
+              destroyed = true;
+              pendingIndex = undefined;
+              unsubscribe();
+            },
+          };
         },
       }),
 
@@ -277,24 +307,12 @@ export function slugify(text: string): string {
 }
 
 export function collectTargets(editor: Editor, settings: ResolvedEditorSettings): RefTarget[] {
-  const index = buildNumberingIndex(editor.getJSON() as TiptapNode, settings);
+  void settings;
+  const index = ensureStructureIndexFresh(editor.view);
   return index.entries.flatMap((entry): RefTarget[] => entry.id ? [{
     id: entry.id,
     type: entry.kind,
     label: entry.referenceLabel,
     ...(entry.headingLevel ? { level: entry.headingLevel } : {}),
   }] : []);
-}
-
-/**
- * Build id → label map from a ProseMirror doc Node.
- * Uses existing id attribute OR falls back to the same slug logic as collectTargets,
- * because the webview never receives server-assigned IDs (suppressed by pendingApplyEdits).
- */
-function buildIdMap(
-  doc: import('@tiptap/pm/model').Node,
-  settings: ResolvedEditorSettings,
-): Map<string, string> {
-  const index = buildNumberingIndex(doc.toJSON() as TiptapNode, settings);
-  return new Map([...index.byId].map(([id, entry]) => [id, entry.referenceLabel]));
 }

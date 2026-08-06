@@ -111,6 +111,10 @@ export const CustomImage = Image.extend<EditorExtensionOptions>({
       // -- Image container --
       const imageContainer = document.createElement('div');
       imageContainer.classList.add('image-container');
+      imageContainer.setAttribute('role', 'button');
+      imageContainer.setAttribute('tabindex', '0');
+      imageContainer.setAttribute('aria-label', runtime.translate('image.openActions'));
+      imageContainer.setAttribute('aria-haspopup', 'menu');
 
       const img = document.createElement('img');
       img.setAttribute('draggable', 'false');
@@ -296,19 +300,20 @@ export const CustomImage = Image.extend<EditorExtensionOptions>({
       });
 
       // === Image right-click → show context menu ===
+      const openImageActions = (clientX: number, clientY: number) => {
+        const src = currentNode.attrs.src || '';
+        const alt = currentNode.attrs.alt || '';
+        if (typeof getPos !== 'function') return;
+        const pos = getPos();
+        if (typeof pos === 'number') {
+          runtime.openImageContextMenu(clientX, clientY, pos, src, alt);
+        }
+      };
+
       img.addEventListener('contextmenu', (e) => {
         e.preventDefault();
         e.stopPropagation();
-
-        const src = currentNode.attrs.src || '';
-        const alt = currentNode.attrs.alt || '';
-
-        if (typeof getPos === 'function') {
-          const pos = getPos();
-          if (typeof pos === 'number') {
-            runtime.openImageContextMenu(e.clientX, e.clientY, pos, src, alt);
-          }
-        }
+        openImageActions(e.clientX, e.clientY);
       });
 
       // Also handle double-click on the whole image container for better UX (draw.io only)
@@ -331,14 +336,22 @@ export const CustomImage = Image.extend<EditorExtensionOptions>({
         e.preventDefault();
         e.stopPropagation();
 
-        const src = currentNode.attrs.src || '';
-        const alt = currentNode.attrs.alt || '';
+        openImageActions(e.clientX, e.clientY);
+      });
 
-        if (typeof getPos === 'function') {
-          const pos = getPos();
-          if (typeof pos === 'number') {
-            runtime.openImageContextMenu(e.clientX, e.clientY, pos, src, alt);
-          }
+      imageContainer.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          e.stopPropagation();
+          alignToolbar.classList.add('visible');
+          alignToolbar.querySelector<HTMLButtonElement>('button')?.focus();
+          return;
+        }
+        if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) {
+          e.preventDefault();
+          e.stopPropagation();
+          const rect = imageContainer.getBoundingClientRect();
+          openImageActions(rect.left + Math.min(rect.width, 24), rect.top + Math.min(rect.height, 24));
         }
       });
 

@@ -185,9 +185,11 @@ export function isEditorToHostMessage(value: unknown): value is EditorToHostMess
     case 'requestTemplateCatalog':
       return hasString(value, 'requestId');
     case 'flushComplete':
-      return hasString(value, 'sessionId') && hasString(value, 'requestId');
+      return hasString(value, 'sessionId') && hasString(value, 'documentId')
+        && hasString(value, 'requestId');
     case 'flushFailed':
-      return hasString(value, 'sessionId') && hasString(value, 'requestId')
+      return hasString(value, 'sessionId') && hasString(value, 'documentId')
+        && hasString(value, 'requestId')
         && isMutationErrorCode(value.code) && hasString(value, 'message');
     case 'edit':
       return hasString(value, 'sessionId')
@@ -290,10 +292,12 @@ export function isHostToEditorMessage(value: unknown): value is HostToEditorMess
           ? isTemplateOperationError(value.error)
           : value.error === undefined);
     case 'requestFlush':
-      return hasString(value, 'sessionId') && hasString(value, 'requestId');
+      return hasString(value, 'sessionId') && hasString(value, 'documentId')
+        && hasString(value, 'requestId');
     case 'init':
       return hasString(value, 'sessionId') && hasString(value, 'documentId')
         && hasNumber(value, 'revision')
+        && typeof value.isDirty === 'boolean'
         && (value.locale === 'en' || value.locale === 'ko')
         && isEditorDocumentState(value.documentState);
     case 'externalInvalidDocument':
@@ -305,6 +309,7 @@ export function isHostToEditorMessage(value: unknown): value is HostToEditorMess
       return hasString(value, 'requestId') && hasString(value, 'sessionId')
         && hasString(value, 'documentId') && hasNumber(value, 'revision')
         && (value.result === 'recovered' || value.result === 'rejected')
+        && (value.modified === undefined || hasString(value, 'modified'))
         && (value.message === undefined || hasString(value, 'message'));
     case 'externalChange':
       return hasString(value, 'sessionId') && hasString(value, 'documentId')
@@ -324,7 +329,14 @@ export function isHostToEditorMessage(value: unknown): value is HostToEditorMess
       return hasString(value, 'requestId') && isTemplateOperationError(value.error);
     case 'editAcknowledged':
       return hasString(value, 'sessionId') && hasString(value, 'documentId')
-        && hasString(value, 'editId') && hasNumber(value, 'revision');
+        && hasString(value, 'editId') && hasNumber(value, 'revision')
+        && hasString(value, 'modified');
+    case 'documentSaveState':
+      return hasString(value, 'sessionId') && hasString(value, 'documentId')
+        && hasNumber(value, 'saveGeneration') && hasNumber(value, 'revision')
+        && (value.phase === 'saving' || value.phase === 'saved' || value.phase === 'failed')
+        && (value.modified === undefined || hasString(value, 'modified'))
+        && (value.message === undefined || hasString(value, 'message'));
     case 'editRejected':
       return hasString(value, 'sessionId') && hasString(value, 'documentId')
         && hasString(value, 'editId') && hasNumber(value, 'revision')

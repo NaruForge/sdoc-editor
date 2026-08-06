@@ -53,6 +53,10 @@ export const MathInline = Node.create<EditorExtensionOptions>({
 
       // --- Rendered math (visible when NOT editing) ---
       const rendered = document.createElement('span');
+      rendered.setAttribute('role', 'button');
+      rendered.setAttribute('tabindex', '0');
+      rendered.setAttribute('aria-label', runtime.translate('math.editHint'));
+      rendered.setAttribute('aria-expanded', 'false');
       dom.appendChild(rendered);
 
       // --- Input (visible when editing) ---
@@ -124,6 +128,7 @@ export const MathInline = Node.create<EditorExtensionOptions>({
       const commitEdit = () => {
         if (!isEditing) return;
         isEditing = false;
+        rendered.setAttribute('aria-expanded', 'false');
         currentLatex = stripDelimiters(input.value);
         input.style.display = 'none';
         editPanel.style.display = 'none';
@@ -142,6 +147,7 @@ export const MathInline = Node.create<EditorExtensionOptions>({
       const cancelEdit = () => {
         if (!isEditing) return;
         isEditing = false;
+        rendered.setAttribute('aria-expanded', 'false');
         input.style.display = 'none';
         editPanel.style.display = 'none';
         rendered.style.display = '';
@@ -150,6 +156,7 @@ export const MathInline = Node.create<EditorExtensionOptions>({
       const enterEditMode = () => {
         if (isEditing) return;
         isEditing = true;
+        rendered.setAttribute('aria-expanded', 'true');
         input.value = `$${currentLatex}$`;
         input.style.display = 'inline-block';
         input.style.width = `${Math.max(80, currentLatex.length * 9 + 30)}px`;
@@ -210,6 +217,12 @@ export const MathInline = Node.create<EditorExtensionOptions>({
         e.stopPropagation();
         e.preventDefault();
         openDialog();
+      });
+      rendered.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        e.preventDefault();
+        e.stopPropagation();
+        enterEditMode();
       });
 
       input.addEventListener('input', () => {

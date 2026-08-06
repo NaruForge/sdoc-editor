@@ -121,6 +121,19 @@ focus while modal, restore focus on close, and do not make background content
 operable. Motion respects reduced-motion preferences and never carries the only
 signal that state changed.
 
+The document header reports persistence truth in plain language: local
+modification, editor synchronization, disk save, failure, and external conflict
+are distinct states. `Saved` is reserved for a host-confirmed disk save, and a
+retry action appears only when retrying is safe. External-change comparison
+shows metadata, document settings, and body differences without silently
+choosing either version.
+
+Editable prose and ordinary text inputs retain the native VS Code and operating
+system context menu so clipboard and spelling workflows remain available.
+Product-specific menus are limited to non-text structural controls and must
+also open from the keyboard. Link editing captures the complete link range and
+must preserve text and non-link formatting when only the URL changes.
+
 Responsive changes preserve task order, labels, selection, and unsaved input.
 Controls must remain reachable without horizontal page scrolling, and touch or
 pointer targets must not overlap. UI changes are verified in VS Code in light,

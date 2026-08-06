@@ -591,7 +591,7 @@ describe('CLI integration', () => {
     };
     expect(created.meta.title).toBe('시험 문서');
     expect(created.meta).not.toHaveProperty('template');
-    expect(created.doc.content[0]?.attrs?.id).toBe('document-title');
+    expect(created.doc.content.some((node) => node.attrs?.id === 'document-title')).toBe(false);
     expect(await run(['validate', documentPath])).toBe(0);
   });
 
@@ -649,13 +649,27 @@ describe('CLI integration', () => {
     expect(stdout).toContain(`Content: ${content}`);
   });
 
-  it('creates a peer H1 section in a blank document using only CLI operations', async () => {
+  it('creates a peer H1 section without using the metadata title as a body heading', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'sdoc-sibling-cli-'));
     temporaryDirectories.push(directory);
     const documentPath = join(directory, 'peer-sections.sdoc');
+    const templatePath = join(directory, 'section-template.sdoc');
     vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
 
-    expect(await run(['create', documentPath, '--title', 'Peer sections'])).toBe(0);
+    await writeFile(templatePath, JSON.stringify({
+      sdoc: '1.0',
+      meta: { title: 'Template' },
+      doc: {
+        type: 'doc',
+        content: [
+          { type: 'heading', attrs: { level: 1, id: 'first-h1' }, content: [{ type: 'text', text: 'First H1' }] },
+          { type: 'paragraph', content: [{ type: 'text', text: 'First body' }] },
+        ],
+      },
+    }));
+    expect(await run([
+      'create', documentPath, '--template', templatePath, '--title', 'Peer sections',
+    ])).toBe(0);
     const bytes = await readFile(documentPath);
     const operationsPath = join(directory, 'insert-sibling.json');
     await writeFile(operationsPath, JSON.stringify({
@@ -663,7 +677,7 @@ describe('CLI integration', () => {
       expected: { revision: computeRevision(bytes) },
       operations: [{
         op: 'insertSection',
-        target: { kind: 'id', id: 'document-title', expectedType: 'heading' },
+        target: { kind: 'id', id: 'first-h1', expectedType: 'heading' },
         position: 'after',
         title: 'Peer H1',
         id: 'peer-h1',
@@ -680,7 +694,7 @@ describe('CLI integration', () => {
     expect(await run(['inspect', documentPath])).toBe(0);
     expect(JSON.parse(stdout)).toMatchObject({
       outline: [
-        { id: 'document-title', level: 1, path: [0] },
+        { id: 'first-h1', level: 1, path: [0] },
         { id: 'peer-h1', level: 1, path: [2] },
       ],
     });
@@ -756,7 +770,8 @@ describe('CLI integration', () => {
       doc: { content: Array<{ content?: Array<{ text?: string }> }> };
     };
     expect(created.meta).not.toHaveProperty('documentId');
-    expect(created.doc.content[0]?.content?.[0]?.text).toBe('Created title');
+    expect(created.meta.title).toBe('Created title');
+    expect(created.doc.content).toEqual([]);
 
     expect(await run(['create', targetPath])).toBe(5);
     expect(JSON.parse(stderr)).toMatchObject({

@@ -60,14 +60,14 @@ describe('editor host message boundary', () => {
       relativePath: './drawio/a.drawio.svg', newWebviewUri: 'asset://a',
     })).toBe(true);
     expect(isHostToEditorMessage({
-      type: 'init', locale: 'en', sessionId: 'session-1', documentId: 'doc-a', revision: 1,
+      type: 'init', locale: 'en', sessionId: 'session-1', documentId: 'doc-a', revision: 1, isDirty: false,
       documentState: {
         status: 'ready',
         snapshot: { content: { type: 'doc', content: [] }, meta: {}, documentSettings: null },
       },
     })).toBe(true);
     expect(isHostToEditorMessage({
-      type: 'init', locale: 'ko', sessionId: 'session-2', documentId: 'doc-b', revision: 2,
+      type: 'init', locale: 'ko', sessionId: 'session-2', documentId: 'doc-b', revision: 2, isDirty: true,
       documentState: {
         status: 'invalid', reason: 'malformed',
         diagnostics: [{ path: '/', message: 'invalid document' }],
@@ -100,7 +100,7 @@ describe('editor host message boundary', () => {
     expect(isHostToEditorMessage({ type: 'settingsChanged', settings: null })).toBe(false);
     expect(isHostToEditorMessage({ type: 'drawioFileUpdated', relativePath: './a.svg' })).toBe(false);
     expect(isHostToEditorMessage({
-      type: 'init', locale: 'en', sessionId: 'session-1', documentId: 'doc-a', revision: 1,
+      type: 'init', locale: 'en', sessionId: 'session-1', documentId: 'doc-a', revision: 1, isDirty: false,
       documentState: { status: 'invalid', reason: 'malformed', diagnostics: [] },
     })).toBe(false);
     expect(isEditorToHostMessage({ type: 'requestTemplateCatalog' })).toBe(false);
@@ -341,7 +341,7 @@ describe('editor host message boundary', () => {
 
   it('requires identity and revision on persistence updates', () => {
     expect(isHostToEditorMessage({
-      type: 'init', locale: 'ko', sessionId: 'session-1', documentId: 'doc-a', revision: 4,
+      type: 'init', locale: 'ko', sessionId: 'session-1', documentId: 'doc-a', revision: 4, isDirty: false,
       documentState: {
         status: 'ready',
         snapshot: {
@@ -356,6 +356,7 @@ describe('editor host message boundary', () => {
       sessionId: 'session-1',
       documentId: 'doc-a',
       revision: 4,
+      isDirty: false,
       documentState: {
         status: 'ready',
         snapshot: {
@@ -385,7 +386,9 @@ describe('editor host message boundary', () => {
         documentSettings: null,
       },
     })).toBe(false);
-    expect(isHostToEditorMessage({ type: 'requestFlush', sessionId: 'session-1', requestId: 'flush-1' })).toBe(true);
+    expect(isHostToEditorMessage({
+      type: 'requestFlush', sessionId: 'session-1', documentId: 'doc-a', requestId: 'flush-1',
+    })).toBe(true);
     expect(isHostToEditorMessage({ type: 'requestFlush' })).toBe(false);
     expect(isHostToEditorMessage({
       type: 'editRejected', sessionId: 'session-1', documentId: 'doc-a',
@@ -397,9 +400,17 @@ describe('editor host message boundary', () => {
       },
     })).toBe(true);
     expect(isEditorToHostMessage({
-      type: 'flushComplete', sessionId: 'session-1', requestId: 'flush-1',
+      type: 'flushComplete', sessionId: 'session-1', documentId: 'doc-a', requestId: 'flush-1',
     })).toBe(true);
     expect(isEditorToHostMessage({ type: 'flushComplete' })).toBe(false);
+    expect(isHostToEditorMessage({
+      type: 'editAcknowledged', sessionId: 'session-1', documentId: 'doc-a', editId: 'edit-1',
+      revision: 5, modified: '2026-08-06T01:00:00.000Z',
+    })).toBe(true);
+    expect(isHostToEditorMessage({
+      type: 'documentSaveState', sessionId: 'session-1', documentId: 'doc-a',
+      saveGeneration: 1, revision: 5, phase: 'saved', modified: '2026-08-06T01:00:00.000Z',
+    })).toBe(true);
     expect(isHostToEditorMessage({
       type: 'externalChange',
       sessionId: 'session-1',

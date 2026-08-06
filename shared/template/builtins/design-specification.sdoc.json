@@ -9,14 +9,12 @@
     "template": {
       "name": "설계 명세서",
       "description": "시스템의 목표, 구조, 인터페이스와 검증 전략을 정의합니다.",
-      "category": "design",
-      "titleNodeId": "document-title"
+      "category": "design"
     }
   },
   "doc": {
     "type": "doc",
     "content": [
-      { "type": "heading", "attrs": { "level": 1, "id": "document-title", "numbered": false }, "content": [{ "type": "text", "text": "설계 명세서" }] },
       { "type": "heading", "attrs": { "level": 1, "id": "overview" }, "content": [{ "type": "text", "text": "개요" }] },
       { "type": "paragraph" },
       { "type": "heading", "attrs": { "level": 1, "id": "goals" }, "content": [{ "type": "text", "text": "목표·비목표" }] },

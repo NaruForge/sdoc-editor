@@ -22,6 +22,10 @@ interface SaveShortcutEvent {
   key: string;
 }
 
+export const EDITOR_ROOT_ATTRIBUTES = Object.freeze({
+  spellcheck: 'true',
+});
+
 export class PendingEditorUpdateGate {
   private pending = false;
 
@@ -81,6 +85,9 @@ export const useTiptapEditor = ({
     extensions,
     content: '',
     editable: false,
+    editorProps: {
+      attributes: EDITOR_ROOT_ATTRIBUTES,
+    },
     onFocus: () => {
       onEditorTextFocusChangeRef.current?.(true);
     },

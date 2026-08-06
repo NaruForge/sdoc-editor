@@ -21,11 +21,15 @@ export interface DocumentMutationRequest {
   mutation: DocumentMutation;
 }
 
-export interface DocumentMutationAcknowledgement {
+export interface DocumentMutationResponseIdentity {
   sessionId: string;
   documentId: string;
   editId: string;
   revision: number;
+}
+
+export interface DocumentMutationAcknowledgement extends DocumentMutationResponseIdentity {
+  modified: string;
 }
 
 export type DocumentMutationErrorCode =
@@ -36,7 +40,7 @@ export type DocumentMutationErrorCode =
   | 'TRANSPORT_ERROR'
   | 'UNKNOWN';
 
-export interface DocumentMutationRejection extends DocumentMutationAcknowledgement {
+export interface DocumentMutationRejection extends DocumentMutationResponseIdentity {
   code: DocumentMutationErrorCode;
   message: string;
   hostSnapshot?: DocumentMutation;
@@ -58,6 +62,7 @@ export interface DocumentSyncState {
   sessionId: string;
   documentId: string;
   acknowledgedRevision: number;
+  acknowledgedModified?: string;
   localGeneration: number;
   acknowledgedGeneration: number;
   localMutation: DocumentMutation | null;
@@ -103,12 +108,13 @@ export class DocumentSyncCoordinator {
   private readonly send: DocumentSyncCoordinatorOptions['send'];
   private readonly createEditId: () => string;
   private readonly flushWaiters = new Set<FlushWaiter>();
+  private readonly listeners = new Set<() => void>();
   private current: DocumentSyncState;
 
   public constructor(options: DocumentSyncCoordinatorOptions) {
     this.send = options.send;
     this.createEditId = options.createEditId ?? (() => crypto.randomUUID());
-    this.current = {
+    this.current = Object.freeze({
       sessionId: options.identity.sessionId,
       documentId: options.identity.documentId,
       acknowledgedRevision: options.identity.revision,
@@ -120,11 +126,23 @@ export class DocumentSyncCoordinator {
       error: null,
       conflict: null,
       externalChange: null,
-    };
+    });
   }
 
   public get state(): Readonly<DocumentSyncState> {
     return this.current;
+  }
+
+  public getSnapshot = (): Readonly<DocumentSyncState> => this.current;
+
+  public subscribe = (listener: () => void): (() => void) => {
+    this.listeners.add(listener);
+    return () => { this.listeners.delete(listener); };
+  };
+
+  private publish(next: DocumentSyncState): void {
+    this.current = Object.freeze(next);
+    this.listeners.forEach((listener) => listener());
   }
 
   public submit(mutation: DocumentMutation): number {
@@ -133,12 +151,12 @@ export class DocumentSyncCoordinator {
     }
 
     const localGeneration = this.current.localGeneration + 1;
-    this.current = {
+    this.publish({
       ...this.current,
       localGeneration,
       localMutation: mutation,
       pending: { localGeneration, mutation },
-    };
+    });
     this.dispatchNext();
     return localGeneration;
   }
@@ -151,9 +169,10 @@ export class DocumentSyncCoordinator {
       ? this.current.externalChange
       : null;
 
-    this.current = {
+    this.publish({
       ...this.current,
       acknowledgedRevision: message.revision,
+      acknowledgedModified: message.modified,
       acknowledgedGeneration: Math.max(
         this.current.acknowledgedGeneration,
         inFlight.localGeneration,
@@ -162,7 +181,7 @@ export class DocumentSyncCoordinator {
       error: null,
       conflict: null,
       externalChange: remainingExternalChange,
-    };
+    });
     this.settleFlushWaiters();
     this.dispatchNext();
     return true;
@@ -186,7 +205,7 @@ export class DocumentSyncCoordinator {
       message.hostSnapshot
       && (message.code === 'EXTERNAL_CHANGE' || message.code === 'STALE_REVISION'),
     );
-    this.current = {
+    this.publish({
       ...this.current,
       inFlight: null,
       pending: latest,
@@ -197,7 +216,7 @@ export class DocumentSyncCoordinator {
       externalChange: isConflict && message.hostSnapshot
         ? { revision: message.revision, hostSnapshot: message.hostSnapshot }
         : this.current.externalChange,
-    };
+    });
     this.rejectFlushWaiters(error);
     return true;
   }
@@ -208,7 +227,7 @@ export class DocumentSyncCoordinator {
    */
   public retry(options: { revision?: number } = {}): void {
     if (!this.current.error) return;
-    this.current = {
+    this.publish({
       ...this.current,
       ...(options.revision === undefined
         ? {}
@@ -216,16 +235,16 @@ export class DocumentSyncCoordinator {
       error: null,
       conflict: null,
       externalChange: null,
-    };
+    });
     this.dispatchNext();
   }
 
   public observeExternalChange(revision: number, hostSnapshot: DocumentMutation): boolean {
     if (revision <= this.current.acknowledgedRevision) return false;
-    this.current = {
+    this.publish({
       ...this.current,
       externalChange: { revision, hostSnapshot },
-    };
+    });
     return true;
   }
 
@@ -235,7 +254,7 @@ export class DocumentSyncCoordinator {
     const localGeneration = latest
       ? this.current.localGeneration + 1
       : this.current.localGeneration;
-    this.current = {
+    this.publish({
       ...this.current,
       acknowledgedRevision: revision,
       localGeneration,
@@ -246,16 +265,19 @@ export class DocumentSyncCoordinator {
       error: null,
       conflict: null,
       externalChange: null,
-    };
+    });
     this.dispatchNext();
     return localGeneration;
   }
 
   /** User chose reload/template; reset persistence state to that explicit snapshot. */
   public adoptReplacement(revision: number, mutation: DocumentMutation): void {
-    this.current = {
+    this.publish({
       ...this.current,
       acknowledgedRevision: revision,
+      acknowledgedModified: typeof mutation.meta.modified === 'string'
+        ? mutation.meta.modified
+        : this.current.acknowledgedModified,
       acknowledgedGeneration: this.current.localGeneration,
       localMutation: mutation,
       inFlight: null,
@@ -263,7 +285,7 @@ export class DocumentSyncCoordinator {
       error: null,
       conflict: null,
       externalChange: null,
-    };
+    });
     this.settleFlushWaiters();
   }
 
@@ -277,7 +299,7 @@ export class DocumentSyncCoordinator {
   }
 
   private matchInFlight(
-    message: DocumentMutationAcknowledgement,
+    message: DocumentMutationResponseIdentity,
   ): DocumentMutationRequest | null {
     const inFlight = this.current.inFlight;
     if (!inFlight
@@ -303,7 +325,7 @@ export class DocumentSyncCoordinator {
       localGeneration: this.current.pending.localGeneration,
       mutation: this.current.pending.mutation,
     };
-    this.current = { ...this.current, inFlight: request, pending: null };
+    this.publish({ ...this.current, inFlight: request, pending: null });
 
     try {
       const result = this.send(request);

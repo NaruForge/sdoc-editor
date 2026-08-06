@@ -2,12 +2,14 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { TiptapNode } from '../shared/types';
+import type { DocumentMutation } from '../shared/persistence/DocumentSyncCoordinator';
 import {
   ExternalChangeBanner,
   ExternalChangeComparison,
   ExternalChangePrompt,
   buildExternalChangeComparison,
   buildExternalDocumentDiff,
+  buildExternalMutationDiff,
   externalChangePromptTabTarget,
   initialExternalChangePromptState,
   reduceExternalChangePromptState,
@@ -24,6 +26,11 @@ const heading = (id: string, value: string): TiptapNode => ({
   content: [text(value)],
 });
 const doc = (...content: TiptapNode[]): TiptapNode => ({ type: 'doc', content });
+const snapshot = (
+  content: TiptapNode,
+  meta: DocumentMutation['meta'] = {},
+  documentSettings: DocumentMutation['documentSettings'] = null,
+): DocumentMutation => ({ content, meta, documentSettings });
 
 describe('external document block diff', () => {
   it('uses persistent ids to report a changed and moved heading once', () => {
@@ -98,6 +105,37 @@ describe('external document block diff', () => {
       blocks: [],
       summary: { added: 0, removed: 0, changed: 0, moved: 0 },
     });
+  });
+});
+
+describe('external mutation diff', () => {
+  it('reports metadata-only and raw document-setting changes even when body content is equal', () => {
+    const body = doc(paragraph('Same body'));
+    const result = buildExternalMutationDiff(
+      snapshot(body, { title: 'Mine', extension: { z: 1, a: 2 } }, { pdfScale: 70 }),
+      snapshot(body, { title: 'External', extension: { a: 2, z: 1 } }, { pdfScale: 80 }),
+    );
+
+    expect(result.hasChanges).toBe(true);
+    expect(result.metadata).toMatchObject([
+      { path: '/meta/title', mine: { preview: 'Mine' }, external: { preview: 'External' } },
+    ]);
+    expect(result.settings).toMatchObject([
+      { path: '/meta/settings/pdfScale', mine: { preview: '70' }, external: { preview: '80' } },
+    ]);
+    expect(result.content.hasChanges).toBe(false);
+  });
+
+  it('sorts extension metadata deterministically and bounds large previews', () => {
+    const body = doc();
+    const result = buildExternalMutationDiff(
+      snapshot(body, { zeta: 'mine', alpha: 'x'.repeat(10_000) }),
+      snapshot(body, { zeta: 'external', alpha: 'short' }),
+    );
+
+    expect(result.metadata.map((field) => field.key)).toEqual(['alpha', 'zeta']);
+    expect(result.metadata[0].mine?.truncated).toBe(true);
+    expect(result.metadata[0].mine?.preview.length).toBeLessThanOrEqual(4097);
   });
 });
 

@@ -33,7 +33,7 @@ const createBuiltIn = (definition: BuiltInDefinition): SdocTemplate => {
   const envelope: SdocEnvelope = definition.value;
   const metadata = envelope.meta.template;
   const titleNodeId = optionalString(metadata, 'titleNodeId');
-  if (!titleNodeId || ![...walkDocument(envelope.doc)].some(({ node }) =>
+  if (titleNodeId && ![...walkDocument(envelope.doc)].some(({ node }) =>
     node.type === 'heading' && node.attrs?.id === titleNodeId)) {
     throw new Error(`Bundled template ${definition.id} requires a valid title heading.`);
   }
@@ -48,7 +48,7 @@ const createBuiltIn = (definition: BuiltInDefinition): SdocTemplate => {
     ...(optionalString(metadata, 'category')
       ? { category: optionalString(metadata, 'category') }
       : {}),
-    titleNodeId,
+    ...(titleNodeId === undefined ? {} : { titleNodeId }),
   };
   return { descriptor, envelope };
 };

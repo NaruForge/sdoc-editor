@@ -6,6 +6,7 @@ import {
   validateDocumentSettings,
 } from '../documentContract';
 import { normalizeDocumentTitle, unicodeCodePointLength } from '../title';
+import { normalizeSafeLinkUrl } from '../linkUrl';
 import { normalizeDocument } from '../sdocUtils';
 import { buildNumberingIndex } from '../numbering';
 import { walkDocument } from '../walker';
@@ -245,14 +246,10 @@ function analyze(doc: TiptapNode): Baseline {
     for (const mark of node.marks ?? []) {
       const href = mark.type === 'link' ? mark.attrs?.href : undefined;
       if (typeof href !== 'string') continue;
-      const normalizedHref = href.trim().normalize('NFC');
-      if (normalizedHref.startsWith('#')) {
-        if (!ids.has(normalizedHref.slice(1))) addViolation('dangling', normalizedHref);
-      } else if (/[\u0000-\u001f\u007f-\u009f]/.test(href)
-        || /^(?:javascript|data|file):/i.test(normalizedHref)
-        || /^[a-zA-Z]:[\\/]/.test(normalizedHref)
-        || normalizedHref.startsWith('/') || normalizedHref.startsWith('\\\\')) {
-        addViolation('link', normalizedHref);
+      const normalized = normalizeSafeLinkUrl(href);
+      if (!normalized.ok) addViolation('link', href.trim());
+      else if (normalized.url.startsWith('#') && !ids.has(normalized.url.slice(1))) {
+        addViolation('dangling', normalized.url);
       }
     }
   }
