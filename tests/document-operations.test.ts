@@ -479,6 +479,20 @@ describe('document operations core', () => {
     }]);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.diagnostics[0].code).toBe('NEW_NONPORTABLE_ASSET');
+
+    const unsafeLink = apply(text, [{
+      op: 'insertBlock',
+      destination: { position: 'after', target: target('intro') },
+      block: {
+        type: 'paragraph',
+        content: [{
+          type: 'text', text: 'unsafe',
+          marks: [{ type: 'link', attrs: { href: 'vbscript:msgbox(1)' } }],
+        }],
+      },
+    }]);
+    expect(unsafeLink.ok).toBe(false);
+    if (!unsafeLink.ok) expect(unsafeLink.diagnostics[0].code).toBe('NEW_UNSAFE_LINK');
   });
 
   it('requires explicit legacy upgrade before applying', () => {

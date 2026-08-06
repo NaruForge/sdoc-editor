@@ -90,7 +90,9 @@ export function convertWebviewUrisToRelativePaths(
 export async function embedImagesAsBase64(
   node: TiptapNode,
   documentDir: string,
+  signal?: AbortSignal,
 ): Promise<TiptapNode> {
+  signal?.throwIfAborted();
   type PendingReference = { cloned: TiptapNode; src: string };
   const pending: PendingReference[] = [];
   const cloneTree = (current: TiptapNode): TiptapNode => {
@@ -105,17 +107,21 @@ export async function embedImagesAsBase64(
   };
 
   const cloned = cloneTree(node);
+  signal?.throwIfAborted();
   assertEmbeddedAssetBudget([], pending.length);
   if (pending.length === 0) return cloned;
 
   const root = await realpath(path.resolve(documentDir));
+  signal?.throwIfAborted();
   const grouped = new Map<string, { imagePath: string; mime: string; references: TiptapNode[] }>();
   for (const { cloned: imageNode, src } of pending) {
+    signal?.throwIfAborted();
     const segments = parseContainedRelativeAssetPath(src);
     if (!segments || !segments.some((segment) => segment === 'images' || segment === 'drawio')) {
       throw new Error(`Export blocked unsafe image path: ${src}`);
     }
     const imagePath = await realpath(path.resolve(root, ...segments));
+    signal?.throwIfAborted();
     const relative = path.relative(root, imagePath);
     if (!relative || path.isAbsolute(relative) || relative === '..' || relative.startsWith(`..${path.sep}`)) {
       throw new Error(`Export blocked image outside the document root: ${src}`);
@@ -133,9 +139,12 @@ export async function embedImagesAsBase64(
     const results = new Array<R>(values.length);
     let next = 0;
     const worker = async () => {
-      while (next < values.length) {
+      while (true) {
+        signal?.throwIfAborted();
+        if (next >= values.length) return;
         const index = next++;
         results[index] = await task(values[index]);
+        signal?.throwIfAborted();
       }
     };
     await Promise.all(Array.from(
@@ -153,7 +162,8 @@ export async function embedImagesAsBase64(
 
   const actualSizes: number[] = [];
   await mapBounded(assets, async (asset) => {
-    const imageData = await readFile(asset.imagePath);
+    const imageData = await readFile(asset.imagePath, { signal });
+    signal?.throwIfAborted();
     actualSizes.push(imageData.byteLength);
     assertEmbeddedAssetBudget(actualSizes, pending.length);
     const dataUrl = `data:${asset.mime};base64,${imageData.toString('base64')}`;

@@ -1,6 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { User, Calendar, Clock, Tag, Info } from 'lucide-react';
+import { User, Calendar, Clock, Tag, Info, RotateCw } from 'lucide-react';
 import { useEditorI18n } from '../i18n';
+import type { DocumentSavePresentationPhase } from '../saveStatus';
+
+export interface DocumentHeaderSaveStatus {
+  phase: DocumentSavePresentationPhase;
+  label: string;
+  detail?: string;
+  retryable: boolean;
+}
 
 interface DocumentHeaderProps {
   author: string;
@@ -10,6 +18,9 @@ interface DocumentHeaderProps {
   onAuthorChange: (value: string) => void;
   onVersionChange: (value: string) => void;
   disabled?: boolean;
+  saveStatus?: DocumentHeaderSaveStatus | null;
+  retryLabel?: string;
+  onRetrySave?: () => void;
 }
 
 export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
@@ -20,6 +31,9 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
   onAuthorChange,
   onVersionChange,
   disabled = false,
+  saveStatus,
+  retryLabel,
+  onRetrySave,
 }) => {
   const { t, formatDate } = useEditorI18n();
   const [editingAuthor, setEditingAuthor] = useState(false);
@@ -151,6 +165,22 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
         <div className="document-header-timestamps">
           {timestamps}
         </div>
+        {saveStatus && (
+          <div
+            className={`document-save-status document-save-status--${saveStatus.phase}`}
+            role="status"
+            aria-live="polite"
+            title={saveStatus.detail}
+          >
+            <span>{saveStatus.label}</span>
+            {saveStatus.retryable && onRetrySave && retryLabel && (
+              <button type="button" onClick={onRetrySave} aria-label={retryLabel}>
+                <RotateCw size={12} aria-hidden="true" />
+                <span>{retryLabel}</span>
+              </button>
+            )}
+          </div>
+        )}
         <details className="document-header-info">
           <summary aria-label={t('document.info')}>
             <Info size={14} aria-hidden="true" />

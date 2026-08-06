@@ -7,6 +7,11 @@ import {
   validateSettingsSchema,
 } from './generated/documentValidators.js';
 import { MAX_DOCUMENT_BYTES } from '../resourceLimits';
+import {
+  analyzeLegacyTitleMigration,
+  applyLegacyTitleMigration,
+  type LegacyTitleMigrationAnalysis,
+} from './titleMigration';
 
 export interface ContractDiagnostic {
   path: string;
@@ -14,11 +19,22 @@ export interface ContractDiagnostic {
 }
 
 export type DocumentContractResult =
-  | { ok: true; envelope: SdocEnvelope; legacy: boolean }
+  | {
+      ok: true;
+      envelope: SdocEnvelope;
+      legacy: boolean;
+      titleMigration: LegacyTitleMigrationAnalysis;
+    }
   | { ok: false; kind: 'malformed' | 'unsupported-version'; diagnostics: ContractDiagnostic[] };
 
 export type DocumentTextContractResult =
-  | { ok: true; envelope: SdocEnvelope; legacy: boolean; uninitialized: boolean }
+  | {
+      ok: true;
+      envelope: SdocEnvelope;
+      legacy: boolean;
+      uninitialized: boolean;
+      titleMigration: LegacyTitleMigrationAnalysis;
+    }
   | {
       ok: false;
       kind: 'invalid-json' | 'malformed' | 'unsupported-version' | 'too-large';
@@ -122,7 +138,15 @@ export function parseDocumentContract(value: unknown): DocumentContractResult {
       meta: value.meta === undefined ? {} : value.meta,
       doc: migrateAttributes(value.doc),
     };
-    if (validateEnvelope(migrated)) return { ok: true, envelope: migrated, legacy: false };
+    if (validateEnvelope(migrated)) {
+      const titleMigration = applyLegacyTitleMigration(migrated);
+      return {
+        ok: true,
+        envelope: titleMigration.envelope,
+        legacy: false,
+        titleMigration: titleMigration.analysis,
+      };
+    }
     return {
       ok: false,
       kind: 'malformed',
@@ -138,14 +162,16 @@ export function parseDocumentContract(value: unknown): DocumentContractResult {
       return { ok: false, kind: 'malformed', diagnostics: malformedDiagnostics(validateDoc.errors) };
     }
     const now = new Date().toISOString();
+    const envelope: SdocEnvelope = {
+      sdoc: '1.0',
+      meta: { title: '', author: '', version: '0.1', created: now, modified: now },
+      doc: migrated,
+    };
     return {
       ok: true,
       legacy: true,
-      envelope: {
-        sdoc: '1.0',
-        meta: { title: '', author: '', version: '0.1', created: now, modified: now },
-        doc: migrated,
-      },
+      envelope,
+      titleMigration: analyzeLegacyTitleMigration(envelope),
     };
   }
 
@@ -167,11 +193,15 @@ export function parseDocumentTextContract(
     };
   }
   if (!text.trim()) {
+    const envelope: SdocEnvelope = {
+      sdoc: '1.0', meta: {}, doc: { type: 'doc', content: [] },
+    };
     return {
       ok: true,
       legacy: false,
       uninitialized: true,
-      envelope: { sdoc: '1.0', meta: {}, doc: { type: 'doc', content: [] } },
+      envelope,
+      titleMigration: analyzeLegacyTitleMigration(envelope),
     };
   }
   let parsed: unknown;

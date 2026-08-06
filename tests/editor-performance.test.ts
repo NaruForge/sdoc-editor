@@ -1,13 +1,70 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { Extension, getSchema } from '@tiptap/core';
+import { StarterKit } from '@tiptap/starter-kit';
+import { EditorState, type Transaction } from '@tiptap/pm/state';
+import type { EditorView, PluginView } from '@tiptap/pm/view';
 import {
   buildOutlinePresentationIndex,
+  createDocumentStructureIndexPlugin,
   findActivePosition,
+  getDocumentStructureIndexState,
+  resolveStructurePosition,
+  subscribeToDocumentStructureIndex,
 } from '../shared/editor/structureIndex';
 import { applyEditorSettingsCss } from '../shared/editor/applyEditorSettingsCss';
 import { resolveEditorSettings } from '../shared/settingsResolver';
 import { isUpdatedDrawioAsset } from '../shared/editor/drawioUpdates';
 
 describe('large document structure lookup', () => {
+  it('maps 100 ordinary paragraph transactions without rebuilding or publishing semantics', () => {
+    const stableHeadingIds = Extension.create({
+      name: 'stableHeadingIds',
+      addGlobalAttributes() {
+        return [{ types: ['heading'], attributes: { id: { default: null } } }];
+      },
+    });
+    const schema = getSchema([StarterKit, stableHeadingIds]);
+    const settings = resolveEditorSettings();
+    const plugin = createDocumentStructureIndexPlugin({ getSettings: () => settings });
+    const blocks = Array.from({ length: 10_000 }, () => schema.node('paragraph'));
+    blocks.push(schema.node('heading', {
+      level: 1,
+      id: 'stable-heading',
+      numbered: null,
+    }, schema.text('Stable heading')));
+    let state = EditorState.create({
+      schema,
+      plugins: [plugin],
+      doc: schema.node('doc', null, blocks),
+    });
+    const initial = getDocumentStructureIndexState(state);
+    const initialPosition = resolveStructurePosition(state, 'stable-heading');
+    let pluginView: PluginView | undefined;
+    const view = {
+      get state() { return state; },
+      dispatch(transaction: Transaction) {
+        state = state.apply(transaction);
+        pluginView?.update?.(view as unknown as EditorView);
+      },
+    } as unknown as EditorView;
+    pluginView = plugin.spec.view?.(view);
+    const semanticUpdates = vi.fn();
+    const unsubscribe = subscribeToDocumentStructureIndex(view, semanticUpdates);
+
+    for (let index = 0; index < 100; index += 1) {
+      view.dispatch(state.tr.insertText('x', 1));
+    }
+
+    const current = getDocumentStructureIndexState(state);
+    expect(current.rebuildCount).toBe(initial.rebuildCount);
+    expect(current.semanticRevision).toBe(initial.semanticRevision);
+    expect(semanticUpdates).not.toHaveBeenCalled();
+    expect(resolveStructurePosition(state, 'stable-heading')).toBe(initialPosition! + 100);
+
+    unsubscribe();
+    pluginView?.destroy?.();
+  });
+
   it('finds active structural entries without rescanning document nodes', () => {
     const positions = Array.from({ length: 5_000 }, (_, index) => index * 10);
     for (let cursor = 0; cursor < 1_000; cursor += 10) {

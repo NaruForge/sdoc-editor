@@ -2,7 +2,7 @@
 
 ## Overview
 
-Structured Doc Editor v0.8.0 has two supported delivery surfaces: the VS Code
+Structured Doc Editor v0.8.2 has two supported delivery surfaces: the VS Code
 extension for visual editing and the SDOC CLI for non-visual document
 automation. Both consume one TypeScript document core and the same persisted
 `.sdoc` contract.
@@ -32,8 +32,9 @@ SDOC CLI ─ filesystem boundary ─ shared/document/operations
 
 - `sdoc.schema.json` defines the persisted envelope.
 - `shared/types.ts` defines TypeScript document and settings types.
-- `shared/document/sdocUtils.ts` owns migration, cleanup, ID assignment, title
-  extraction, cross-reference synchronization, and normalization.
+- `shared/document/sdocUtils.ts` owns cleanup, ID assignment, cross-reference
+  synchronization, and normalization. `shared/document/titleMigration.ts`
+  conservatively removes only the exact historical duplicate-title heading.
 - `tests/fixtures/document-contract.json` protects legacy and current
   TypeScript behavior.
 - `shared/document/documentContract.ts` narrows external JSON, rejects
@@ -48,8 +49,11 @@ SDOC CLI ─ filesystem boundary ─ shared/document/operations
 `shared/template/` owns built-in template data, untrusted template metadata
 narrowing, catalog diagnostics, and immutable template instantiation. A
 template is a schema-valid `.sdoc` envelope. Creating a document removes
-template-only metadata, refreshes document metadata, optionally updates an
-explicitly identified title heading, and preserves settings, IDs, and links.
+template-only metadata, refreshes document metadata, consumes a legacy
+explicit title placeholder, and preserves settings, IDs, and links.
+`meta.title` is the canonical title; current templates do not duplicate it as a
+body H1. See
+[ADR 0016](adr/0016-use-metadata-as-the-canonical-document-title.md).
 
 Instantiation also removes persisted document identity (`meta.documentId` and
 legacy `meta.id`). Applying a template to an existing VS Code document
@@ -95,6 +99,11 @@ extensions, extension runtime callbacks, constants, and structural CSS.
 NodeViews receive `EditorExtensionRuntime` explicitly; they do not communicate
 through `window.__*` globals.
 
+`DocumentStructureIndexExtension` owns one transaction-mapped structural index
+for outline, figures, tables, equations, numbering, and internal references.
+Ordinary paragraph edits map positions without rebuilding or notifying semantic
+subscribers; structural edits coalesce into one trailing rebuild.
+
 The `EditorHostBridge` and discriminated unions in
 `shared/types/messages.ts` define communication between the VS Code webview and
 extension host. JSON entering the webview boundary is narrowed with runtime
@@ -123,7 +132,8 @@ external file changes, and asset refreshes do not cross this boundary.
 
 Save and export barriers capture a local generation and wait for its
 acknowledgement while later input remains editable. External changes use the
-shared non-modal banner and read-only block comparison in
+shared non-modal banner and read-only metadata, document-settings, and block
+comparison in
 `shared/editor/externalChanges/`; no automatic refresh or merge is performed.
 Conflict decisions use a shared accessible confirmation dialog. Keeping local
 changes waits for the correlated acknowledgement, while cancellation or
@@ -135,7 +145,10 @@ failure. Conflict and invalid-document errors never retry through that path;
 they require explicit conflict recovery or source repair.
 Flush requests and acknowledgements are owned by the exact editor session and
 document, so disposal of one panel cannot settle another panel's save barrier.
-See [ADR 0015](adr/0015-fail-closed-at-document-and-resource-boundaries.md).
+An edit acknowledgement updates the host buffer only; a distinct monotonic,
+identity-bound save event is required before the UI reports `Saved`. See
+[ADR 0015](adr/0015-fail-closed-at-document-and-resource-boundaries.md) and
+[ADR 0017](adr/0017-separate-editor-acknowledgement-from-disk-save.md).
 
 ### Conversion and settings
 
@@ -148,7 +161,11 @@ Mermaid diagrams render locally. PlantUML, D2, and Graphviz rendering requires
 first-use consent and is performed by the VS Code extension host with a bounded
 in-memory cache; converters never access the network. Passive document opening
 never prompts or transmits source. The host prepares validated image assets
-before export only after authoritative global consent, while converters
+through `shared/export/diagramPreparation.ts` for both single documents and
+manifest-ordered book chapters. Rendering is deduplicated by language and
+source while fallback reporting retains occurrence and chapter counts. A shared
+abort signal spans diagram preparation, image embedding, and staged output
+publication. The host renders only after authoritative global consent, while converters
 preserve a source-only fallback when rendering is declined or unavailable.
 Consent and renderer trust settings never enter `.sdoc` or `DocumentSettings`.
 See [ADR 0011](adr/0011-use-opt-in-host-diagram-rendering.md),
@@ -199,8 +216,8 @@ remote, legacy, malformed, and uncertain locks remain blocked. See
 - Documents and imports are capped at 32 MiB. A local asset is capped at 32 MiB;
   self-contained export permits at most 1,024 references and 256 MiB of unique
   asset bytes, read with concurrency four. Custom CSS is capped at 1 MiB.
-- Kroki resolution and requests have retryable deadlines; the resolved address
-  is validated before the connection is made.
+- Kroki DNS resolution and HTTP work share one absolute retryable deadline; the
+  resolved address is validated before the connection is made.
 - Watcher events include owner document, generation, and portable relative
   path; stale generations are ignored and duplicate events are coalesced.
 
@@ -256,4 +273,4 @@ constraints in effect when those versions were supported.
 - `npm run package`: version-checked VSIX in `output/`
 - `npm run package:cli`: installable CLI `.tgz` in `output/`
 
-Rust and Tauri checks are not part of the v0.8.0 build contract.
+Rust and Tauri checks are not part of the v0.8.2 build contract.

@@ -65,12 +65,7 @@ export function createEmptySdoc(meta: Partial<SdocMeta>): SdocEnvelope {
   const title = meta.title || '';
   const doc: TiptapNode = {
     type: 'doc',
-    content: title
-      ? [
-          { type: 'heading', attrs: { level: 1 }, content: [{ type: 'text', text: title }] },
-          { type: 'paragraph' },
-        ]
-      : [{ type: 'paragraph' }],
+    content: [{ type: 'paragraph' }],
   };
   return wrapSdoc(doc, {
     title,

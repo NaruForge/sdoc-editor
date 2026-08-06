@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-08-06
+
+### Added
+- Added truthful, identity-bound save status that distinguishes editor synchronization, pending disk persistence, conflicts, failures, and host-confirmed saves
+- Added whole-document external-change comparison for metadata, document settings, and body blocks with deterministic bounded previews
+- Added one transaction-mapped document structure index for outlines, figures, tables, equations, numbering, and internal references
+- Added shared, cancellable diagram preparation for single documents and `.sdocbook` exports with deduplication and occurrence/chapter fallback reporting
+
+### Changed
+- Made `meta.title` the canonical document title and removed duplicate body-title headings from new documents and built-in templates
+- Restored native VS Code and operating-system context menus and spelling support for editable prose while retaining keyboard-accessible structural actions
+- Reworked link editing to preserve text and non-link formatting, reject ambiguous multi-link selections, restore selection on cancel, and share safe URL validation with semantic operations
+- Expanded Korean/English accessibility coverage for import confirmation, code language selection, cross-references, Math/Image NodeViews, high-contrast colors, and reduced motion
+
+### Fixed
+- Preserved the active save generation across its flush acknowledgement so successful Ctrl+S and autosave operations reach the host-confirmed `Saved` state
+- Propagated export cancellation through image work, Kroki DNS/HTTP, Chromium PDF generation, and staged output publication
+- Prevented cancelled or failed book exports from partially replacing a previously valid output file
+- Conservatively migrated only the exact historical duplicate-title shape while preserving ambiguous authored headings
+
 ## [0.8.1] - 2026-08-06
 
 ### Added

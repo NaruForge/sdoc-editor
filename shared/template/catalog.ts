@@ -137,7 +137,9 @@ const parseCandidate = (
     };
   }
   if (metadata.titleNodeId !== undefined
-    && !hasTitleHeading(contract.envelope, metadata.titleNodeId)) {
+    && !hasTitleHeading(contract.envelope, metadata.titleNodeId)
+    && !(contract.titleMigration.kind === 'auto-remove'
+      && contract.titleMigration.candidate.id === metadata.titleNodeId)) {
     return {
       candidate,
       diagnostics: [diagnostic(

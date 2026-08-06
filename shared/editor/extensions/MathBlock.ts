@@ -57,6 +57,10 @@ export const MathBlock = Node.create<EditorExtensionOptions>({
       // --- Rendered math (visible when NOT editing) ---
       const renderedWrapper = document.createElement('div');
       renderedWrapper.classList.add('math-block-rendered-row');
+      renderedWrapper.setAttribute('role', 'button');
+      renderedWrapper.setAttribute('tabindex', '0');
+      renderedWrapper.setAttribute('aria-label', runtime.translate('math.editHint'));
+      renderedWrapper.setAttribute('aria-expanded', 'false');
       dom.appendChild(renderedWrapper);
 
       const rendered = document.createElement('div');
@@ -144,6 +148,7 @@ export const MathBlock = Node.create<EditorExtensionOptions>({
       const commitEdit = () => {
         if (!isEditing) return;
         isEditing = false;
+        renderedWrapper.setAttribute('aria-expanded', 'false');
         currentLatex = stripDelimiters(textarea.value);
         editContainer.style.display = 'none';
         rendered.style.display = '';
@@ -161,6 +166,7 @@ export const MathBlock = Node.create<EditorExtensionOptions>({
       const cancelEdit = () => {
         if (!isEditing) return;
         isEditing = false;
+        renderedWrapper.setAttribute('aria-expanded', 'false');
         editContainer.style.display = 'none';
         rendered.style.display = '';
       };
@@ -168,6 +174,7 @@ export const MathBlock = Node.create<EditorExtensionOptions>({
       const enterEditMode = () => {
         if (isEditing) return;
         isEditing = true;
+        renderedWrapper.setAttribute('aria-expanded', 'true');
         textarea.value = `$$${currentLatex}$$`;
         editContainer.style.display = '';
         rendered.style.display = 'none';
@@ -216,6 +223,12 @@ export const MathBlock = Node.create<EditorExtensionOptions>({
         e.stopPropagation();
         e.preventDefault();
         openDialog();
+      });
+      renderedWrapper.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        e.preventDefault();
+        e.stopPropagation();
+        enterEditMode();
       });
 
       textarea.addEventListener('input', updateLivePreview);

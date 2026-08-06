@@ -107,8 +107,14 @@ describe('template catalog', () => {
     ]);
     for (const template of BUILTIN_TEMPLATES) {
       expect(() => assertPersistedDocument(template.envelope)).not.toThrow();
+      expect(template.descriptor.titleNodeId).toBeUndefined();
+      expect(template.envelope.meta.template?.titleNodeId).toBeUndefined();
       expect([...walkDocument(template.envelope.doc)].some(({ node }) =>
-        node.type === 'heading' && node.attrs?.id === template.descriptor.titleNodeId)).toBe(true);
+        node.type === 'heading' && node.attrs?.id === 'document-title')).toBe(false);
+      expect([...walkDocument(template.envelope.doc)].some(({ node }) =>
+        node.type === 'heading'
+        && node.content?.map((child) => child.text ?? '').join('') === template.envelope.meta.title))
+        .toBe(false);
     }
   });
 
@@ -304,7 +310,7 @@ describe('template instantiation', () => {
     expect(validateDocumentTitle('  System design  ')).toBeUndefined();
   });
 
-  it('creates an independent persisted document while preserving document semantics', () => {
+  it('consumes a legacy titleNodeId placeholder while preserving all other document semantics', () => {
     const input = validEnvelope();
     (input as { meta: Record<string, unknown> }).meta.documentId = 'source-document';
     (input as { meta: Record<string, unknown> }).meta.id = 'legacy-source-id';
@@ -336,13 +342,39 @@ describe('template instantiation', () => {
     expect(instantiated.meta).not.toHaveProperty('documentId');
     expect(instantiated.meta).not.toHaveProperty('id');
     expect(instantiated.doc.content?.[0]).toEqual({
-      type: 'heading',
-      attrs: { level: 1, id: 'document-title' },
-      content: [{ type: 'text', text: '신규 시스템 설계' }],
+      type: 'heading', attrs: { level: 2, id: 'architecture' },
+      content: [{ type: 'text', text: '구조' }],
     });
-    expect(instantiated.doc.content?.[1].attrs?.id).toBe('architecture');
-    expect(instantiated.doc.content?.[2].content?.[0].marks?.[0].attrs?.href).toBe('#architecture');
+    expect(instantiated.doc.content?.[1].content?.[0].marks?.[0].attrs?.href).toBe('#architecture');
+    expect([...walkDocument(instantiated.doc)].some(({ node }) =>
+      node.type === 'heading' && node.attrs?.id === 'document-title')).toBe(false);
     expect(() => assertPersistedDocument(instantiated)).not.toThrow();
+  });
+
+  it('keeps titleNodeId read compatibility after exact parse-time title migration', () => {
+    const input = validEnvelope() as {
+      meta: { title: string };
+      doc: { content: Array<{ attrs?: Record<string, unknown>; content?: unknown[] }> };
+    };
+    input.doc.content[0]!.attrs = {
+      level: 1, id: 'document-title', numbered: false,
+    };
+    input.doc.content[0]!.content = [{ type: 'text', text: input.meta.title }];
+
+    const catalog = buildTemplateCatalog({
+      builtIn: [],
+      workspaceCandidates: [candidate(input, 'legacy-builtin-shape.sdoc')],
+    });
+
+    expect(catalog.diagnostics).toEqual([]);
+    expect(catalog.templates[0]?.descriptor.titleNodeId).toBe('document-title');
+    expect(catalog.templates[0]?.envelope.doc.content?.[0].attrs?.id).toBe('architecture');
+    const instantiated = instantiateTemplate(catalog.templates[0]!, {
+      title: 'New canonical title',
+      now: () => new Date('2026-07-22T01:02:03.000Z'),
+    });
+    expect(instantiated.meta.title).toBe('New canonical title');
+    expect(instantiated.doc).toEqual(catalog.templates[0]!.envelope.doc);
   });
 });
 

@@ -1,6 +1,7 @@
 import { createServer, type Server } from 'node:http';
 import { once } from 'node:events';
-import { afterEach, describe, expect, it } from 'vitest';
+import { promises as dns } from 'node:dns';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   KrokiDiagramService,
   KrokiRenderError,
@@ -359,6 +360,41 @@ describe('Kroki renderer', () => {
     service.updateSettings({ consent: 'declined', endpoint, allowPrivateNetwork: false });
 
     await expect(pending).rejects.toMatchObject({ code: 'cancelled' });
+  });
+
+  it('shares one absolute deadline between DNS resolution and the HTTP response', async () => {
+    let requests = 0;
+    const server = createServer((_request, response) => {
+      requests += 1;
+      setTimeout(() => {
+        response.writeHead(200, { 'content-type': 'image/png' });
+        response.end(PNG_1X1);
+      }, 150);
+    });
+    servers.push(server);
+    server.listen(0, '127.0.0.1');
+    await once(server, 'listening');
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('Missing test server address');
+    const lookup = vi.spyOn(dns, 'lookup').mockImplementation((async () => {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      return [{ address: '127.0.0.1', family: 4 }];
+    }) as typeof dns.lookup);
+    const service = new KrokiDiagramService({
+      consent: 'granted',
+      endpoint: `http://localhost:${address.port}`,
+      allowPrivateNetwork: false,
+    });
+
+    try {
+      await expect(service.render('plantuml', 'a -> b', { timeoutMs: 200 })).rejects.toMatchObject({
+        code: 'timeout',
+        retryable: true,
+      });
+      expect(requests).toBe(1);
+    } finally {
+      lookup.mockRestore();
+    }
   });
 
   it('rejects redirects, oversized input, wrong MIME, invalid PNG, and excessive pixels', async () => {

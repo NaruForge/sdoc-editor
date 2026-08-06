@@ -1,16 +1,21 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { Editor as TiptapEditor } from '@tiptap/react';
 import { Table2 } from 'lucide-react';
 import { PanelEmptyState } from './PanelEmptyState';
-import { buildNumberingIndex } from '../../document/numbering';
-import type { ResolvedEditorSettings, TiptapNode } from '../../types';
-import { findActivePosition } from '../structureIndex';
+import type { ResolvedEditorSettings } from '../../types';
+import {
+  findActivePosition,
+  getDocumentStructureIndexState,
+  resolveStructurePosition,
+} from '../structureIndex';
+import { useDocumentStructureIndex } from '../hooks/useDocumentStructureIndex';
 import { useEditorI18n } from '../i18n';
 
 interface LotEntry {
   pos: number;
   caption: string;
   label: string;
+  id: string;
 }
 
 interface ListOfTablesProps {
@@ -20,52 +25,36 @@ interface ListOfTablesProps {
 
 export const ListOfTables: React.FC<ListOfTablesProps> = ({ editor, settings }) => {
   const { t } = useEditorI18n();
-  const [entries, setEntries] = useState<LotEntry[]>([]);
-  const [activePos, setActivePos] = useState<number>(-1);
-  const entryPositions = useMemo(() => entries.map((entry) => entry.pos), [entries]);
-
-  const buildEntries = useCallback(() => {
-    if (!editor) return;
-    const result: LotEntry[] = [];
-    const numbering = buildNumberingIndex(editor.getJSON() as TiptapNode, settings);
-    editor.state.doc.descendants((node, pos) => {
-      if (node.type.name === 'table') {
-        const entry = numbering.byId.get(String(node.attrs.id ?? ''));
-        result.push({
-          pos,
-          caption: (node.attrs.caption as string) || '',
-          label: entry?.baseLabel ?? '',
-        });
-      }
-    });
-    setEntries(result);
-  }, [editor, settings]);
-
-  useEffect(() => {
-    if (!editor) return;
-    buildEntries();
-    const handler = () => buildEntries();
-    editor.on('update', handler);
-    return () => { editor.off('update', handler); };
-  }, [editor, buildEntries]);
+  const index = useDocumentStructureIndex(editor, settings);
+  const entries = useMemo<LotEntry[]>(() => (index?.tables ?? []).map((entry) => ({
+    pos: entry.pos,
+    id: entry.id ?? '',
+    caption: entry.title ?? '',
+    label: entry.baseLabel,
+  })), [index]);
+  const [activeId, setActiveId] = useState<string>('');
 
   // Track active element based on cursor position
   useEffect(() => {
     if (!editor) return;
     const handler = () => {
       const cursorPos = editor.state.selection.anchor;
-      setActivePos(findActivePosition(entryPositions, cursorPos));
+      const current = getDocumentStructureIndexState(editor.state).tables;
+      const activePosition = findActivePosition(current.map((entry) => entry.pos), cursorPos);
+      setActiveId(current.find((entry) => entry.pos === activePosition)?.id ?? '');
     };
     editor.on('selectionUpdate', handler);
     return () => {
       editor.off('selectionUpdate', handler);
     };
-  }, [editor, entryPositions]);
+  }, [editor]);
 
   const handleClick = (entry: LotEntry) => {
     if (!editor) return;
-    editor.chain().focus().setTextSelection(entry.pos + 1).run();
-    const domNode = editor.view.nodeDOM(entry.pos) as HTMLElement | null;
+    const position = entry.id ? resolveStructurePosition(editor.state, entry.id) : entry.pos;
+    if (position === undefined) return;
+    editor.chain().focus().setTextSelection(position + 1).run();
+    const domNode = editor.view.nodeDOM(position) as HTMLElement | null;
     if (domNode) {
       domNode.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
@@ -91,8 +80,8 @@ export const ListOfTables: React.FC<ListOfTablesProps> = ({ editor, settings }) 
       <nav className="toc-nav">
         {entries.map((entry) => (
           <button
-            key={entry.pos}
-            className={`toc-entry toc-level-1 lot-entry ${activePos === entry.pos ? 'toc-active' : ''}`}
+            key={entry.id || entry.pos}
+            className={`toc-entry toc-level-1 lot-entry ${entry.id && activeId === entry.id ? 'toc-active' : ''}`}
             type="button"
             onClick={() => handleClick(entry)}
             title={entry.caption || entry.label}

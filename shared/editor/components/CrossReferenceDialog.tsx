@@ -64,6 +64,12 @@ export const CrossReferenceDialog: React.FC<CrossReferenceDialogProps> = ({ targ
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       setSelectedIndex(i => Math.max(i - 1, 0));
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      setSelectedIndex(0);
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      setSelectedIndex(Math.max(0, flatItems.length - 1));
     } else if (e.key === 'Enter') {
       e.preventDefault();
       if (flatItems[selectedIndex]) {
@@ -99,27 +105,36 @@ export const CrossReferenceDialog: React.FC<CrossReferenceDialogProps> = ({ targ
               type="button"
               className={`crossref-filter-chip${filter === f.id ? ' is-active' : ''}`}
               aria-pressed={filter === f.id}
-              onMouseDown={(e) => { e.preventDefault(); setFilter(f.id); }}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => setFilter(f.id)}
             >
               {t(f.labelKey)}
             </button>
           ))}
         </div>
-        <div className="crossref-dialog-list">
+        <div
+          className="crossref-dialog-list"
+          role="listbox"
+          aria-label={t('crossRef.title')}
+          aria-activedescendant={flatItems[selectedIndex]
+            ? `crossref-option-${flatItems[selectedIndex].id}`
+            : undefined}
+        >
           {filtered.length === 0 && (
             <div className="crossref-dialog-empty">{t('crossRef.empty')}</div>
           )}
           {Object.entries(groups).map(([cat, items]) => (
-            <div key={cat}>
-              <div className="crossref-category">{cat}</div>
+            <div key={cat} role="group" aria-label={cat}>
+              <div className="crossref-category" aria-hidden="true">{cat}</div>
               {items.map((item) => {
                 const idx = flatItems.indexOf(item);
                 return (
                   <div
                     key={item.id}
+                    id={`crossref-option-${item.id}`}
                     className={`crossref-item${idx === selectedIndex ? ' focused' : ''}`}
-                    role="button"
-                    tabIndex={idx === selectedIndex ? 0 : -1}
+                    role="option"
+                    aria-selected={idx === selectedIndex}
                     onMouseDown={(e) => { e.preventDefault(); onSelect(item); }}
                     onMouseEnter={() => setSelectedIndex(idx)}
                   >

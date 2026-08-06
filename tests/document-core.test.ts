@@ -16,6 +16,7 @@ import {
   parseDocumentTextContract,
   validateDocumentSettings,
 } from '../shared/document/documentContract';
+import { analyzeLegacyTitleMigration } from '../shared/document/titleMigration';
 
 interface ContractFixture {
   legacyMigration: {
@@ -234,7 +235,7 @@ describe('sdoc envelope', () => {
     });
   });
 
-  it('preserves metadata settings through wrapping', () => {
+  it('keeps meta.title canonical when creating and wrapping an empty document', () => {
     const document = createEmptySdoc({
       title: 'Guide',
       author: 'Author',
@@ -244,7 +245,145 @@ describe('sdoc envelope', () => {
     expect(wrapped.sdoc).toBe('1.0');
     expect(wrapped.meta.title).toBe('Guide');
     expect(wrapped.meta.settings).toEqual({ captionStyle: 'korean' });
-    expect(wrapped.doc.content?.[0].type).toBe('heading');
+    expect(wrapped.doc.content).toEqual([{ type: 'paragraph' }]);
+  });
+
+  it('removes only the exact legacy built-in title heading from the parsed envelope', () => {
+    const input = {
+      sdoc: '1.0',
+      meta: {
+        title: 'Legacy report',
+        settings: { captionStyle: 'korean' },
+        review: { status: 'approved' },
+        template: { name: 'Legacy', titleNodeId: 'document-title' },
+      },
+      doc: {
+        type: 'doc',
+        content: [
+          {
+            type: 'heading',
+            attrs: { level: 1, id: 'document-title', numbered: false },
+            content: [{ type: 'text', text: 'Legacy report' }],
+          },
+          { type: 'heading', attrs: { level: 1, id: 'scope' }, content: [text('Scope')] },
+          { type: 'paragraph', content: [text('See scope', '#scope')] },
+        ],
+      },
+    };
+    const snapshot = structuredClone(input);
+
+    expect(analyzeLegacyTitleMigration(input)).toMatchObject({
+      kind: 'auto-remove',
+      candidate: { path: [0], id: 'document-title', text: 'Legacy report' },
+    });
+    const parsed = parseDocumentContract(input);
+
+    expect(input).toEqual(snapshot);
+    expect(parsed).toMatchObject({
+      ok: true,
+      legacy: false,
+      titleMigration: { kind: 'auto-remove' },
+    });
+    if (!parsed.ok) return;
+    expect(parsed.envelope.meta).toEqual(input.meta);
+    expect(parsed.envelope.doc.content).toEqual(input.doc.content.slice(1));
+  });
+
+  it.each([
+    {
+      name: 'marked title text',
+      content: [{
+        type: 'heading',
+        attrs: { level: 1, id: 'document-title', numbered: false },
+        content: [{ type: 'text', text: 'Legacy report', marks: [{ type: 'bold' }] }],
+      }],
+    },
+    {
+      name: 'title text mismatch',
+      content: [{
+        type: 'heading',
+        attrs: { level: 1, id: 'document-title', numbered: false },
+        content: [{ type: 'text', text: 'Edited heading' }],
+      }],
+    },
+    {
+      name: 'numbered heading',
+      content: [{
+        type: 'heading',
+        attrs: { level: 1, id: 'document-title' },
+        content: [{ type: 'text', text: 'Legacy report' }],
+      }],
+    },
+    {
+      name: 'matching H2',
+      content: [{
+        type: 'heading',
+        attrs: { level: 2, id: 'document-title', numbered: false },
+        content: [{ type: 'text', text: 'Legacy report' }],
+      }],
+    },
+    {
+      name: 'aligned heading outside the exact historical shape',
+      content: [{
+        type: 'heading',
+        attrs: {
+          level: 1, id: 'document-title', numbered: false, textAlign: 'center',
+        },
+        content: [{ type: 'text', text: 'Legacy report' }],
+      }],
+    },
+    {
+      name: 'matching heading after another top-level block',
+      content: [
+        { type: 'paragraph' },
+        {
+          type: 'heading',
+          attrs: { level: 1, id: 'document-title', numbered: false },
+          content: [{ type: 'text', text: 'Legacy report' }],
+        },
+      ],
+    },
+    {
+      name: 'matching heading nested in a blockquote',
+      content: [{
+        type: 'blockquote',
+        content: [{
+          type: 'heading',
+          attrs: { level: 1, id: 'document-title', numbered: false },
+          content: [{ type: 'text', text: 'Legacy report' }],
+        }],
+      }],
+    },
+    {
+      name: 'multiple title-like headings',
+      content: [
+        {
+          type: 'heading',
+          attrs: { level: 1, id: 'document-title', numbered: false },
+          content: [{ type: 'text', text: 'Legacy report' }],
+        },
+        {
+          type: 'heading',
+          attrs: { level: 1, id: 'other-title', numbered: false },
+          content: [{ type: 'text', text: 'Legacy report' }],
+        },
+      ],
+    },
+  ])('leaves an ambiguous legacy title unchanged: $name', ({ content }) => {
+    const input = {
+      sdoc: '1.0' as const,
+      meta: { title: 'Legacy report' },
+      doc: { type: 'doc', content },
+    };
+
+    expect(analyzeLegacyTitleMigration(input)).toMatchObject({ kind: 'ambiguous' });
+    const parsed = parseDocumentContract(input);
+
+    expect(parsed).toMatchObject({
+      ok: true,
+      titleMigration: { kind: 'ambiguous' },
+      envelope: { doc: input.doc },
+    });
   });
 
   it('returns an empty document for malformed input', () => {

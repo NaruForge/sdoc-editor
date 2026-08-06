@@ -62,6 +62,7 @@ export function printToPdf(
   browserPath: string,
   htmlFilePath: string,
   pdfFilePath: string,
+  signal?: AbortSignal,
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const args = [
@@ -73,8 +74,14 @@ export function printToPdf(
       htmlFilePath,
     ];
 
-    execFile(browserPath, args, { timeout: 60_000 }, (error: Error | null) => {
+    execFile(browserPath, args, { timeout: 60_000, signal }, (error: Error | null) => {
       if (error) {
+        if (signal?.aborted) {
+          reject(signal.reason instanceof Error
+            ? signal.reason
+            : new DOMException('PDF export was cancelled.', 'AbortError'));
+          return;
+        }
         reject(new Error(`Browser PDF generation failed: ${error.message}`));
       } else {
         resolve();

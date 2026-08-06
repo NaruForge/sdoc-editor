@@ -1,18 +1,19 @@
 import { assertPersistedDocument } from '../document/documentContract';
-import { mapDocument } from '../document/walker';
 import type { SdocEnvelope, TiptapNode } from '../types';
 import type { InstantiateTemplateOptions, SdocTemplate } from './types';
 
-const replaceTitleHeading = (
+const removeTitlePlaceholder = (
   doc: TiptapNode,
   titleNodeId: string | undefined,
-  title: string,
 ): TiptapNode => {
   if (!titleNodeId) return doc;
-  return mapDocument(doc, (node) => {
-    if (node.type !== 'heading' || node.attrs?.id !== titleNodeId) return node;
-    return { ...node, content: [{ type: 'text', text: title }] };
-  });
+  if (!doc.content) return doc;
+  return {
+    ...doc,
+    content: doc.content
+      .filter((node) => node.type !== 'heading' || node.attrs?.id !== titleNodeId)
+      .map((node) => removeTitlePlaceholder(node, titleNodeId)),
+  };
 };
 
 export function instantiateTemplate(
@@ -37,11 +38,7 @@ export function instantiateTemplate(
       created: timestamp,
       modified: timestamp,
     },
-    doc: replaceTitleHeading(
-      envelope.doc,
-      template.descriptor.titleNodeId,
-      options.title,
-    ),
+    doc: removeTitlePlaceholder(envelope.doc, template.descriptor.titleNodeId),
   };
   assertPersistedDocument(result);
   return result;

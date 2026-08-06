@@ -1,4 +1,5 @@
 export { buildExternalDocumentDiff } from './diff';
+export { buildExternalMutationDiff } from './mutationDiff';
 export { buildExternalChangeComparison, type ExternalChangeComparisonLabels } from './comparisonModel';
 export { ExternalChangeBanner, type ExternalChangeBannerProps } from './ExternalChangeBanner';
 export {
@@ -21,6 +22,11 @@ export type {
   ExternalChangeComparisonModel,
   ExternalChangeComparisonRow,
   ExternalChangeComparisonSide,
+  ExternalFieldComparisonRow,
+  ExternalFieldComparisonSide,
   ExternalDocumentDiff,
   ExternalDocumentDiffSummary,
+  ExternalFieldDiff,
+  ExternalMutationDiff,
+  ExternalValueSnapshot,
 } from './types';

@@ -33,6 +33,25 @@ export interface ExternalDocumentDiff {
   readonly summary: ExternalDocumentDiffSummary;
 }
 
+export interface ExternalValueSnapshot {
+  readonly preview: string;
+  readonly truncated: boolean;
+}
+
+export interface ExternalFieldDiff {
+  readonly key: string;
+  readonly path: string;
+  readonly mine?: ExternalValueSnapshot;
+  readonly external?: ExternalValueSnapshot;
+}
+
+export interface ExternalMutationDiff {
+  readonly hasChanges: boolean;
+  readonly metadata: readonly ExternalFieldDiff[];
+  readonly settings: readonly ExternalFieldDiff[];
+  readonly content: ExternalDocumentDiff;
+}
+
 export interface ExternalChangeComparisonSide {
   readonly label: string;
   readonly block?: ExternalBlockSnapshot;
@@ -45,8 +64,22 @@ export interface ExternalChangeComparisonRow {
   readonly external: ExternalChangeComparisonSide;
 }
 
+export interface ExternalFieldComparisonSide {
+  readonly label: string;
+  readonly value?: ExternalValueSnapshot;
+}
+
+export interface ExternalFieldComparisonRow {
+  readonly key: string;
+  readonly path: string;
+  readonly mine: ExternalFieldComparisonSide;
+  readonly external: ExternalFieldComparisonSide;
+}
+
 export interface ExternalChangeComparisonModel {
   readonly title: string;
   readonly summary: ExternalDocumentDiffSummary;
   readonly rows: readonly ExternalChangeComparisonRow[];
+  readonly metadata: readonly ExternalFieldComparisonRow[];
+  readonly settings: readonly ExternalFieldComparisonRow[];
 }

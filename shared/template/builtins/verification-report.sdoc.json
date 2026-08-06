@@ -9,14 +9,12 @@
     "template": {
       "name": "시험·검증 보고서",
       "description": "시험 조건, 합격 기준, 결과와 편차를 추적합니다.",
-      "category": "verification",
-      "titleNodeId": "document-title"
+      "category": "verification"
     }
   },
   "doc": {
     "type": "doc",
     "content": [
-      { "type": "heading", "attrs": { "level": 1, "id": "document-title", "numbered": false }, "content": [{ "type": "text", "text": "시험·검증 보고서" }] },
       { "type": "heading", "attrs": { "level": 1, "id": "test-overview" }, "content": [{ "type": "text", "text": "시험 개요" }] },
       { "type": "paragraph" },
       { "type": "heading", "attrs": { "level": 1, "id": "environment-conditions" }, "content": [{ "type": "text", "text": "환경·조건" }] },

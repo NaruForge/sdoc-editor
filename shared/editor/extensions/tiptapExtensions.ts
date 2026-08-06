@@ -2,7 +2,7 @@ import { StarterKit } from '@tiptap/starter-kit';
 import { Extension } from '@tiptap/core';
 import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
-import { EditorView } from '@tiptap/pm/view';
+import type { EditorView } from '@tiptap/pm/view';
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
 import { TextStyle } from '@tiptap/extension-text-style';
 import { Color } from '@tiptap/extension-color';
@@ -24,23 +24,49 @@ import { Subscript } from '@tiptap/extension-subscript';
 import { Superscript } from '@tiptap/extension-superscript';
 import { Callout } from './Callout';
 import { CursorHistory } from './CursorHistory';
-import type { ResolvedEditorSettings, TiptapNode } from '@shared/types';
 import { assignAutoIds } from '../../document/sdocUtils';
-import { buildNumberingIndex } from '../../document/numbering';
 import { getCaptionPreset } from '../../settingsResolver';
 import {
   NOOP_EDITOR_EXTENSION_RUNTIME,
   type EditorExtensionOptions,
   type EditorExtensionRuntime,
 } from '../extensionRuntime';
+import {
+  buildDocumentStructureIndex,
+  DocumentStructureIndexExtension,
+  documentStructureIndexKey,
+  getDocumentStructureIndexState,
+  isPlainParagraphTextTransaction,
+  resolveStructurePosition,
+  subscribeToDocumentStructureIndex,
+  type DocumentStructureIndex,
+  type DocumentStructureIndexState,
+} from '../structureIndex';
 
 /* ===== Section Fold (Collapse) ===== */
 const sectionFoldKey = new PluginKey<Set<number>>('sectionFold');
 
-const SectionFold = Extension.create({
+const SectionFold = Extension.create<EditorExtensionOptions>({
   name: 'sectionFold',
 
+  addOptions() {
+    return { runtime: NOOP_EDITOR_EXTENSION_RUNTIME };
+  },
+
   addProseMirrorPlugins() {
+    const runtime = this.options.runtime;
+    const toggleFromControl = (view: EditorView, target: HTMLElement): boolean => {
+      if (!target.classList.contains('fold-toggle')) return false;
+      const heading = target.parentElement;
+      if (!heading || !/^H[1-6]$/i.test(heading.tagName)) return false;
+
+      const pos = view.posAtDOM(heading, 0);
+      const resolved = view.state.doc.resolve(pos);
+      const headingPos = resolved.before(resolved.depth);
+      view.dispatch(view.state.tr.setMeta(sectionFoldKey, headingPos));
+      return true;
+    };
+
     return [
       new Plugin({
         key: sectionFoldKey,
@@ -89,6 +115,13 @@ const SectionFold = Extension.create({
                     span.className = 'fold-toggle';
                     span.textContent = isCollapsed ? '▸' : '▾';
                     span.setAttribute('contenteditable', 'false');
+                    span.setAttribute('role', 'button');
+                    span.setAttribute('tabindex', '0');
+                    span.setAttribute('aria-expanded', String(!isCollapsed));
+                    span.setAttribute(
+                      'aria-label',
+                      runtime.translate(isCollapsed ? 'toc.expand' : 'toc.collapse'),
+                    );
                     return span;
                   },
                   { side: -1, key: `fold-${offset}-${isCollapsed ? 'c' : 'o'}` },
@@ -122,17 +155,16 @@ const SectionFold = Extension.create({
 
               event.preventDefault();
               event.stopPropagation();
+              return toggleFromControl(view, target);
+            },
+            keydown(view, event) {
+              if (event.key !== 'Enter' && event.key !== ' ') return false;
+              const target = event.target as HTMLElement;
+              if (!target.classList.contains('fold-toggle')) return false;
 
-              const heading = target.parentElement;
-              if (!heading || !/^H[1-6]$/i.test(heading.tagName)) return false;
-
-              const pos = view.posAtDOM(heading, 0);
-              const resolved = view.state.doc.resolve(pos);
-              const headingPos = resolved.before(resolved.depth);
-
-              const tr = view.state.tr.setMeta(sectionFoldKey, headingPos);
-              view.dispatch(tr);
-              return true;
+              event.preventDefault();
+              event.stopPropagation();
+              return toggleFromControl(view, target);
             },
           },
         },
@@ -209,6 +241,8 @@ const PersistentNodeIds = Extension.create({
     return [new Plugin({
       appendTransaction(transactions, _oldState, newState) {
         if (!transactions.some((transaction) => transaction.docChanged)) return null;
+        if (transactions.filter((transaction) => transaction.docChanged)
+          .every(isPlainParagraphTextTransaction)) return null;
         const normalized = assignAutoIds(newState.doc.toJSON());
         const ids: string[] = [];
         const collect = (node: ReturnType<typeof newState.doc.toJSON>): void => {
@@ -239,70 +273,31 @@ const PersistentNodeIds = Extension.create({
 /* ===== Equation Numbering ===== */
 const eqNumberingKey = new PluginKey('equationNumbering');
 
-/**
- * Build a map of { pos → equationNumber } for all mathBlock nodes.
- * Numbering mode is read from the injected editor settings:
- *   'sequential' → (1), (2), (3) across the entire document
- *   'hierarchical' → (1.1), (1.2), (2.1) resetting per H1
- */
-function buildEqNumberMap(
-  doc: import('@tiptap/pm/model').Node,
-  settings: ResolvedEditorSettings,
-): Map<number, string> {
-  const map = new Map<number, string>();
-  const numbering = buildNumberingIndex(doc.toJSON() as TiptapNode, settings);
-  doc.descendants((node, offset) => {
-    if (node.type.name === 'mathBlock') {
-      const id = String(node.attrs.id ?? '');
-      const label = numbering.byId.get(id)?.displayLabel;
-      if (label) map.set(offset, label);
-    }
-  });
-  return map;
-}
-
 const EquationNumbering = Extension.create<EditorExtensionOptions>({
   name: 'equationNumbering',
   addOptions() {
     return { runtime: NOOP_EDITOR_EXTENSION_RUNTIME };
   },
   addProseMirrorPlugins() {
-    const runtime = this.options.runtime;
     return [
       new Plugin({
         key: eqNumberingKey,
-        view() {
-          let previousDoc: import('@tiptap/pm/model').Node | undefined;
-          let previousSettings = '';
-          return {
-            update(view: EditorView) {
-              const settings = runtime.getSettings();
-              const settingsKey = JSON.stringify({
-                captionStyle: settings.captionStyle,
-                headingNumbering: settings.headingNumbering,
-                headingStartNumber: settings.headingStartNumber,
-                captionNumbering: settings.captionNumbering,
-                equationNumbering: settings.equationNumbering,
-              });
-              if (previousDoc?.eq(view.state.doc) && previousSettings === settingsKey) return;
-              previousDoc = view.state.doc;
-              previousSettings = settingsKey;
-              const map = buildEqNumberMap(view.state.doc, settings);
-              view.state.doc.descendants((node, offset) => {
-                if (node.type.name !== 'mathBlock') return;
-                // nodeDOM(offset) directly returns the NodeView's outer DOM element.
-                // domAtPos() is unreliable for atom nodes because they have no inner positions.
-                try {
-                  const domEl = view.nodeDOM(offset) as (HTMLElement & { _setEqNumber?: (l: string | null) => void }) | null;
-                  if (domEl && typeof domEl._setEqNumber === 'function') {
-                    domEl._setEqNumber(map.get(offset) ?? null);
-                  }
-                } catch {
-                  // Node may not yet be in the DOM
+        view(view) {
+          const applyNumbering = (index: DocumentStructureIndex) => {
+            for (const entry of index.equations) {
+              try {
+                const domEl = view.nodeDOM(entry.pos) as (HTMLElement & { _setEqNumber?: (label: string | null) => void }) | null;
+                if (domEl && typeof domEl._setEqNumber === 'function') {
+                  domEl._setEqNumber(entry.displayLabel || null);
                 }
-              });
-            },
+              } catch {
+                // Node may not yet be in the DOM.
+              }
+            }
           };
+          applyNumbering(getDocumentStructureIndexState(view.state));
+          const unsubscribe = subscribeToDocumentStructureIndex(view, applyNumbering);
+          return { destroy: unsubscribe };
         },
       }),
     ];
@@ -311,34 +306,27 @@ const EquationNumbering = Extension.create<EditorExtensionOptions>({
 
 interface SemanticNumberingState {
   decorations: DecorationSet;
-  settingsKey: string;
+  semanticRevision: number;
 }
 
 const semanticNumberingKey = new PluginKey<SemanticNumberingState>('semanticNumbering');
 
-const semanticSettingsKey = (settings: ResolvedEditorSettings): string => [
-  settings.headingNumbering,
-  settings.headingStartNumber,
-  settings.captionNumbering,
-  settings.equationNumbering,
-  settings.captionStyle,
-].join('|');
+const structureSemanticRevision = (index: DocumentStructureIndex): number =>
+  (index as Partial<DocumentStructureIndexState>).semanticRevision ?? 0;
 
 const buildSemanticNumberingDecorations = (
   doc: ProseMirrorNode,
-  settings: ResolvedEditorSettings,
+  index: DocumentStructureIndex,
 ): DecorationSet => {
-  const numbering = buildNumberingIndex(doc.toJSON() as TiptapNode, settings);
   const decorations: Decoration[] = [];
-  doc.descendants((node, pos) => {
-    if (node.type.name !== 'heading') return;
-    const id = String(node.attrs.id ?? '');
-    const entry = numbering.byId.get(id);
-    if (!entry?.numbered) return;
-    decorations.push(Decoration.node(pos, pos + node.nodeSize, {
+  for (const entry of index.headings) {
+    if (!entry.numbered) continue;
+    const node = doc.nodeAt(entry.pos);
+    if (!node) continue;
+    decorations.push(Decoration.node(entry.pos, entry.pos + node.nodeSize, {
       'data-number-label': entry.number,
     }));
-  });
+  }
   return DecorationSet.create(doc, decorations);
 };
 
@@ -353,19 +341,34 @@ const SemanticNumbering = Extension.create<EditorExtensionOptions>({
       key: semanticNumberingKey,
       state: {
         init(_, state): SemanticNumberingState {
-          const settings = runtime.getSettings();
+          const index = documentStructureIndexKey.getState(state)
+            ?? buildDocumentStructureIndex(state.doc, runtime.getSettings());
           return {
-            decorations: buildSemanticNumberingDecorations(state.doc, settings),
-            settingsKey: semanticSettingsKey(settings),
+            decorations: buildSemanticNumberingDecorations(state.doc, index),
+            semanticRevision: structureSemanticRevision(index),
           };
         },
         apply(transaction, previous, _oldState, newState): SemanticNumberingState {
-          const settings = runtime.getSettings();
-          const settingsKey = semanticSettingsKey(settings);
-          if (!transaction.docChanged && previous.settingsKey === settingsKey) return previous;
+          const managedIndex = documentStructureIndexKey.getState(newState);
+          if (!managedIndex) {
+            const fallback = buildDocumentStructureIndex(newState.doc, runtime.getSettings());
+            return {
+              decorations: buildSemanticNumberingDecorations(newState.doc, fallback),
+              semanticRevision: previous.semanticRevision + 1,
+            };
+          }
+          const index = managedIndex;
+          const semanticRevision = structureSemanticRevision(index);
+          if (previous.semanticRevision === semanticRevision) {
+            if (!transaction.docChanged) return previous;
+            return {
+              decorations: previous.decorations.map(transaction.mapping, newState.doc),
+              semanticRevision: previous.semanticRevision,
+            };
+          }
           return {
-            decorations: buildSemanticNumberingDecorations(newState.doc, settings),
-            settingsKey,
+            decorations: buildSemanticNumberingDecorations(newState.doc, index),
+            semanticRevision,
           };
         },
       },
@@ -375,30 +378,19 @@ const SemanticNumbering = Extension.create<EditorExtensionOptions>({
         },
       },
       view(initialView) {
-        let previousDoc: import('@tiptap/pm/model').Node | undefined;
-        let previousSettings = '';
-        const applyNumbering = (view: EditorView) => {
+        const applyNumbering = (index: DocumentStructureIndex) => {
           const settings = runtime.getSettings();
-          const settingsKey = semanticSettingsKey(settings);
-          if (previousDoc?.eq(view.state.doc) && previousSettings === settingsKey) return;
-          previousDoc = view.state.doc;
-          previousSettings = settingsKey;
-          const numbering = buildNumberingIndex(view.state.doc.toJSON() as TiptapNode, settings);
           const preset = getCaptionPreset(settings.captionStyle);
-          view.state.doc.descendants((node, pos) => {
-            const id = String(node.attrs.id ?? '');
-            const entry = numbering.byId.get(id);
-            if (entry?.kind !== 'figure' && entry?.kind !== 'table') return;
-            const dom = view.nodeDOM(pos) as HTMLElement | null;
-            if (!dom) return;
+          for (const entry of [...index.figures, ...index.tables]) {
+            const dom = initialView.nodeDOM(entry.pos) as HTMLElement | null;
+            if (!dom) continue;
             const label = dom.querySelector<HTMLElement>('.caption-label');
             if (label) label.dataset.numberLabel = `${entry.baseLabel}${preset.separator}`;
-          });
+          }
         };
-        applyNumbering(initialView);
-        return {
-          update: applyNumbering,
-        };
+        applyNumbering(getDocumentStructureIndexState(initialView.state));
+        const unsubscribe = subscribeToDocumentStructureIndex(initialView, applyNumbering);
+        return { destroy: unsubscribe };
       },
     })];
   },
@@ -526,9 +518,12 @@ export function createTiptapExtensions(runtime: EditorExtensionRuntime) {
     },
   }),
   HeadingNumbering,
+  DocumentStructureIndexExtension.configure({ runtime }),
   PersistentNodeIds,
   Callout.configure({ runtime }),
-  CustomCodeBlock,
+  CustomCodeBlock.configure({ runtime } as Partial<typeof CustomCodeBlock.options> & {
+    runtime: EditorExtensionRuntime;
+  }),
   TaskList,
   TaskItem.configure({
     nested: true,
@@ -552,7 +547,7 @@ export function createTiptapExtensions(runtime: EditorExtensionRuntime) {
   HeadingKeyboardShortcuts,
   BlockExit,
   CrossReference.configure({ runtime }),
-  SectionFold,
+  SectionFold.configure({ runtime }),
   EquationNumbering.configure({ runtime }),
   SemanticNumbering.configure({ runtime }),
   CursorHistory,
@@ -581,8 +576,8 @@ export function createTiptapExtensions(runtime: EditorExtensionRuntime) {
                 if (!href.startsWith('#')) return false;
                 const targetId = href.slice(1);
 
-                // Search by persisted id attr OR by on-the-fly generated id
-                let targetPos: number | null = null;
+                // Stable IDs resolve through the transaction-mapped structure index.
+                let targetPos: number | null = resolveStructurePosition(view.state, targetId) ?? null;
                 const slugify = (text: string) => text.toLowerCase()
                   .replace(/[^\w\s가-힣-]/g, '').replace(/\s+/g, '-')
                   .replace(/-+/g, '-').replace(/^-|-$/g, '') || 'untitled';

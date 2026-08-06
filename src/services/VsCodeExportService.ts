@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { writeFile } from 'fs/promises';
+import { readFile, writeFile } from 'fs/promises';
 import { convertJsonToHtml, convertJsonToAdoc, convertJsonToMarkdown, convertJsonToSlides } from '../../shared/converter';
 import { detectBrowser, printToPdf } from '../utils/browserDetect';
 import { loadBundledFontsAsBase64 } from '../utils/fontUtils';
@@ -12,6 +12,7 @@ import { unwrapSdoc as sharedUnwrapSdoc } from '../../shared/document/sdocUtils'
 import { parseDocumentTextContract, readDocumentSettings } from '../../shared/document/documentContract';
 import type { CaptionStyleName, DocumentSettings } from '../../shared/types';
 import { DocumentExportQueue } from '../../shared/export/DocumentExportQueue';
+import type { DiagramPreparationResult } from '../../shared/export/diagramPreparation';
 import { withTemporaryDirectory } from '../utils/temporaryDirectory';
 import { loadBundledExportAssets } from './BundledExportAssetService';
 
@@ -20,6 +21,9 @@ export type ExportOperationResult = 'completed' | 'cancelled' | 'fallback';
 
 type ExportSuccess = {
   outcome: 'completed';
+  usedFallback?: boolean;
+  fallbackOccurrenceCount?: number;
+  fallbackChapterCount?: number;
   successMsg: string;
   actionLabel: string;
   openUri: vscode.Uri;
@@ -27,6 +31,12 @@ type ExportSuccess = {
 };
 
 type ExportResult = ExportSuccess | { outcome: 'cancelled' | 'fallback' };
+
+type DiagramPreparationInput =
+  | Pick<DiagramPreparationResult,
+    'resolveDiagramImage' | 'status' | 'fallbackOccurrenceCount' | 'fallbackChapterCount'>
+  | ((signal: AbortSignal) => Promise<Pick<DiagramPreparationResult,
+    'resolveDiagramImage' | 'status' | 'fallbackOccurrenceCount' | 'fallbackChapterCount'> | undefined>);
 
 export class VsCodeExportService {
   private readonly exportQueue = new DocumentExportQueue();
@@ -36,19 +46,19 @@ export class VsCodeExportService {
   async exportDocument(
     document: vscode.TextDocument,
     format: ExportFormat,
-    diagramImages?: ReadonlyMap<string, string>,
+    diagramPreparation?: DiagramPreparationInput,
   ): Promise<ExportOperationResult> {
     const docKey = document.uri.toString();
     return this.exportQueue.run(
       docKey,
-      () => this.exportNow(document, format, diagramImages),
+      () => this.exportNow(document, format, diagramPreparation),
     );
   }
 
   private async exportNow(
     document: vscode.TextDocument,
     format: ExportFormat,
-    diagramImages?: ReadonlyMap<string, string>,
+    diagramPreparation?: DiagramPreparationInput,
   ): Promise<ExportOperationResult> {
     const formatLabels: Record<string, string> = {
       html: 'HTML', pdf: 'PDF', markdown: 'Markdown', adoc: 'AsciiDoc', slides: 'Slides',
@@ -59,9 +69,27 @@ export class VsCodeExportService {
       {
         location: vscode.ProgressLocation.Notification,
         title: `내보내기 중 (${label})`,
-        cancellable: false,
+        cancellable: true,
       },
-      async (progress) => this._doExport(document, format, label, progress, diagramImages),
+      async (progress, token) => {
+        const controller = new AbortController();
+        const cancellation = token.onCancellationRequested(() => controller.abort());
+        try {
+          return await this._doExport(
+            document,
+            format,
+            label,
+            progress,
+            diagramPreparation,
+            controller.signal,
+          );
+        } catch (error) {
+          if (controller.signal.aborted) return { outcome: 'cancelled' } as const;
+          throw error;
+        } finally {
+          cancellation.dispose();
+        }
+      },
     );
 
     // Show success notification AFTER progress notification has closed
@@ -83,8 +111,13 @@ export class VsCodeExportService {
       } else if (action === 'Reveal in Explorer') {
         await vscode.commands.executeCommand('revealFileInOS', result.openUri);
       }
+      if (result.usedFallback) {
+        void vscode.window.showWarningMessage(
+          `${result.fallbackOccurrenceCount ?? 0} diagram occurrence(s) were exported as source because rendering was unavailable.`,
+        );
+      }
     }
-    return result.outcome;
+    return result.outcome === 'completed' && result.usedFallback ? 'fallback' : result.outcome;
   }
 
   private async _doExport(
@@ -92,8 +125,15 @@ export class VsCodeExportService {
     format: ExportFormat,
     label: string,
     progress: vscode.Progress<{ message?: string; increment?: number }>,
-    diagramImages?: ReadonlyMap<string, string>,
+    diagramPreparationInput?: DiagramPreparationInput,
+    signal?: AbortSignal,
   ): Promise<ExportResult> {
+      signal?.throwIfAborted();
+      const diagramPreparation = typeof diagramPreparationInput === 'function'
+        ? await diagramPreparationInput(signal ?? new AbortController().signal)
+        : diagramPreparationInput;
+      const usedDiagramFallback = diagramPreparation?.status === 'fallback';
+      signal?.throwIfAborted();
       progress.report({ message: '문서 읽는 중...', increment: 5 });
       const text = document.getText();
       const contract = parseDocumentTextContract(text);
@@ -145,18 +185,19 @@ export class VsCodeExportService {
       if (needsSelfContained && resolved.selfContained !== 'none') {
         progress.report({ message: '이미지 처리 중...', increment: 20 });
         const documentDir = path.dirname(document.uri.fsPath);
-        convertedDoc = await embedImagesAsBase64(convertedDoc, documentDir);
+        convertedDoc = await embedImagesAsBase64(convertedDoc, documentDir, signal);
         exportSettings.selfContained = resolved.selfContained;
       }
       if ((format === 'html' || format === 'pdf') && resolved.selfContained === 'full') {
         progress.report({ message: 'Embedding export runtime...', increment: 10 });
         exportSettings.embeddedAssets = await loadBundledExportAssets(this.context.extensionPath);
+        signal?.throwIfAborted();
       }
       // PDF always embeds images regardless of setting
       if (format === 'pdf' && resolved.selfContained === 'none') {
         progress.report({ message: '이미지 처리 중...', increment: 20 });
         const documentDir = path.dirname(document.uri.fsPath);
-        convertedDoc = await embedImagesAsBase64(convertedDoc, documentDir);
+        convertedDoc = await embedImagesAsBase64(convertedDoc, documentDir, signal);
         exportSettings.selfContained = 'images-only';
       }
 
@@ -171,15 +212,18 @@ export class VsCodeExportService {
             config.get<string>('theme.companyLogo') || '',
             this.context.extensionPath,
           );
+          signal?.throwIfAborted();
           const fontWeights = readFontWeights(config);
           const usedWeights = new Set(Object.values(fontWeights));
           const embeddedFonts = await loadBundledFontsAsBase64(this.context.extensionUri, usedWeights);
+          signal?.throwIfAborted();
           const theme = buildHtmlTheme(config, companyLogo, fontWeights, embeddedFonts);
           const customStyles = await resolveCustomCss(
             resolved.htmlCssPath,
             this.getWorkspaceBasePath(document),
             config.get<string>('theme.customStyles') || '',
           );
+          signal?.throwIfAborted();
 
           content = convertJsonToHtml(
             convertedDoc,
@@ -187,10 +231,7 @@ export class VsCodeExportService {
             exportSettings,
             meta,
             {
-              resolveDiagramImage: ({ language, code }) => {
-                const dataUrl = diagramImages?.get(`${language}\0${code}`);
-                return dataUrl ? { dataUrl } : undefined;
-              },
+              resolveDiagramImage: diagramPreparation?.resolveDiagramImage,
             },
           );
 
@@ -204,6 +245,7 @@ export class VsCodeExportService {
                 content,
                 resolved.outputDir,
                 progress,
+                signal,
               );
               if (!fallbackUri) return { outcome: 'cancelled' };
               const action = await vscode.window.showWarningMessage(
@@ -229,17 +271,29 @@ export class VsCodeExportService {
           const pdfUri = this.buildExportUri(document, '.pdf', resolved.outputDir);
           const shouldOverwritePdf = await this.confirmOverwrite(pdfUri);
           if (!shouldOverwritePdf) return { outcome: 'cancelled' };
+          signal?.throwIfAborted();
           await vscode.workspace.fs.createDirectory(vscode.Uri.file(path.dirname(pdfUri.fsPath)));
 
           progress.report({ message: 'PDF 인쇄 중...', increment: 40 });
           await withTemporaryDirectory('sdoc-pdf-', async (tempDir) => {
             const tempHtmlPath = path.join(tempDir, 'document.html');
+            const tempPdfPath = path.join(tempDir, 'document.pdf');
             await writeFile(tempHtmlPath, content, 'utf8');
-            await printToPdf(browserPath, tempHtmlPath, pdfUri.fsPath);
+            signal?.throwIfAborted();
+            await printToPdf(browserPath, tempHtmlPath, tempPdfPath, signal);
+            signal?.throwIfAborted();
+            await this.writeExportBytes(
+              pdfUri,
+              new Uint8Array(await readFile(tempPdfPath)),
+              signal,
+            );
           });
 
           return {
             outcome: 'completed',
+            usedFallback: usedDiagramFallback,
+            fallbackOccurrenceCount: diagramPreparation?.fallbackOccurrenceCount,
+            fallbackChapterCount: diagramPreparation?.fallbackChapterCount,
             successMsg: `PDF exported: ${pdfUri.fsPath}`,
             actionLabel: 'Open PDF',
               openUri: pdfUri,
@@ -256,9 +310,11 @@ export class VsCodeExportService {
             config.get<string>('theme.companyLogo') || '',
             this.context.extensionPath,
           );
+          signal?.throwIfAborted();
           const slideFontWeights = readFontWeights(config);
           const usedSlideWeights = new Set(Object.values(slideFontWeights));
           const slideEmbeddedFonts = await loadBundledFontsAsBase64(this.context.extensionUri, usedSlideWeights);
+          signal?.throwIfAborted();
           const slideTheme = {
             ...buildHtmlTheme(config, slideLogo, slideFontWeights, slideEmbeddedFonts),
             primaryColor: config.get<string>('slide.primaryColor') || config.get<string>('theme.primaryColor') || '#2563EB',
@@ -285,10 +341,7 @@ export class VsCodeExportService {
             slideSettings,
             meta,
             {
-              resolveDiagramImage: ({ language, code }) => {
-                const dataUrl = diagramImages?.get(`${language}\0${code}`);
-                return dataUrl ? { dataUrl } : undefined;
-              },
+              resolveDiagramImage: diagramPreparation?.resolveDiagramImage,
             },
           );
 
@@ -298,11 +351,15 @@ export class VsCodeExportService {
             content,
             resolved.outputDir,
             progress,
+            signal,
           );
           if (!slideUri) return { outcome: 'cancelled' };
 
           return {
             outcome: 'completed',
+            usedFallback: usedDiagramFallback,
+            fallbackOccurrenceCount: diagramPreparation?.fallbackOccurrenceCount,
+            fallbackChapterCount: diagramPreparation?.fallbackChapterCount,
             successMsg: `Slides exported: ${slideUri.fsPath}`,
             actionLabel: 'Open in Browser',
             openUri: slideUri,
@@ -328,11 +385,15 @@ export class VsCodeExportService {
         content,
         resolved.outputDir,
         progress,
+        signal,
       );
       if (!outputUri) return { outcome: 'cancelled' };
 
       return {
         outcome: 'completed',
+        usedFallback: usedDiagramFallback,
+        fallbackOccurrenceCount: diagramPreparation?.fallbackOccurrenceCount,
+        fallbackChapterCount: diagramPreparation?.fallbackChapterCount,
         successMsg: `${label} exported: ${outputUri.fsPath}`,
         actionLabel: 'Open File',
         openUri: outputUri,
@@ -384,15 +445,39 @@ export class VsCodeExportService {
     content: string,
     outputDir: string,
     progress: vscode.Progress<{ message?: string; increment?: number }>,
+    signal?: AbortSignal,
   ): Promise<vscode.Uri | null> {
     const outputUri = this.buildExportUri(document, extension, outputDir);
     const shouldOverwrite = await this.confirmOverwrite(outputUri);
     if (!shouldOverwrite) {
       return null;
     }
+    signal?.throwIfAborted();
     progress.report({ message: '파일 쓰는 중...', increment: 20 });
-    await vscode.workspace.fs.createDirectory(vscode.Uri.file(path.dirname(outputUri.fsPath)));
-    await vscode.workspace.fs.writeFile(outputUri, new TextEncoder().encode(content));
+    await this.writeExportBytes(outputUri, new TextEncoder().encode(content), signal);
     return outputUri;
+  }
+
+  private async writeExportBytes(
+    outputUri: vscode.Uri,
+    content: Uint8Array,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    const temporaryUri = outputUri.with({
+      path: `${outputUri.path}.sdoc-export-${Date.now()}-${Math.random().toString(16).slice(2)}.tmp`,
+    });
+    await vscode.workspace.fs.createDirectory(vscode.Uri.file(path.dirname(outputUri.fsPath)));
+    signal?.throwIfAborted();
+    try {
+      await vscode.workspace.fs.writeFile(temporaryUri, content);
+      signal?.throwIfAborted();
+      await vscode.workspace.fs.rename(temporaryUri, outputUri, { overwrite: true });
+    } finally {
+      try {
+        await vscode.workspace.fs.delete(temporaryUri);
+      } catch {
+        // The successful rename already removed the staging file.
+      }
+    }
   }
 }

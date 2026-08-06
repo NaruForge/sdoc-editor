@@ -1,13 +1,14 @@
 import React, { useRef } from 'react';
 import { BubbleMenu } from '@tiptap/react/menus';
 import { Editor, useEditorState } from '@tiptap/react';
-import { Bold, Italic, Underline, Code, Unlink, Highlighter, Palette, Strikethrough, Subscript, Superscript, Quote } from 'lucide-react';
+import { Bold, Italic, Underline, Code, Pencil, Highlighter, Palette, Strikethrough, Subscript, Superscript, Quote } from 'lucide-react';
 import { TEXT_COLORS, HIGHLIGHT_COLORS } from '../constants/colors';
 import { CALLOUT_ICONS, type CalloutVariant } from '@shared/editor/extensions/Callout';
 import { useEditorI18n, type EditorTranslationKey } from '../i18n';
 
 interface BubbleMenuBarProps {
   editor: Editor;
+  onEditLink?: () => void;
 }
 
 const TEXT_COLOR_KEYS: readonly EditorTranslationKey[] = [
@@ -28,7 +29,7 @@ const CALLOUT_LABEL_KEYS: Record<CalloutVariant, EditorTranslationKey> = {
   danger: 'callout.danger',
 };
 
-export const BubbleMenuBar: React.FC<BubbleMenuBarProps> = ({ editor }) => {
+export const BubbleMenuBar: React.FC<BubbleMenuBarProps> = ({ editor, onEditLink }) => {
   const { t } = useEditorI18n();
   const [showColorPicker, setShowColorPicker] = React.useState(false);
   const [showHighlightPicker, setShowHighlightPicker] = React.useState(false);
@@ -63,7 +64,8 @@ export const BubbleMenuBar: React.FC<BubbleMenuBarProps> = ({ editor }) => {
     >
       <button
         type="button"
-        onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleBold().run(); }}
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => editor.chain().focus().toggleBold().run()}
         className={activeState.bold ? 'is-active' : ''}
         title={t('toolbar.bold')}
         aria-label={t('toolbar.bold')}
@@ -73,7 +75,8 @@ export const BubbleMenuBar: React.FC<BubbleMenuBarProps> = ({ editor }) => {
       </button>
       <button
         type="button"
-        onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleItalic().run(); }}
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => editor.chain().focus().toggleItalic().run()}
         className={activeState.italic ? 'is-active' : ''}
         title={t('toolbar.italic')}
         aria-label={t('toolbar.italic')}
@@ -83,7 +86,8 @@ export const BubbleMenuBar: React.FC<BubbleMenuBarProps> = ({ editor }) => {
       </button>
       <button
         type="button"
-        onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleUnderline().run(); }}
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => editor.chain().focus().toggleUnderline().run()}
         className={activeState.underline ? 'is-active' : ''}
         title={t('toolbar.underline')}
         aria-label={t('toolbar.underline')}
@@ -93,7 +97,8 @@ export const BubbleMenuBar: React.FC<BubbleMenuBarProps> = ({ editor }) => {
       </button>
       <button
         type="button"
-        onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleStrike().run(); }}
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => editor.chain().focus().toggleStrike().run()}
         className={activeState.strike ? 'is-active' : ''}
         title={t('toolbar.strikethrough')}
         aria-label={t('toolbar.strikethrough')}
@@ -103,7 +108,8 @@ export const BubbleMenuBar: React.FC<BubbleMenuBarProps> = ({ editor }) => {
       </button>
       <button
         type="button"
-        onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleSubscript().run(); }}
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => editor.chain().focus().toggleSubscript().run()}
         className={activeState.subscript ? 'is-active' : ''}
         title={t('toolbar.subscript')}
         aria-label={t('toolbar.subscript')}
@@ -113,7 +119,8 @@ export const BubbleMenuBar: React.FC<BubbleMenuBarProps> = ({ editor }) => {
       </button>
       <button
         type="button"
-        onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleSuperscript().run(); }}
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => editor.chain().focus().toggleSuperscript().run()}
         className={activeState.superscript ? 'is-active' : ''}
         title={t('toolbar.superscript')}
         aria-label={t('toolbar.superscript')}
@@ -123,7 +130,8 @@ export const BubbleMenuBar: React.FC<BubbleMenuBarProps> = ({ editor }) => {
       </button>
       <button
         type="button"
-        onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleCode().run(); }}
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => editor.chain().focus().toggleCode().run()}
         className={activeState.code ? 'is-active' : ''}
         title={t('bubble.code')}
         aria-label={t('bubble.code')}
@@ -136,7 +144,8 @@ export const BubbleMenuBar: React.FC<BubbleMenuBarProps> = ({ editor }) => {
       <div ref={colorRef} className="toolbar-dropdown">
         <button
           type="button"
-          onMouseDown={(e) => { e.preventDefault(); setShowColorPicker(v => !v); setShowHighlightPicker(false); }}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => { setShowColorPicker(v => !v); setShowHighlightPicker(false); }}
           className={`color-picker-btn ${activeState.textColor ? 'is-active' : ''}`}
           title={t('toolbar.textColor')}
           aria-label={t('toolbar.textColor')}
@@ -154,8 +163,8 @@ export const BubbleMenuBar: React.FC<BubbleMenuBarProps> = ({ editor }) => {
                 title={t(TEXT_COLOR_KEYS[index])}
                 aria-label={t(TEXT_COLOR_KEYS[index])}
                 className={activeState.textColor === value ? 'is-active' : ''}
-                onMouseDown={(e) => {
-                  e.preventDefault();
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
                   if (value) {
                     editor.chain().focus().setColor(value).run();
                   } else {
@@ -176,7 +185,8 @@ export const BubbleMenuBar: React.FC<BubbleMenuBarProps> = ({ editor }) => {
       <div ref={highlightRef} className="toolbar-dropdown">
         <button
           type="button"
-          onMouseDown={(e) => { e.preventDefault(); setShowHighlightPicker(v => !v); setShowColorPicker(false); }}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => { setShowHighlightPicker(v => !v); setShowColorPicker(false); }}
           className={`color-picker-btn ${activeState.highlight ? 'is-active' : ''}`}
           title={t('toolbar.highlight')}
           aria-label={t('toolbar.highlight')}
@@ -194,8 +204,8 @@ export const BubbleMenuBar: React.FC<BubbleMenuBarProps> = ({ editor }) => {
                 title={t(HIGHLIGHT_COLOR_KEYS[index])}
                 aria-label={t(HIGHLIGHT_COLOR_KEYS[index])}
                 className={activeState.highlightColor === value ? 'is-active' : ''}
-                onMouseDown={(e) => {
-                  e.preventDefault();
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
                   if (value) {
                     editor.chain().focus().setHighlight({ color: value }).run();
                   } else {
@@ -212,22 +222,24 @@ export const BubbleMenuBar: React.FC<BubbleMenuBarProps> = ({ editor }) => {
         )}
       </div>
 
-      {activeState.link && (
+      {activeState.link && onEditLink && (
         <button
           type="button"
-          onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().unsetLink().run(); }}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={onEditLink}
           className="unlink-button"
-          title={t('bubble.removeLink')}
-          aria-label={t('bubble.removeLink')}
+          title={t('link.editTitle')}
+          aria-label={t('link.editTitle')}
         >
-          <Unlink size={14} />
+          <Pencil size={14} />
         </button>
       )}
 
       {/* Blockquote 토글 */}
       <button
         type="button"
-        onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleBlockquote().run(); }}
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => editor.chain().focus().toggleBlockquote().run()}
         className={activeState.blockquote ? 'is-active' : ''}
         title={t('toolbar.blockquote')}
         aria-label={t('toolbar.blockquote')}
@@ -249,8 +261,8 @@ export const BubbleMenuBar: React.FC<BubbleMenuBarProps> = ({ editor }) => {
                 aria-label={t('bubble.calloutVariant', { variant: t(CALLOUT_LABEL_KEYS[variant]) })}
                 aria-pressed={activeState.calloutVariant === variant}
                 className={`callout-variant-btn ${activeState.calloutVariant === variant ? 'is-active' : ''}`}
-                onMouseDown={(e) => {
-                  e.preventDefault();
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
                   editor.chain().focus().updateAttributes('callout', { variant }).run();
                 }}
               >

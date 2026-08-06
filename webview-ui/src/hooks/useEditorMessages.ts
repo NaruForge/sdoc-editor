@@ -9,7 +9,12 @@ import {
 import { useVSCodeMessaging } from './useVSCodeMessaging';
 import { preprocessImportedHtml } from '@shared/editor/utils/preprocessImportedHtml';
 import { isUpdatedDrawioAsset } from '@shared/editor/drawioUpdates';
-import type { ManagedTemplateDescriptor, PersonalTemplateMetadataInput } from '@shared/types/messages';
+import type {
+  ImportContentMessage,
+  ImportHtmlToWebviewMessage,
+  ManagedTemplateDescriptor,
+  PersonalTemplateMetadataInput,
+} from '@shared/types/messages';
 import {
   createTemplateSessionState,
   templateSessionReducer,
@@ -44,6 +49,14 @@ import {
 } from '@shared/persistence/externalChangeResolution';
 import type { EditorReplacementReason } from '@shared/editor/documentReplacement';
 import type { UiLanguagePreference } from '@shared/editor/i18n';
+import {
+  createHostDocumentSaveState,
+  deriveDocumentSavePresentation,
+  markHostDocumentDirty,
+  observeDocumentSaveState,
+  type HostDocumentSaveState,
+} from '@shared/editor/saveStatus';
+import type { DocumentSyncState } from '@shared/persistence/DocumentSyncCoordinator';
 
 export interface MetaState extends Partial<SdocMeta> {
   title: string;
@@ -52,6 +65,8 @@ export interface MetaState extends Partial<SdocMeta> {
   created: string;
   modified: string;
 }
+
+type PendingImportMessage = ImportContentMessage | ImportHtmlToWebviewMessage;
 
 const replaceMetaState = (meta: Partial<SdocMeta>): MetaState => ({
   title: '',
@@ -137,6 +152,27 @@ export function useEditorMessages({
   const pendingInvalidRecoveryRef = useRef<string | null>(null);
   const [invalidRecoveryPending, setInvalidRecoveryPending] = useState(false);
   const [invalidRecoveryError, setInvalidRecoveryError] = useState<string | null>(null);
+  const [syncState, setSyncState] = useState<Readonly<DocumentSyncState> | null>(null);
+  const [hostSaveState, setHostSaveState] = useState<HostDocumentSaveState | null>(null);
+  const [pendingImport, setPendingImport] = useState<PendingImportMessage | null>(null);
+  const unsubscribeSyncRef = useRef<(() => void) | null>(null);
+
+  const attachSyncCoordinator = (coordinator: DocumentSyncCoordinator | null): void => {
+    unsubscribeSyncRef.current?.();
+    unsubscribeSyncRef.current = null;
+    syncCoordinatorRef.current = coordinator;
+    setSyncState(coordinator?.getSnapshot() ?? null);
+    if (coordinator) {
+      unsubscribeSyncRef.current = coordinator.subscribe(() => {
+        setSyncState(coordinator.getSnapshot());
+      });
+    }
+  };
+
+  useEffect(() => () => {
+    unsubscribeSyncRef.current?.();
+    unsubscribeSyncRef.current = null;
+  }, []);
 
   const publishAccess = (access: EditorDocumentAccess): void => {
     accessRef.current = access;
@@ -159,7 +195,8 @@ export function useEditorMessages({
         };
         setFileController(createFileOperationControllerState(message.sessionId));
         if (message.documentState.status === 'invalid') {
-          syncCoordinatorRef.current = null;
+          attachSyncCoordinator(null);
+          setHostSaveState(null);
           initDoneRef.current = true;
           dispatch({ type: 'SET_READY', payload: true });
           publishAccess({
@@ -180,7 +217,7 @@ export function useEditorMessages({
           break;
         }
         const snapshot = message.documentState.snapshot;
-        syncCoordinatorRef.current = new DocumentSyncCoordinator({
+        const coordinator = new DocumentSyncCoordinator({
           identity: {
             sessionId: message.sessionId,
             documentId: message.documentId,
@@ -188,7 +225,15 @@ export function useEditorMessages({
           },
           send: (request) => postMessage({ type: 'edit', ...request }),
         });
-        syncCoordinatorRef.current.adoptReplacement(message.revision, snapshot);
+        attachSyncCoordinator(coordinator);
+        coordinator.adoptReplacement(message.revision, snapshot);
+        setHostSaveState(createHostDocumentSaveState({
+          sessionId: message.sessionId,
+          documentId: message.documentId,
+          revision: message.revision,
+          isDirty: message.isDirty,
+          modified: typeof snapshot.meta.modified === 'string' ? snapshot.meta.modified : undefined,
+        }));
         setMeta(replaceMetaState(snapshot.meta));
         dispatch({
           type: 'SET_DOC_SETTINGS',
@@ -275,6 +320,9 @@ export function useEditorMessages({
           const mutation = getCurrentMutation();
           if (mutation) syncCoordinatorRef.current?.adoptReplacement(message.revision, mutation);
           persistenceSessionRef.current.revision = message.revision;
+          setHostSaveState((current) => current
+            ? markHostDocumentDirty(current, message.revision, message.modified)
+            : current);
           setInvalidRecoveryError(null);
           publishAccess({ status: 'editable', capabilities: EDITABLE_CAPABILITIES });
         } else {
@@ -309,6 +357,13 @@ export function useEditorMessages({
         replaceEditorDocumentRef.current?.(message.reason, message.snapshot.content);
         syncCoordinatorRef.current?.adoptReplacement(message.revision, message.snapshot);
         persistenceSessionRef.current.revision = message.revision;
+        setHostSaveState(createHostDocumentSaveState({
+          sessionId: message.sessionId,
+          documentId: message.documentId,
+          revision: message.revision,
+          isDirty: false,
+          modified: message.snapshot.meta.modified,
+        }));
         setMeta(replaceMetaState(message.snapshot.meta));
         dispatch({
           type: 'SET_DOC_SETTINGS',
@@ -318,9 +373,13 @@ export function useEditorMessages({
         setShowExternalComparison(false);
         break;
       case 'requestFlush':
-        if (persistenceSessionRef.current?.sessionId !== message.sessionId) break;
+        if (persistenceSessionRef.current?.sessionId !== message.sessionId
+          || persistenceSessionRef.current.documentId !== message.documentId) break;
         if (!ed || !syncCoordinatorRef.current) {
-          postMessage({ type: 'flushComplete', sessionId: message.sessionId, requestId: message.requestId });
+          postMessage({
+            type: 'flushComplete', sessionId: message.sessionId,
+            documentId: message.documentId, requestId: message.requestId,
+          });
           break;
         }
         flush();
@@ -328,12 +387,14 @@ export function useEditorMessages({
           postMessage({
             type: 'flushComplete',
             sessionId: message.sessionId,
+            documentId: message.documentId,
             requestId: message.requestId,
           });
         }).catch((error: unknown) => {
           postMessage({
             type: 'flushFailed',
             sessionId: message.sessionId,
+            documentId: message.documentId,
             requestId: message.requestId,
             code: syncCoordinatorRef.current?.state.error?.code ?? 'UNKNOWN',
             message: error instanceof Error ? error.message : String(error),
@@ -350,7 +411,16 @@ export function useEditorMessages({
             ? { revision: observed.revision, snapshot: observed.hostSnapshot }
             : null);
           if (!observed) setShowExternalComparison(false);
+          setMeta((current) => ({ ...current, modified: message.modified }));
+          setHostSaveState((current) => current
+            ? markHostDocumentDirty(current, message.revision, message.modified)
+            : current);
         }
+        break;
+      case 'documentSaveState':
+        setHostSaveState((current) => current
+          ? observeDocumentSaveState(current, message)
+          : current);
         break;
       case 'editRejected':
         if (syncCoordinatorRef.current?.reject(message)) {
@@ -396,25 +466,7 @@ export function useEditorMessages({
           && persistenceSessionRef.current.documentId === message.documentId
           && fileController.operationState.phase === 'running'
           && fileController.operationState.requestId === message.requestId) {
-          if (!window.confirm('Importing this file will replace the current document. Continue?')) {
-            postMessage({
-              type: 'fileOperationApplied',
-              requestId: message.requestId,
-              sessionId: message.sessionId,
-              documentId: message.documentId,
-              applied: false,
-            });
-            break;
-          }
-          replaceEditorDocumentRef.current?.('user-import', message.content);
-          flush();
-          postMessage({
-            type: 'fileOperationApplied',
-            requestId: message.requestId,
-            sessionId: message.sessionId,
-            documentId: message.documentId,
-            applied: true,
-          });
+          setPendingImport(message);
         }
         break;
       case 'importHtml':
@@ -423,26 +475,7 @@ export function useEditorMessages({
           && persistenceSessionRef.current.documentId === message.documentId
           && fileController.operationState.phase === 'running'
           && fileController.operationState.requestId === message.requestId) {
-          if (!window.confirm('Importing this file will replace the current document. Continue?')) {
-            postMessage({
-              type: 'fileOperationApplied',
-              requestId: message.requestId,
-              sessionId: message.sessionId,
-              documentId: message.documentId,
-              applied: false,
-            });
-            break;
-          }
-          const cleaned = preprocessImportedHtml(message.html);
-          replaceEditorDocumentRef.current?.('user-import', cleaned as unknown as JSONContent);
-          flush();
-          postMessage({
-            type: 'fileOperationApplied',
-            requestId: message.requestId,
-            sessionId: message.sessionId,
-            documentId: message.documentId,
-            applied: true,
-          });
+          setPendingImport(message);
         }
         break;
       case 'imageSaved':
@@ -855,6 +888,16 @@ export function useEditorMessages({
       }
       setMeta(replaceMetaState(externalChange.snapshot.meta));
       dispatch({ type: 'SET_DOC_SETTINGS', payload: externalChange.snapshot.documentSettings });
+      const session = persistenceSessionRef.current;
+      if (session) {
+        setHostSaveState(createHostDocumentSaveState({
+          sessionId: session.sessionId,
+          documentId: session.documentId,
+          revision: externalChange.revision,
+          isDirty: false,
+          modified: externalChange.snapshot.meta.modified,
+        }));
+      }
       setExternalChange(null);
       publishAccess({ status: 'editable', capabilities: EDITABLE_CAPABILITIES });
       setShowExternalComparison(false);
@@ -886,6 +929,46 @@ export function useEditorMessages({
   const handleRetryInvalidDocument = (): void => {
     postMessage({ type: 'ready' });
   };
+
+  const finishPendingImport = (applied: boolean): void => {
+    const message = pendingImport;
+    if (!message) return;
+    const session = persistenceSessionRef.current;
+    const matchesCurrentOperation = session?.sessionId === message.sessionId
+      && session.documentId === message.documentId
+      && fileController.operationState.phase === 'running'
+      && fileController.operationState.requestId === message.requestId;
+    if (applied && matchesCurrentOperation) {
+      const content = message.type === 'importContent'
+        ? message.content
+        : preprocessImportedHtml(message.html) as unknown as JSONContent;
+      replaceEditorDocumentRef.current?.('user-import', content);
+      flushRef.current();
+    }
+    void postMessage({
+      type: 'fileOperationApplied',
+      requestId: message.requestId,
+      sessionId: message.sessionId,
+      documentId: message.documentId,
+      applied: applied && matchesCurrentOperation,
+    });
+    setPendingImport(null);
+  };
+
+  const handleRetrySync = (): void => {
+    const sync = syncCoordinatorRef.current;
+    if (!sync?.state.error || sync.state.conflict || sync.state.externalChange) return;
+    if (!['WRITE_FAILED', 'TRANSPORT_ERROR', 'UNKNOWN'].includes(sync.state.error.code)) return;
+    sync.retry();
+  };
+
+  const savePresentation = syncState && hostSaveState
+    ? deriveDocumentSavePresentation(
+      syncState,
+      hostSaveState,
+      accessRef.current.status === 'editable' ? 'editable' : 'invalid',
+    )
+    : null;
 
   return {
     postMessage,
@@ -920,5 +1003,10 @@ export function useEditorMessages({
     handleRetryInvalidDocument,
     invalidRecoveryPending,
     invalidRecoveryError,
+    pendingImport,
+    confirmPendingImport: () => finishPendingImport(true),
+    cancelPendingImport: () => finishPendingImport(false),
+    savePresentation,
+    handleRetrySync,
   };
 }

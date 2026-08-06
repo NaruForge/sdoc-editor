@@ -9,18 +9,12 @@
     "template": {
       "name": "빈 문서",
       "description": "제목과 빈 본문으로 시작합니다.",
-      "category": "blank",
-      "titleNodeId": "document-title"
+      "category": "blank"
     }
   },
   "doc": {
     "type": "doc",
     "content": [
-      {
-        "type": "heading",
-        "attrs": { "level": 1, "id": "document-title", "numbered": false },
-        "content": [{ "type": "text", "text": "빈 문서" }]
-      },
       { "type": "paragraph" }
     ]
   }

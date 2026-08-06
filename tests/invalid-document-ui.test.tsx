@@ -14,6 +14,8 @@ const labels: InvalidDocumentNoticeLabels = {
   retry: 'Retry validation',
   recover: 'Recover from local draft',
   running: 'Recovering…',
+  diagnosticsSummary: '{{count}} validation issues',
+  diagnosticsDetails: 'Show validation details',
 };
 
 describe('invalid document UX', () => {
@@ -51,6 +53,8 @@ describe('invalid document UX', () => {
     );
 
     expect(markup).toContain('aria-live="assertive"');
+    expect(markup).toContain('<summary aria-label="Show validation details">1 validation issues</summary>');
+    expect(markup).toContain('<code>/</code>: invalid JSON');
     expect(markup).toContain('Recovery failed');
     expect(markup).toContain('disabled=""');
     expect(markup).toContain('Recovering…');

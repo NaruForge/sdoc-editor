@@ -765,10 +765,16 @@ export class KrokiDiagramService {
     signal: AbortSignal | undefined,
     timeoutMs: number,
   ): Promise<KrokiRenderResult> {
+    const deadline = Date.now() + Math.max(0, timeoutMs);
+    const remainingTime = (): number => Math.max(0, deadline - Date.now());
     const resolved = await resolveEndpointAddress(endpoint, this.settings.allowPrivateNetwork, {
       signal,
-      timeoutMs: Math.min(timeoutMs, DEFAULT_DNS_TIMEOUT_MS),
+      timeoutMs: Math.min(remainingTime(), DEFAULT_DNS_TIMEOUT_MS),
     });
+    const httpTimeoutMs = remainingTime();
+    if (httpTimeoutMs <= 0) {
+      throw new KrokiRenderError('timeout', 'Diagram rendering timed out.', true);
+    }
     const basePath = endpoint.pathname.replace(/\/+$/, '');
     const output = language === 'd2'
       ? { format: 'svg', mimeType: 'image/svg+xml' }
@@ -792,28 +798,38 @@ export class KrokiDiagramService {
     };
 
     return new Promise<KrokiRenderResult>((resolve, reject) => {
+      let settled = false;
+      let deadlineTimer: NodeJS.Timeout | undefined;
+      const finish = (callback: () => void): void => {
+        if (settled) return;
+        settled = true;
+        if (deadlineTimer) clearTimeout(deadlineTimer);
+        callback();
+      };
+      const succeed = (result: KrokiRenderResult): void => finish(() => resolve(result));
+      const fail = (error: unknown): void => finish(() => reject(error));
       const request = (endpoint.protocol === 'https:' ? httpsRequest : httpRequest)(
         requestOptions,
         (response) => {
           const status = response.statusCode ?? 0;
           if (status >= 300 && status < 400) {
             response.resume();
-            reject(new KrokiRenderError('redirect', 'Kroki redirects are not allowed.', false));
+            fail(new KrokiRenderError('redirect', 'Kroki redirects are not allowed.', false));
             return;
           }
           if (status === 429) {
             response.resume();
-            reject(new KrokiRenderError('rate-limited', 'The renderer is rate limited.', true));
+            fail(new KrokiRenderError('rate-limited', 'The renderer is rate limited.', true));
             return;
           }
           if (status >= 500) {
             response.resume();
-            reject(new KrokiRenderError('server-error', 'The renderer is temporarily unavailable.', true));
+            fail(new KrokiRenderError('server-error', 'The renderer is temporarily unavailable.', true));
             return;
           }
           if (status < 200 || status >= 300) {
             response.resume();
-            reject(new KrokiRenderError('invalid-response', `The renderer returned HTTP ${status}.`, false));
+            fail(new KrokiRenderError('invalid-response', `The renderer returned HTTP ${status}.`, false));
             return;
           }
           const rawContentType = String(response.headers['content-type'] ?? '').trim().toLowerCase();
@@ -822,7 +838,7 @@ export class KrokiDiagramService {
             : rawContentType.split(';', 1)[0].trim();
           if (contentType !== output.mimeType) {
             response.resume();
-            reject(new KrokiRenderError(
+            fail(new KrokiRenderError(
               'invalid-response',
               `The renderer response is not ${output.mimeType}.`,
               false,
@@ -848,31 +864,32 @@ export class KrokiDiagramService {
             try {
               const bytes = Buffer.concat(chunks);
               const dimensions = output.format === 'svg' ? validateSvg(bytes) : validatePng(bytes);
-              resolve({
+              succeed({
                 dataUrl: `data:${output.mimeType};base64,${bytes.toString('base64')}`,
                 ...dimensions,
                 cached: false,
               });
             } catch (error) {
-              reject(error);
+              fail(error);
             }
           });
-          response.on('error', reject);
+          response.on('error', fail);
         },
       );
-      request.setTimeout(timeoutMs, () => {
+      deadlineTimer = setTimeout(() => {
         request.destroy(new KrokiRenderError('timeout', 'Diagram rendering timed out.', true));
-      });
+      }, httpTimeoutMs);
+      deadlineTimer.unref();
       request.on('error', (error: Error) => {
         if (error instanceof KrokiRenderError) {
-          reject(error);
+          fail(error);
           return;
         }
         if (signal?.aborted || error.name === 'AbortError') {
-          reject(new KrokiRenderError('cancelled', 'Diagram rendering was cancelled.', false));
+          fail(new KrokiRenderError('cancelled', 'Diagram rendering was cancelled.', false));
           return;
         }
-        reject(new KrokiRenderError('offline', 'The renderer could not be reached.', true));
+        fail(new KrokiRenderError('offline', 'The renderer could not be reached.', true));
       });
       request.end(source);
     });

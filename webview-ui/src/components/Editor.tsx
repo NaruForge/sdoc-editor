@@ -9,7 +9,6 @@ import { applyEditorSettingsCss } from '@shared/editor/applyEditorSettingsCss';
 import { Toolbar } from '@shared/editor/components/Toolbar';
 import { BubbleMenuBar } from '@shared/editor/components/BubbleMenuBar';
 import { DocumentHeader } from '@shared/editor/components/DocumentHeader';
-import { TableContextMenu } from '@shared/editor/components/TableContextMenu';
 import { TablePropertiesModal } from '@shared/editor/components/TablePropertiesModal';
 import { ImageNameDialog } from '@shared/editor/components/ImageNameDialog';
 import { DrawioNameDialog } from '@shared/editor/components/DrawioNameDialog';
@@ -18,7 +17,6 @@ import { LinkDialog } from '@shared/editor/components/LinkDialog';
 import { ImagePropertiesDialog } from '@shared/editor/components/ImagePropertiesDialog';
 import { ImageContextMenu } from '@shared/editor/components/ImageContextMenu';
 import { MathDialog } from '@shared/editor/components/MathDialog';
-import { EditorContextMenu } from '@shared/editor/components/EditorContextMenu';
 import { CrossReferenceDialog } from '@shared/editor/components/CrossReferenceDialog';
 import { DiagramDialog } from '@shared/editor/components/DiagramDialog';
 import { ModalDialog } from '@shared/editor/components/ModalDialog';
@@ -46,11 +44,21 @@ import {
   ExternalChangePrompt,
   ExternalChangeComparison,
   buildExternalChangeComparison,
-  buildExternalDocumentDiff,
+  buildExternalMutationDiff,
 } from '@shared/editor/externalChanges';
 import { useEditorI18n } from '@shared/editor/i18n';
 import type { EditorExtensionRuntime } from '@shared/editor/extensionRuntime';
 import type { HostDiagramRenderer } from '@shared/editor/diagram';
+import {
+  applyLinkEdit,
+  captureLinkSelection,
+  copyCapturedLink,
+  openCapturedLink,
+  removeCapturedLink,
+  restoreCapturedLinkSelection,
+  type CapturedLinkSelection,
+} from '@shared/editor/linkEditing';
+import { resolveStructurePosition } from '@shared/editor/structureIndex';
 
 export function parseStoredZoom(value: string | null): number {
   if (!value) return 100;
@@ -75,8 +83,11 @@ export const Editor: React.FC = () => {
   });
   const [showInvalidRecoveryConfirm, setShowInvalidRecoveryConfirm] = useState(false);
   const invalidRecoveryCancelRef = useRef<HTMLButtonElement>(null);
+  const importCancelRef = useRef<HTMLButtonElement>(null);
   const [meta, setMeta] = useState<MetaState>({ title: '', author: '', version: '', created: '', modified: '' });
-  const { dialogs, dialogDispatch, openTableContextMenu, openEditorContextMenu } = useDialogState();
+  const [linkSelection, setLinkSelection] = useState<CapturedLinkSelection | null>(null);
+  const [linkSelectionError, setLinkSelectionError] = useState<string | null>(null);
+  const { dialogs, dialogDispatch } = useDialogState();
   const replaceEditorDocumentRef = useRef<(
     (reason: EditorReplacementReason, content: JSONContent) => boolean
   ) | null>(null);
@@ -217,6 +228,11 @@ export const Editor: React.FC = () => {
     handleRetryInvalidDocument,
     invalidRecoveryPending,
     invalidRecoveryError,
+    pendingImport,
+    confirmPendingImport,
+    cancelPendingImport,
+    savePresentation,
+    handleRetrySync,
   } = useEditorMessages({
     editor,
     flushUpdate,
@@ -285,16 +301,6 @@ export const Editor: React.FC = () => {
       documentSettings: settings,
     });
   }, [dispatch, editor, state.documentAccess.capabilities.editDocumentSettings]);
-
-  const handleContextMenu = (event: React.MouseEvent) => {
-    event.preventDefault();
-    if (!state.documentAccess.capabilities.editContent) return;
-    if (editor && editor.isActive('table')) {
-      openTableContextMenu(event.clientX, event.clientY);
-    } else {
-      openEditorContextMenu(event.clientX, event.clientY);
-    }
-  };
 
   const handlePaste = useCallback(async (event: ClipboardEvent) => {
     if (!state.documentAccess.capabilities.manageAssets) return;
@@ -367,7 +373,26 @@ export const Editor: React.FC = () => {
   };
 
   const handleInsertLink = () => {
+    if (!editor) return;
+    const captured = captureLinkSelection(editor.state);
+    if (!captured.ok) {
+      setLinkSelectionError(t(captured.reason === 'non-text-selection'
+        ? 'link.nonTextSelectionError'
+        : 'link.multipleSelectionError'));
+      return;
+    }
+    setLinkSelection(captured.snapshot);
+    setLinkSelectionError(null);
     dialogDispatch({ type: 'OPEN_LINK_DIALOG' });
+  };
+
+  const closeLinkDialog = (restore: boolean): void => {
+    if (restore && editor && linkSelection) {
+      editor.view.dispatch(restoreCapturedLinkSelection(editor.state, linkSelection));
+      editor.view.focus();
+    }
+    setLinkSelection(null);
+    dialogDispatch({ type: 'CLOSE_LINK_DIALOG' });
   };
 
   const handleInsertMath = () => {
@@ -448,32 +473,16 @@ export const Editor: React.FC = () => {
   };
 
   const handleLinkConfirm = (url: string, text: string) => {
-    if (!editor) return;
-
-    // If there's selected text, replace it with the link
-    const { from, to } = editor.state.selection;
-    const hasSelection = from !== to;
-
-    if (hasSelection) {
-      // Replace selected text with link
-      editor.chain().focus()
-        .deleteSelection()
-        .insertContent({
-          type: 'text',
-          marks: [{ type: 'link', attrs: { href: url } }],
-          text: text,
-        })
-        .run();
-    } else {
-      // Insert new text with link
-      editor.chain().focus().insertContent({
-        type: 'text',
-        marks: [{ type: 'link', attrs: { href: url } }],
-        text: text,
-      }).run();
+    if (!editor || !linkSelection) return;
+    const result = applyLinkEdit(editor.state, linkSelection, { url, text });
+    if (!result.ok) {
+      setLinkSelectionError(t('link.staleSelectionError'));
+      closeLinkDialog(false);
+      return;
     }
-
-    dialogDispatch({ type: 'CLOSE_LINK_DIALOG' });
+    editor.view.dispatch(result.transaction);
+    editor.view.focus();
+    closeLinkDialog(false);
     flushUpdate();
   };
 
@@ -592,6 +601,13 @@ export const Editor: React.FC = () => {
     confirm: t('invalidDocument.recoveryConfirmAction'),
     cancel: t('common.cancel'),
     running: t('invalidDocument.recoveryRunning'),
+    diagnosticsSummary: t('invalidDocument.diagnosticsSummary', {
+      count: state.documentAccess.status === 'invalid-initial'
+        || state.documentAccess.status === 'invalid-external'
+        ? state.documentAccess.diagnostics.length
+        : 0,
+    }),
+    diagnosticsDetails: t('invalidDocument.diagnosticsDetails'),
   };
 
   if (state.documentAccess.status === 'invalid-initial') {
@@ -611,10 +627,11 @@ export const Editor: React.FC = () => {
       > syncCoordinatorRef.current.state.acknowledgedGeneration);
   const externalComparison = externalChange
     ? buildExternalChangeComparison(
-      buildExternalDocumentDiff(
-        editor.getJSON() as TiptapNode,
-        externalChange.snapshot.content,
-      ),
+      buildExternalMutationDiff({
+        content: editor.getJSON() as TiptapNode,
+        meta,
+        documentSettings: state.docSettings,
+      }, externalChange.snapshot),
       {
         title: t('externalChange.compareTitle'),
         mine: t('externalChange.mine'),
@@ -633,6 +650,23 @@ export const Editor: React.FC = () => {
         onAuthorChange={(value) => handleMetaChange('author', value)}
         onVersionChange={(value) => handleMetaChange('version', value)}
         disabled={!state.documentAccess.capabilities.editMetadata}
+        saveStatus={savePresentation ? {
+          phase: savePresentation.phase,
+          label: t(({
+            blocked: 'editor.saveBlocked',
+            conflict: 'editor.conflict',
+            failed: 'editor.saveError',
+            saving: 'editor.saving',
+            syncing: 'editor.syncing',
+            modified: 'editor.dirty',
+            'disk-pending': 'editor.diskPending',
+            saved: 'editor.saved',
+          } as const)[savePresentation.phase]),
+          detail: savePresentation.message,
+          retryable: savePresentation.retryable,
+        } : null}
+        retryLabel={t('editor.retrySave')}
+        onRetrySave={handleRetrySync}
       />
       <Toolbar
         editor={editor}
@@ -687,9 +721,30 @@ export const Editor: React.FC = () => {
           onClose={() => setShowExternalComparison(false)}
           closeLabel={t('externalChange.closeComparison')}
           emptyMessage={t('externalChange.noBlockDiff')}
+          labels={{
+            metadata: t('externalChange.metadata'),
+            settings: t('externalChange.settings'),
+            body: t('externalChange.body'),
+            field: t('externalChange.field'),
+            change: t('externalChange.change'),
+            changedBlocks: t('externalChange.changedBlocks'),
+            notInMine: t('externalChange.notInMine'),
+            notOnDisk: t('externalChange.notOnDisk'),
+            added: t('externalChange.added'),
+            removed: t('externalChange.removed'),
+            changed: t('externalChange.changed'),
+            moved: t('externalChange.moved'),
+            truncated: t('externalChange.truncated'),
+          }}
         />
       )}
-      {editor && <BubbleMenuBar editor={editor} />}
+      {editor && <BubbleMenuBar editor={editor} onEditLink={handleInsertLink} />}
+      {linkSelectionError && (
+        <div className="link-selection-error" role="alert">
+          <span>{linkSelectionError}</span>
+          <button type="button" onClick={() => setLinkSelectionError(null)} aria-label={t('common.close')}>×</button>
+        </div>
+      )}
       <div className={`editor-body-layout${activityState.selection ? ' editor-body-with-toc' : ''}`}>
         <ActivityBar
           activeDestination={activityState.selection?.destination ?? null}
@@ -738,7 +793,7 @@ export const Editor: React.FC = () => {
             onOpenPersonalTemplateFolder={handleOpenPersonalTemplateFolder}
           />
         )}
-        <div ref={editorAreaRef} className="editor-content-area" onContextMenu={handleContextMenu} tabIndex={-1}>
+        <div ref={editorAreaRef} className="editor-content-area" tabIndex={-1}>
           <div className="editor-scroll-area">
             <div style={{ zoom: zoom / 100 }}>
               <div className="editor-title-area">
@@ -784,37 +839,29 @@ export const Editor: React.FC = () => {
             </div>
         </ModalDialog>
       )}
-      {dialogs.editorContextMenu && editor && (
-        <EditorContextMenu
-          returnFocusRef={editorAreaRef}
-          position={dialogs.editorContextMenu}
-          editor={editor}
-          onInsertImage={handleInsertImage}
-          onInsertDrawio={handleInsertDrawio}
-          onInsertEquation={handleInsertMath}
-          onInsertTable={(rows, cols) => {
-            dialogDispatch({ type: 'CLOSE_EDITOR_CONTEXT_MENU' });
-            editor.chain().focus().insertTable({ rows, cols, withHeaderRow: true }).run();
-          }}
-          onInsertLink={handleInsertLink}
-          onInsertDiagram={handleInsertDiagram}
-          onInsertCrossRef={() => { dialogDispatch({ type: 'CLOSE_EDITOR_CONTEXT_MENU' }); dialogDispatch({ type: 'OPEN_CROSSREF_DIALOG' }); }}
-          isLinkActive={editor.isActive('link')}
-          onRemoveLink={() => editor.chain().focus().unsetLink().run()}
-          onClose={() => dialogDispatch({ type: 'CLOSE_EDITOR_CONTEXT_MENU' })}
-        />
-      )}
-      {dialogs.contextMenu && editor && (
-        <TableContextMenu
-          returnFocusRef={editorAreaRef}
-          editor={editor}
-          position={dialogs.contextMenu}
-          onClose={() => dialogDispatch({ type: 'CLOSE_TABLE_CONTEXT_MENU' })}
-          onOpenProperties={() => {
-            dialogDispatch({ type: 'CLOSE_TABLE_CONTEXT_MENU' });
-            dialogDispatch({ type: 'OPEN_TABLE_PROPERTIES' });
-          }}
-        />
+      {pendingImport && (
+        <ModalDialog
+          size="md"
+          role="alertdialog"
+          titleId="import-confirm-title"
+          descriptionId="import-confirm-description"
+          initialFocusRef={importCancelRef}
+          fallbackFocusRef={editorAreaRef}
+          onCancel={cancelPendingImport}
+        >
+          <div className="modal-body">
+            <h2 id="import-confirm-title">{t('import.confirmTitle')}</h2>
+            <p id="import-confirm-description">{t('import.confirmBody')}</p>
+          </div>
+          <div className="modal-footer">
+            <button ref={importCancelRef} type="button" className="btn-secondary" onClick={cancelPendingImport}>
+              {t('common.cancel')}
+            </button>
+            <button type="button" className="btn-primary" onClick={confirmPendingImport}>
+              {t('import.confirmAction')}
+            </button>
+          </div>
+        </ModalDialog>
       )}
       {dialogs.showTableProperties && editor && (
         <TablePropertiesModal
@@ -843,16 +890,45 @@ export const Editor: React.FC = () => {
           onCancel={() => dialogDispatch({ type: 'CLOSE_DRAWIO_DIALOG' })}
         />
       )}
-      {dialogs.showLinkDialog && editor && (
+      {dialogs.showLinkDialog && editor && linkSelection && (
         <LinkDialog
+          mode={linkSelection.mode}
           onConfirm={(url, text) => handleLinkConfirm(url, text)}
-          onCancel={() => dialogDispatch({ type: 'CLOSE_LINK_DIALOG' })}
+          onCancel={() => closeLinkDialog(true)}
           onBrowseSdoc={() => { void postMessage({ type: 'browseSdocFiles' }); }}
-          defaultText={editor.state.doc.textBetween(
-            editor.state.selection.from,
-            editor.state.selection.to,
-            ' '
+          defaultText={linkSelection.text}
+          defaultUrl={linkSelection.href}
+          mixedFormatting={linkSelection.hasMixedFormatting}
+          onOpen={() => {
+            openCapturedLink(linkSelection, (url) => {
+              closeLinkDialog(false);
+              if (url.startsWith('#')) {
+                const position = resolveStructurePosition(editor.state, url.slice(1));
+                if (position !== undefined) {
+                  editor.commands.setTextSelection(position + 1);
+                  editor.commands.focus();
+                }
+              } else if (url.includes('.sdoc')) {
+                const [path, anchor] = url.split('#');
+                postMessage({ type: 'openDocument', path, anchor });
+              } else {
+                window.open(url, '_blank', 'noopener,noreferrer');
+              }
+            });
+          }}
+          onCopy={() => copyCapturedLink(
+            linkSelection,
+            (url) => navigator.clipboard.writeText(url),
           )}
+          onRemove={() => {
+            const result = removeCapturedLink(editor.state, linkSelection);
+            if (result.ok) {
+              editor.view.dispatch(result.transaction);
+              editor.view.focus();
+              closeLinkDialog(false);
+              flushUpdate();
+            }
+          }}
         />
       )}
       {dialogs.imageProperties && (
