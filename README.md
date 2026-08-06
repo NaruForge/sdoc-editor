@@ -21,6 +21,10 @@
   · <a href="#프로젝트-문서">문서</a>
 </p>
 
+<p align="center">
+  <img src="media/readme/vscode-editor-publish-ko-dark.png" alt="VS Code 확장에서 Publish 패널과 시험·검증 보고서를 함께 연 Structured Doc Editor 어두운 테마 전체 화면" width="1600">
+</p>
+
 Structured Doc Editor는 `.sdoc`와 레거시 `.tiptap.json` 문서를 위한 오픈 소스 편집기입니다. 제목·표·수식·다이어그램·캡션·교차 참조를 문서 화면에서 편집하면서, 원본은 사람이 검토하고 Git으로 추적하기 쉬운 JSON으로 저장합니다.
 
 v0.8.0부터 지원하는 배포면은 VS Code 확장과 SDOC CLI입니다. VS Code는 시각 편집과 import/export를 제공하고, CLI는 같은 문서 계약 위에서 자동 검사와 revision-safe 의미 연산을 제공합니다.
@@ -85,6 +89,10 @@ code --install-extension swbaek.structured-doc-editor
 
 > [!IMPORTANT]
 > 템플릿은 아직 실험적 기능입니다. 형식과 사용자 흐름이 변경될 수 있으므로 중요한 사용자 템플릿은 Git 등으로 별도 관리하세요.
+
+<p align="center">
+  <img src="media/readme/vscode-templates-ko-light.png" alt="VS Code 확장에서 내장 템플릿 목록과 시험·검증 보고서를 함께 연 Structured Doc Editor 밝은 테마 화면" width="1600">
+</p>
 
 - 새 문서 명령에서 빈 문서, 기술 보고서, 설계 명세서, 시험·검증 보고서를 선택할 수 있습니다.
 - 팀 템플릿은 workspace의 `.sdoc/templates/*.sdoc`에 두고 Git으로 공유합니다.

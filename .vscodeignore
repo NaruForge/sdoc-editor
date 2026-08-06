@@ -1,6 +1,7 @@
 # Build files
 .vscode/**
 .vscode-test/**
+.tmp-sdoc-ui-profile/**
 .codex/**
 .agents/**
 src/**
@@ -8,8 +9,6 @@ webview-ui/src/**
 webview-ui/node_modules/**
 **/.DS_Store
 
-# Tauri desktop app (separate build)
-tauri-app/**
 cli/**
 shared/**
 

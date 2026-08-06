@@ -12,34 +12,49 @@ Provenance record:
 - SHA-256: `a617a044d72b155947a5b5c4a39843cc5b1a777086b4a7ef23952d192d838925`.
 - No separate editable source file or embedded PNG authorship metadata is retained. Future replacements must preserve their editable source and creation/license record.
 
-## README editor overview
+## README VS Code product captures
 
-`media/readme/editor-overview-ko.png` is a retained historical v0.7.8 overview
-image. It shows the same sanitized editor fixture in the VS Code light theme on
-the left and the retired Tauri dark theme on the right, with descriptive
-host/theme labels and no host logos. It is no longer used as the current README
-product overview after Desktop EOL.
+The current README uses two unretouched captures from the real VS Code
+Extension Development Host. They show the production v0.8.3 extension rather
+than the browser-only UI quality fixture or generated imagery:
+
+- `media/readme/vscode-editor-publish-ko-dark.png`: 1600 x 900 pixels,
+  137,165 bytes, SHA-256
+  `201e3a02238a0a4ac20a8033e48314224bf59dc7dab2db5d6a6d643ff464bf40`.
+- `media/readme/vscode-templates-ko-light.png`: 1600 x 900 pixels,
+  117,685 bytes, SHA-256
+  `d07c5cbe63e0ff66ea4d26aaedf7d30082fa1b547d5c3a9e4f9ca727ff50a949`.
 
 Provenance and redistribution record:
 
-- Author/source: created for the project on 2026-08-05 from this repository's
-  production editor components through the existing Playwright UI quality test
-  harness (`tests/ui/`). It is a deterministic Chromium capture, not
-  AI-generated imagery.
-- Capture method: the Korean `editor` scene was rendered twice at 800 x 900
-  pixels with a UTC timezone and five table columns (`vscode`/`light` and
-  `tauri`/`dark`), then the two unretouched PNG captures were joined
-  horizontally. The resulting image is 1600 x 900 pixels and 121,095 bytes.
-- Content and asset scope: the fixture contains fixed sample text and
-  timestamps only. It contains no personal paths, accounts, customer data, or
-  company-restricted content, and it does not use the restricted legacy logo or
-  font assets listed below.
-- License and rights: the image is project documentation distributed under the
-  root MIT License. It may be copied, modified, and redistributed under that
-  license in source archives, VSIX packages, historical desktop installers, project
-  documentation, and related project materials. Descriptive references to VS
-  Code and Tauri do not grant rights to unrelated third-party trademarks.
-- SHA-256: `c0beb76d303f9a979d7649aa0376d404afbed9930ee8f208359869b49749943a`.
+- Author/source: captured for this project on 2026-08-07 from repository commit
+  `dd337f07d06155e94ed39fdd950a0589b822aa24`, Structured Doc Editor v0.8.3,
+  with the repository owner authorizing this documentation update.
+- Runtime: VS Code 1.132.0 on Windows, launched with this repository as
+  `--extensionDevelopmentPath` and isolated temporary user-data and extension
+  directories. The normal VS Code profile and installed extensions were not
+  used.
+- Content: the repository-owned `builtin:verification-report` document was
+  copied to an isolated temporary workspace, opened and saved through the real
+  custom editor, then captured with the Publish panel in `Dark 2026` and the
+  Templates panel in `Light 2026`. The product locale was Korean (`ko-KR`) and
+  reduced motion was enabled. The input document SHA-256 was
+  `d34ab434fe971f26a3a396e721324ded330d513dba8d4665a924ca016466e7b0`.
+- Capture method: Playwright controlled the installed VS Code Electron process,
+  asserted the Extension Development Host argument, product frame, theme class,
+  Korean locale, active panel, and saved state, and wrote lossless 1600 x 900
+  PNG screenshots. The images were not cropped, composited, reconstructed, or
+  AI-generated.
+- Sanitization: no personal paths, signed-in accounts, notifications, customer
+  data, unrelated extensions, Desktop UI, restricted legacy logo, or restricted
+  font asset is visible. The sample document and all visible document content
+  are owned by this repository.
+- License and rights: the screenshots are project documentation distributed
+  under the root MIT License and may be copied, modified, and redistributed in
+  source archives, project documentation, and Marketplace material. VS Code
+  chrome is shown only to identify the supported host; this record grants no
+  rights to Microsoft trademarks. README screenshots remain remote GitHub
+  assets and are intentionally excluded from the VSIX payload.
 
 ## Temporarily retained restricted assets
 
