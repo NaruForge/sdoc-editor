@@ -134,7 +134,7 @@ sdoc capabilities --human
   "contract": "sdoc.cli.response/1",
   "ok": true,
   "command": "capabilities",
-  "cliVersion": "0.9.2",
+  "cliVersion": "0.9.3",
   "contracts": {
     "document": "sdoc/1.0",
     "operations": "sdoc.operations/1",

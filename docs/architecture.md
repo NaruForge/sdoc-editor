@@ -2,7 +2,7 @@
 
 ## Overview
 
-Structured Doc Editor v0.9.2 has two supported delivery surfaces: the VS Code
+Structured Doc Editor v0.9.3 has two supported delivery surfaces: the VS Code
 extension for visual editing and the SDOC CLI for non-visual document
 automation. Both consume one TypeScript document core and the same persisted
 `.sdoc` contract.
@@ -283,4 +283,4 @@ constraints in effect when those versions were supported.
 - `npm run package`: version-checked VSIX in `output/`
 - `npm run package:cli`: installable CLI `.tgz` in `output/`
 
-Rust and Tauri checks are not part of the v0.9.2 build contract.
+Rust and Tauri checks are not part of the v0.9.3 build contract.
