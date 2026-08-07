@@ -72,13 +72,29 @@ npm run package:cli
 ```
 
 `package:cli`는 설치 가능한 `.tgz`를 `output/`에 생성합니다. 소스를 직접
-실행하는 대신 실제 패키지 내용을 검사하고 전역 임시 설치를 smoke
-test합니다.
+실행하는 대신 실제 패키지를 별도 임시 프로젝트에 설치해 smoke test합니다.
 
 ```powershell
-$package = Get-ChildItem output -Filter '*.tgz' | Select-Object -First 1
-npm install --global $package.FullName
-sdoc --version
+$version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+$packages = @(Get-ChildItem output -Filter "sdoc-editor-cli-$version.tgz")
+if ($packages.Count -ne 1) {
+  throw "Expected one CLI package for $version, found $($packages.Count)."
+}
+$package = $packages[0].FullName
+$smoke = Join-Path ([IO.Path]::GetTempPath()) "sdoc-cli-$([guid]::NewGuid())"
+New-Item -ItemType Directory -Path $smoke | Out-Null
+Push-Location $smoke
+try {
+  npm init --yes | Out-Null
+  if ($LASTEXITCODE -ne 0) { throw "npm init failed: $LASTEXITCODE" }
+  npm install --save-dev $package
+  if ($LASTEXITCODE -ne 0) { throw "npm install failed: $LASTEXITCODE" }
+  npm exec --no --offline --package=sdoc-editor-cli -- sdoc --version
+  if ($LASTEXITCODE -ne 0) { throw "CLI smoke test failed: $LASTEXITCODE" }
+} finally {
+  Pop-Location
+  Remove-Item -LiteralPath $smoke -Recurse -Force
+}
 ```
 
 기능 PR에서 공개 npm registry에 게시하지 마세요. CI는 workflow artifact로
@@ -88,9 +104,9 @@ artifact만 생성합니다.
 
 ### 릴리스 (유지보수자 전용)
 
-버전 상승, 태그, Marketplace 및 GitHub Release는 유지보수자가 별도로 승인한 릴리스 작업에서만 수행합니다. 일반 기여 PR에서는 버전을 올리거나 태그를 만들지 마세요.
+버전 상승, 태그, npm Registry, Marketplace 및 GitHub Release는 유지보수자가 별도로 승인한 릴리스 작업에서만 변경합니다. 일반 기여 PR에서는 버전을 올리거나 패키지를 게시하거나 태그를 만들지 마세요.
 
-릴리스가 승인되면 루트와 npm workspace 버전을 맞추고 `npm run version:check`를 통과시킨 뒤 동일한 `v*` 태그를 사용합니다. `.github/workflows/release-cli.yml`은 CLI `.tgz`를 패키징해 GitHub Release에 첨부합니다.
+릴리스가 승인되면 루트와 npm workspace 버전을 맞추고 `npm run version:check`를 통과시킨 뒤 동일한 `v*` 태그를 사용합니다. `.github/workflows/release-cli.yml`은 CLI `.tgz`를 패키징해 GitHub Release에 첨부합니다. npm 자동 게시 workflow가 도입되기 전까지는 이 검증된 `.tgz`와 같은 버전만 유지보수자가 `sdoc-editor-cli`에 게시하고 `npm view sdoc-editor-cli@X.Y.Z version`으로 확인합니다.
 
 같은 태그로 `.github/workflows/release-vscode.yml`도 실행되어 VSIX를 만든 뒤 Visual Studio Marketplace에 게시합니다. 이 워크플로는 GitHub OIDC와 Microsoft Entra 관리 ID를 사용하며 PAT 또는 장기 보관 클라이언트 비밀을 사용하지 않습니다.
 

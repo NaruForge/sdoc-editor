@@ -12,8 +12,8 @@ body:
     id: version
     attributes:
       label: SDOC CLI version
-      description: Run `sdoc --version` or the equivalent project-local command.
-      placeholder: 0.7.6
+      description: Run `npx sdoc-editor-cli --version` for project-local or one-off use, or `sdoc --version` for a global installation.
+      placeholder: X.Y.Z
     validations:
       required: true
   - type: dropdown
@@ -21,9 +21,10 @@ body:
     attributes:
       label: Installation or execution method
       options:
-        - Project-local package via npx
-        - Globally installed npm package
-        - Packaged tarball
+        - Project-local npm package (sdoc-editor-cli)
+        - One-off npx package (sdoc-editor-cli)
+        - Globally installed npm package (sdoc-editor-cli)
+        - GitHub Release or packaged tarball
         - Repository source or workspace
         - Other
     validations:

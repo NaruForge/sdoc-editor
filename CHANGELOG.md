@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Simplified CLI onboarding around the exact `sdoc-editor-cli` package name, project scripts for repeatable automation, and optional global `sdoc` usage
+
 ## [0.9.2] - 2026-08-07
 
 ### Fixed
