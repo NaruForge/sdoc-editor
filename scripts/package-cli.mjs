@@ -44,6 +44,8 @@ const expectedFiles = [
   'dist/examples/operations/update-document-metadata.json',
   'dist/examples/operations/update-document-settings.json',
   'dist/schemas/sdoc.operations.schema.json',
+  'dist/schemas/sdoc.read.schema.json',
+  'dist/schemas/sdoc.cli.response.schema.json',
   'dist/schemas/sdoc.schema.json',
   'dist/sdoc.js',
   'package.json',

@@ -1,11 +1,27 @@
-import { pathToFileURL } from 'node:url';
 import {
   parseArguments,
   ArgumentError,
   type CliArguments,
+  type DocumentCliArguments,
   type ParsedArguments,
 } from './arguments.js';
-import { apply, inspect, revisionOf, validate, type CoreResult, type CoreSuccess } from './coreAdapter.js';
+import packageMetadata from '../package.json' with { type: 'json' };
+import {
+  apply,
+  inspect,
+  project,
+  revisionOf,
+  validate,
+  type CoreResult,
+  type CoreSuccess,
+  type ProjectResult,
+} from './coreAdapter.js';
+import type {
+  ProjectDocumentRequest,
+  ProjectDocumentSuccess,
+  Sha256Digest,
+} from '../../shared/document/operations/index.js';
+import { capabilitiesRecord } from './capabilities.js';
 import {
   acquireSiblingLock,
   assertCreateDestination,
@@ -24,20 +40,18 @@ import {
 import { detectJsonFormat, encodeJson } from './format.js';
 import { renderHelp } from './help.js';
 import { renderHumanFailure, renderHumanSuccess } from './human.js';
+import { parseJsonInput } from './jsonInput.js';
+import {
+  failureRecord,
+  withResponseContract,
+  type CliFailureCategory,
+  type OutputRecord,
+} from './response.js';
 import { createDocumentPlan } from './templateAdapter.js';
 
 declare const __CLI_VERSION__: string | undefined;
 
-const VERSION = typeof __CLI_VERSION__ === 'string' ? __CLI_VERSION__ : '0.6.0';
-
-interface OutputRecord {
-  ok: boolean;
-  command?: string;
-  path?: string;
-  preview?: boolean;
-  written?: boolean;
-  [key: string]: unknown;
-}
+const VERSION = typeof __CLI_VERSION__ === 'string' ? __CLI_VERSION__ : packageMetadata.version;
 
 export interface RunDependencies {
   replaceDocument(path: string, bytes: Uint8Array): Promise<void>;
@@ -65,15 +79,11 @@ function writeRecord(
   if (mode === 'human') {
     stream.write(`${failure ? renderHumanFailure(value) : renderHumanSuccess(value)}\n`);
   } else {
-    stream.write(`${JSON.stringify(value)}\n`);
+    stream.write(`${JSON.stringify(withResponseContract(value))}\n`);
   }
 }
 
-function failure(code: string, message: string): OutputRecord {
-  return { ok: false, diagnostics: [{ code, message }] };
-}
-
-function exitForResult(result: CoreResult): number {
+function exitForResult(result: CoreResult | ProjectResult): number {
   if (result.ok) return 0;
   switch (result.category) {
     case 'argument':
@@ -82,15 +92,6 @@ function exitForResult(result: CoreResult): number {
       return 3;
     case 'conflict':
       return 4;
-  }
-}
-
-function parseJsonUnknown(bytes: Uint8Array, label: string): unknown {
-  try {
-    const text = Buffer.from(bytes).toString('utf8').replace(/^\uFEFF/, '');
-    return JSON.parse(text) as unknown;
-  } catch {
-    throw new ArgumentError('CLI_INVALID_JSON', `${label} is not valid JSON`);
   }
 }
 
@@ -114,7 +115,9 @@ async function readRequest(args: CliArguments): Promise<unknown> {
       operations: [{
         op: 'setDocumentTitle',
         title: args.title,
-        headingTarget: { kind: 'id', id: args.id, expectedType: 'heading' },
+        ...(args.id === undefined
+          ? {}
+          : { headingTarget: { kind: 'id', id: args.id, expectedType: 'heading' } }),
         ...(args.discardFormatting ? { discardFormatting: true } : {}),
       }],
     };
@@ -123,7 +126,10 @@ async function readRequest(args: CliArguments): Promise<unknown> {
     args.operationsPath === '-'
       ? await readStandardInput(MAX_OPERATIONS_BYTES)
       : await readLimitedFile(args.operationsPath!, MAX_OPERATIONS_BYTES, 'operation input');
-  return parseJsonUnknown(bytes, 'Operation input');
+  return parseJsonInput(bytes, 'Operation input', {
+    invalidUtf8: (message) => new ArgumentError('CLI_INVALID_UTF8', message),
+    invalidJson: (message) => new ArgumentError('CLI_INVALID_JSON', message),
+  });
 }
 
 function outputDocument(result: CoreResult): unknown {
@@ -131,13 +137,23 @@ function outputDocument(result: CoreResult): unknown {
   return result.envelope ?? result.document ?? result.output;
 }
 
-async function runReadCommand(args: CliArguments, path: string, bytes: Uint8Array): Promise<number> {
-  const result = args.command === 'inspect'
-    ? inspect(bytes, { targetId: args.targetId, targetPath: args.targetPath })
-    : validate(bytes);
+async function runReadCommand(
+  args: DocumentCliArguments,
+  path: string,
+  bytes: Uint8Array,
+): Promise<number> {
+  const result = args.command === 'inspect' && args.projection !== undefined
+    ? project(bytes, projectionRequest(args))
+    : args.command === 'inspect'
+      ? inspect(bytes, { targetId: args.targetId, targetPath: args.targetPath })
+      : validate(bytes);
   if (!result.ok) {
     writeRecord(process.stderr, result as unknown as OutputRecord, args.output, true);
     return exitForResult(result);
+  }
+  if (args.command === 'inspect' && args.projection !== undefined) {
+    writeRecord(process.stdout, projectedOutput(result as ProjectDocumentSuccess, path), args.output);
+    return 0;
   }
   writeRecord(process.stdout, { ...result, command: args.command, path }, args.output);
   return 0;
@@ -252,7 +268,7 @@ async function runApplyCommand(
 }
 
 async function runCreateCommand(
-  args: CliArguments,
+  args: DocumentCliArguments,
   dependencies: RunDependencies,
 ): Promise<number> {
   const path = resolveCreatePath(args.documentPath);
@@ -300,6 +316,10 @@ async function runParsed(
     process.stdout.write(`${renderHelp(parsed.command)}\n`);
     return 0;
   }
+  if (parsed.command === 'capabilities') {
+    writeRecord(process.stdout, capabilitiesRecord(VERSION), parsed.output);
+    return 0;
+  }
   if (parsed.command === 'create') return runCreateCommand(parsed, dependencies);
   const path = resolveDocumentPath(parsed.documentPath);
   const bytes = await readLimitedFile(path, MAX_DOCUMENT_BYTES, 'document');
@@ -323,21 +343,92 @@ export async function run(
     return await runParsed(parsed, dependencies);
   } catch (error) {
     if (error instanceof ArgumentError) {
-      writeRecord(process.stderr, failure(error.code, error.message), fallbackMode, true);
+      writeRecord(
+        process.stderr,
+        failureRecord('argument', error.code, error.message),
+        fallbackMode,
+        true,
+      );
       return 2;
     }
     if (error instanceof IoError) {
-      writeRecord(process.stderr, failure(error.code, error.message), fallbackMode, true);
+      writeRecord(process.stderr, failureRecord('io', error.code, error.message), fallbackMode, true);
       return error.exitCode;
     }
     const message = error instanceof Error ? error.message : 'Unexpected CLI failure';
-    writeRecord(process.stderr, failure('CLI_INTERNAL_ERROR', message), fallbackMode, true);
+    const category: CliFailureCategory = 'internal';
+    writeRecord(
+      process.stderr,
+      failureRecord(category, 'CLI_INTERNAL_ERROR', message),
+      fallbackMode,
+      true,
+    );
     return 3;
   }
 }
 
-const invokedAsMain =
-  process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
-if (invokedAsMain) {
-  process.exitCode = await run(process.argv.slice(2));
+function projectionRequest(args: DocumentCliArguments): ProjectDocumentRequest {
+  const expectedRevision = args.expectedRevision as Sha256Digest | undefined;
+  const expected = expectedRevision === undefined ? {} : { expectedRevision };
+  switch (args.projection) {
+    case 'catalog':
+      return {
+        contract: 'sdoc.read/1',
+        projection: args.projection,
+        ...expected,
+        ...(args.catalog === undefined ? {} : { kind: args.catalog }),
+        ...(args.limit === undefined ? {} : { limit: args.limit }),
+        ...(args.cursor === undefined ? {} : { cursor: args.cursor }),
+        ...(args.maxBytes === undefined ? {} : { maxBytes: args.maxBytes }),
+        ...(args.maxSummaryLength === undefined
+          ? {} : { maxSummaryLength: args.maxSummaryLength }),
+      };
+    case 'target':
+      return {
+        contract: 'sdoc.read/1',
+        projection: args.projection,
+        ...expected,
+        ...(args.targetId !== undefined
+          ? { target: { kind: 'id' as const, id: args.targetId } }
+          : { targetPath: args.targetPath! }),
+        ...(args.maxBytes === undefined ? {} : { maxBytes: args.maxBytes }),
+        ...(args.maxNodes === undefined ? {} : { maxNodes: args.maxNodes }),
+      };
+    case 'section':
+      return {
+        contract: 'sdoc.read/1',
+        projection: args.projection,
+        ...expected,
+        ...(args.targetId !== undefined
+          ? { target: { kind: 'id' as const, id: args.targetId } }
+          : { targetPath: args.targetPath! }),
+        ...(args.cursor === undefined ? {} : { cursor: args.cursor }),
+        ...(args.maxBytes === undefined ? {} : { maxBytes: args.maxBytes }),
+        ...(args.maxNodes === undefined ? {} : { maxNodes: args.maxNodes }),
+      };
+    case 'document':
+      return {
+        contract: 'sdoc.read/1',
+        projection: args.projection,
+        ...expected,
+        ...(args.cursor === undefined ? {} : { cursor: args.cursor }),
+        ...(args.maxBytes === undefined ? {} : { maxBytes: args.maxBytes }),
+        ...(args.maxNodes === undefined ? {} : { maxNodes: args.maxNodes }),
+      };
+    default:
+      throw new ArgumentError('CLI_INVALID_PROJECTION', 'An explicit read projection is required');
+  }
+}
+
+function projectedOutput(
+  result: ProjectDocumentSuccess,
+  path: string,
+): OutputRecord {
+  const { contract: readContract, ...projection } = result;
+  return {
+    ...projection,
+    readContract,
+    command: 'inspect',
+    path,
+  };
 }

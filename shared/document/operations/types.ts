@@ -161,6 +161,124 @@ export interface InspectOptions {
   maxSummaryLength?: number;
 }
 
+export type ReadProjection = 'catalog' | 'target' | 'section' | 'document';
+export type ReadCatalogKind = 'blocks' | 'outline' | 'references' | 'referenceables';
+export type ReadTruncationReason = 'limit' | 'maxBytes' | 'maxNodes';
+
+export interface ReadRequestBase {
+  contract: 'sdoc.read/1';
+  projection: ReadProjection;
+  expectedRevision?: Sha256Digest;
+}
+
+export interface CatalogReadRequest extends ReadRequestBase {
+  projection: 'catalog';
+  kind?: ReadCatalogKind;
+  limit?: number;
+  cursor?: string;
+  maxBytes?: number;
+  maxSummaryLength?: number;
+}
+
+export type ReadTargetSelector =
+  | { target: NodeTarget; targetPath?: never }
+  | { target?: never; targetPath: number[] };
+
+export type TargetReadRequest = ReadRequestBase & ReadTargetSelector & {
+  projection: 'target';
+  maxBytes?: number;
+  maxNodes?: number;
+};
+
+export type SectionReadRequest = ReadRequestBase & ReadTargetSelector & {
+  projection: 'section';
+  cursor?: string;
+  maxBytes?: number;
+  maxNodes?: number;
+};
+
+export interface DocumentReadRequest extends ReadRequestBase {
+  projection: 'document';
+  cursor?: string;
+  maxBytes?: number;
+  maxNodes?: number;
+}
+
+export type ProjectDocumentRequest =
+  | CatalogReadRequest
+  | TargetReadRequest
+  | SectionReadRequest
+  | DocumentReadRequest;
+
+export interface ReadPage {
+  returned: number;
+  complete: boolean;
+  nextCursor?: string;
+  truncatedBy?: ReadTruncationReason;
+}
+
+export interface ReadBudget {
+  bytes: { used: number; max: number };
+  nodes?: { used: number; max: number };
+}
+
+export interface ReadSuccessBase {
+  ok: true;
+  contract: 'sdoc.read/1';
+  projection: ReadProjection;
+  revision: Sha256Digest;
+  legacy: boolean;
+  documentId?: string;
+  needsIdNormalization: boolean;
+  warnings: OperationDiagnostic[];
+  page: ReadPage;
+  budget: ReadBudget;
+}
+
+export type CatalogReadData =
+  | { kind: 'blocks'; items: InspectBlock[] }
+  | { kind: 'outline'; items: InspectResult['outline'] }
+  | { kind: 'references'; items: InspectResult['references'] }
+  | { kind: 'referenceables'; items: InspectResult['referenceables'] };
+
+export interface CatalogReadSuccess extends ReadSuccessBase {
+  projection: 'catalog';
+  data: CatalogReadData;
+}
+
+export interface TargetReadSuccess extends ReadSuccessBase {
+  projection: 'target';
+  data: NonNullable<InspectResult['target']>;
+}
+
+export interface SectionReadSuccess extends ReadSuccessBase {
+  projection: 'section';
+  data: { path: number[]; content: TiptapNode[] };
+}
+
+export interface DocumentReadSuccess extends ReadSuccessBase {
+  projection: 'document';
+  data: { content: TiptapNode[] };
+}
+
+export interface ReadDiagnostic extends OperationDiagnostic {
+  requiredBytes?: number;
+  requiredNodes?: number;
+}
+
+export interface ReadFailure {
+  ok: false;
+  category: FailureCategory;
+  diagnostics: ReadDiagnostic[];
+}
+
+export type ProjectDocumentSuccess =
+  | CatalogReadSuccess
+  | TargetReadSuccess
+  | SectionReadSuccess
+  | DocumentReadSuccess;
+export type ProjectDocumentResult = ProjectDocumentSuccess | ReadFailure;
+
 export interface ApplyOptions {
   upgradeLegacy?: boolean;
   clock?: () => string | Date;

@@ -9,6 +9,7 @@ import {
 import { computeRevision } from '../../shared/document/operations/index.js';
 import { ArgumentError } from './arguments.js';
 import { IoError, readLimitedFile } from './io.js';
+import { parseJsonInput } from './jsonInput.js';
 
 const MAX_TEMPLATE_BYTES = 2 * 1024 * 1024;
 const DEFAULT_TEMPLATE = 'builtin:blank';
@@ -23,14 +24,6 @@ export interface CreatedDocumentPlan {
   title: string;
   template: TemplateSelection;
   templateLabel: string;
-}
-
-function parseJson(bytes: Uint8Array): unknown {
-  try {
-    return JSON.parse(Buffer.from(bytes).toString('utf8').replace(/^\uFEFF/, '')) as unknown;
-  } catch {
-    throw new IoError('CLI_TEMPLATE_INVALID', 'Template is not valid UTF-8 JSON', 3);
-  }
 }
 
 function builtInTemplate(selector: string): SdocTemplate {
@@ -63,7 +56,10 @@ async function fileTemplate(selector: string): Promise<{ template: SdocTemplate;
       source: 'workspace',
       sourceLabel: 'Explicit CLI template',
       fileName: basename(path),
-      value: parseJson(bytes),
+      value: parseJsonInput(bytes, 'Template', {
+        invalidUtf8: (message) => new IoError('CLI_TEMPLATE_INVALID', message, 3),
+        invalidJson: (message) => new IoError('CLI_TEMPLATE_INVALID', message, 3),
+      }),
       targetPath: path,
     }],
   });

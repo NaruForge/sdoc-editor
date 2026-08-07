@@ -83,10 +83,102 @@ function selectedTargetDetailLines(value: Record<string, unknown>): string[] {
   ];
 }
 
+function recordValue(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : undefined;
+}
+
+function projectionContentLines(value: Record<string, unknown>): string[] {
+  const projection = stringValue(value.projection);
+  const data = recordValue(value.data);
+  if (!projection || !data) return [];
+  if (projection === 'catalog') {
+    const kind = stringValue(data.kind) ?? 'blocks';
+    const items = Array.isArray(data.items) ? data.items : [];
+    const lines = [`Catalog ${kind}: ${items.length} item${items.length === 1 ? '' : 's'}`];
+    for (const item of items.slice(0, 20)) {
+      const record = recordValue(item);
+      if (!record) continue;
+      const description = stringValue(record.summary)
+        ?? stringValue(record.text)
+        ?? stringValue(record.href)
+        ?? stringValue(record.type)
+        ?? 'item';
+      lines.push(`  - ${description}`);
+    }
+    if (items.length > 20) lines.push(`  - … ${items.length - 20} more`);
+    return lines;
+  }
+  if (projection === 'target') {
+    const selected = { target: data };
+    const targetLine = selectedTargetLine(selected);
+    return [
+      ...(targetLine ? [targetLine] : []),
+      ...selectedTargetDetailLines(selected),
+    ];
+  }
+  const content = Array.isArray(data.content) ? data.content : [];
+  const label = projection === 'section'
+    ? `Section /${Array.isArray(data.path) ? data.path.join('/') : ''}`
+    : 'Document content';
+  const lines = [`${label}: ${content.length} node${content.length === 1 ? '' : 's'}`];
+  for (const node of content.slice(0, 20)) {
+    const record = recordValue(node);
+    if (!record) continue;
+    const type = stringValue(record.type) ?? 'node';
+    const text = nodeContent(record);
+    lines.push(`  - ${type}${text ? `: ${text}` : ''}`);
+  }
+  if (content.length > 20) lines.push(`  - … ${content.length - 20} more`);
+  return lines;
+}
+
+function projectionLines(value: Record<string, unknown>): string[] {
+  const projection = stringValue(value.projection);
+  if (!projection) return [];
+  const page = recordValue(value.page) ?? {};
+  const budget = recordValue(value.budget) ?? {};
+  const bytes = recordValue(budget.bytes);
+  const nodes = recordValue(budget.nodes);
+  const budgetParts = [
+    ...(bytes ? [`${String(bytes.used ?? 0)}/${String(bytes.max ?? 0)} bytes`] : []),
+    ...(nodes ? [`${String(nodes.used ?? 0)}/${String(nodes.max ?? 0)} nodes`] : []),
+  ];
+  const nextCursor = stringValue(page.nextCursor);
+  return [
+    `Projection: ${projection}`,
+    `Returned: ${String(page.returned ?? 0)}`,
+    `Complete: ${String(page.complete ?? false)}`,
+    ...(page.truncatedBy === undefined ? [] : [`Truncated by: ${String(page.truncatedBy)}`]),
+    ...(budgetParts.length === 0 ? [] : [`Budget: ${budgetParts.join(', ')}`]),
+    ...projectionContentLines(value),
+    ...(nextCursor ? [`Next cursor: ${nextCursor}`] : []),
+  ];
+}
+
 export function renderHumanSuccess(value: Record<string, unknown>): string {
   const command = stringValue(value.command) ?? 'command';
   const lines: string[] = [];
-  if (command === 'create') {
+  if (command === 'capabilities') {
+    lines.push('SDOC CLI capabilities');
+    lines.push(`CLI version: ${String(value.cliVersion ?? '')}`);
+    if (typeof value.contracts === 'object' && value.contracts !== null) {
+      lines.push('Contracts:');
+      for (const [name, contract] of Object.entries(value.contracts)) {
+        lines.push(`  - ${name}: ${String(contract)}`);
+      }
+    }
+    if (Array.isArray(value.commands)) lines.push(`Commands: ${value.commands.join(', ')}`);
+    if (Array.isArray(value.semanticOperations)) {
+      lines.push(`Semantic operations: ${value.semanticOperations.join(', ')}`);
+    }
+    if (Array.isArray(value.projections)) lines.push(`Read projections: ${value.projections.join(', ')}`);
+    if (Array.isArray(value.catalogKinds)) lines.push(`Catalog kinds: ${value.catalogKinds.join(', ')}`);
+    if (Array.isArray(value.builtInTemplateIds)) {
+      lines.push(`Built-in templates: ${value.builtInTemplateIds.join(', ')}`);
+    }
+  } else if (command === 'create') {
     lines.push(value.preview === true ? 'Would create SDOC document' : 'Created SDOC document');
     lines.push(`Path: ${String(value.path ?? '')}`);
     lines.push(`Title: ${String(value.title ?? '')}`);
@@ -94,23 +186,25 @@ export function renderHumanSuccess(value: Record<string, unknown>): string {
   } else if (command === 'inspect') {
     lines.push('SDOC inspection');
     lines.push(`Path: ${String(value.path ?? '')}`);
-    if (typeof value.metadata === 'object' && value.metadata !== null) {
+    if (value.projection !== undefined) {
+      lines.push(...projectionLines(value));
+    } else if (typeof value.metadata === 'object' && value.metadata !== null) {
       const metadata = value.metadata as Record<string, unknown>;
       const title = stringValue(metadata.title);
       if (title) lines.push(`Title: ${title}`);
-    }
-    const selectedTarget = selectedTargetLine(value);
-    if (selectedTarget) lines.push(selectedTarget);
-    lines.push(...selectedTargetDetailLines(value));
-    if (Array.isArray(value.outline) && value.outline.length > 0) {
-      lines.push('Outline:');
-      for (const item of value.outline) {
-        if (typeof item !== 'object' || item === null) continue;
-        const outline = item as Record<string, unknown>;
-        lines.push(`  - H${String(outline.level ?? '?')} ${String(outline.text ?? '')}`);
+      const selectedTarget = selectedTargetLine(value);
+      if (selectedTarget) lines.push(selectedTarget);
+      lines.push(...selectedTargetDetailLines(value));
+      if (Array.isArray(value.outline) && value.outline.length > 0) {
+        lines.push('Outline:');
+        for (const item of value.outline) {
+          if (typeof item !== 'object' || item === null) continue;
+          const outline = item as Record<string, unknown>;
+          lines.push(`  - H${String(outline.level ?? '?')} ${String(outline.text ?? '')}`);
+        }
       }
+      if (Array.isArray(value.blocks)) lines.push(`Blocks: ${value.blocks.length}`);
     }
-    if (Array.isArray(value.blocks)) lines.push(`Blocks: ${value.blocks.length}`);
   } else if (command === 'validate') {
     lines.push('Document is valid');
     lines.push(`Path: ${String(value.path ?? '')}`);

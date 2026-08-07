@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { SdocEnvelope, TiptapNode } from '../shared/types';
 import {
-  applyOperationRequest, computeRevision, inspectDocumentBytes, validateDocumentBytes,
+  applyOperationRequest, computeRevision, inspectDocumentBytes, projectDocumentBytes,
+  validateDocumentBytes,
   type NodeTarget, type SdocOperation,
 } from '../shared/document/operations';
 import comparison from './fixtures/operations-payload-comparison.json';
@@ -1131,5 +1132,352 @@ describe('document operations core', () => {
     expect(new TextEncoder().encode(JSON.stringify(request))).toHaveLength(
       comparison.measurements.operationPayloadBytes,
     );
+  });
+});
+
+describe('sdoc.read/1 projections', () => {
+  const catalogRequest = (overrides: Record<string, unknown> = {}): Record<string, unknown> => ({
+    contract: 'sdoc.read/1',
+    projection: 'catalog',
+    ...overrides,
+  });
+  const documentRequest = (overrides: Record<string, unknown> = {}): Record<string, unknown> => ({
+    contract: 'sdoc.read/1',
+    projection: 'document',
+    ...overrides,
+  });
+  const collectContent = (text: string, request: Record<string, unknown>): TiptapNode[] => {
+    const content: TiptapNode[] = [];
+    let cursor: string | undefined;
+    do {
+      const result = projectDocumentBytes(text, { ...request, ...(cursor ? { cursor } : {}) });
+      expect(result.ok).toBe(true);
+      if (!result.ok || (result.projection !== 'document' && result.projection !== 'section')) break;
+      content.push(...result.data.content);
+      cursor = result.page.nextCursor;
+    } while (cursor);
+    return content;
+  };
+
+  it('leaves the legacy inspect result shape and targeted output unchanged', () => {
+    const text = source([heading(1, 'intro', 'Intro'), paragraph('Body')]);
+    const before = inspectDocumentBytes(text, { targetPath: [1], maxBlocks: 1 });
+    expect(before.ok).toBe(true);
+    if (!before.ok) return;
+    expect(Object.keys(before).sort()).toEqual([
+      'blockCount', 'blocks', 'blocksTruncated', 'documentId', 'legacy', 'metadata',
+      'needsIdNormalization', 'ok', 'outline', 'referenceables', 'references', 'revision',
+      'target', 'warnings',
+    ]);
+    expect(before.target).toMatchObject({
+      path: [1],
+      node: paragraph('Body'),
+      operationTarget: { kind: 'snapshot', path: [1], nodeType: 'paragraph' },
+    });
+    expect(before).not.toHaveProperty('contract');
+    expect(before).not.toHaveProperty('projection');
+  });
+
+  it('validates the exact projection request unions and numeric bounds', () => {
+    const text = source([heading(1, 'intro', 'Intro'), paragraph('Body')]);
+    const invalid: unknown[] = [
+      catalogRequest({ extra: true }),
+      catalogRequest({ limit: 0 }),
+      catalogRequest({ limit: 10_001 }),
+      catalogRequest({ maxBytes: 0 }),
+      catalogRequest({ maxBytes: 32 * 1024 * 1024 + 1 }),
+      catalogRequest({ maxSummaryLength: 19 }),
+      catalogRequest({ maxSummaryLength: 501 }),
+      { contract: 'sdoc.read/1', projection: 'target', targetPath: [1], cursor: 'nope' },
+      { contract: 'sdoc.read/1', projection: 'target', maxBytes: 256, maxNodes: 2 },
+      {
+        contract: 'sdoc.read/1', projection: 'target', target: target('intro'),
+        targetPath: [0],
+      },
+      { contract: 'sdoc.read/1', projection: 'section', targetPath: [0], maxNodes: 0 },
+      { contract: 'sdoc.read/1', projection: 'document', maxNodes: 100_001 },
+      {
+        contract: 'sdoc.read/1', projection: 'target',
+        targetPath: Array.from({ length: 129 }, () => 0),
+      },
+      {
+        contract: 'sdoc.read/1', projection: 'target',
+        targetPath: [Number.MAX_SAFE_INTEGER + 1],
+      },
+      {
+        contract: 'sdoc.read/1', projection: 'target',
+        target: {
+          kind: 'snapshot',
+          path: Array.from({ length: 129 }, () => 0),
+          nodeType: 'paragraph',
+          digest: `sha256:${'0'.repeat(64)}`,
+        },
+      },
+      { contract: 'sdoc.read/1', projection: 'unknown' },
+    ];
+    for (const request of invalid) {
+      expect(projectDocumentBytes(text, request)).toMatchObject({
+        ok: false,
+        category: 'argument',
+        diagnostics: [{ code: 'INVALID_READ_REQUEST' }],
+      });
+    }
+  });
+
+  it('returns only the selected catalog and measures exact UTF-8 projection bytes', () => {
+    const text = source([
+      heading(1, 'intro', '한글 소개'),
+      paragraph('가나다라마바사아자차카타파하'),
+      paragraph('두 번째 본문'),
+    ]);
+    const result = projectDocumentBytes(text, catalogRequest({
+      kind: 'blocks',
+      limit: 10,
+      maxBytes: 240,
+      maxSummaryLength: 20,
+    }));
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.projection !== 'catalog') return;
+    expect(result.contract).toBe('sdoc.read/1');
+    expect(result.revision).toBe(computeRevision(text));
+    expect(result.documentId).toBe('doc-1');
+    expect(result.data.kind).toBe('blocks');
+    expect(result.data.items.length).toBeGreaterThan(0);
+    expect(result).not.toHaveProperty('outline');
+    expect(result).not.toHaveProperty('references');
+    expect(result).not.toHaveProperty('referenceables');
+    expect(result.budget.bytes).toEqual({
+      used: new TextEncoder().encode(JSON.stringify(result.data)).byteLength,
+      max: 240,
+    });
+    expect(result.budget).not.toHaveProperty('nodes');
+    expect(result.page.returned).toBe(result.data.items.length);
+    expect(result.page.complete).toBe(false);
+    expect(result.page.truncatedBy).toBe('maxBytes');
+    expect(result.page.nextCursor).toEqual(expect.any(String));
+  });
+
+  it('traverses a 10,000-block catalog deterministically without gaps or duplicates', () => {
+    const blocks = Array.from({ length: 10_000 }, (_, index) => paragraph(`block-${index}`));
+    const text = source(blocks);
+    const traverse = (): string[] => {
+      const summaries: string[] = [];
+      let cursor: string | undefined;
+      do {
+        const result = projectDocumentBytes(text, catalogRequest({
+          kind: 'blocks', limit: 257, ...(cursor ? { cursor } : {}),
+        }));
+        expect(result.ok).toBe(true);
+        if (!result.ok || result.projection !== 'catalog') break;
+        summaries.push(...result.data.items.map((item) => item.summary));
+        cursor = result.page.nextCursor;
+      } while (cursor);
+      return summaries;
+    };
+    const first = traverse();
+    const second = traverse();
+    expect(first).toHaveLength(10_000);
+    expect(new Set(first).size).toBe(10_000);
+    expect(first).toEqual(blocks.map((_, index) => `paragraph: block-${index}`));
+    expect(second).toEqual(first);
+  }, 30_000);
+
+  it.each([0, 1, 1_000, 1_001])(
+    'traverses the complete %i-block catalog size boundary',
+    (blockCount) => {
+      const blocks = Array.from(
+        { length: blockCount },
+        (_, index) => paragraph(`boundary-${index}`),
+      );
+      const text = source(blocks);
+      const paths: number[] = [];
+      let cursor: string | undefined;
+      do {
+        const result = projectDocumentBytes(text, catalogRequest({
+          kind: 'blocks', limit: 257, ...(cursor ? { cursor } : {}),
+        }));
+        expect(result.ok).toBe(true);
+        if (!result.ok || result.projection !== 'catalog') break;
+        paths.push(...result.data.items.map((item) => item.path[0]));
+        cursor = result.page.nextCursor;
+      } while (cursor);
+      expect(paths).toEqual(Array.from({ length: blockCount }, (_, index) => index));
+      expect(new Set(paths).size).toBe(blockCount);
+    },
+  );
+
+  it('rejects corrupt, oversized, stale, and projection-scoped cursors', () => {
+    const text = source([paragraph('A'), paragraph('B'), paragraph('C')]);
+    const first = projectDocumentBytes(text, catalogRequest({ limit: 1 }));
+    expect(first.ok).toBe(true);
+    if (!first.ok || first.projection !== 'catalog' || !first.page.nextCursor) return;
+    const cursor = first.page.nextCursor;
+    const final = cursor.at(-1) === 'a' ? 'b' : 'a';
+
+    expect(projectDocumentBytes(text, catalogRequest({
+      limit: 1,
+      cursor: `${cursor.slice(0, -1)}${final}`,
+    }))).toMatchObject({
+      ok: false, category: 'argument', diagnostics: [{ code: 'INVALID_READ_CURSOR' }],
+    });
+    expect(projectDocumentBytes(text, catalogRequest({ cursor: 'x'.repeat(4_097) })))
+      .toMatchObject({
+        ok: false, category: 'argument', diagnostics: [{ code: 'INVALID_READ_CURSOR' }],
+      });
+    expect(projectDocumentBytes(text, catalogRequest({ kind: 'outline', cursor })))
+      .toMatchObject({
+        ok: false, category: 'argument',
+        diagnostics: [{ code: 'READ_CURSOR_SCOPE_MISMATCH' }],
+      });
+    expect(projectDocumentBytes(text, documentRequest({ cursor }))).toMatchObject({
+      ok: false, category: 'argument',
+      diagnostics: [{ code: 'READ_CURSOR_SCOPE_MISMATCH' }],
+    });
+
+    const bom = new Uint8Array([0xef, 0xbb, 0xbf, ...new TextEncoder().encode(text)]);
+    expect(projectDocumentBytes(bom, catalogRequest({ cursor }))).toMatchObject({
+      ok: false, category: 'conflict', diagnostics: [{ code: 'STALE_READ_CURSOR' }],
+    });
+    const representedDifferently = JSON.stringify(JSON.parse(text), null, 2);
+    expect(projectDocumentBytes(representedDifferently, catalogRequest({ cursor })))
+      .toMatchObject({
+        ok: false, category: 'conflict', diagnostics: [{ code: 'STALE_READ_CURSOR' }],
+      });
+    expect(projectDocumentBytes(text, catalogRequest({
+      expectedRevision: `sha256:${'0'.repeat(64)}`,
+    }))).toMatchObject({
+      ok: false, category: 'conflict', diagnostics: [{ code: 'STALE_REVISION' }],
+    });
+  });
+
+  it('returns one complete target without unrelated catalogs and reports target budgets', () => {
+    const text = source([heading(1, 'intro', 'Intro'), paragraph('대상 본문')]);
+    const result = projectDocumentBytes(text, {
+      contract: 'sdoc.read/1',
+      projection: 'target',
+      targetPath: [1],
+      maxBytes: 1_024,
+      maxNodes: 2,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.projection !== 'target') return;
+    expect(result.data).toMatchObject({
+      path: [1],
+      node: paragraph('대상 본문'),
+      operationTarget: { kind: 'snapshot', path: [1], nodeType: 'paragraph' },
+    });
+    expect(result.page).toEqual({ returned: 1, complete: true });
+    expect(result.budget.bytes.used).toBe(
+      new TextEncoder().encode(JSON.stringify(result.data)).byteLength,
+    );
+    expect(result.budget.nodes).toEqual({ used: 2, max: 2 });
+    expect(result).not.toHaveProperty('blocks');
+    expect(result).not.toHaveProperty('outline');
+
+    const tooLarge = projectDocumentBytes(text, {
+      contract: 'sdoc.read/1', projection: 'target', targetPath: [1],
+      maxBytes: 64, maxNodes: 1,
+    });
+    expect(tooLarge).toMatchObject({
+      ok: false,
+      category: 'argument',
+      diagnostics: [{
+        code: 'PROJECTION_ITEM_TOO_LARGE',
+        requiredBytes: expect.any(Number),
+        requiredNodes: 2,
+      }],
+    });
+  });
+
+  it('uses the existing same-parent heading range for section projections', () => {
+    const nested = {
+      type: 'blockquote',
+      content: [
+        heading(2, 'nested-a', 'Nested A'),
+        paragraph('Nested body'),
+        heading(2, 'nested-b', 'Nested B'),
+      ],
+    } satisfies TiptapNode;
+    const content = [
+      heading(1, 'a', 'A'), paragraph('A body'), heading(2, 'a-child', 'A child'),
+      paragraph('Child body'), heading(1, 'b', 'B'), nested, paragraph('Tail'),
+    ];
+    const text = source(content);
+    const top = collectContent(text, {
+      contract: 'sdoc.read/1', projection: 'section', target: target('a'),
+      maxBytes: 32 * 1024, maxNodes: 5,
+    });
+    expect(top).toEqual(content.slice(0, 4));
+
+    const nestedSection = collectContent(text, {
+      contract: 'sdoc.read/1', projection: 'section', target: target('nested-a'),
+      maxBytes: 32 * 1024, maxNodes: 4,
+    });
+    expect(nestedSection).toEqual(nested.content?.slice(0, 2));
+  });
+
+  it('concatenates document pages exactly and never splits top-level subtrees', () => {
+    const nested: TiptapNode = {
+      type: 'bulletList',
+      content: [
+        { type: 'listItem', content: [paragraph('one')] },
+        { type: 'listItem', content: [paragraph('two')] },
+      ],
+    };
+    const content = [paragraph('before'), nested, paragraph('after')];
+    const text = source(content);
+    const first = projectDocumentBytes(text, documentRequest({
+      maxBytes: 32 * 1024,
+      maxNodes: 2,
+    }));
+    expect(first.ok).toBe(true);
+    if (!first.ok || first.projection !== 'document') return;
+    expect(first.data.content).toEqual([content[0]]);
+    expect(first.page).toMatchObject({
+      returned: 1, complete: false, truncatedBy: 'maxNodes',
+      nextCursor: expect.any(String),
+    });
+
+    const blocked = projectDocumentBytes(text, documentRequest({
+      cursor: first.page.nextCursor,
+      maxBytes: 32 * 1024,
+      maxNodes: 2,
+    }));
+    expect(blocked).toMatchObject({
+      ok: false,
+      category: 'argument',
+      diagnostics: [{
+        code: 'PROJECTION_ITEM_TOO_LARGE',
+        requiredNodes: 7,
+      }],
+    });
+
+    const all = collectContent(text, documentRequest({
+      maxBytes: 32 * 1024,
+      maxNodes: 7,
+    }));
+    expect(all).toEqual(content);
+  });
+
+  it('fails without a progress cursor when the first subtree exceeds a page budget', () => {
+    const oversized: TiptapNode = {
+      type: 'blockquote',
+      content: Array.from({ length: 5 }, (_, index) => paragraph(`nested-${index}`)),
+    };
+    const text = source([oversized, paragraph('later')]);
+    const request = documentRequest({ maxBytes: 32 * 1024, maxNodes: 5 });
+    const first = projectDocumentBytes(text, request);
+    const second = projectDocumentBytes(text, request);
+    for (const result of [first, second]) {
+      expect(result).toMatchObject({
+        ok: false,
+        category: 'argument',
+        diagnostics: [{
+          code: 'PROJECTION_ITEM_TOO_LARGE',
+          requiredNodes: 11,
+        }],
+      });
+      expect(result).not.toHaveProperty('page.nextCursor');
+    }
   });
 });

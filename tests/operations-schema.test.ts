@@ -86,6 +86,31 @@ describe('public operation contract', () => {
     expect(validate(request)).toBe(false);
   });
 
+  it('keeps snapshot target paths within safe document depth and integer bounds', async () => {
+    const documentSchema = await parseJson(join(root, 'sdoc.schema.json')) as JsonSchema;
+    const operationSchema = await parseJson(join(root, 'sdoc.operations.schema.json')) as JsonSchema;
+    const ajv = new Ajv({ allErrors: true, strict: false });
+    ajv.addSchema(documentSchema);
+    const validate = ajv.compile(operationSchema);
+    const request = (path: number[]) => ({
+      contract: 'sdoc.operations/1',
+      expected: { revision: `sha256:${'0'.repeat(64)}` },
+      operations: [{
+        op: 'deleteBlock',
+        target: {
+          kind: 'snapshot',
+          path,
+          nodeType: 'paragraph',
+          digest: `sha256:${'1'.repeat(64)}`,
+        },
+      }],
+    });
+
+    expect(validate(request(Array.from({ length: 128 }, () => 0)))).toBe(true);
+    expect(validate(request(Array.from({ length: 129 }, () => 0)))).toBe(false);
+    expect(validate(request([Number.MAX_SAFE_INTEGER + 1]))).toBe(false);
+  });
+
   it('uses Unicode code-point limits for title, author, and version', async () => {
     const documentSchema = await parseJson(join(root, 'sdoc.schema.json')) as JsonSchema;
     const operationSchema = await parseJson(join(root, 'sdoc.operations.schema.json')) as JsonSchema;

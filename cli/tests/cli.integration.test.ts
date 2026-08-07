@@ -39,7 +39,7 @@ async function fixture(): Promise<{ directory: string; documentPath: string; byt
 
 async function renameRequest(directory: string, bytes: Uint8Array): Promise<string> {
   const path = join(directory, 'operations.json');
-  await writeFile(path, JSON.stringify({
+  await writeFile(path, `\uFEFF${JSON.stringify({
     contract: 'sdoc.operations/1',
     expected: { revision: computeRevision(bytes) },
     operations: [{
@@ -47,7 +47,7 @@ async function renameRequest(directory: string, bytes: Uint8Array): Promise<stri
       target: { kind: 'id', id: 'intro' },
       title: '시험 결과',
     }],
-  }));
+  })}`);
   return path;
 }
 
@@ -140,7 +140,9 @@ describe('CLI integration', () => {
     expect(exitCode).toBe(5);
     expect(stdout).toBe('');
     expect(JSON.parse(stderr)).toEqual({
+      contract: 'sdoc.cli.response/1',
       ok: false,
+      category: 'io',
       diagnostics: [{
         code: 'CLI_LOCK_UNAVAILABLE',
         message: expect.stringMatching(/manually only after confirming no writer is active/i),
@@ -162,14 +164,16 @@ describe('CLI integration', () => {
 
     expect(exitCode).toBe(2);
     expect(JSON.parse(stderr)).toMatchObject({
+      contract: 'sdoc.cli.response/1',
       ok: false,
+      category: 'argument',
       diagnostics: [{ code: 'CLI_MISSING_OPERATIONS' }],
     });
   });
 
   it('accepts a Korean operation request from stdin', async () => {
     const { documentPath, bytes } = await fixture();
-    const request = JSON.stringify({
+    const request = `\uFEFF${JSON.stringify({
       contract: 'sdoc.operations/1',
       expected: { revision: computeRevision(bytes) },
       operations: [{
@@ -177,7 +181,7 @@ describe('CLI integration', () => {
         target: { kind: 'id', id: 'intro' },
         title: '한글 표준 입력',
       }],
-    });
+    })}`;
     let stdout = '';
     vi.spyOn(process, 'stdin', 'get')
       .mockReturnValue(Readable.from([request]) as unknown as typeof process.stdin);
@@ -194,10 +198,95 @@ describe('CLI integration', () => {
     expect(output.diff).toContainEqual(expect.objectContaining({ kind: 'heading-renamed' }));
   });
 
+  it('rejects malformed UTF-8 operation files before creating a lock or changing either file', async () => {
+    const { directory, documentPath, bytes } = await fixture();
+    const operationsPath = join(directory, 'malformed-utf8.json');
+    const request = Buffer.from(JSON.stringify({
+      contract: 'sdoc.operations/1',
+      expected: { revision: computeRevision(bytes) },
+      operations: [{
+        op: 'renameHeading',
+        target: { kind: 'id', id: 'intro' },
+        title: 'INVALID_UTF8',
+      }],
+    }));
+    const marker = request.indexOf('INVALID_UTF8');
+    const malformed = Buffer.concat([
+      request.subarray(0, marker),
+      Buffer.from([0xc3, 0x28]),
+      request.subarray(marker + 'INVALID_UTF8'.length),
+    ]);
+    await writeFile(operationsPath, malformed);
+    let stderr = '';
+    vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+      stderr += String(chunk);
+      return true;
+    });
+
+    expect(await run([
+      'apply',
+      documentPath,
+      '--operations',
+      operationsPath,
+      '--write',
+    ])).toBe(2);
+    expect(JSON.parse(stderr)).toEqual({
+      contract: 'sdoc.cli.response/1',
+      ok: false,
+      category: 'argument',
+      diagnostics: [{
+        code: 'CLI_INVALID_UTF8',
+        message: 'Operation input is not valid UTF-8',
+      }],
+    });
+    expect(await readFile(operationsPath)).toEqual(malformed);
+    expect(await readFile(documentPath)).toEqual(bytes);
+    expect(await readFile(`${documentPath}.lock`).catch(() => undefined)).toBeUndefined();
+  });
+
+  it('rejects malformed UTF-8 operation stdin before creating a lock or changing the document', async () => {
+    const { documentPath, bytes } = await fixture();
+    const request = Buffer.from(JSON.stringify({
+      contract: 'sdoc.operations/1',
+      expected: { revision: computeRevision(bytes) },
+      operations: [{
+        op: 'renameHeading',
+        target: { kind: 'id', id: 'intro' },
+        title: 'INVALID_UTF8',
+      }],
+    }));
+    const marker = request.indexOf('INVALID_UTF8');
+    const malformed = Buffer.concat([
+      request.subarray(0, marker),
+      Buffer.from([0xe2, 0x28, 0xa1]),
+      request.subarray(marker + 'INVALID_UTF8'.length),
+    ]);
+    let stderr = '';
+    vi.spyOn(process, 'stdin', 'get')
+      .mockReturnValue(Readable.from([malformed]) as unknown as typeof process.stdin);
+    vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+      stderr += String(chunk);
+      return true;
+    });
+
+    expect(await run([
+      'apply',
+      documentPath,
+      '--operations',
+      '-',
+      '--write',
+    ])).toBe(2);
+    expect(JSON.parse(stderr)).toMatchObject({
+      diagnostics: [{ code: 'CLI_INVALID_UTF8' }],
+    });
+    expect(await readFile(documentPath)).toEqual(bytes);
+    expect(await readFile(`${documentPath}.lock`).catch(() => undefined)).toBeUndefined();
+  });
+
   it('maps a stale revision to exit code 4 and leaves no lock', async () => {
     const { directory, documentPath, bytes } = await fixture();
     const operationsPath = await renameRequest(directory, bytes);
-    const request = JSON.parse(await readFile(operationsPath, 'utf8')) as {
+    const request = JSON.parse((await readFile(operationsPath, 'utf8')).replace(/^\uFEFF/, '')) as {
       expected: { revision: string };
     };
     request.expected.revision = `sha256:${'0'.repeat(64)}`;
@@ -305,7 +394,9 @@ describe('CLI integration', () => {
     stdout = '';
     expect(await run(['set-document-title', '--help'])).toBe(0);
     expect(stdout).toContain('Usage: sdoc set-document-title');
+    expect(stdout).toContain('[--id <id>]');
     expect(stdout).toContain('--discard-formatting');
+    expect(stdout).toContain('requires --id');
   });
 
   it('keeps JSON as the default and supports human inspection output', async () => {
@@ -437,6 +528,28 @@ describe('CLI integration', () => {
       written: false,
     });
     expect(await readFile(documentPath)).toEqual(bytes);
+  });
+
+  it('writes a metadata-only document title without changing an unrelated H1', async () => {
+    const { documentPath, bytes } = await fixture();
+    vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+
+    expect(await run([
+      'set-document-title',
+      documentPath,
+      '--title',
+      '메타데이터 제목',
+      '--expected-revision',
+      computeRevision(bytes),
+      '--write',
+    ])).toBe(0);
+
+    const written = JSON.parse((await readFile(documentPath, 'utf8')).replace(/^\uFEFF/, '')) as {
+      meta: { title: string };
+      doc: { content: Array<{ content?: Array<{ text?: string }> }> };
+    };
+    expect(written.meta.title).toBe('메타데이터 제목');
+    expect(written.doc.content[0]?.content?.[0]?.text).toBe('소개');
   });
 
   it('writes a Korean document title to metadata and the explicit H1', async () => {
@@ -595,7 +708,7 @@ describe('CLI integration', () => {
     expect(await run(['validate', documentPath])).toBe(0);
   });
 
-  it('accepts every bundled template selector', async () => {
+  it('creates and metadata-renames every current bundled template selector', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'sdoc-create-cli-'));
     temporaryDirectories.push(directory);
     let stdout = '';
@@ -612,13 +725,35 @@ describe('CLI integration', () => {
     ];
     for (const [index, templateId] of templateIds.entries()) {
       const path = join(directory, `template-${index}.sdoc`);
-      expect(await run(['create', path, '--template', templateId, '--dry-run'])).toBe(0);
+      expect(await run(['create', path, '--template', templateId])).toBe(0);
+      const createdBytes = await readFile(path);
+      const created = JSON.parse(createdBytes.toString('utf8')) as {
+        doc: unknown;
+      };
+      expect(await run([
+        'set-document-title',
+        path,
+        '--title',
+        `Updated ${index}`,
+        '--expected-revision',
+        computeRevision(createdBytes),
+        '--write',
+      ])).toBe(0);
+      const updated = JSON.parse(await readFile(path, 'utf8')) as {
+        meta: { title: string };
+        doc: unknown;
+      };
+      expect(updated.meta.title).toBe(`Updated ${index}`);
+      expect(updated.doc).toEqual(created.doc);
     }
 
     const outputs = stdout.trim().split('\n').map((line) => JSON.parse(line) as {
-      template: { id: string };
+      command: string;
+      template?: { id: string };
     });
-    expect(outputs.map((output) => output.template.id)).toEqual(templateIds);
+    expect(outputs
+      .filter((output) => output.command === 'create')
+      .map((output) => output.template?.id)).toEqual(templateIds);
   });
 
   it('prints the complete selected block text in human inspection output', async () => {
@@ -728,6 +863,49 @@ describe('CLI integration', () => {
     });
   });
 
+  it('rejects malformed template UTF-8 without changing the template or creating a target', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'sdoc-create-cli-'));
+    temporaryDirectories.push(directory);
+    const templatePath = join(directory, 'malformed-utf8.sdoc');
+    const targetPath = join(directory, 'target.sdoc');
+    const template = Buffer.from(JSON.stringify({
+      sdoc: '1.0',
+      meta: { title: 'INVALID_UTF8' },
+      doc: { type: 'doc', content: [] },
+    }));
+    const marker = template.indexOf('INVALID_UTF8');
+    const malformed = Buffer.concat([
+      template.subarray(0, marker),
+      Buffer.from([0xc3, 0x28]),
+      template.subarray(marker + 'INVALID_UTF8'.length),
+    ]);
+    await writeFile(templatePath, malformed);
+    let stderr = '';
+    vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+      stderr += String(chunk);
+      return true;
+    });
+
+    expect(await run([
+      'create',
+      targetPath,
+      '--template',
+      templatePath,
+    ])).toBe(3);
+    expect(JSON.parse(stderr)).toEqual({
+      contract: 'sdoc.cli.response/1',
+      ok: false,
+      category: 'io',
+      diagnostics: [{
+        code: 'CLI_TEMPLATE_INVALID',
+        message: 'Template is not valid UTF-8',
+      }],
+    });
+    expect(await readFile(templatePath)).toEqual(malformed);
+    expect(await readFile(targetPath).catch(() => undefined)).toBeUndefined();
+    expect(await readFile(`${targetPath}.lock`).catch(() => undefined)).toBeUndefined();
+  });
+
   it('creates from an explicit file template and never overwrites a target', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'sdoc-create-cli-'));
     temporaryDirectories.push(directory);
@@ -749,7 +927,10 @@ describe('CLI integration', () => {
         }],
       },
     };
-    await writeFile(templatePath, JSON.stringify(template));
+    await writeFile(templatePath, `\uFEFF${JSON.stringify({
+      ...template,
+      meta: { ...template.meta, title: '한글 템플릿' },
+    })}`);
     let stderr = '';
     vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
     vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {

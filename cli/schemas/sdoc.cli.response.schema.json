@@ -1,0 +1,436 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "sdoc.cli.response.schema.json",
+  "title": "SDOC CLI JSON response",
+  "description": "Versioned, additive JSON response contract emitted by the SDOC CLI.",
+  "oneOf": [
+    { "$ref": "#/definitions/failure" },
+    { "$ref": "#/definitions/inspectSuccess" },
+    { "$ref": "#/definitions/projectedInspectSuccess" },
+    { "$ref": "#/definitions/validateSuccess" },
+    { "$ref": "#/definitions/mutationSuccess" },
+    { "$ref": "#/definitions/createSuccess" },
+    { "$ref": "#/definitions/capabilitiesSuccess" }
+  ],
+  "definitions": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "diagnostic": {
+      "type": "object",
+      "required": ["code", "message"],
+      "properties": {
+        "code": { "type": "string", "minLength": 1 },
+        "message": { "type": "string" },
+        "path": {
+          "oneOf": [
+            { "type": "string" },
+            {
+              "type": "array",
+              "items": {
+                "oneOf": [
+                  { "type": "string" },
+                  { "type": "number" }
+                ]
+              }
+            }
+          ]
+        },
+        "operationIndex": { "type": "integer", "minimum": 0 },
+        "severity": { "enum": ["error", "warning"] },
+        "requiredBytes": { "type": "integer", "minimum": 0 },
+        "requiredNodes": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": true
+    },
+    "diagnostics": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/definitions/diagnostic" }
+    },
+    "warnings": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/diagnostic" }
+    },
+    "failure": {
+      "type": "object",
+      "required": ["contract", "ok", "category", "diagnostics"],
+      "properties": {
+        "contract": { "const": "sdoc.cli.response/1" },
+        "ok": { "const": false },
+        "category": { "enum": ["argument", "document", "conflict", "io", "internal"] },
+        "diagnostics": { "$ref": "#/definitions/diagnostics" }
+      },
+      "additionalProperties": true
+    },
+    "inspectSuccess": {
+      "type": "object",
+      "not": {
+        "required": ["projection"],
+        "properties": { "projection": {} }
+      },
+      "required": [
+        "contract",
+        "ok",
+        "command",
+        "path",
+        "revision",
+        "legacy",
+        "needsIdNormalization",
+        "metadata",
+        "outline",
+        "references",
+        "referenceables",
+        "blocks",
+        "blockCount",
+        "blocksTruncated",
+        "warnings"
+      ],
+      "properties": {
+        "contract": { "const": "sdoc.cli.response/1" },
+        "ok": { "const": true },
+        "command": { "const": "inspect" },
+        "path": { "type": "string", "minLength": 1 },
+        "revision": { "$ref": "#/definitions/sha256" },
+        "legacy": { "type": "boolean" },
+        "needsIdNormalization": { "type": "boolean" },
+        "metadata": { "type": "object" },
+        "outline": { "type": "array" },
+        "references": { "type": "array" },
+        "referenceables": { "type": "array" },
+        "blocks": { "type": "array" },
+        "blockCount": { "type": "integer", "minimum": 0 },
+        "blocksTruncated": { "type": "boolean" },
+        "warnings": { "$ref": "#/definitions/warnings" }
+      },
+      "additionalProperties": true
+    },
+    "readPage": {
+      "type": "object",
+      "required": ["returned", "complete"],
+      "properties": {
+        "returned": { "type": "integer", "minimum": 0 },
+        "complete": { "type": "boolean" },
+        "nextCursor": { "type": "string", "minLength": 1, "maxLength": 4096 },
+        "truncatedBy": { "enum": ["limit", "maxBytes", "maxNodes"] }
+      },
+      "additionalProperties": true
+    },
+    "readBudgetAmount": {
+      "type": "object",
+      "required": ["used", "max"],
+      "properties": {
+        "used": { "type": "integer", "minimum": 0 },
+        "max": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": true
+    },
+    "readBudget": {
+      "type": "object",
+      "required": ["bytes"],
+      "properties": {
+        "bytes": { "$ref": "#/definitions/readBudgetAmount" },
+        "nodes": { "$ref": "#/definitions/readBudgetAmount" }
+      },
+      "additionalProperties": true
+    },
+    "catalogReadData": {
+      "type": "object",
+      "required": ["kind", "items"],
+      "properties": {
+        "kind": { "enum": ["blocks", "outline", "references", "referenceables"] },
+        "items": { "type": "array", "items": { "type": "object" } }
+      },
+      "additionalProperties": true
+    },
+    "targetReadData": {
+      "type": "object",
+      "required": ["path", "node", "digest", "operationTarget"],
+      "properties": {
+        "path": { "type": "array", "items": { "type": "integer", "minimum": 0 } },
+        "node": { "type": "object" },
+        "digest": { "$ref": "#/definitions/sha256" },
+        "operationTarget": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "sectionReadData": {
+      "type": "object",
+      "required": ["path", "content"],
+      "properties": {
+        "path": { "type": "array", "items": { "type": "integer", "minimum": 0 } },
+        "content": { "type": "array", "items": { "type": "object" } }
+      },
+      "additionalProperties": true
+    },
+    "documentReadData": {
+      "type": "object",
+      "required": ["content"],
+      "properties": {
+        "content": { "type": "array", "items": { "type": "object" } }
+      },
+      "additionalProperties": true
+    },
+    "projectedInspectSuccess": {
+      "type": "object",
+      "oneOf": [
+        {
+          "properties": {
+            "projection": { "const": "catalog" },
+            "data": { "$ref": "#/definitions/catalogReadData" }
+          }
+        },
+        {
+          "properties": {
+            "projection": { "const": "target" },
+            "data": { "$ref": "#/definitions/targetReadData" }
+          }
+        },
+        {
+          "properties": {
+            "projection": { "const": "section" },
+            "data": { "$ref": "#/definitions/sectionReadData" }
+          }
+        },
+        {
+          "properties": {
+            "projection": { "const": "document" },
+            "data": { "$ref": "#/definitions/documentReadData" }
+          }
+        }
+      ],
+      "required": [
+        "contract",
+        "readContract",
+        "ok",
+        "command",
+        "path",
+        "projection",
+        "revision",
+        "legacy",
+        "needsIdNormalization",
+        "data",
+        "page",
+        "budget",
+        "warnings"
+      ],
+      "properties": {
+        "contract": { "const": "sdoc.cli.response/1" },
+        "readContract": { "const": "sdoc.read/1" },
+        "ok": { "const": true },
+        "command": { "const": "inspect" },
+        "path": { "type": "string", "minLength": 1 },
+        "projection": { "enum": ["catalog", "target", "section", "document"] },
+        "revision": { "$ref": "#/definitions/sha256" },
+        "legacy": { "type": "boolean" },
+        "documentId": { "type": "string" },
+        "needsIdNormalization": { "type": "boolean" },
+        "data": { "type": "object" },
+        "page": { "$ref": "#/definitions/readPage" },
+        "budget": { "$ref": "#/definitions/readBudget" },
+        "warnings": { "$ref": "#/definitions/warnings" }
+      },
+      "additionalProperties": true
+    },
+    "validateSuccess": {
+      "type": "object",
+      "required": [
+        "contract",
+        "ok",
+        "command",
+        "path",
+        "revision",
+        "legacy",
+        "needsIdNormalization",
+        "warnings"
+      ],
+      "properties": {
+        "contract": { "const": "sdoc.cli.response/1" },
+        "ok": { "const": true },
+        "command": { "const": "validate" },
+        "path": { "type": "string", "minLength": 1 },
+        "revision": { "$ref": "#/definitions/sha256" },
+        "legacy": { "type": "boolean" },
+        "needsIdNormalization": { "type": "boolean" },
+        "warnings": { "$ref": "#/definitions/warnings" }
+      },
+      "additionalProperties": true
+    },
+    "mutationSuccess": {
+      "type": "object",
+      "required": [
+        "contract",
+        "ok",
+        "command",
+        "path",
+        "revision",
+        "outputRevision",
+        "changed",
+        "legacy",
+        "diff",
+        "normalizationPolicy",
+        "warnings",
+        "preview",
+        "written"
+      ],
+      "properties": {
+        "contract": { "const": "sdoc.cli.response/1" },
+        "ok": { "const": true },
+        "command": {
+          "enum": ["apply", "rename-heading", "set-document-title"]
+        },
+        "path": { "type": "string", "minLength": 1 },
+        "revision": { "$ref": "#/definitions/sha256" },
+        "outputRevision": { "$ref": "#/definitions/sha256" },
+        "changed": { "type": "boolean" },
+        "legacy": { "type": "boolean" },
+        "diff": { "type": "array" },
+        "normalizationPolicy": { "type": "object" },
+        "warnings": { "$ref": "#/definitions/warnings" },
+        "preview": { "type": "boolean" },
+        "written": { "type": "boolean" }
+      },
+      "additionalProperties": true
+    },
+    "templateSelection": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["kind", "id"],
+          "properties": {
+            "kind": { "const": "builtin" },
+            "id": { "type": "string", "pattern": "^builtin:" }
+          },
+          "additionalProperties": true
+        },
+        {
+          "type": "object",
+          "required": ["kind", "path"],
+          "properties": {
+            "kind": { "const": "file" },
+            "path": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": true
+        }
+      ]
+    },
+    "createSuccess": {
+      "type": "object",
+      "required": [
+        "contract",
+        "ok",
+        "command",
+        "path",
+        "title",
+        "template",
+        "templateLabel",
+        "revision",
+        "preview",
+        "written"
+      ],
+      "properties": {
+        "contract": { "const": "sdoc.cli.response/1" },
+        "ok": { "const": true },
+        "command": { "const": "create" },
+        "path": { "type": "string", "minLength": 1 },
+        "title": { "type": "string", "minLength": 1 },
+        "template": { "$ref": "#/definitions/templateSelection" },
+        "templateLabel": { "type": "string", "minLength": 1 },
+        "revision": { "$ref": "#/definitions/sha256" },
+        "preview": { "type": "boolean" },
+        "written": { "type": "boolean" },
+        "warnings": { "$ref": "#/definitions/warnings" }
+      },
+      "additionalProperties": true
+    },
+    "capabilitiesSuccess": {
+      "type": "object",
+      "required": [
+        "contract",
+        "ok",
+        "command",
+        "cliVersion",
+        "contracts",
+        "commands",
+        "semanticOperations",
+        "limits",
+        "projections",
+        "catalogKinds",
+        "builtInTemplateIds"
+      ],
+      "properties": {
+        "contract": { "const": "sdoc.cli.response/1" },
+        "ok": { "const": true },
+        "command": { "const": "capabilities" },
+        "cliVersion": { "type": "string", "minLength": 1 },
+        "contracts": {
+          "type": "object",
+          "required": ["document", "operations", "read", "response"],
+          "properties": {
+            "document": { "const": "sdoc/1.0" },
+            "operations": { "const": "sdoc.operations/1" },
+            "read": { "const": "sdoc.read/1" },
+            "response": { "const": "sdoc.cli.response/1" }
+          },
+          "additionalProperties": true
+        },
+        "commands": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "semanticOperations": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "limits": {
+          "type": "object",
+          "required": [
+            "documentBytes",
+            "operationInputBytes",
+            "operationCount",
+            "documentNodes",
+            "inspectLegacyMaxBlocks",
+            "readCatalogLimit",
+            "readMaxBytes",
+            "readMaxNodes"
+          ],
+          "properties": {
+            "documentBytes": { "const": 33554432 },
+            "operationInputBytes": { "const": 4194304 },
+            "operationCount": { "const": 100 },
+            "documentNodes": { "const": 100000 },
+            "inspectLegacyMaxBlocks": { "const": 10000 },
+            "readCatalogLimit": { "const": 10000 },
+            "readMaxBytes": { "const": 33554432 },
+            "readMaxNodes": { "const": 100000 }
+          },
+          "additionalProperties": true
+        },
+        "projections": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "enum": ["catalog", "target", "section", "document"] }
+        },
+        "catalogKinds": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "enum": ["blocks", "outline", "references", "referenceables"] }
+        },
+        "builtInTemplateIds": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^builtin:" }
+        }
+      },
+      "additionalProperties": true
+    }
+  }
+}

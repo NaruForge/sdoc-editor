@@ -1,20 +1,29 @@
-export type CommandName =
-  | 'inspect'
-  | 'validate'
-  | 'apply'
-  | 'rename-heading'
-  | 'set-document-title'
-  | 'create';
+export const COMMAND_NAMES = [
+  'capabilities',
+  'inspect',
+  'validate',
+  'apply',
+  'rename-heading',
+  'set-document-title',
+  'create',
+] as const;
+
+export type CommandName = typeof COMMAND_NAMES[number];
+export type DocumentCommandName = Exclude<CommandName, 'capabilities'>;
+
+export const READ_PROJECTIONS = ['catalog', 'target', 'section', 'document'] as const;
+export const READ_CATALOG_KINDS = ['blocks', 'outline', 'references', 'referenceables'] as const;
+
+export type ReadProjectionArgument = typeof READ_PROJECTIONS[number];
+export type ReadCatalogArgument = typeof READ_CATALOG_KINDS[number];
 
 export interface HelpArguments {
   kind: 'help';
   command?: CommandName;
 }
 
-export interface CliArguments {
+interface CommonCliArguments {
   kind: 'command';
-  command: CommandName;
-  documentPath: string;
   output: 'json' | 'human';
   write: boolean;
   dryRun: boolean;
@@ -27,8 +36,25 @@ export interface CliArguments {
   title?: string;
   expectedRevision?: string;
   template?: string;
+  projection?: ReadProjectionArgument;
+  catalog?: ReadCatalogArgument;
+  limit?: number;
+  cursor?: string;
+  maxBytes?: number;
+  maxNodes?: number;
+  maxSummaryLength?: number;
 }
 
+export interface CapabilitiesArguments extends CommonCliArguments {
+  command: 'capabilities';
+}
+
+export interface DocumentCliArguments extends CommonCliArguments {
+  command: DocumentCommandName;
+  documentPath: string;
+}
+
+export type CliArguments = CapabilitiesArguments | DocumentCliArguments;
 export type ParsedArguments = HelpArguments | CliArguments;
 
 export class ArgumentError extends Error {
@@ -40,14 +66,7 @@ export class ArgumentError extends Error {
   }
 }
 
-const COMMANDS = new Set<CommandName>([
-  'inspect',
-  'validate',
-  'apply',
-  'rename-heading',
-  'set-document-title',
-  'create',
-]);
+const COMMANDS = new Set<CommandName>(COMMAND_NAMES);
 
 const OPTIONS = new Set([
   '--json',
@@ -63,6 +82,13 @@ const OPTIONS = new Set([
   '--expected-revision',
   '--template',
   '--discard-formatting',
+  '--projection',
+  '--catalog',
+  '--limit',
+  '--cursor',
+  '--max-bytes',
+  '--max-nodes',
+  '--max-summary-length',
 ]);
 const VALUE_OPTIONS = new Set([
   '--operations',
@@ -72,10 +98,31 @@ const VALUE_OPTIONS = new Set([
   '--title',
   '--expected-revision',
   '--template',
+  '--projection',
+  '--catalog',
+  '--limit',
+  '--cursor',
+  '--max-bytes',
+  '--max-nodes',
+  '--max-summary-length',
 ]);
 
 const ALLOWED_OPTIONS: Record<CommandName, ReadonlySet<string>> = {
-  inspect: new Set(['--json', '--human', '--target-id', '--target-path']),
+  capabilities: new Set(['--json', '--human']),
+  inspect: new Set([
+    '--json',
+    '--human',
+    '--target-id',
+    '--target-path',
+    '--projection',
+    '--catalog',
+    '--limit',
+    '--cursor',
+    '--max-bytes',
+    '--max-nodes',
+    '--max-summary-length',
+    '--expected-revision',
+  ]),
   validate: new Set(['--json', '--human']),
   apply: new Set(['--json', '--human', '--write', '--dry-run', '--upgrade-legacy', '--operations']),
   'rename-heading': new Set([
@@ -123,13 +170,50 @@ function parseTargetPath(value: string): number[] {
     );
   }
   const path = value.slice(1).split('/').map(Number);
-  if (!path.every(Number.isSafeInteger)) {
+  if (path.length > 128 || !path.every(Number.isSafeInteger)) {
     throw new ArgumentError(
       'CLI_INVALID_TARGET_PATH',
-      '--target-path content indexes must be safe non-negative integers',
+      '--target-path must contain at most 128 safe non-negative integer indexes',
     );
   }
   return path;
+}
+
+function parsePositiveInteger(value: string, flag: string): number {
+  if (!/^[1-9]\d*$/.test(value)) {
+    throw new ArgumentError(
+      'CLI_INVALID_POSITIVE_INTEGER',
+      `${flag} must be a positive integer written in base-10 digits`,
+    );
+  }
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed)) {
+    throw new ArgumentError(
+      'CLI_INVALID_POSITIVE_INTEGER',
+      `${flag} must be a safe positive integer`,
+    );
+  }
+  return parsed;
+}
+
+function parseProjection(value: string): ReadProjectionArgument {
+  if (!READ_PROJECTIONS.includes(value as ReadProjectionArgument)) {
+    throw new ArgumentError(
+      'CLI_INVALID_PROJECTION',
+      `--projection must be one of ${READ_PROJECTIONS.join(', ')}`,
+    );
+  }
+  return value as ReadProjectionArgument;
+}
+
+function parseCatalog(value: string): ReadCatalogArgument {
+  if (!READ_CATALOG_KINDS.includes(value as ReadCatalogArgument)) {
+    throw new ArgumentError(
+      'CLI_INVALID_CATALOG',
+      `--catalog must be one of ${READ_CATALOG_KINDS.join(', ')}`,
+    );
+  }
+  return value as ReadCatalogArgument;
 }
 
 function helpArguments(argv: string[]): HelpArguments | undefined {
@@ -164,7 +248,7 @@ export function parseArguments(argv: string[]): ParsedArguments {
   const help = helpArguments(argv);
   if (help) return help;
 
-  const [rawCommand, documentPath, ...rest] = argv;
+  const [rawCommand] = argv;
   if (rawCommand === '--version' || rawCommand === '-v') {
     throw new ArgumentError('CLI_VERSION', '');
   }
@@ -172,7 +256,9 @@ export function parseArguments(argv: string[]): ParsedArguments {
   if (!command) {
     throw new ArgumentError('CLI_UNKNOWN_COMMAND', `Unknown command: ${rawCommand}`);
   }
-  if (!documentPath) {
+  const documentPath = command === 'capabilities' ? undefined : argv[1];
+  const rest = command === 'capabilities' ? argv.slice(1) : argv.slice(2);
+  if (command !== 'capabilities' && !documentPath) {
     throw new ArgumentError(
       'CLI_MISSING_DOCUMENT',
       command === 'create'
@@ -181,16 +267,17 @@ export function parseArguments(argv: string[]): ParsedArguments {
     );
   }
 
-  const parsed: CliArguments = {
+  const common: CommonCliArguments = {
     kind: 'command',
-    command,
-    documentPath,
     output: 'json',
     write: false,
     dryRun: false,
     upgradeLegacy: false,
     discardFormatting: false,
   };
+  const parsed: CliArguments = command === 'capabilities'
+    ? { ...common, command }
+    : { ...common, command, documentPath: documentPath! };
   const seen = new Set<string>();
 
   for (let index = 0; index < rest.length; index += 1) {
@@ -253,6 +340,34 @@ export function parseArguments(argv: string[]): ParsedArguments {
         parsed.template = valueAfter(rest, index, flag);
         index += 1;
         break;
+      case '--projection':
+        parsed.projection = parseProjection(valueAfter(rest, index, flag));
+        index += 1;
+        break;
+      case '--catalog':
+        parsed.catalog = parseCatalog(valueAfter(rest, index, flag));
+        index += 1;
+        break;
+      case '--limit':
+        parsed.limit = parsePositiveInteger(valueAfter(rest, index, flag), flag);
+        index += 1;
+        break;
+      case '--cursor':
+        parsed.cursor = valueAfter(rest, index, flag);
+        index += 1;
+        break;
+      case '--max-bytes':
+        parsed.maxBytes = parsePositiveInteger(valueAfter(rest, index, flag), flag);
+        index += 1;
+        break;
+      case '--max-nodes':
+        parsed.maxNodes = parsePositiveInteger(valueAfter(rest, index, flag), flag);
+        index += 1;
+        break;
+      case '--max-summary-length':
+        parsed.maxSummaryLength = parsePositiveInteger(valueAfter(rest, index, flag), flag);
+        index += 1;
+        break;
     }
   }
 
@@ -268,6 +383,64 @@ export function parseArguments(argv: string[]): ParsedArguments {
       '--target-id and --target-path cannot be used together',
     );
   }
+  if (parsed.command === 'inspect') {
+    const projectionOnlyFlags = [
+      '--catalog',
+      '--limit',
+      '--cursor',
+      '--max-bytes',
+      '--max-nodes',
+      '--max-summary-length',
+      '--expected-revision',
+    ];
+    const firstProjectionOnlyFlag = projectionOnlyFlags.find((flag) => seen.has(flag));
+    if (!parsed.projection && firstProjectionOnlyFlag) {
+      throw new ArgumentError(
+        'CLI_PROJECTION_REQUIRED',
+        `${firstProjectionOnlyFlag} requires an explicit --projection`,
+      );
+    }
+    if (parsed.projection) {
+      const hasTarget = parsed.targetId !== undefined || parsed.targetPath !== undefined;
+      if ((parsed.projection === 'catalog' || parsed.projection === 'document') && hasTarget) {
+        throw new ArgumentError(
+          'CLI_PROJECTION_FORBIDS_TARGET',
+          `${parsed.projection} projection does not accept --target-id or --target-path`,
+        );
+      }
+      if ((parsed.projection === 'target' || parsed.projection === 'section') && !hasTarget) {
+        throw new ArgumentError(
+          'CLI_PROJECTION_REQUIRES_TARGET',
+          `${parsed.projection} projection requires exactly one of --target-id or --target-path`,
+        );
+      }
+      const allowedByProjection: Record<ReadProjectionArgument, ReadonlySet<string>> = {
+        catalog: new Set([
+          '--catalog', '--limit', '--cursor', '--max-bytes', '--max-summary-length',
+          '--expected-revision',
+        ]),
+        target: new Set(['--max-bytes', '--max-nodes', '--expected-revision']),
+        section: new Set(['--cursor', '--max-bytes', '--max-nodes', '--expected-revision']),
+        document: new Set(['--cursor', '--max-bytes', '--max-nodes', '--expected-revision']),
+      };
+      const unsupported = projectionOnlyFlags.find(
+        (flag) => seen.has(flag) && !allowedByProjection[parsed.projection!].has(flag),
+      );
+      if (unsupported) {
+        throw new ArgumentError(
+          'CLI_PROJECTION_OPTION_NOT_SUPPORTED',
+          `${parsed.projection} projection does not support ${unsupported}`,
+        );
+      }
+      if (parsed.expectedRevision !== undefined
+        && !/^sha256:[0-9a-f]{64}$/.test(parsed.expectedRevision)) {
+        throw new ArgumentError(
+          'CLI_INVALID_EXPECTED_REVISION',
+          '--expected-revision must be sha256: followed by 64 lowercase hexadecimal digits',
+        );
+      }
+    }
+  }
   if (parsed.command === 'apply' && !parsed.operationsPath) {
     throw new ArgumentError('CLI_MISSING_OPERATIONS', 'apply requires --operations <file|->');
   }
@@ -280,10 +453,16 @@ export function parseArguments(argv: string[]): ParsedArguments {
     }
   }
   if (parsed.command === 'set-document-title') {
-    if (!parsed.id || parsed.title === undefined || !parsed.expectedRevision) {
+    if (parsed.title === undefined || !parsed.expectedRevision) {
       throw new ArgumentError(
         'CLI_MISSING_SET_DOCUMENT_TITLE_ARGUMENT',
-        'set-document-title requires --id, --title, and --expected-revision',
+        'set-document-title requires --title and --expected-revision',
+      );
+    }
+    if (parsed.discardFormatting && !parsed.id) {
+      throw new ArgumentError(
+        'CLI_OPTION_REQUIRES_ID',
+        'set-document-title --discard-formatting requires --id because metadata has no formatting',
       );
     }
   }

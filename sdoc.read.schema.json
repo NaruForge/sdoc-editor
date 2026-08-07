@@ -1,0 +1,142 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "sdoc.read.schema.json",
+  "title": "SDOC bounded semantic read request",
+  "description": "Strict request union for the additive sdoc.read/1 projection contract.",
+  "oneOf": [
+    { "$ref": "#/definitions/catalogRequest" },
+    { "$ref": "#/definitions/targetRequest" },
+    { "$ref": "#/definitions/sectionRequest" },
+    { "$ref": "#/definitions/documentRequest" }
+  ],
+  "definitions": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "cursor": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096
+    },
+    "targetPath": {
+      "type": "array",
+      "maxItems": 128,
+      "items": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+    },
+    "nodeTarget": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["kind", "id"],
+          "properties": {
+            "kind": { "const": "id" },
+            "id": { "type": "string" },
+            "expectedType": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["kind", "path", "nodeType", "digest"],
+          "properties": {
+            "kind": { "const": "snapshot" },
+            "path": { "$ref": "#/definitions/targetPath" },
+            "nodeType": { "type": "string" },
+            "digest": { "$ref": "#/definitions/sha256" }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "catalogRequest": {
+      "type": "object",
+      "required": ["contract", "projection"],
+      "properties": {
+        "contract": { "const": "sdoc.read/1" },
+        "projection": { "const": "catalog" },
+        "kind": { "enum": ["blocks", "outline", "references", "referenceables"] },
+        "limit": { "type": "integer", "minimum": 1, "maximum": 10000 },
+        "cursor": { "$ref": "#/definitions/cursor" },
+        "maxBytes": { "type": "integer", "minimum": 1, "maximum": 33554432 },
+        "maxSummaryLength": { "type": "integer", "minimum": 20, "maximum": 500 },
+        "expectedRevision": { "$ref": "#/definitions/sha256" }
+      },
+      "additionalProperties": false
+    },
+    "targetRequest": {
+      "type": "object",
+      "required": ["contract", "projection"],
+      "oneOf": [
+        {
+          "required": ["target"],
+          "properties": {
+            "target": {},
+            "targetPath": false
+          }
+        },
+        {
+          "required": ["targetPath"],
+          "properties": {
+            "target": false,
+            "targetPath": {}
+          }
+        }
+      ],
+      "properties": {
+        "contract": { "const": "sdoc.read/1" },
+        "projection": { "const": "target" },
+        "target": { "$ref": "#/definitions/nodeTarget" },
+        "targetPath": { "$ref": "#/definitions/targetPath" },
+        "maxBytes": { "type": "integer", "minimum": 1, "maximum": 33554432 },
+        "maxNodes": { "type": "integer", "minimum": 1, "maximum": 100000 },
+        "expectedRevision": { "$ref": "#/definitions/sha256" }
+      },
+      "additionalProperties": false
+    },
+    "sectionRequest": {
+      "type": "object",
+      "required": ["contract", "projection"],
+      "oneOf": [
+        {
+          "required": ["target"],
+          "properties": {
+            "target": {},
+            "targetPath": false
+          }
+        },
+        {
+          "required": ["targetPath"],
+          "properties": {
+            "target": false,
+            "targetPath": {}
+          }
+        }
+      ],
+      "properties": {
+        "contract": { "const": "sdoc.read/1" },
+        "projection": { "const": "section" },
+        "target": { "$ref": "#/definitions/nodeTarget" },
+        "targetPath": { "$ref": "#/definitions/targetPath" },
+        "cursor": { "$ref": "#/definitions/cursor" },
+        "maxBytes": { "type": "integer", "minimum": 1, "maximum": 33554432 },
+        "maxNodes": { "type": "integer", "minimum": 1, "maximum": 100000 },
+        "expectedRevision": { "$ref": "#/definitions/sha256" }
+      },
+      "additionalProperties": false
+    },
+    "documentRequest": {
+      "type": "object",
+      "required": ["contract", "projection"],
+      "properties": {
+        "contract": { "const": "sdoc.read/1" },
+        "projection": { "const": "document" },
+        "cursor": { "$ref": "#/definitions/cursor" },
+        "maxBytes": { "type": "integer", "minimum": 1, "maximum": 33554432 },
+        "maxNodes": { "type": "integer", "minimum": 1, "maximum": 100000 },
+        "expectedRevision": { "$ref": "#/definitions/sha256" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

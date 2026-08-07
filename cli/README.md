@@ -99,13 +99,65 @@ stable machine API; its wording and layout may change between releases. Never
 parse human output in an Agent or script. Success is written to stdout;
 structured errors are written to stderr.
 
+Every JSON success and failure is one line with the top-level contract
+`sdoc.cli.response/1`. The packaged schema is
+`dist/schemas/sdoc.cli.response.schema.json`. Consumers must ignore unknown
+fields: compatible updates may add fields, commands, operations, diagnostics,
+and capability values, while existing fields retain their documented meaning.
+
+```json
+{"contract":"sdoc.cli.response/1","ok":true,"command":"validate","revision":"sha256:..."}
+```
+
+Failures always include `category` and a non-empty `diagnostics` array:
+
+```json
+{"contract":"sdoc.cli.response/1","ok":false,"category":"argument","diagnostics":[{"code":"CLI_MISSING_DOCUMENT","message":"..."}]}
+```
+
 ## Commands
+
+### `capabilities`
+
+Reports the installed CLI version, supported contracts and commands, semantic
+operation names, safety limits, read projections/catalog kinds, and built-in
+template IDs. It does not accept a document path. JSON is the default:
+
+```powershell
+sdoc capabilities
+sdoc capabilities --json
+sdoc capabilities --human
+```
+
+```json
+{
+  "contract": "sdoc.cli.response/1",
+  "ok": true,
+  "command": "capabilities",
+  "cliVersion": "0.9.0",
+  "contracts": {
+    "document": "sdoc/1.0",
+    "operations": "sdoc.operations/1",
+    "read": "sdoc.read/1",
+    "response": "sdoc.cli.response/1"
+  },
+  "commands": ["capabilities", "inspect", "validate", "apply", "rename-heading", "set-document-title", "create"],
+  "projections": ["catalog", "target", "section", "document"],
+  "catalogKinds": ["blocks", "outline", "references", "referenceables"],
+  "builtInTemplateIds": ["builtin:blank", "builtin:technical-report", "builtin:design-specification", "builtin:verification-report"]
+}
+```
+
+The actual result also includes `semanticOperations` and numeric `limits`;
+query it instead of hard-coding the installed package's capabilities.
 
 ### `inspect`
 
-Returns the SHA-256 revision of the exact source bytes, outline, references,
-referenceable nodes, and targetable blocks. The revision includes a UTF-8 BOM
-when present and changes after representation-only edits.
+Without `--projection`, returns the existing inspector shape: the SHA-256
+revision of the exact source bytes, metadata, outline, references,
+referenceable nodes, targetable blocks, and an optional selected target. The
+revision includes a UTF-8 BOM when present and changes after
+representation-only edits. Existing no-projection calls retain this behavior.
 
 ```powershell
 sdoc inspect document.sdoc --json
@@ -141,6 +193,41 @@ Referenceable nodes receive an ID target; other blocks receive a snapshot
 target. A provisional ID is valid only for that inspected revision; applying
 it persists the ID.
 
+An explicit `--projection` selects the additive bounded `sdoc.read/1`
+contract. Projected JSON still uses `contract: "sdoc.cli.response/1"` as its
+top-level response discriminator and exposes the core discriminator separately
+as `readContract: "sdoc.read/1"`. The core `projection`, `revision`, `data`,
+`page`, and `budget` fields remain top-level. Validate request objects against
+`dist/schemas/sdoc.read.schema.json` when another host calls the shared core
+directly.
+
+```powershell
+sdoc inspect document.sdoc --projection catalog --json
+sdoc inspect document.sdoc --projection catalog --catalog outline --limit 100 --json
+sdoc inspect document.sdoc --projection target --target-id intro --max-bytes 262144 --max-nodes 1000 --json
+sdoc inspect document.sdoc --projection section --target-path /0 --max-nodes 500 --human
+sdoc inspect document.sdoc --projection document --max-bytes 262144 --max-nodes 1000 --json
+sdoc inspect document.sdoc --projection document --cursor $nextCursor --json
+```
+
+Projection option rules are strict and are checked before the document is
+read:
+
+| Projection | Target | Allowed read options |
+|---|---|---|
+| `catalog` | none | `--catalog`, `--limit`, `--cursor`, `--max-bytes`, `--max-summary-length`, `--expected-revision` |
+| `target` | exactly one of ID/path | `--max-bytes`, `--max-nodes`, `--expected-revision` |
+| `section` | exactly one of ID/path | `--cursor`, `--max-bytes`, `--max-nodes`, `--expected-revision` |
+| `document` | none | `--cursor`, `--max-bytes`, `--max-nodes`, `--expected-revision` |
+
+The catalog defaults to `blocks`. `--limit`, `--max-bytes`, `--max-nodes`,
+and `--max-summary-length` accept canonical positive base-10 integers. Read
+options other than legacy `--target-id` and `--target-path` require an explicit
+projection. Catalog, section, and document results can return
+`page.nextCursor`; pass it back with the same projection/query until
+`page.complete` is true. Cursors bind the exact source bytes and query scope.
+They are opaque integrity tokens, not authentication credentials.
+
 ### `validate`
 
 Checks the persisted document contract and semantic invariants without writing:
@@ -152,8 +239,10 @@ sdoc validate legacy.tiptap.json --human
 
 ### `apply`
 
-Reads a complete `sdoc.operations/1` request from a JSON file or stdin. Preview
-is the default; only `--write` can modify the named document.
+Reads a complete `sdoc.operations/1` request from a UTF-8 JSON file or stdin.
+Malformed UTF-8 is rejected before JSON parsing, locking, or document writes.
+A UTF-8 BOM and non-ASCII JSON content are accepted. Preview is the default;
+only `--write` can modify the named document.
 
 ```powershell
 sdoc apply document.sdoc --operations operations.json --json
@@ -210,20 +299,24 @@ The preview and a later independent write can have different
 
 ### `set-document-title`
 
-Convenience command for one `setDocumentTitle` operation. It requires the
-persistent or provisional ID of an H1 and changes `meta.title` and that
-explicit title heading atomically. The CLI never guesses a title heading and
-never renames the file. To change only `meta.title`, use an apply request with
-`setDocumentTitle` and omit its optional `headingTarget`.
+Convenience command for one `setDocumentTitle` operation. `--title` and
+`--expected-revision` are required. Without `--id`, the command changes only
+`meta.title`. With the persistent or provisional ID of an H1, it changes
+`meta.title` and that explicit title heading atomically. The CLI never guesses
+a title heading and never renames the file.
 
 ```powershell
+$inspection = sdoc inspect document.sdoc --json | ConvertFrom-Json
+sdoc set-document-title document.sdoc --title "Metadata title" `
+  --expected-revision $inspection.revision --write --json
 $inspection = sdoc inspect document.sdoc --json | ConvertFrom-Json
 sdoc set-document-title document.sdoc --title "Updated document" --id title-h1 `
   --expected-revision $inspection.revision --write --json
 ```
 
 Use `--discard-formatting` only when replacing marked or non-text content in
-the selected H1 is intentional.
+the selected H1 is intentional. It requires `--id`; without an H1 target there
+is no formatting to discard.
 
 ### `create`
 
@@ -238,21 +331,25 @@ sdoc create verification.sdoc --template builtin:verification-report --json
 sdoc create report.sdoc --template .\templates\company-report.sdoc --json
 ```
 
-An explicit file template must be a valid `.sdoc`. Creation removes persisted
-document identity and template-only metadata while preserving supported
-settings, node IDs, and links.
+An explicit file template must be a valid UTF-8 JSON `.sdoc`; malformed UTF-8
+is rejected before a destination is created. A UTF-8 BOM is accepted. Creation
+removes persisted document identity and template-only metadata while
+preserving supported settings, node IDs, and links.
 
-## Public operation contract
+## Public schemas and operation contract
 
 The package includes:
 
 - `dist/schemas/sdoc.operations.schema.json`: draft-07 request schema
+- `dist/schemas/sdoc.read.schema.json`: draft-07 `sdoc.read/1` request union
+- `dist/schemas/sdoc.cli.response.schema.json`: additive CLI JSON response schema
 - `dist/schemas/sdoc.schema.json`: persisted document schema and reusable
   `anyNode` fragment
 - `dist/examples/operations/*.json`: one request for each semantic operation
 
-Repository copies live at `sdoc.operations.schema.json`, `sdoc.schema.json`,
-and `examples/operations/`.
+Repository copies live at `sdoc.operations.schema.json`,
+`sdoc.read.schema.json`, `sdoc.schema.json`,
+`cli/schemas/sdoc.cli.response.schema.json`, and `examples/operations/`.
 
 Every request has this envelope:
 
@@ -487,7 +584,10 @@ $result = $resultJson | ConvertFrom-Json
 | 5 | File I/O error | `CLI_READ_FAILED` |
 
 On failure, inspect `diagnostics[].code` rather than matching human-readable
-messages.
+messages. The machine-readable `category` is one of `argument`, `document`,
+`conflict`, `io`, or `internal`. Categories describe the failure source and do
+not replace exit codes; in particular, an `IoError` is categorized as `io`
+while retaining its existing exit code.
 
 ## Diagnostic recovery
 
@@ -496,12 +596,17 @@ must branch on `diagnostics[].code` from explicit `--json` output.
 
 | Diagnostic code(s) | Likely cause | Recovery |
 |---|---|---|
-| `CLI_UNKNOWN_*`, `CLI_MISSING_*`, `CLI_CONFLICTING_OPTIONS` | Misspelled command/flag, omitted value, or incompatible flags | Run the command-specific `--help`, correct the invocation, and retry |
+| `CLI_UNKNOWN_*`, `CLI_MISSING_*`, `CLI_CONFLICTING_OPTIONS`, `CLI_OPTION_REQUIRES_ID` | Misspelled command/flag, omitted value, or incompatible/dependent flags | Run the command-specific `--help`, correct the invocation, and retry |
 | `CLI_INVALID_TARGET_PATH` | `--target-path` is not a slash-delimited non-negative integer path | Copy the path from `inspect.blocks[].path` and format it like `/1/0` |
+| `CLI_INVALID_POSITIVE_INTEGER`, `CLI_INVALID_PROJECTION`, `CLI_INVALID_CATALOG` | A projected read option has a malformed number or unsupported selector | Use `sdoc inspect --help` and pass a documented projection/catalog and canonical positive integer |
+| `CLI_PROJECTION_REQUIRED`, `CLI_PROJECTION_REQUIRES_TARGET`, `CLI_PROJECTION_FORBIDS_TARGET`, `CLI_PROJECTION_OPTION_NOT_SUPPORTED` | Projected read flags are missing their projection, target, or valid projection-specific combination | Follow the projection option matrix above; legacy targets remain valid only when no read-only flags are supplied |
+| `CLI_INVALID_UTF8` | Operation file or stdin bytes are not valid UTF-8 | Re-encode the complete JSON request as UTF-8 and retry; the document and sibling lock are untouched |
 | `CLI_INVALID_JSON`, `INVALID_OPERATION_REQUEST`, `INVALID_OPERATION` | Malformed operations JSON or a request that does not match `sdoc.operations/1` | Validate against the packaged operation schema; inspect `operationIndex` when present |
 | `MALFORMED_JSON`, `DOCUMENT_SCHEMA_INVALID`, `UNSUPPORTED_VERSION` | The input is not valid UTF-8 JSON, violates the document schema, or uses an unsupported SDOC version | Repair or migrate the source; do not force a write |
 | `LEGACY_UPGRADE_REQUIRED` | A legacy `.tiptap.json` mutation omitted the explicit upgrade flag | Re-run with `--upgrade-legacy`, preview first, then add `--write` if intended |
 | `STALE_REVISION` | The document bytes changed after inspection | Re-inspect the current file and rebuild the whole request from that revision |
+| `INVALID_READ_CURSOR`, `STALE_READ_CURSOR`, `READ_CURSOR_SCOPE_MISMATCH` | A cursor is malformed, the exact source bytes changed, or it belongs to another projection/query | Restart the projection from its first page using the current document; never edit or reuse a cursor across queries |
+| `PROJECTION_ITEM_TOO_LARGE` | The next complete catalog entry or subtree cannot fit the requested byte/node budget | Increase the reported limiting budget; projection pages never split a complete item |
 | `TARGET_NOT_FOUND`, `TARGET_NOT_BLOCK`, `TARGET_TYPE_MISMATCH`, `TARGET_DIGEST_MISMATCH` | A selected path/ID is absent, is not a block, changed type, or no longer matches its snapshot | Re-inspect and use the returned `operationTarget`; do not weaken the precondition |
 | `SECTION_OPERATION_REQUIRED`, `HEADING_TARGET_REQUIRED`, `SECTION_TARGET_REQUIRED`, `TITLE_H1_TARGET_REQUIRED` | A block operation was used for a heading, or a title target was not H1 | Use the matching heading/section operation and an inspected heading target |
 | `INVALID_HEADING_LEVEL`, `SECTION_LEVEL_OUT_OF_RANGE` | A requested heading level is outside 1-6, or shifting the section would push a descendant outside that range | Choose a valid target level that keeps every descendant heading within 1-6 |
@@ -510,6 +615,7 @@ must branch on `diagnostics[].code` from explicit `--json` output.
 | `ID_RENAME_NOT_SUPPORTED`, `ID_RENAME_REQUIRES_EXISTING_ID`, `INVALID_NEW_ID` | An ID rename targeted an unsupported or provisional node, or supplied an invalid new ID | Target an inspected heading/table with an existing persistent ID and choose a unique non-reserved ID |
 | `NEW_NONPORTABLE_ASSET`, `NEW_DANGLING_REFERENCE`, `NEW_UNSAFE_LINK` | The batch introduces an invalid asset path, missing internal target, or unsafe link | Use `./images/...` or `./drawio/*.drawio.svg`, create referenced IDs, and use a safe URL |
 | `DUPLICATE_ID` | The document contains conflicting persistent IDs | Assign unique IDs before retrying |
+| `CLI_TEMPLATE_INVALID` | An explicit template has malformed UTF-8, invalid JSON, or violates the template contract | Repair or re-encode the template as UTF-8; creation leaves the destination absent |
 | `CLI_TARGET_EXISTS` | `create` would overwrite an existing file | Choose a new path; the CLI never overwrites during creation |
 | `CLI_LOCK_UNAVAILABLE` | Another writer holds the sibling lock, or its owner cannot be reclaimed safely | Wait for a known writer to finish. Remove an abandoned lock manually only after confirming no writer is active, then re-inspect before retrying |
 | `CLI_READ_FAILED`, `CLI_ATOMIC_WRITE_FAILED` | Filesystem access or atomic replacement failed | Check path, permissions, free space, and filesystem support; verify the file before retrying |

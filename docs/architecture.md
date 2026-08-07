@@ -2,7 +2,7 @@
 
 ## Overview
 
-Structured Doc Editor v0.8.3 has two supported delivery surfaces: the VS Code
+Structured Doc Editor v0.9.0 has two supported delivery surfaces: the VS Code
 extension for visual editing and the SDOC CLI for non-visual document
 automation. Both consume one TypeScript document core and the same persisted
 `.sdoc` contract.
@@ -195,6 +195,16 @@ reference/link/asset invariants, and returns a bounded semantic diff. Existing
 invariant violations are tracked as a baseline multiset; a batch may not add or
 increase them.
 
+The additive `sdoc.read/1` projection contract provides bounded semantic reads
+without changing the legacy inspector. A caller selects one catalog, one
+complete target, an existing same-parent section range, or document content.
+Catalog pages contain whole entries, while section and document pages contain
+whole sibling or top-level subtrees; exact UTF-8 byte and node budgets never
+split a subtree. Opaque checksum cursors bind the exact byte revision,
+projection, query scope, and next index. They detect corruption but are not
+authentication tokens. See
+[ADR 0018](adr/0018-use-bounded-semantic-read-projections.md).
+
 The `cli/` workspace is the filesystem delivery surface for this core. Its
 `sdoc` executable previews mutations unless `--write` is supplied. A no-op does
 not update `meta.modified` or write bytes. Writes acquire a sibling lock,
@@ -273,4 +283,4 @@ constraints in effect when those versions were supported.
 - `npm run package`: version-checked VSIX in `output/`
 - `npm run package:cli`: installable CLI `.tgz` in `output/`
 
-Rust and Tauri checks are not part of the v0.8.3 build contract.
+Rust and Tauri checks are not part of the v0.9.0 build contract.

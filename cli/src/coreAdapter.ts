@@ -1,4 +1,8 @@
 import * as operationsCore from '../../shared/document/operations/index.js';
+import type {
+  ProjectDocumentRequest,
+  ProjectDocumentResult,
+} from '../../shared/document/operations/index.js';
 
 export interface Diagnostic {
   code: string;
@@ -47,6 +51,15 @@ export function inspect(bytes: Uint8Array, selection: InspectSelection = {}): Co
       : undefined;
   return core.inspectDocumentBytes(bytes, options);
 }
+
+export function project(
+  bytes: Uint8Array,
+  request: ProjectDocumentRequest,
+): ProjectDocumentResult {
+  return operationsCore.projectDocumentBytes(bytes, request);
+}
+
+export type ProjectResult = ProjectDocumentResult;
 
 export function validate(bytes: Uint8Array): CoreResult {
   return core.validateDocumentBytes(bytes);

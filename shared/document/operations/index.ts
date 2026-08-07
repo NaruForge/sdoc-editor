@@ -13,10 +13,12 @@ import { walkDocument } from '../walker';
 import { parsePortableAssetPath } from '../../security/portableAssets';
 import { MAX_DOCUMENT_BYTES } from '../../resourceLimits';
 import { computeRevision, decodeUtf8, encodeUtf8 } from './sha256';
+import { decodeReadCursor, encodeReadCursor, MAX_READ_CURSOR_LENGTH } from './readCursor';
 import type {
   ApplyOperationResult, ApplyOptions, BlockDestination, InspectDocumentResult, InspectOptions,
-  NodeTarget, OperationDiagnostic, OperationFailure, SemanticDiffEvent, SdocOperation,
-  SdocOperationRequest, Sha256Digest, ValidateDocumentResult,
+  CatalogReadData, NodeTarget, OperationDiagnostic, OperationFailure, ProjectDocumentRequest,
+  ProjectDocumentResult, ReadBudget, ReadPage, ReadProjection, SemanticDiffEvent,
+  ReadFailure, SdocOperation, SdocOperationRequest, Sha256Digest, ValidateDocumentResult,
 } from './types';
 
 export { computeRevision } from './sha256';
@@ -26,6 +28,13 @@ const MAX_OPERATIONS = 100;
 const MAX_DEPTH = 128;
 const MAX_NODES = 100_000;
 const MAX_TARGET_DETAIL_BYTES = 256 * 1024;
+const DEFAULT_READ_MAX_BYTES = 256 * 1024;
+const DEFAULT_READ_MAX_NODES = 1_000;
+const DEFAULT_CATALOG_LIMIT = 1_000;
+const MAX_CATALOG_LIMIT = 10_000;
+const DEFAULT_SUMMARY_LENGTH = 120;
+const MIN_SUMMARY_LENGTH = 20;
+const MAX_SUMMARY_LENGTH = 500;
 const REFERENCEABLE = new Set(['heading', 'image', 'table', 'mathBlock']);
 const RENAMABLE_ID_TYPES = new Set(['heading', 'table']);
 const NON_BLOCK = new Set([
@@ -267,6 +276,9 @@ const nodeAt = (root: TiptapNode, path: readonly number[]): TiptapNode | undefin
   for (const index of path) current = current?.content?.[index];
   return current;
 };
+const isTargetPath = (value: unknown): value is number[] => Array.isArray(value)
+  && value.length <= MAX_DEPTH
+  && value.every((item) => Number.isSafeInteger(item) && Number(item) >= 0);
 const provisionalId = (revision: Sha256Digest, path: readonly number[], node: TiptapNode): string =>
   `provisional:${computeRevision(`${revision}:${pathKey(path)}:${node.type}`).slice(7, 23)}`;
 
@@ -329,9 +341,8 @@ function narrowTarget(value: unknown): NodeTarget | undefined {
     && (value.expectedType === undefined || typeof value.expectedType === 'string')) {
     return { kind: 'id', id: value.id, ...(value.expectedType ? { expectedType: value.expectedType } : {}) };
   }
-  if (value.kind === 'snapshot' && Array.isArray(value.path)
+  if (value.kind === 'snapshot' && isTargetPath(value.path)
     && hasOnlyKeys(value, new Set(['kind', 'path', 'nodeType', 'digest']))
-    && value.path.every((item) => Number.isInteger(item) && Number(item) >= 0)
     && typeof value.nodeType === 'string'
     && typeof value.digest === 'string' && /^sha256:[0-9a-f]{64}$/.test(value.digest)) {
     return {
@@ -533,6 +544,275 @@ function narrowRequest(value: unknown): SdocOperationRequest | OperationFailure 
     operations: operations as SdocOperation[],
   };
 }
+
+const SHA256_PATTERN = /^sha256:[0-9a-f]{64}$/;
+const READ_CATALOG_KINDS = new Set(['blocks', 'outline', 'references', 'referenceables']);
+
+const isBoundedInteger = (value: unknown, maximum: number): value is number =>
+  Number.isSafeInteger(value) && Number(value) >= 1 && Number(value) <= maximum;
+function narrowReadRequest(value: unknown): ProjectDocumentRequest | OperationFailure {
+  if (!isRecord(value) || value.contract !== 'sdoc.read/1'
+    || (value.projection !== 'catalog' && value.projection !== 'target'
+      && value.projection !== 'section' && value.projection !== 'document')
+    || (value.expectedRevision !== undefined
+      && (typeof value.expectedRevision !== 'string'
+        || !SHA256_PATTERN.test(value.expectedRevision)))) {
+    return failure('argument', 'INVALID_READ_REQUEST', 'request does not match sdoc.read/1');
+  }
+  const commonKeys = ['contract', 'projection', 'expectedRevision'];
+  if (value.projection === 'catalog') {
+    if (!hasOnlyKeys(value, new Set([
+      ...commonKeys, 'kind', 'limit', 'cursor', 'maxBytes', 'maxSummaryLength',
+    ]))
+      || (value.kind !== undefined
+        && (typeof value.kind !== 'string' || !READ_CATALOG_KINDS.has(value.kind)))
+      || (value.limit !== undefined && !isBoundedInteger(value.limit, MAX_CATALOG_LIMIT))
+      || (value.cursor !== undefined && typeof value.cursor !== 'string')
+      || (value.maxBytes !== undefined && !isBoundedInteger(value.maxBytes, MAX_DOCUMENT_BYTES))
+      || (value.maxSummaryLength !== undefined
+        && (!Number.isSafeInteger(value.maxSummaryLength)
+          || Number(value.maxSummaryLength) < MIN_SUMMARY_LENGTH
+          || Number(value.maxSummaryLength) > MAX_SUMMARY_LENGTH))) {
+      return failure('argument', 'INVALID_READ_REQUEST', 'catalog request is invalid');
+    }
+  } else if (value.projection === 'target') {
+    if (!hasOnlyKeys(value, new Set([
+      ...commonKeys, 'target', 'targetPath', 'maxBytes', 'maxNodes',
+    ]))
+      || (value.target === undefined) === (value.targetPath === undefined)
+      || (value.target !== undefined && narrowTarget(value.target) === undefined)
+      || (value.targetPath !== undefined && !isTargetPath(value.targetPath))
+      || (value.maxBytes !== undefined && !isBoundedInteger(value.maxBytes, MAX_DOCUMENT_BYTES))
+      || (value.maxNodes !== undefined && !isBoundedInteger(value.maxNodes, MAX_NODES))) {
+      return failure('argument', 'INVALID_READ_REQUEST', 'target request is invalid');
+    }
+  } else if (value.projection === 'section') {
+    if (!hasOnlyKeys(value, new Set([
+      ...commonKeys, 'target', 'targetPath', 'cursor', 'maxBytes', 'maxNodes',
+    ]))
+      || (value.target === undefined) === (value.targetPath === undefined)
+      || (value.target !== undefined && narrowTarget(value.target) === undefined)
+      || (value.targetPath !== undefined && !isTargetPath(value.targetPath))
+      || (value.cursor !== undefined && typeof value.cursor !== 'string')
+      || (value.maxBytes !== undefined && !isBoundedInteger(value.maxBytes, MAX_DOCUMENT_BYTES))
+      || (value.maxNodes !== undefined && !isBoundedInteger(value.maxNodes, MAX_NODES))) {
+      return failure('argument', 'INVALID_READ_REQUEST', 'section request is invalid');
+    }
+  } else if (!hasOnlyKeys(value, new Set([
+    ...commonKeys, 'cursor', 'maxBytes', 'maxNodes',
+  ]))
+    || (value.cursor !== undefined && typeof value.cursor !== 'string')
+    || (value.maxBytes !== undefined && !isBoundedInteger(value.maxBytes, MAX_DOCUMENT_BYTES))
+    || (value.maxNodes !== undefined && !isBoundedInteger(value.maxNodes, MAX_NODES))) {
+    return failure('argument', 'INVALID_READ_REQUEST', 'document request is invalid');
+  }
+  const targetValue = value.target === undefined ? undefined : narrowTarget(value.target);
+  return {
+    ...value,
+    ...(targetValue ? { target: targetValue } : {}),
+    ...(value.targetPath !== undefined ? { targetPath: [...value.targetPath as number[]] } : {}),
+    ...(value.expectedRevision !== undefined
+      ? { expectedRevision: value.expectedRevision as Sha256Digest } : {}),
+  } as ProjectDocumentRequest;
+}
+
+interface BoundedProjectionPage<Data> {
+  data: Data;
+  page: ReadPage;
+  budget: ReadBudget;
+  nextIndex: number;
+}
+
+const serializedBytes = (value: unknown): number => encodeUtf8(JSON.stringify(value)).byteLength;
+const subtreeNodeCount = (node: TiptapNode): number => {
+  let count = 0;
+  for (const _visit of walkDocument(node)) count += 1;
+  return count;
+};
+
+function projectionItemTooLarge(requiredBytes: number, requiredNodes?: number): ReadFailure {
+  return {
+    ok: false,
+    category: 'argument',
+    diagnostics: [{
+      code: 'PROJECTION_ITEM_TOO_LARGE',
+      message: 'the next complete projection item exceeds the requested page budget',
+      requiredBytes,
+      ...(requiredNodes === undefined ? {} : { requiredNodes }),
+    }],
+  };
+}
+
+function paginateProjection<Item, Data>(
+  items: readonly Item[],
+  start: number,
+  maxBytes: number,
+  makeData: (selected: Item[]) => Data,
+  options: {
+    maxItems?: number;
+    maxNodes?: number;
+    nodeCount?: (item: Item) => number;
+  } = {},
+): BoundedProjectionPage<Data> | ReadFailure {
+  const selected: Item[] = [];
+  const emptyBytes = serializedBytes(makeData([]));
+  let usedBytes = emptyBytes;
+  let usedNodes = 0;
+  let truncatedBy: ReadPage['truncatedBy'];
+  let index = start;
+  while (index < items.length) {
+    if (options.maxItems !== undefined && selected.length >= options.maxItems) {
+      truncatedBy = 'limit';
+      break;
+    }
+    const item = items[index];
+    const itemBytes = serializedBytes(item) + (selected.length > 0 ? 1 : 0);
+    const itemNodes = options.nodeCount?.(item) ?? 0;
+    const exceedsNodes = options.maxNodes !== undefined
+      && usedNodes + itemNodes > options.maxNodes;
+    const exceedsBytes = usedBytes + itemBytes > maxBytes;
+    if (exceedsNodes || exceedsBytes) {
+      if (selected.length === 0) {
+        return projectionItemTooLarge(
+          emptyBytes + serializedBytes(item),
+          options.nodeCount ? itemNodes : undefined,
+        );
+      }
+      truncatedBy = exceedsNodes ? 'maxNodes' : 'maxBytes';
+      break;
+    }
+    selected.push(item);
+    usedBytes += itemBytes;
+    usedNodes += itemNodes;
+    index += 1;
+  }
+  if (selected.length === 0 && items.length === 0 && emptyBytes > maxBytes) {
+    return projectionItemTooLarge(emptyBytes, options.nodeCount ? 0 : undefined);
+  }
+  const complete = index >= items.length;
+  const data = makeData(selected);
+  return {
+    data,
+    page: {
+      returned: selected.length,
+      complete,
+      ...(!complete && truncatedBy ? { truncatedBy } : {}),
+    },
+    budget: {
+      bytes: { used: serializedBytes(data), max: maxBytes },
+      ...(options.maxNodes === undefined
+        ? {} : { nodes: { used: usedNodes, max: options.maxNodes } }),
+    },
+    nextIndex: index,
+  };
+}
+
+type CatalogReadItem = CatalogReadData['items'][number];
+
+function catalogItems(
+  loaded: Loaded,
+  kind: CatalogReadData['kind'],
+  maxSummaryLength: number,
+  start: number,
+  maximum: number,
+): { items: CatalogReadItem[]; seen: number; exhausted: boolean } {
+  const items: Array<Record<string, unknown>> = [];
+  const ids = new Set<string>();
+  if (kind === 'references') {
+    for (const { node } of walkDocument(loaded.envelope.doc)) {
+      const id = node.attrs?.id;
+      if (typeof id === 'string' && id) ids.add(id);
+    }
+  }
+  let seen = 0;
+  let exhausted = true;
+  const add = (create: () => Record<string, unknown>): boolean => {
+    if (seen >= start) items.push(create());
+    seen += 1;
+    if (items.length >= maximum) {
+      exhausted = false;
+      return true;
+    }
+    return false;
+  };
+  traversal:
+  for (const { node, path } of walkDocument(loaded.envelope.doc)) {
+    const id = typeof node.attrs?.id === 'string' && node.attrs.id ? node.attrs.id : undefined;
+    const provisional = !id && REFERENCEABLE.has(node.type)
+      ? provisionalId(loaded.revision, path, node) : undefined;
+    if (kind === 'blocks' && !NON_BLOCK.has(node.type)) {
+      if (add(() => ({
+        type: node.type,
+        path: [...path],
+        summary: summary(node, maxSummaryLength),
+        operationTarget: operationTargetFor(loaded.revision, path, node),
+        ...(id ? { id } : {}),
+        ...(provisional ? { provisionalId: provisional } : {}),
+        ...(!id ? { digest: nodeDigest(node) } : {}),
+      }))) break;
+    } else if (kind === 'outline' && node.type === 'heading') {
+      if (add(() => ({
+        ...(id ? { id } : {}),
+        ...(provisional ? { provisionalId: provisional } : {}),
+        level: Number(node.attrs?.level),
+        text: textOf(node).slice(0, maxSummaryLength),
+        path: [...path],
+      }))) break;
+    } else if (kind === 'references') {
+      for (const mark of node.marks ?? []) {
+        const href = mark.type === 'link' ? mark.attrs?.href : undefined;
+        if (typeof href === 'string' && href.startsWith('#')) {
+          if (add(() => ({ href, targetExists: ids.has(href.slice(1)), path: [...path] }))) {
+            break traversal;
+          }
+        }
+      }
+    } else if (kind === 'referenceables' && REFERENCEABLE.has(node.type)) {
+      if (add(() => ({
+        type: node.type,
+        ...(id ? { id } : {}),
+        ...(provisional ? { provisionalId: provisional } : {}),
+        path: [...path],
+      }))) break;
+    }
+  }
+  return { items: items as CatalogReadItem[], seen, exhausted };
+}
+
+function catalogData(kind: CatalogReadData['kind'], items: CatalogReadItem[]): CatalogReadData {
+  if (kind === 'blocks') return { kind, items: items as Extract<CatalogReadData, { kind: 'blocks' }>['items'] };
+  if (kind === 'outline') return { kind, items: items as Extract<CatalogReadData, { kind: 'outline' }>['items'] };
+  if (kind === 'references') return { kind, items: items as Extract<CatalogReadData, { kind: 'references' }>['items'] };
+  return { kind, items: items as Extract<CatalogReadData, { kind: 'referenceables' }>['items'] };
+}
+
+const readQueryDigest = (value: unknown): Sha256Digest =>
+  computeRevision(JSON.stringify(stableValue(value)));
+
+function readCursorStart(
+  cursor: string | undefined,
+  loaded: Loaded,
+  projection: Exclude<ReadProjection, 'target'>,
+  scope: string,
+  query: Sha256Digest,
+): number | OperationFailure {
+  if (cursor === undefined) return 0;
+  if (cursor.length > MAX_READ_CURSOR_LENGTH) {
+    return failure('argument', 'INVALID_READ_CURSOR', 'read cursor exceeds 4,096 characters');
+  }
+  const decoded = decodeReadCursor(cursor);
+  if (!decoded) return failure('argument', 'INVALID_READ_CURSOR', 'read cursor is invalid or corrupt');
+  if (decoded.revision !== loaded.revision) {
+    return failure('conflict', 'STALE_READ_CURSOR', 'read cursor revision does not match document bytes');
+  }
+  if (decoded.projection !== projection || decoded.scope !== scope || decoded.query !== query) {
+    return failure('argument', 'READ_CURSOR_SCOPE_MISMATCH', 'read cursor belongs to another projection query');
+  }
+  return decoded.next;
+}
+
+const hasFailureShape = (value: unknown): value is OperationFailure | ReadFailure =>
+  isRecord(value) && value.ok === false;
 
 function findCurrent(root: TiptapNode, sought: TiptapNode):
 { parent: TiptapNode; index: number; path: number[] } | undefined {
@@ -959,6 +1239,190 @@ export function inspectDocumentBytes(
     blocksTruncated: blocks.length < blockCount,
     ...(selected ? { target: selected } : {}),
     warnings: state.warnings,
+  };
+}
+
+export function projectDocumentBytes(
+  bytes: Uint8Array | string,
+  requestUnknown: unknown,
+): ProjectDocumentResult {
+  const request = narrowReadRequest(requestUnknown);
+  if (isFailure(request)) return request;
+  const loaded = load(bytes);
+  if (isFailure(loaded)) return loaded;
+  if (request.expectedRevision !== undefined && request.expectedRevision !== loaded.revision) {
+    return failure('conflict', 'STALE_REVISION', 'expected revision does not match document bytes');
+  }
+  const state = analyze(loaded.envelope.doc);
+  if (state.duplicates.length) {
+    return failure('document', 'DUPLICATE_ID', `duplicate id: ${state.duplicates[0]}`);
+  }
+  const base = {
+    ok: true as const,
+    contract: 'sdoc.read/1' as const,
+    revision: loaded.revision,
+    legacy: loaded.legacy,
+    documentId: documentId(loaded.envelope),
+    needsIdNormalization: state.missingIds,
+    warnings: state.warnings,
+  };
+
+  if (request.projection === 'catalog') {
+    const kind = request.kind ?? 'blocks';
+    const limit = request.limit ?? DEFAULT_CATALOG_LIMIT;
+    const maxBytes = request.maxBytes ?? DEFAULT_READ_MAX_BYTES;
+    const maxSummaryLength = request.maxSummaryLength ?? DEFAULT_SUMMARY_LENGTH;
+    const scope = `catalog:${kind}`;
+    const query = readQueryDigest({ kind, maxSummaryLength });
+    const start = readCursorStart(request.cursor, loaded, request.projection, scope, query);
+    if (typeof start !== 'number') return start;
+    const window = catalogItems(loaded, kind, maxSummaryLength, start, limit + 1);
+    if (window.exhausted && start > window.seen) {
+      return failure('argument', 'INVALID_READ_CURSOR', 'read cursor index is outside the catalog');
+    }
+    const bounded = paginateProjection<CatalogReadItem, CatalogReadData>(
+      window.items,
+      0,
+      maxBytes,
+      (selected) => catalogData(kind, selected),
+      { maxItems: limit },
+    );
+    if (hasFailureShape(bounded)) return bounded;
+    const page = bounded.page.complete ? bounded.page : {
+      ...bounded.page,
+      nextCursor: encodeReadCursor({
+        version: 1,
+        revision: loaded.revision,
+        projection: request.projection,
+        scope,
+        query,
+        next: start + bounded.nextIndex,
+      }),
+    };
+    return {
+      ...base,
+      projection: request.projection,
+      data: bounded.data,
+      page,
+      budget: bounded.budget,
+    };
+  }
+
+  if (request.projection === 'document') {
+    const maxBytes = request.maxBytes ?? DEFAULT_READ_MAX_BYTES;
+    const maxNodes = request.maxNodes ?? DEFAULT_READ_MAX_NODES;
+    const scope = 'document:root';
+    const query = readQueryDigest({ scope });
+    const start = readCursorStart(request.cursor, loaded, request.projection, scope, query);
+    if (typeof start !== 'number') return start;
+    const content = loaded.envelope.doc.content ?? [];
+    if (start > content.length) {
+      return failure('argument', 'INVALID_READ_CURSOR', 'read cursor index is outside the document');
+    }
+    const bounded = paginateProjection(
+      content,
+      start,
+      maxBytes,
+      (selected) => ({ content: clone(selected) }),
+      { maxNodes, nodeCount: subtreeNodeCount },
+    );
+    if (hasFailureShape(bounded)) return bounded;
+    const page = bounded.page.complete ? bounded.page : {
+      ...bounded.page,
+      nextCursor: encodeReadCursor({
+        version: 1,
+        revision: loaded.revision,
+        projection: request.projection,
+        scope,
+        query,
+        next: bounded.nextIndex,
+      }),
+    };
+    return {
+      ...base,
+      projection: request.projection,
+      data: bounded.data,
+      page,
+      budget: bounded.budget,
+    };
+  }
+
+  const index = indexTargets(loaded.envelope.doc, loaded.revision);
+  const selected = request.target !== undefined
+    ? resolveTarget(loaded.envelope.doc, request.target, index)
+    : nodeAt(loaded.envelope.doc, request.targetPath ?? [])
+      ?? failure('conflict', 'TARGET_NOT_FOUND',
+        `target path ${pathKey(request.targetPath ?? [])} was not found`);
+  if (hasFailureShape(selected)) return selected;
+  const selectedPath = index.paths.get(selected) ?? [];
+
+  if (request.projection === 'target') {
+    if (request.targetPath !== undefined && NON_BLOCK.has(selected.type)) {
+      return failure('argument', 'TARGET_NOT_BLOCK',
+        `target path ${pathKey(selectedPath)} does not select a block`);
+    }
+    const maxBytes = request.maxBytes ?? DEFAULT_READ_MAX_BYTES;
+    const maxNodes = request.maxNodes ?? DEFAULT_READ_MAX_NODES;
+    const data = {
+      path: [...selectedPath],
+      node: clone(selected),
+      digest: nodeDigest(selected),
+      operationTarget: operationTargetFor(loaded.revision, selectedPath, selected),
+    };
+    const usedBytes = serializedBytes(data);
+    const usedNodes = subtreeNodeCount(selected);
+    if (usedBytes > maxBytes || usedNodes > maxNodes) {
+      return projectionItemTooLarge(usedBytes, usedNodes);
+    }
+    return {
+      ...base,
+      projection: request.projection,
+      data,
+      page: { returned: 1, complete: true },
+      budget: {
+        bytes: { used: usedBytes, max: maxBytes },
+        nodes: { used: usedNodes, max: maxNodes },
+      },
+    };
+  }
+
+  const range = sectionRange(loaded.envelope.doc, selected);
+  if (hasFailureShape(range)) return range;
+  const maxBytes = request.maxBytes ?? DEFAULT_READ_MAX_BYTES;
+  const maxNodes = request.maxNodes ?? DEFAULT_READ_MAX_NODES;
+  const scope = `section:${pathKey(selectedPath)}`;
+  const query = readQueryDigest({ path: selectedPath });
+  const start = readCursorStart(request.cursor, loaded, request.projection, scope, query);
+  if (typeof start !== 'number') return start;
+  const content = (range.parent.content ?? []).slice(range.start, range.end);
+  if (start > content.length) {
+    return failure('argument', 'INVALID_READ_CURSOR', 'read cursor index is outside the section');
+  }
+  const bounded = paginateProjection(
+    content,
+    start,
+    maxBytes,
+    (pageContent) => ({ path: [...selectedPath], content: clone(pageContent) }),
+    { maxNodes, nodeCount: subtreeNodeCount },
+  );
+  if (hasFailureShape(bounded)) return bounded;
+  const page = bounded.page.complete ? bounded.page : {
+    ...bounded.page,
+    nextCursor: encodeReadCursor({
+      version: 1,
+      revision: loaded.revision,
+      projection: request.projection,
+      scope,
+      query,
+      next: bounded.nextIndex,
+    }),
+  };
+  return {
+    ...base,
+    projection: request.projection,
+    data: bounded.data,
+    page,
+    budget: bounded.budget,
   };
 }
 

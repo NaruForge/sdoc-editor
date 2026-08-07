@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-08-07
+
+### Added
+- Added revision-bound `catalog`, `target`, `section`, and `document` CLI read projections with deterministic pagination, opaque stale-safe cursors, and explicit byte/node budgets
+- Added the versioned `sdoc.cli.response/1` machine response contract, packaged response/read JSON Schemas, and runtime `sdoc capabilities` discovery
+
+### Changed
+- Made `set-document-title` update canonical `meta.title` by default while retaining explicit optional H1 synchronization through `--id`
+- Preserved the existing no-projection `inspect` response while allowing every large-document catalog to be traversed independently without repeated unrelated catalogs
+
+### Fixed
+- Made the workspace-linked CLI execute reliably through npm junctions, symlinks, shims, and direct package paths
+- Hardened external CLI JSON input validation so invalid encodings fail closed before preview, locking, creation, or writes
+
 ## [0.8.3] - 2026-08-07
 
 ### Fixed
