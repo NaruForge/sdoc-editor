@@ -4,86 +4,71 @@
 validating, creating, and safely changing Structured Doc Editor `.sdoc` and
 legacy `.tiptap.json` documents. It requires Node.js 22.22.2 or newer.
 
-The package is distributed as a GitHub Release tarball, not through the public
-npm registry. The similarly named registry package `sdoc` is unrelated.
+The official package is published to the public npm registry as
+[`sdoc-editor-cli`](https://www.npmjs.com/package/sdoc-editor-cli). Its installed
+command is `sdoc`. The separate registry package named `sdoc` is unrelated.
 
 ## Safe installation and verification
 
-Discover the current versioned tarball from the latest non-prerelease GitHub
-Release. This PowerShell example uses the anonymous GitHub Releases REST API
-and refuses to continue unless exactly one CLI asset matches:
+Install the CLI as a project-local development dependency, verify the owning
+package, and then invoke only the local binary:
 
 ```powershell
-$release = Invoke-RestMethod `
-  -Headers @{
-    Accept = 'application/vnd.github+json'
-    'X-GitHub-Api-Version' = '2022-11-28'
-  } `
-  -Uri 'https://api.github.com/repos/NaruForge/sdoc-editor/releases/latest'
-$cliAssets = @($release.assets | Where-Object {
-  $_.name -match '^sdoc-editor-cli-[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?\.tgz$'
-})
-if ($cliAssets.Count -ne 1) {
-  throw "Expected exactly one sdoc-editor-cli-*.tgz asset, found $($cliAssets.Count)."
-}
-$env:SDOC_CLI_TGZ_URL = $cliAssets[0].browser_download_url
-```
-
-The equivalent POSIX flow requires `curl` and `jq`:
-
-```bash
-SDOC_CLI_TGZ_URL="$(
-  curl -fsSL \
-    -H 'Accept: application/vnd.github+json' \
-    -H 'X-GitHub-Api-Version: 2022-11-28' \
-    https://api.github.com/repos/NaruForge/sdoc-editor/releases/latest |
-  jq -er '
-    [.assets[] | select(.name | test("^sdoc-editor-cli-[0-9]+[.][0-9]+[.][0-9]+(-[0-9A-Za-z.-]+)?[.]tgz$"))]
-    | if length == 1 then .[0].browser_download_url
-      else error("expected exactly one sdoc-editor-cli-*.tgz asset")
-      end
-  '
-)"
-export SDOC_CLI_TGZ_URL
-```
-
-Anonymous GitHub REST requests are rate-limited (typically 60 requests per
-hour per source IP). Authenticate the API request when a shared runner may
-exceed that limit. The CLI is not published to npm, and releases do not
-provide an unversioned `latest` download alias; always use the selected
-asset's `browser_download_url`.
-
-For a project-local install, run these commands from the project that owns the
-dependency:
-
-```powershell
-npm install --save-dev "$env:SDOC_CLI_TGZ_URL"
+npm install --save-dev sdoc-editor-cli
 npm ls sdoc-editor-cli --depth=0
-node .\node_modules\sdoc-editor-cli\dist\sdoc.js --version
+npx --no-install sdoc --version
 ```
 
-> **Package name collision warning:** The npm public registry contains an
-> unrelated package named `sdoc`. Even `npx --no-install sdoc` can resolve a
-> cached copy of that unrelated package when the project-local CLI is absent.
-> For deterministic local execution, invoke the installed package entry point
-> directly with `node ./node_modules/sdoc-editor-cli/dist/sdoc.js ...` and verify
-> the dependency first with `npm ls sdoc-editor-cli --depth=0`. A missing local
-> package then fails with a path/module error instead of running another
-> package. Do not install the registry package `sdoc`; it is not part of
-> Structured Doc Editor. Check the current directory before invoking the CLI
-> when an agent may be operating in more than one project.
+Update an existing project explicitly to the current stable `latest` release:
+
+```powershell
+npm install --save-dev sdoc-editor-cli@latest
+npm ls sdoc-editor-cli --depth=0
+npx --no-install sdoc --version
+```
+
+For a one-off run without changing a project dependency, use the exact official
+package name so npm cannot infer the unrelated `sdoc` package:
+
+```powershell
+npx --yes sdoc-editor-cli@latest --help
+```
+
+> **Package name collision warning:** Do not install or run the public package
+> named `sdoc`; it is not part of Structured Doc Editor. Before using
+> `npx --no-install sdoc`, verify that the current project owns
+> `sdoc-editor-cli` with `npm ls sdoc-editor-cli --depth=0`. For the most direct
+> deterministic fallback, invoke
+> `node ./node_modules/sdoc-editor-cli/bin/sdoc.js ...`.
+
+The CLI does not replace itself automatically. Use the explicit npm update
+command above, or let the owning project's dependency automation update its
+manifest and lockfile.
+
+### Version-pinned GitHub Release fallback
+
+Every tagged release also attaches a versioned `sdoc-editor-cli-*.tgz` to
+[GitHub Releases](https://github.com/NaruForge/sdoc-editor/releases/latest). Use
+this path when an installation must be pinned to a downloaded release asset.
+After downloading the selected tarball, install it from the project that owns
+the dependency:
+
+```powershell
+npm install --save-dev .\sdoc-editor-cli-X.Y.Z.tgz
+npm ls sdoc-editor-cli --depth=0
+npx --no-install sdoc --version
+```
 
 Use a global install only when that scope was explicitly requested:
 
 ```powershell
-npm install --global "$env:SDOC_CLI_TGZ_URL"
+npm install --global sdoc-editor-cli
 npm list --global sdoc-editor-cli --depth=0
 sdoc --version
 ```
 
-The remaining examples use `sdoc` for readability. For a local installation,
-replace it with `node ./node_modules/sdoc-editor-cli/dist/sdoc.js`. Do not use
-`npx sdoc` or `npx --no-install sdoc` as a local-presence check.
+The remaining examples use `sdoc` for readability. In project-local automation,
+use `npx --no-install sdoc` after the `npm ls` ownership check above.
 
 ## Help and output
 
