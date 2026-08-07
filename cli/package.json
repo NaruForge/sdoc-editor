@@ -1,12 +1,13 @@
 {
   "name": "sdoc-editor-cli",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "description": "Preview-first command line operations for Structured Doc Editor documents",
   "type": "module",
   "bin": {
-    "sdoc": "./dist/sdoc.js"
+    "sdoc": "./bin/sdoc.js"
   },
   "files": [
+    "bin/sdoc.js",
     "dist/sdoc.js",
     "dist/schemas/*.json",
     "dist/examples/operations/*.json",

@@ -29,6 +29,7 @@ const actualFiles = packed.files.map((entry) => entry.path).sort();
 const expectedFiles = [
   'LICENSE',
   'README.md',
+  'bin/sdoc.js',
   'dist/examples/operations/delete-block.json',
   'dist/examples/operations/delete-section.json',
   'dist/examples/operations/insert-block.json',

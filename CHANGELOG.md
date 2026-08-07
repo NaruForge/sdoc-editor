@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-08-07
+
+### Fixed
+- Made fresh Linux npm workspaces create the local `sdoc` bin link by routing the package bin through a tracked wrapper while preserving direct bundled execution
+
 ## [0.9.0] - 2026-08-07
 
 ### Added

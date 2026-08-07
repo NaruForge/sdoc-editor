@@ -8,6 +8,8 @@ const cliRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const workspaceRoot = resolve(cliRoot, '..');
 const directEntry = resolve(cliRoot, 'dist', 'sdoc.js');
 const workspaceEntry = resolve(workspaceRoot, 'node_modules', 'sdoc-editor-cli', 'dist', 'sdoc.js');
+const packageBinEntry = resolve(cliRoot, 'bin', 'sdoc.js');
+const workspaceBinEntry = resolve(workspaceRoot, 'node_modules', 'sdoc-editor-cli', 'bin', 'sdoc.js');
 const sourceResponseSchema = resolve(cliRoot, 'schemas', 'sdoc.cli.response.schema.json');
 const builtResponseSchema = resolve(cliRoot, 'dist', 'schemas', 'sdoc.cli.response.schema.json');
 let expectedVersion = '';
@@ -49,6 +51,17 @@ describe('built CLI executable', () => {
       .toBe((await realpath(directEntry)).toLowerCase());
 
     const result = executeNode(workspaceEntry, ['--version']);
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe(expectedVersion);
+    expect(result.stderr).toBe('');
+  });
+
+  it('runs through the tracked package bin wrapper used by npm workspace links', async () => {
+    expect((await realpath(workspaceBinEntry)).toLowerCase())
+      .toBe((await realpath(packageBinEntry)).toLowerCase());
+
+    const result = executeNode(workspaceBinEntry, ['--version']);
 
     expect(result.status).toBe(0);
     expect(result.stdout).toBe(expectedVersion);
