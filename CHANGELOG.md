@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.2] - 2026-08-07
+
+### Fixed
+- Normalized npm package metadata so the public Registry preserves the `sdoc` executable during publication
+
 ## [0.9.1] - 2026-08-07
 
 ### Fixed
