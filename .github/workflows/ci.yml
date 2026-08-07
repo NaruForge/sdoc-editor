@@ -78,7 +78,7 @@ jobs:
       - run: npm run package:cli
       - name: Verify workspace-linked CLI entry point
         run: |
-          npx --no-install sdoc --version
+          npm exec --no --offline --package=sdoc-editor-cli -- sdoc --version
           node node_modules/sdoc-editor-cli/dist/sdoc.js --version
       - name: Inspect CLI package contents
         run: npm pack --dry-run ./cli

@@ -54,12 +54,18 @@ Marketplace가 공식 설치 경로입니다. 직접 빌드한 `.vsix`는 명령
 
 ### SDOC CLI — npm 공식 배포
 
-SDOC CLI는 npm Registry의 공식 공개 패키지입니다. 프로젝트에 로컬로 설치한 뒤 `npx --no-install`로 실행하면 의도하지 않은 다른 패키지를 실행하지 않습니다.
+SDOC CLI는 npm Registry의 공식 공개 패키지입니다. 먼저 프로젝트를 변경하지 않고 최신 버전을 실행해 볼 수 있습니다.
+
+```bash
+npx sdoc-editor-cli@latest --help
+```
+
+프로젝트에서 반복해서 사용하거나 버전을 고정하려면 개발 의존성으로 설치합니다.
 
 ```bash
 npm install --save-dev sdoc-editor-cli
-npx --no-install sdoc --version
-npx --no-install sdoc capabilities --json
+npx sdoc-editor-cli --version
+npx sdoc-editor-cli capabilities --json
 ```
 
 설치된 프로젝트를 npm의 최신 안정 버전으로 업데이트할 수 있습니다.
@@ -68,16 +74,10 @@ npx --no-install sdoc capabilities --json
 npm install --save-dev sdoc-editor-cli@latest
 ```
 
-설치 없이 최신 버전을 한 번만 실행할 수도 있습니다.
-
-```bash
-npx --yes sdoc-editor-cli@latest --help
-```
-
 > [!IMPORTANT]
-> 공식 패키지 이름은 `sdoc-editor-cli`, 설치 후 명령은 `sdoc`입니다. npm Registry의 별도 패키지 `sdoc`은 이 프로젝트와 관련이 없습니다. CLI가 사용자 동의 없이 스스로 업데이트하지는 않으며, 업데이트는 위 npm 명령으로 명시적으로 수행합니다.
+> 공식 패키지 이름은 `sdoc-editor-cli`, 설치 후 실행 파일 이름은 `sdoc`입니다. `npx`에는 항상 공식 패키지명인 `sdoc-editor-cli`을 사용하세요. npm Registry의 별도 `sdoc` 패키지는 이 프로젝트와 관련이 없습니다. CLI는 스스로 업데이트하지 않으며, 업데이트는 위 npm 명령으로 명시적으로 수행합니다.
 
-전체 명령, machine response 계약, semantic read, operation, 진단과 종료 코드는 [CLI 매뉴얼](cli/README.md)에서 확인하세요. 이 영문 매뉴얼은 npm 패키지 페이지에도 함께 게시됩니다.
+반복 가능한 CI와 AI 자동화에서는 dependency와 lockfile을 커밋하고 npm script로 실행할 수 있습니다. 전체 설치 방식, 명령, machine response 계약, semantic read, operation, 진단과 종료 코드는 [CLI 매뉴얼](cli/README.md)에서 확인하세요. 이 영문 매뉴얼은 npm 패키지 페이지에도 함께 게시됩니다.
 
 ## 왜 Structured Doc Editor인가
 

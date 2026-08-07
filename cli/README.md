@@ -8,38 +8,53 @@ The official package is published to the public npm registry as
 [`sdoc-editor-cli`](https://www.npmjs.com/package/sdoc-editor-cli). Its installed
 command is `sdoc`. The separate registry package named `sdoc` is unrelated.
 
-## Safe installation and verification
+## Install and run
 
-Install the CLI as a project-local development dependency, verify the owning
-package, and then invoke only the local binary:
+Try the current stable release without adding a project dependency:
+
+```powershell
+npx sdoc-editor-cli@latest --help
+```
+
+For a project-pinned version, install the official package as a development
+dependency and invoke it by its exact package name:
 
 ```powershell
 npm install --save-dev sdoc-editor-cli
-npm ls sdoc-editor-cli --depth=0
-npx --no-install sdoc --version
+npx sdoc-editor-cli --version
+npx sdoc-editor-cli capabilities --json
 ```
 
-Update an existing project explicitly to the current stable `latest` release:
+Update that dependency explicitly when the project is ready to adopt the
+current stable release:
 
 ```powershell
 npm install --save-dev sdoc-editor-cli@latest
-npm ls sdoc-editor-cli --depth=0
-npx --no-install sdoc --version
 ```
 
-For a one-off run without changing a project dependency, use the exact official
-package name so npm cannot infer the unrelated `sdoc` package:
+For repeatable CI or Agent automation, commit `package.json` and the lockfile,
+run `npm ci`, and add a project script:
+
+```json
+{
+  "scripts": {
+    "sdoc": "sdoc"
+  }
+}
+```
+
+Pass CLI arguments after npm's `--` separator:
 
 ```powershell
-npx --yes sdoc-editor-cli@latest --help
+npm run sdoc -- capabilities --json
 ```
 
-> **Package name collision warning:** Do not install or run the public package
-> named `sdoc`; it is not part of Structured Doc Editor. Before using
-> `npx --no-install sdoc`, verify that the current project owns
-> `sdoc-editor-cli` with `npm ls sdoc-editor-cli --depth=0`. For the most direct
-> deterministic fallback, invoke
-> `node ./node_modules/sdoc-editor-cli/bin/sdoc.js ...`.
+`npm run` uses the project-local binary and fails when the dependency is
+missing; it does not fetch a command from the registry.
+
+> **Package name collision warning:** Use `sdoc-editor-cli` with `npx`. Do not
+> run `npx sdoc` or install the public package named `sdoc`; it is unrelated to
+> Structured Doc Editor.
 
 The CLI does not replace itself automatically. Use the explicit npm update
 command above, or let the owning project's dependency automation update its
@@ -55,20 +70,20 @@ the dependency:
 
 ```powershell
 npm install --save-dev .\sdoc-editor-cli-X.Y.Z.tgz
-npm ls sdoc-editor-cli --depth=0
-npx --no-install sdoc --version
+npx sdoc-editor-cli --version
 ```
 
-Use a global install only when that scope was explicitly requested:
+For frequent interactive use across projects, a global install provides the
+short `sdoc` command:
 
 ```powershell
 npm install --global sdoc-editor-cli
-npm list --global sdoc-editor-cli --depth=0
 sdoc --version
 ```
 
-The remaining examples use `sdoc` for readability. In project-local automation,
-use `npx --no-install sdoc` after the `npm ls` ownership check above.
+The remaining examples use `sdoc` for readability. After a project-local
+install, replace that prefix with `npx sdoc-editor-cli`, or use the `npm run
+sdoc --` script above. A global installation can run `sdoc` directly.
 
 ## Help and output
 

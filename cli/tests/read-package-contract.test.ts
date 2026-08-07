@@ -6,7 +6,7 @@ describe('packaged read contract', () => {
   it('copies the root read schema and lists it in the exact package manifest', async () => {
     const root = resolve(import.meta.dirname, '..', '..');
     const packageJson = JSON.parse(await readFile(resolve(root, 'cli', 'package.json'), 'utf8')) as {
-      bin: { sdoc: string };
+      bin: Record<string, string>;
       files: string[];
       repository: { url: string };
     };
@@ -14,7 +14,7 @@ describe('packaged read contract', () => {
     const pack = await readFile(resolve(root, 'scripts', 'package-cli.mjs'), 'utf8');
 
     expect(packageJson.files).toContain('dist/schemas/*.json');
-    expect(packageJson.bin.sdoc).toBe('bin/sdoc.js');
+    expect(packageJson.bin).toEqual({ sdoc: 'bin/sdoc.js' });
     expect(packageJson.files).toContain('bin/sdoc.js');
     expect(packageJson.repository.url).toBe('git+https://github.com/NaruForge/sdoc-editor.git');
     expect(build).toContain("new URL('../sdoc.read.schema.json', import.meta.url)");
