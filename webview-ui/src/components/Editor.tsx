@@ -60,6 +60,7 @@ import {
 } from '@shared/editor/linkEditing';
 import { resolveStructurePosition } from '@shared/editor/structureIndex';
 import { toSettingsSyncState } from '@shared/editor/designSettings';
+import { collectEditorStyleProbe, hasAppliedEditorStyles } from '../styleReadiness';
 
 export function parseStoredZoom(value: string | null): number {
   if (!value) return 100;
@@ -296,7 +297,8 @@ export const Editor: React.FC = () => {
     const frame = window.requestAnimationFrame(() => {
       const shell = document.querySelector('[data-sdoc-editor-shell="true"]');
       const titleInput = shell?.querySelector('.editor-title-input') ?? null;
-      const toolbar = shell?.querySelector('[role="toolbar"]') ?? null;
+      const toolbar = shell?.querySelector('.toolbar') ?? null;
+      const activityBar = shell?.querySelector('.activity-bar') ?? null;
       const proseMirror = editor.view.dom;
       const isVisiblyRendered = (element: Element | null): element is HTMLElement => {
         if (!(element instanceof HTMLElement) || !element.isConnected) return false;
@@ -316,8 +318,15 @@ export const Editor: React.FC = () => {
         || !isVisiblyRendered(shell)
         || !isVisiblyRendered(titleInput)
         || !isVisiblyRendered(toolbar)
+        || !isVisiblyRendered(activityBar)
         || !isVisiblyRendered(proseMirror)
         || !proseMirror.matches('.ProseMirror[contenteditable="true"]')) return;
+      if (!hasAppliedEditorStyles(collectEditorStyleProbe({
+        shell,
+        toolbar,
+        activityBar,
+        proseMirror,
+      }))) return;
       postMessage({
         type: 'uiReady',
         sessionId: session.sessionId,

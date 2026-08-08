@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-08-08
+
+### Fixed
+- Restored the complete standalone and Book editor UI by packaging their shared multi-entry CSS as one deterministic webview stylesheet
+- Made build, release-package, and Extension Host readiness checks fail when the packaged editor chrome styles are missing
+
 ## [0.10.0] - 2026-08-08
 
 ### Added

@@ -1558,7 +1558,7 @@ export class SdocBookProvider implements vscode.CustomTextEditorProvider {
       'dist', 'webview', 'assets', 'book.js',
     ]);
     const styleUri = getWebviewUri(webview, this.context.extensionUri, [
-      'dist', 'webview', 'assets', 'book.css',
+      'dist', 'webview', 'assets', 'webview.css',
     ]);
     const fontFaces = generateFontFaceCSS(webview, this.context.extensionUri);
     const nonce = getNonce();

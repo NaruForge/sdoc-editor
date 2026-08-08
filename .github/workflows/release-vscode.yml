@@ -80,6 +80,14 @@ jobs:
           unzip -q "$vsix" -d "$extract_dir"
           test -f "$extract_dir/extension/dist/extension.js"
           test -f "$extract_dir/extension/dist/webview/assets/index.js"
+          test -f "$extract_dir/extension/dist/webview/assets/book.js"
+          stylesheet="$extract_dir/extension/dist/webview/assets/webview.css"
+          test -f "$stylesheet"
+          test "$(find "$extract_dir/extension/dist/webview/assets" -maxdepth 1 -type f -name '*.css' | wc -l)" -eq 1
+          grep -Fq '.editor-shell{' "$stylesheet"
+          grep -Fq '.activity-bar{' "$stylesheet"
+          grep -Fq '.book-workspace{' "$stylesheet"
+          grep -Fq '.katex{' "$stylesheet"
           SDOC_EXTENSION_PATH="$extract_dir/extension" xvfb-run -a npm run test:vscode
 
       - name: Publish VSIX to Visual Studio Marketplace
