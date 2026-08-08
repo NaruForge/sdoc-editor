@@ -14,6 +14,7 @@ export default defineConfig({
   build: {
     outDir: '../dist/webview',
     emptyOutDir: true,
+    cssCodeSplit: false,
     rollupOptions: {
       input: {
         index: resolve(__dirname, 'index.html'),
@@ -22,7 +23,9 @@ export default defineConfig({
       output: {
         entryFileNames: 'assets/[name].js',
         chunkFileNames: 'assets/[name].js',
-        assetFileNames: 'assets/[name].[ext]',
+        assetFileNames: (assetInfo) => assetInfo.names.some((name) => name.endsWith('.css'))
+          ? 'assets/webview.css'
+          : 'assets/[name].[ext]',
       },
     },
   },

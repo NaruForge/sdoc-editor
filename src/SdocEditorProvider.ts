@@ -2718,7 +2718,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       'dist',
       'webview',
       'assets',
-      'index.css',
+      'webview.css',
     ]);
 
     // Build @font-face declarations for bundled fonts
