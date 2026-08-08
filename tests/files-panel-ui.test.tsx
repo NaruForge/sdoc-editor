@@ -30,6 +30,10 @@ const renderPanel = (
       ]}
       operationState={operationState}
       onStart={vi.fn()}
+      onConfirm={vi.fn()}
+      onCancel={vi.fn()}
+      onRetry={vi.fn()}
+      onResultAction={vi.fn()}
       onViewJson={vi.fn()}
     />
   </EditorI18nProvider>,
@@ -97,6 +101,113 @@ describe('files panel UI', () => {
     expect(failed).toContain('The selected file is invalid.');
     expect(cancelled).toContain('is-cancelled');
     expect(cancelled).toContain('File operation cancelled.');
+  });
+
+  it('renders a cancel-first preflight alertdialog with overwrite and import preview details', () => {
+    const exportMarkup = renderPanel({
+      phase: 'awaiting-confirmation',
+      requestId: 'request-1',
+      intent: { kind: 'export', format: 'html' },
+      plan: {
+        planId: 'plan-1',
+        intent: { kind: 'export', format: 'html' },
+        source: { displayName: 'report.sdoc', sizeBytes: 512, revision: 7 },
+        destination: {
+          displayName: 'report.html',
+          exists: true,
+          scope: 'workspace',
+          relativePath: './dist/report.html',
+        },
+        effectiveSettings: {
+          fingerprint: `sha256:${'a'.repeat(64)}`,
+          items: [
+            { key: 'selfContained', value: 'images-only', source: 'document' },
+            { key: 'headingNumbering', value: 'true', source: 'built-in' },
+          ],
+        },
+        diagram: { failurePolicy: 'source-fallback', fallbackCount: 2 },
+        warnings: ['The existing destination will be replaced.'],
+        requiresConfirmation: true,
+      },
+    });
+    expect(exportMarkup).toContain('role="alertdialog"');
+    expect(exportMarkup).toContain('report.html');
+    expect(exportMarkup).toContain('Existing file will be replaced');
+    expect(exportMarkup.indexOf('Cancel')).toBeLessThan(exportMarkup.indexOf('Export file'));
+    expect(exportMarkup).toContain('Workspace');
+    expect(exportMarkup).toContain('./dist/report.html');
+    expect(exportMarkup).toContain('HTML embedding');
+    expect(exportMarkup).toContain('images-only');
+    expect(exportMarkup).toContain('Stored in document');
+    expect(exportMarkup).toContain('Product default');
+    expect(exportMarkup).toContain('Keep diagram source when rendering is unavailable.');
+    expect(exportMarkup).toContain('2 diagram fallbacks');
+    expect(exportMarkup).toContain(`sha256:${'a'.repeat(64)}`);
+    expect(exportMarkup).not.toContain('Effective document settings snapshot');
+
+    const importMarkup = renderPanel({
+      phase: 'awaiting-confirmation',
+      requestId: 'request-2',
+      intent: { kind: 'import', format: 'markdown' },
+      plan: {
+        planId: 'plan-2',
+        intent: { kind: 'import', format: 'markdown' },
+        source: { displayName: 'source.md', sizeBytes: 128 },
+        importPreview: {
+          outline: [{ level: 1, title: 'Overview' }],
+          topLevelBlockCount: 4,
+          replacement: 'body-only',
+          preserved: ['metadata', 'settings'],
+        },
+        warnings: [],
+        requiresConfirmation: true,
+      },
+    });
+    expect(importMarkup).toContain('Overview');
+    expect(importMarkup).toContain('4 top-level blocks');
+    expect(importMarkup).toContain('Metadata and settings will be preserved');
+  });
+
+  it('exposes cancel, retry, and artifact result actions', () => {
+    const running = renderPanel({
+      phase: 'running', requestId: 'request-1', kind: 'export', format: 'html',
+      intent: { kind: 'export', format: 'html' }, planId: 'plan-1', stage: 'Rendering…',
+    });
+    const failed = renderPanel({
+      phase: 'failed', requestId: 'request-1',
+      intent: { kind: 'export', format: 'html' },
+      error: createFileOperationError('STALE_TARGET', 'The destination changed.', true),
+    });
+    const succeeded = renderPanel({
+      phase: 'succeeded', requestId: 'request-1', result: 'completed',
+      intent: { kind: 'export', format: 'html' },
+      details: {
+        outcome: 'completed', warnings: [],
+        artifact: { artifactId: 'artifact-1', displayName: 'report.html', sizeBytes: 1024 },
+        availableActions: [
+          { action: 'open', artifactId: 'artifact-1' },
+          { action: 'reveal', artifactId: 'artifact-1' },
+          { action: 'copy', artifactId: 'artifact-1' },
+          { action: 'repeat' },
+        ],
+      },
+    });
+    expect(running).toContain('Cancel operation');
+    expect(failed).toContain('Retry');
+    expect(succeeded).toContain('report.html');
+    expect(succeeded).toContain('Open');
+    expect(succeeded).toContain('Reveal');
+    expect(succeeded).toContain('Copy path');
+    expect(succeeded).toContain('Repeat');
+
+    const imported = renderPanel({
+      phase: 'succeeded', requestId: 'request-2', result: 'completed',
+      intent: { kind: 'import', format: 'markdown' },
+      details: { outcome: 'completed', warnings: [], availableActions: [] },
+    });
+    expect(imported).toContain('Imported body applied to the editor buffer.');
+    expect(imported).toContain('Save the document to write this change to disk.');
+    expect(imported).not.toContain('Saved to disk');
   });
 
   it('localizes descriptions, statuses, disclosure labels, and availability text in Korean', () => {

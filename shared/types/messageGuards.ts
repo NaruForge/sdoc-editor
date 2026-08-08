@@ -51,6 +51,184 @@ const containsUnsafeAbsolutePath = (value: string): boolean =>
 const hasOnlyKeys = (value: Record<string, unknown>, keys: readonly string[]): boolean =>
   Object.keys(value).every((key) => keys.includes(key));
 
+const FILE_OPERATION_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
+const FILE_OPERATION_FORMATS = ['html', 'adoc', 'markdown', 'pdf', 'slides'] as const;
+const FILE_OPERATION_ACTIONS = ['open', 'reveal', 'copy', 'repeat', 'undo'] as const;
+const FILE_OPERATION_SETTING_KEYS = [
+  'headingNumbering', 'headingStartNumber', 'headingDecoration',
+  'headingH1Color', 'headingH2Color', 'headingH3Color',
+  'headingH4Color', 'headingH5Color', 'headingH6Color',
+  'captionStyle', 'captionNumbering', 'equationNumbering', 'crossRefIncludeCaption',
+  'slideCssPath', 'htmlCssPath', 'pdfScale', 'selfContained',
+  'slideBreakLevel', 'slideTransition', 'showTitleSlide', 'outputDir',
+] as const;
+const FILE_OPERATION_SETTING_SOURCES = [
+  'document', 'book-profile', 'host', 'built-in', 'temporary-view',
+] as const;
+
+const isFileOperationId = (value: unknown): value is string =>
+  typeof value === 'string'
+  && value.length > 0
+  && value.length <= 128
+  && FILE_OPERATION_ID_PATTERN.test(value);
+
+const isSafeFileOperationText = (value: unknown, maxLength: number): value is string =>
+  typeof value === 'string'
+  && value.length > 0
+  && value.length <= maxLength
+  && !/[\u0000-\u001F\u007F]/.test(value)
+  && !containsUnsafeAbsolutePath(value);
+
+// Document identity is an opaque host correlation token and is commonly a file URI.
+// It is never rendered as a result path or used to resolve a filesystem target.
+const isFileOperationDocumentId = (value: unknown): value is string =>
+  typeof value === 'string'
+  && value.length > 0
+  && value.length <= 4_096
+  && !/[\u0000-\u001F\u007F]/.test(value);
+
+const isNonNegativeInteger = (value: unknown): value is number =>
+  typeof value === 'number'
+  && Number.isSafeInteger(value)
+  && value >= 0;
+
+const hasFileOperationRequestIdentity = (value: Record<string, unknown>): boolean =>
+  isFileOperationId(value.requestId)
+  && isFileOperationId(value.sessionId)
+  && isFileOperationDocumentId(value.documentId);
+
+const isFileOperationIntent = (value: unknown): boolean => {
+  if (!isRecord(value) || !hasOnlyKeys(value, ['kind', 'format'])) return false;
+  if (value.kind === 'import') return value.format === 'html' || value.format === 'markdown';
+  return value.kind === 'export' && FILE_OPERATION_FORMATS.includes(
+    String(value.format) as typeof FILE_OPERATION_FORMATS[number],
+  );
+};
+
+const isFileOperationSourceView = (value: unknown): boolean =>
+  isRecord(value)
+  && hasOnlyKeys(value, ['displayName', 'sizeBytes', 'revision'])
+  && isSafeFileOperationText(value.displayName, 260)
+  && isNonNegativeInteger(value.sizeBytes)
+  && (value.revision === undefined || isNonNegativeInteger(value.revision));
+
+const isPortableRelativePath = (value: unknown): value is string => {
+  if (typeof value !== 'string' || value.length < 3 || value.length > 4_096
+    || /[\u0000-\u001F\u007F]/.test(value) || value.includes('\\')
+    || !value.startsWith('./') || value.includes(':')) return false;
+  return value.split('/').every((segment) => segment !== '..');
+};
+
+const isFileOperationDestinationView = (value: unknown): boolean => {
+  if (!isRecord(value)
+    || !hasOnlyKeys(value, ['displayName', 'exists', 'scope', 'relativePath'])
+    || !isSafeFileOperationText(value.displayName, 520)
+    || typeof value.exists !== 'boolean') return false;
+  const hasScope = value.scope !== undefined || value.relativePath !== undefined;
+  return !hasScope || (
+    (value.scope === 'document' || value.scope === 'workspace' || value.scope === 'book')
+    && isPortableRelativePath(value.relativePath)
+  );
+};
+
+const isFileOperationEffectiveSettings = (value: unknown): boolean =>
+  isRecord(value)
+  && hasOnlyKeys(value, ['fingerprint', 'items'])
+  && typeof value.fingerprint === 'string'
+  && /^sha256:[0-9a-f]{64}$/.test(value.fingerprint)
+  && Array.isArray(value.items)
+  && value.items.length <= FILE_OPERATION_SETTING_KEYS.length
+  && value.items.every((item) => isRecord(item)
+    && hasOnlyKeys(item, ['key', 'value', 'source'])
+    && FILE_OPERATION_SETTING_KEYS.includes(
+      String(item.key) as typeof FILE_OPERATION_SETTING_KEYS[number],
+    )
+    && typeof item.value === 'string'
+    && item.value.length <= 1_000
+    && FILE_OPERATION_SETTING_SOURCES.includes(
+      String(item.source) as typeof FILE_OPERATION_SETTING_SOURCES[number],
+    ));
+
+const isFileOperationDiagram = (value: unknown): boolean =>
+  isRecord(value)
+  && hasOnlyKeys(value, ['failurePolicy', 'fallbackCount'])
+  && (value.failurePolicy === 'fail' || value.failurePolicy === 'source-fallback')
+  && isNonNegativeInteger(value.fallbackCount);
+
+const isFileOperationImportPreview = (value: unknown): boolean => {
+  if (!isRecord(value)
+    || !hasOnlyKeys(value, ['outline', 'topLevelBlockCount', 'replacement', 'preserved'])
+    || !Array.isArray(value.outline)
+    || value.outline.length > 200
+    || !isNonNegativeInteger(value.topLevelBlockCount)
+    || value.replacement !== 'body-only'
+    || !Array.isArray(value.preserved)
+    || value.preserved.length !== 2
+    || value.preserved[0] !== 'metadata'
+    || value.preserved[1] !== 'settings') return false;
+  return value.outline.every((item) => isRecord(item)
+    && hasOnlyKeys(item, ['level', 'title'])
+    && isNonNegativeInteger(item.level)
+    && item.level >= 1
+    && item.level <= 6
+    && isSafeFileOperationText(item.title, 500));
+};
+
+const isFileOperationWarnings = (value: unknown): value is string[] =>
+  Array.isArray(value)
+  && value.length <= 100
+  && value.every((warning) => isSafeFileOperationText(warning, 1_000));
+
+const isFileOperationPlanView = (value: unknown): boolean => {
+  if (!isRecord(value)
+    || !hasOnlyKeys(value, [
+      'planId', 'intent', 'source', 'destination', 'importPreview',
+      'effectiveSettings', 'diagram', 'warnings', 'requiresConfirmation',
+    ])
+    || !isFileOperationId(value.planId)
+    || !isFileOperationIntent(value.intent)
+    || !isFileOperationSourceView(value.source)
+    || !isFileOperationWarnings(value.warnings)
+    || (value.effectiveSettings !== undefined
+      && !isFileOperationEffectiveSettings(value.effectiveSettings))
+    || (value.diagram !== undefined && !isFileOperationDiagram(value.diagram))
+    || typeof value.requiresConfirmation !== 'boolean') return false;
+  const intent = value.intent as { kind: 'export' | 'import' };
+  if (intent.kind === 'import') {
+    return value.destination === undefined && isFileOperationImportPreview(value.importPreview);
+  }
+  return isFileOperationDestinationView(value.destination) && value.importPreview === undefined;
+};
+
+const isFileOperationArtifactView = (value: unknown): boolean =>
+  isRecord(value)
+  && hasOnlyKeys(value, ['artifactId', 'displayName', 'sizeBytes'])
+  && isFileOperationId(value.artifactId)
+  && isSafeFileOperationText(value.displayName, 260)
+  && isNonNegativeInteger(value.sizeBytes);
+
+const isFileOperationResult = (value: unknown): boolean => {
+  if (!isRecord(value)
+    || !hasOnlyKeys(value, ['outcome', 'artifact', 'warnings', 'availableActions'])
+    || (value.outcome !== 'completed' && value.outcome !== 'fallback')
+    || (value.artifact !== undefined && !isFileOperationArtifactView(value.artifact))
+    || !isFileOperationWarnings(value.warnings)
+    || !Array.isArray(value.availableActions)
+    || value.availableActions.length > FILE_OPERATION_ACTIONS.length
+    || !value.availableActions.every((item) => {
+      if (!isRecord(item)
+        || !hasOnlyKeys(item, ['action', 'artifactId'])
+        || !FILE_OPERATION_ACTIONS.includes(
+          String(item.action) as typeof FILE_OPERATION_ACTIONS[number],
+        )) return false;
+      return item.action === 'repeat'
+        ? item.artifactId === undefined
+        : isFileOperationId(item.artifactId);
+    })) return false;
+  return new Set(value.availableActions.map((item) => (item as { action: unknown }).action)).size
+    === value.availableActions.length;
+};
+
 const isTemplateOperationError = (value: unknown): boolean =>
   isRecord(value)
   && hasOnlyKeys(value, ['code', 'message'])
@@ -137,25 +315,62 @@ const isTemplateCatalogDiagnosticView = (value: unknown): boolean =>
   && ['retry', 'fix-source', 'resolve-duplicate', 'none'].includes(String(value.recovery));
 
 const isFileOperationError = (value: unknown): boolean =>
-  isRecord(value) && hasString(value, 'code') && hasString(value, 'message')
+  isRecord(value)
+  && hasOnlyKeys(value, ['code', 'message', 'retryable'])
+  && isSafeFileOperationText(value.code, 80)
+  && isSafeFileOperationText(value.message, 500)
   && typeof value.retryable === 'boolean';
 
 const isFileOperationState = (value: unknown): boolean => {
   if (!isRecord(value) || typeof value.phase !== 'string') return false;
   switch (value.phase) {
     case 'idle':
-      return true;
+      return hasOnlyKeys(value, ['phase']);
+    case 'preflighting':
+      return hasOnlyKeys(value, ['phase', 'requestId', 'intent', 'stage'])
+        && isFileOperationId(value.requestId)
+        && isFileOperationIntent(value.intent)
+        && isSafeFileOperationText(value.stage, 500);
+    case 'awaiting-confirmation':
+      return hasOnlyKeys(value, ['phase', 'requestId', 'intent', 'plan'])
+        && isFileOperationId(value.requestId)
+        && isFileOperationIntent(value.intent)
+        && isFileOperationPlanView(value.plan)
+        && isRecord(value.intent)
+        && isRecord(value.plan)
+        && isRecord(value.plan.intent)
+        && value.intent.kind === value.plan.intent.kind
+        && value.intent.format === value.plan.intent.format;
     case 'running':
-      return hasString(value, 'requestId')
-        && (value.kind === 'export' || value.kind === 'import')
-        && hasString(value, 'format') && hasString(value, 'stage');
+      if (!hasOnlyKeys(value, [
+        'phase', 'requestId', 'kind', 'format', 'stage', 'intent', 'planId',
+      ])
+        || !isFileOperationId(value.requestId)) return false;
+      if (value.kind !== 'export' && value.kind !== 'import') return false;
+      if (!isSafeFileOperationText(value.format, 40)
+        || !isSafeFileOperationText(value.stage, 500)) return false;
+      if (value.intent === undefined) return value.planId === undefined;
+      return isFileOperationIntent(value.intent)
+        && (value.planId === undefined || isFileOperationId(value.planId))
+        && isRecord(value.intent)
+        && value.intent.kind === value.kind
+        && value.intent.format === value.format;
     case 'succeeded':
-      return hasString(value, 'requestId')
-        && (value.result === 'completed' || value.result === 'fallback');
+      return hasOnlyKeys(value, ['phase', 'requestId', 'result', 'intent', 'details'])
+        && isFileOperationId(value.requestId)
+        && (value.result === 'completed' || value.result === 'fallback')
+        && (value.intent === undefined || isFileOperationIntent(value.intent))
+        && (value.details === undefined || (isFileOperationResult(value.details)
+          && isRecord(value.details) && value.details.outcome === value.result));
     case 'failed':
-      return hasString(value, 'requestId') && isFileOperationError(value.error);
+      return hasOnlyKeys(value, ['phase', 'requestId', 'error', 'intent'])
+        && isFileOperationId(value.requestId)
+        && isFileOperationError(value.error)
+        && (value.intent === undefined || isFileOperationIntent(value.intent));
     case 'cancelled':
-      return hasString(value, 'requestId');
+      return hasOnlyKeys(value, ['phase', 'requestId', 'intent'])
+        && isFileOperationId(value.requestId)
+        && (value.intent === undefined || isFileOperationIntent(value.intent));
     default:
       return false;
   }
@@ -235,6 +450,42 @@ export function isEditorToHostMessage(value: unknown): value is EditorToHostMess
         && hasString(value, 'sessionId')
         && hasString(value, 'documentId')
         && ['html', 'adoc', 'markdown', 'pdf', 'slides'].includes(String(value.format));
+    case 'fileOperationPrepare':
+      return hasOnlyKeys(value, [
+        'type', 'requestId', 'sessionId', 'documentId', 'baseRevision', 'intent',
+      ])
+        && hasFileOperationRequestIdentity(value)
+        && isNonNegativeInteger(value.baseRevision)
+        && isFileOperationIntent(value.intent);
+    case 'fileOperationExecute':
+      return hasOnlyKeys(value, ['type', 'requestId', 'sessionId', 'documentId', 'planId'])
+        && hasFileOperationRequestIdentity(value)
+        && isFileOperationId(value.planId);
+    case 'fileOperationCancel':
+      return hasOnlyKeys(value, ['type', 'requestId', 'sessionId', 'documentId', 'planId'])
+        && hasFileOperationRequestIdentity(value)
+        && (value.planId === undefined || isFileOperationId(value.planId));
+    case 'fileOperationRetry':
+      return hasOnlyKeys(value, [
+        'type', 'requestId', 'sessionId', 'documentId', 'previousRequestId',
+      ])
+        && hasFileOperationRequestIdentity(value)
+        && isFileOperationId(value.previousRequestId)
+        && value.previousRequestId !== value.requestId;
+    case 'fileOperationResultAction': {
+      if (!hasOnlyKeys(value, [
+        'type', 'requestId', 'actionRequestId', 'sessionId', 'documentId', 'action', 'artifactId',
+      ])
+        || !hasFileOperationRequestIdentity(value)
+        || !isFileOperationId(value.actionRequestId)
+        || value.actionRequestId === value.requestId
+        || !FILE_OPERATION_ACTIONS.includes(
+          String(value.action) as typeof FILE_OPERATION_ACTIONS[number],
+        )) return false;
+      return value.action === 'repeat'
+        ? value.artifactId === undefined
+        : isFileOperationId(value.artifactId);
+    }
     case 'importMarkdown':
     case 'importHtml':
       return hasString(value, 'requestId')
@@ -347,7 +598,10 @@ export function isHostToEditorMessage(value: unknown): value is HostToEditorMess
     case 'importContent':
       return hasString(value, 'requestId') && hasString(value, 'sessionId')
         && hasString(value, 'documentId')
-        && isRecord(value.content) && value.content.type === 'doc';
+        && isRecord(value.content) && value.content.type === 'doc'
+        && (value.confirmation === undefined || value.confirmation === 'preflight-confirmed');
+    case 'showFileOperation':
+      return value.tab === 'export' || value.tab === 'import';
     case 'settingsChanged':
       return isRecord(value.settings);
     case 'uiLanguageChanged':
@@ -362,7 +616,8 @@ export function isHostToEditorMessage(value: unknown): value is HostToEditorMess
       return isRecord(value.meta);
     case 'importHtml':
       return hasString(value, 'requestId') && hasString(value, 'sessionId')
-        && hasString(value, 'documentId') && hasString(value, 'html');
+        && hasString(value, 'documentId') && hasString(value, 'html')
+        && (value.confirmation === undefined || value.confirmation === 'preflight-confirmed');
     case 'imageSaved':
       return hasString(value, 'imagePath') && hasString(value, 'webviewUri') && hasString(value, 'imageName');
     case 'drawioCreated':
@@ -375,7 +630,30 @@ export function isHostToEditorMessage(value: unknown): value is HostToEditorMess
       return hasString(value, 'documentId') && hasNumber(value, 'generation')
         && hasString(value, 'relativePath') && hasString(value, 'newWebviewUri');
     case 'fileOperationStatus':
-      return hasString(value, 'sessionId') && isFileOperationState(value.state);
+      return isFileOperationId(value.sessionId)
+        && (value.documentId === undefined || isFileOperationDocumentId(value.documentId))
+        && isFileOperationState(value.state);
+    case 'fileOperationResultActionStatus':
+      return hasOnlyKeys(value, [
+        'type', 'requestId', 'actionRequestId', 'sessionId', 'documentId',
+        'action', 'status', 'error',
+      ])
+        && hasFileOperationRequestIdentity(value)
+        && isFileOperationId(value.actionRequestId)
+        && value.actionRequestId !== value.requestId
+        && FILE_OPERATION_ACTIONS.includes(
+          String(value.action) as typeof FILE_OPERATION_ACTIONS[number],
+        )
+        && (value.status === 'completed' || value.status === 'failed')
+        && (value.status === 'failed'
+          ? isFileOperationError(value.error)
+          : value.error === undefined);
+    case 'fileOperationPreflight':
+      return hasOnlyKeys(value, [
+        'type', 'requestId', 'sessionId', 'documentId', 'plan',
+      ])
+        && hasFileOperationRequestIdentity(value)
+        && isFileOperationPlanView(value.plan);
     case 'diagramRenderResult':
       if (!hasString(value, 'requestId') || !isRecord(value.result)) return false;
       if (value.result.status === 'ready') {

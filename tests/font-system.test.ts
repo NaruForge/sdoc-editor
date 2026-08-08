@@ -37,11 +37,13 @@ describe('bundled editor font system', () => {
   });
 
   it('uses the bundled font system in the VS Code book editor', () => {
-    const source = read('src/SdocBookProvider.ts');
+    const provider = read('src/SdocBookProvider.ts');
+    const entry = read('webview-ui/src/bookMain.tsx');
+    const css = read('shared/editor/styles/bookEditor.css');
 
-    expect(source).toContain("font-src ${webview.cspSource}");
-    expect(source).toContain("'PretendardVariable.woff2'");
-    expect(source).toContain("'JetBrainsMono-Variable.woff2'");
-    expect(source).toContain('font-family: var(--sdoc-font-mono)');
+    expect(provider).toContain("font-src ${webview.cspSource}");
+    expect(provider).toContain('generateFontFaceCSS(webview, this.context.extensionUri)');
+    expect(entry.indexOf("styles/fonts.css")).toBeLessThan(entry.indexOf("styles/editor.css"));
+    expect(css).toContain('font-family: var(--sdoc-font-mono)');
   });
 });

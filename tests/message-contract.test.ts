@@ -1,7 +1,119 @@
 import { describe, expect, it } from 'vitest';
 import { isEditorToHostMessage, isHostToEditorMessage } from '../shared/types/messageGuards';
+import {
+  applyImportedContentWithRollback,
+  reduceStandaloneFileOperationHostMessage,
+  requiresLegacyImportConfirmation,
+} from '../webview-ui/src/hooks/useEditorMessages';
+import {
+  createFileOperationControllerState,
+} from '../shared/editor/fileOperations';
 
 describe('editor host message boundary', () => {
+  it('adopts a host-initiated Palette preflight from idle through confirmation', () => {
+    const identity = {
+      sessionId: 'session-1',
+      documentId: 'file:///c%3A/workspace/report.sdoc',
+    };
+    const intent = { kind: 'export' as const, format: 'html' as const };
+    const preparing = reduceStandaloneFileOperationHostMessage(
+      createFileOperationControllerState(identity.sessionId),
+      {
+        type: 'fileOperationStatus',
+        ...identity,
+        state: {
+          phase: 'preflighting', requestId: 'palette-1', intent,
+          stage: 'Preparing immutable export snapshot…',
+        },
+      },
+      identity,
+    );
+    expect(preparing.operationState).toMatchObject({
+      phase: 'preflighting', requestId: 'palette-1', intent,
+    });
+
+    const awaiting = reduceStandaloneFileOperationHostMessage(preparing, {
+      type: 'fileOperationPreflight',
+      ...identity,
+      requestId: 'palette-1',
+      plan: {
+        planId: 'plan-1', intent,
+        source: { displayName: 'report.sdoc', sizeBytes: 10, revision: 2 },
+        destination: { displayName: 'report.html', exists: false },
+        warnings: [], requiresConfirmation: true,
+      },
+    }, identity);
+    expect(awaiting.operationState).toMatchObject({
+      phase: 'awaiting-confirmation', requestId: 'palette-1',
+      plan: { planId: 'plan-1' },
+    });
+
+    const undoRunning = reduceStandaloneFileOperationHostMessage(awaiting, {
+      type: 'fileOperationStatus',
+      ...identity,
+      state: {
+        phase: 'running', requestId: 'undo-1',
+        kind: 'import', format: 'markdown',
+        intent: { kind: 'import', format: 'markdown' },
+        stage: 'Restoring previous body…',
+      },
+    }, identity);
+    expect(undoRunning.operationState).toMatchObject({
+      phase: 'running', requestId: 'undo-1', kind: 'import',
+    });
+  });
+
+  it('rolls back the local import checkpoint before reporting an ACK failure', async () => {
+    const before = { type: 'doc' as const, content: [{ type: 'paragraph' as const }] };
+    const imported = { type: 'doc' as const, content: [{ type: 'heading' as const }] };
+    const replacements: unknown[] = [];
+    const order: string[] = [];
+
+    const applied = await applyImportedContentWithRollback({
+      content: imported,
+      checkpoint: before,
+      replace: (content) => { replacements.push(content); return true; },
+      flush: () => { order.push('flush'); },
+      afterAcknowledged: async () => { throw new Error('write rejected'); },
+      restoreSyncCheckpoint: () => { order.push('restore-sync'); },
+      reportApplied: async (value) => { order.push(`report:${String(value)}`); },
+    });
+
+    expect(applied).toBe(false);
+    expect(replacements).toEqual([imported, before]);
+    expect(order).toEqual(['flush', 'restore-sync', 'report:false']);
+  });
+
+  it('does not ask for a second import confirmation after common preflight', () => {
+    const base = {
+      type: 'importContent' as const,
+      requestId: 'request-1',
+      sessionId: 'session-1',
+      documentId: 'doc-a',
+      content: { type: 'doc' as const, content: [] },
+    };
+    expect(requiresLegacyImportConfirmation(base)).toBe(true);
+    expect(requiresLegacyImportConfirmation({
+      ...base,
+      confirmation: 'preflight-confirmed',
+    })).toBe(false);
+  });
+
+  it('accepts a host-authorized import checkpoint restore without a preflight plan id', () => {
+    expect(isHostToEditorMessage({
+      type: 'fileOperationStatus',
+      sessionId: 'session-1',
+      documentId: 'file:///c%3A/workspace/report.sdoc',
+      state: {
+        phase: 'running',
+        requestId: 'undo-1',
+        kind: 'import',
+        format: 'markdown',
+        intent: { kind: 'import', format: 'markdown' },
+        stage: 'Restoring previous body…',
+      },
+    })).toBe(true);
+  });
   it('accepts only supported UI language preferences and resolved locales', () => {
     expect(isEditorToHostMessage({
       type: 'updateUiLanguage',
@@ -304,6 +416,184 @@ describe('editor host message boundary', () => {
       requestId: 'consent-2',
       result: { status: 'error', message: 'Could not save.' },
     })).toBe(true);
+  });
+
+  it('validates the preflight file-operation protocol without exposing host paths', () => {
+    const identity = {
+      requestId: 'operation-1',
+      sessionId: 'session-1',
+      documentId: 'doc-a',
+    };
+    const intent = { kind: 'export', format: 'html' };
+    const plan = {
+      planId: 'plan-1',
+      intent,
+      source: { displayName: 'report.sdoc', sizeBytes: 512, revision: 7 },
+      destination: {
+        displayName: 'Workspace · ./dist/report.html',
+        exists: true,
+        scope: 'workspace',
+        relativePath: './dist/report.html',
+      },
+      effectiveSettings: {
+        fingerprint: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        items: [{ key: 'captionStyle', value: 'modern', source: 'document' }],
+      },
+      diagram: { failurePolicy: 'source-fallback', fallbackCount: 0 },
+      warnings: ['The destination will be replaced.'],
+      requiresConfirmation: true,
+    };
+
+    expect(isEditorToHostMessage({
+      type: 'fileOperationPrepare',
+      ...identity,
+      baseRevision: 7,
+      intent,
+    })).toBe(true);
+    expect(isHostToEditorMessage({
+      type: 'fileOperationPreflight',
+      ...identity,
+      plan,
+    })).toBe(true);
+    expect(isEditorToHostMessage({
+      type: 'fileOperationExecute',
+      ...identity,
+      planId: 'plan-1',
+    })).toBe(true);
+    expect(isEditorToHostMessage({
+      type: 'fileOperationCancel',
+      ...identity,
+      planId: 'plan-1',
+    })).toBe(true);
+    expect(isEditorToHostMessage({
+      type: 'fileOperationRetry',
+      ...identity,
+      previousRequestId: 'operation-0',
+    })).toBe(true);
+    expect(isEditorToHostMessage({
+      type: 'fileOperationResultAction',
+      ...identity,
+      actionRequestId: 'action-open-1',
+      action: 'open',
+      artifactId: 'artifact-1',
+    })).toBe(true);
+    expect(isEditorToHostMessage({
+      type: 'fileOperationResultAction',
+      ...identity,
+      actionRequestId: 'action-repeat-1',
+      action: 'repeat',
+    })).toBe(true);
+    expect(isHostToEditorMessage({
+      type: 'fileOperationResultActionStatus',
+      ...identity,
+      actionRequestId: 'action-open-1',
+      action: 'open',
+      status: 'completed',
+    })).toBe(true);
+    expect(isHostToEditorMessage({
+      type: 'fileOperationStatus',
+      sessionId: 'session-1',
+      documentId: 'doc-a',
+      state: {
+        phase: 'awaiting-confirmation',
+        requestId: 'operation-1',
+        intent,
+        plan,
+      },
+    })).toBe(true);
+    expect(isHostToEditorMessage({
+      type: 'fileOperationStatus',
+      sessionId: 'session-1',
+      documentId: 'doc-a',
+      state: {
+        phase: 'succeeded',
+        requestId: 'operation-1',
+        result: 'completed',
+        intent,
+        details: {
+          outcome: 'completed',
+          artifact: {
+            artifactId: 'artifact-1',
+            displayName: 'report.html',
+            sizeBytes: 1024,
+          },
+          warnings: [],
+          availableActions: [
+            { action: 'open', artifactId: 'artifact-1' },
+            { action: 'repeat' },
+          ],
+        },
+      },
+    })).toBe(true);
+
+    expect(isEditorToHostMessage({
+      type: 'fileOperationPrepare',
+      ...identity,
+      requestId: 'x'.repeat(129),
+      baseRevision: 7,
+      intent,
+    })).toBe(false);
+    expect(isHostToEditorMessage({ type: 'showFileOperation', tab: 'export' })).toBe(true);
+    expect(isHostToEditorMessage({ type: 'showFileOperation', tab: 'settings' })).toBe(false);
+    expect(isHostToEditorMessage({
+      type: 'importContent',
+      requestId: 'import-1', sessionId: 'session-1', documentId: 'doc-a',
+      confirmation: 'preflight-confirmed',
+      content: { type: 'doc', content: [] },
+    })).toBe(true);
+    expect(isHostToEditorMessage({
+      type: 'importHtml',
+      requestId: 'import-1', sessionId: 'session-1', documentId: 'doc-a',
+      confirmation: 'untrusted', html: '<p>body</p>',
+    })).toBe(false);
+    expect(isEditorToHostMessage({
+      type: 'fileOperationPrepare',
+      ...identity,
+      baseRevision: 7,
+      intent: { kind: 'export', format: 'exe' },
+    })).toBe(false);
+    expect(isHostToEditorMessage({
+      type: 'fileOperationPreflight',
+      ...identity,
+      plan: {
+        ...plan,
+        destination: { displayName: 'C:\\Users\\person\\report.html', exists: true },
+      },
+    })).toBe(false);
+    expect(isHostToEditorMessage({
+      type: 'fileOperationPreflight',
+      ...identity,
+      plan: { ...plan, warnings: Array.from({ length: 101 }, () => 'warning') },
+    })).toBe(false);
+    expect(isEditorToHostMessage({
+      type: 'fileOperationExecute',
+      ...identity,
+      planId: '../plan-1',
+    })).toBe(false);
+    expect(isEditorToHostMessage({
+      type: 'fileOperationResultAction',
+      ...identity,
+      actionRequestId: 'action-open-1',
+      action: 'open',
+    })).toBe(false);
+    expect(isEditorToHostMessage({
+      type: 'fileOperationResultAction',
+      ...identity,
+      actionRequestId: 'action-repeat-1',
+      action: 'repeat',
+      artifactId: 'artifact-1',
+    })).toBe(false);
+    expect(isEditorToHostMessage({
+      type: 'fileOperationResultAction',
+      ...identity,
+      actionRequestId: identity.requestId,
+      action: 'repeat',
+    })).toBe(false);
+    expect(isEditorToHostMessage({
+      type: 'fileOperationResultAction',
+      ...identity,
+      action: 'repeat',
+    })).toBe(false);
   });
 
   it('requires validated metadata on personal template writes', () => {

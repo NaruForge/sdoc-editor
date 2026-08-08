@@ -1,4 +1,109 @@
+import type { DocumentSettingKey, DocumentSettingSource } from '../types';
+
 export type FileOperationKind = 'export' | 'import';
+
+export type FileExportFormat = 'html' | 'adoc' | 'markdown' | 'pdf' | 'slides';
+export type FileImportFormat = 'html' | 'markdown';
+export type FileOperationFormat = FileExportFormat | FileImportFormat;
+export type FileOperationPhase =
+  | 'idle'
+  | 'preflighting'
+  | 'awaiting-confirmation'
+  | 'running'
+  | 'succeeded'
+  | 'failed'
+  | 'cancelled';
+
+/** Opaque, session-scoped identifiers. Consumers must not parse these values. */
+export type FileOperationRequestId = string;
+export type FileOperationPlanId = string;
+export type FileOperationArtifactId = string;
+
+export type FileOperationIntent =
+  | { kind: 'export'; format: FileExportFormat }
+  | { kind: 'import'; format: FileImportFormat };
+
+export interface FileOperationPlanSourceView {
+  displayName: string;
+  sizeBytes: number;
+  /** Current document revision when the source is an open editor buffer. */
+  revision?: number;
+}
+
+export interface FileOperationPlanDestinationView {
+  displayName: string;
+  exists: boolean;
+  /** Host-verified portable scope; never inferred from displayName in the webview. */
+  scope?: 'document' | 'workspace' | 'book';
+  /** Portable path relative to the verified scope root. */
+  relativePath?: string;
+}
+
+export type SettingsValueSource = DocumentSettingSource;
+
+export interface FileOperationEffectiveSettingsView {
+  fingerprint: string;
+  items: readonly {
+    key: DocumentSettingKey;
+    value: string;
+    source: SettingsValueSource;
+  }[];
+}
+
+export interface FileOperationDiagramView {
+  failurePolicy: 'fail' | 'source-fallback';
+  fallbackCount: number;
+}
+
+export interface FileOperationOutlineItemView {
+  level: number;
+  title: string;
+}
+
+export interface FileOperationImportPreview {
+  outline: readonly FileOperationOutlineItemView[];
+  topLevelBlockCount: number;
+  replacement: 'body-only';
+  preserved: readonly ['metadata', 'settings'];
+}
+
+/**
+ * A deliberately limited, path-free view of a host-owned immutable plan.
+ * `planId` is the only capability the editor sends back for execution.
+ */
+export interface FileOperationPlanView {
+  planId: FileOperationPlanId;
+  intent: FileOperationIntent;
+  source: FileOperationPlanSourceView;
+  destination?: FileOperationPlanDestinationView;
+  importPreview?: FileOperationImportPreview;
+  effectiveSettings?: FileOperationEffectiveSettingsView;
+  diagram?: FileOperationDiagramView;
+  warnings: readonly string[];
+  requiresConfirmation: boolean;
+}
+
+export interface FileOperationArtifactView {
+  artifactId: FileOperationArtifactId;
+  displayName: string;
+  sizeBytes: number;
+}
+
+export type FileOperationResultAction = 'open' | 'reveal' | 'copy' | 'repeat' | 'undo';
+
+export type FileOperationResultActionView =
+  | { action: 'repeat' }
+  | {
+    action: Exclude<FileOperationResultAction, 'repeat'>;
+    artifactId: FileOperationArtifactId;
+  };
+
+export interface FileOperationResult {
+  outcome: 'completed' | 'fallback';
+  artifact?: FileOperationArtifactView;
+  warnings: readonly string[];
+  availableActions: readonly FileOperationResultActionView[];
+}
 
 export interface FileOperationError {
   code: string;
@@ -9,25 +114,44 @@ export interface FileOperationError {
 export type FileOperationState =
   | { phase: 'idle' }
   | {
-    phase: 'running';
-    requestId: string;
-    kind: FileOperationKind;
-    format: string;
+    phase: 'preflighting';
+    requestId: FileOperationRequestId;
+    intent: FileOperationIntent;
     stage: string;
   }
   | {
+    phase: 'awaiting-confirmation';
+    requestId: FileOperationRequestId;
+    intent: FileOperationIntent;
+    plan: FileOperationPlanView;
+  }
+  | {
+    phase: 'running';
+    requestId: FileOperationRequestId;
+    kind: FileOperationKind;
+    format: string;
+    stage: string;
+    /** Present for preflight-based operations; omitted by the legacy direct-start flow. */
+    intent?: FileOperationIntent;
+    planId?: FileOperationPlanId;
+  }
+  | {
     phase: 'succeeded';
-    requestId: string;
+    requestId: FileOperationRequestId;
     result: 'completed' | 'fallback';
+    intent?: FileOperationIntent;
+    details?: FileOperationResult;
   }
   | {
     phase: 'failed';
-    requestId: string;
+    requestId: FileOperationRequestId;
     error: FileOperationError;
+    intent?: FileOperationIntent;
   }
   | {
     phase: 'cancelled';
-    requestId: string;
+    requestId: FileOperationRequestId;
+    intent?: FileOperationIntent;
   };
 
 export const FILE_OPERATION_IDLE_STATE: FileOperationState = { phase: 'idle' };
@@ -37,38 +161,60 @@ export interface FileOperationControllerState {
   operationState: FileOperationState;
 }
 
+interface FileOperationEventIdentity {
+  sessionId: string;
+  requestId: FileOperationRequestId;
+}
+
 export type FileOperationEvent =
-  | {
+  | (FileOperationEventIdentity & {
+    type: 'prepare';
+    intent: FileOperationIntent;
+    stage: string;
+  })
+  | (FileOperationEventIdentity & {
+    type: 'preflight';
+    plan: FileOperationPlanView;
+  })
+  | (FileOperationEventIdentity & {
+    type: 'execute';
+    planId: FileOperationPlanId;
+    stage: string;
+  })
+  | (FileOperationEventIdentity & {
+    type: 'cancel';
+  })
+  | (FileOperationEventIdentity & {
+    type: 'retry';
+    previousRequestId: FileOperationRequestId;
+    stage: string;
+  })
+  | (FileOperationEventIdentity & {
     type: 'start';
-    sessionId: string;
-    requestId: string;
     kind: FileOperationKind;
     format: string;
     stage: string;
-  }
-  | {
+  })
+  | (FileOperationEventIdentity & {
     type: 'progress';
-    sessionId: string;
-    requestId: string;
     stage: string;
-  }
-  | {
+  })
+  | (FileOperationEventIdentity & {
     type: 'succeeded';
-    sessionId: string;
-    requestId: string;
     result: 'completed' | 'fallback';
-  }
-  | {
+    details?: FileOperationResult;
+  })
+  | (FileOperationEventIdentity & {
     type: 'failed';
-    sessionId: string;
-    requestId: string;
     error: FileOperationError;
-  }
-  | {
+  })
+  | (FileOperationEventIdentity & {
+    type: 'result-action-failed';
+    error: FileOperationError;
+  })
+  | (FileOperationEventIdentity & {
     type: 'cancelled';
-    sessionId: string;
-    requestId: string;
-  }
+  })
   | {
     type: 'session-changed';
     sessionId: string;
@@ -143,26 +289,45 @@ export function isFileOperationRunning(state: FileOperationState): boolean {
   return state.phase === 'running';
 }
 
-function matchesRunningRequest(
+export function isFileOperationActive(state: FileOperationState): boolean {
+  return state.phase === 'preflighting'
+    || state.phase === 'awaiting-confirmation'
+    || state.phase === 'running';
+}
+
+function getIntent(state: FileOperationState): FileOperationIntent | undefined {
+  return state.phase === 'idle' ? undefined : state.intent;
+}
+
+function hasMatchingRequest(
   state: FileOperationControllerState,
-  event: { sessionId: string; requestId: string },
-): state is FileOperationControllerState & {
-  operationState: Extract<FileOperationState, { phase: 'running' }>;
-} {
+  event: FileOperationEventIdentity,
+): boolean {
   return state.sessionId === event.sessionId
-    && state.operationState.phase === 'running'
+    && state.operationState.phase !== 'idle'
     && state.operationState.requestId === event.requestId;
 }
 
+function withIntent<T extends object>(
+  value: T,
+  intent: FileOperationIntent | undefined,
+): T & { intent?: FileOperationIntent } {
+  return intent === undefined ? value : { ...value, intent };
+}
+
+function intentsEqual(left: FileOperationIntent, right: FileOperationIntent): boolean {
+  return left.kind === right.kind && left.format === right.format;
+}
+
 /**
- * Attempts to begin an operation without dispatching it. Hosts should invoke
- * their callback only when `accepted` is true.
+ * Attempts to begin the legacy direct-start flow without dispatching it. New
+ * consumers should dispatch `prepare`; this wrapper remains for compatibility.
  */
 export function tryStartFileOperation(
   state: FileOperationControllerState,
   request: FileOperationStart,
 ): FileOperationStartResult {
-  if (state.sessionId !== request.sessionId || isFileOperationRunning(state.operationState)) {
+  if (state.sessionId !== request.sessionId || isFileOperationActive(state.operationState)) {
     return { accepted: false, state };
   }
   return {
@@ -181,8 +346,9 @@ export function tryStartFileOperation(
 }
 
 /**
- * Pure request-correlated reducer. Results from an older request or document
- * session are returned unchanged, so they cannot overwrite current UI state.
+ * Pure session/request/plan-correlated reducer. Stale host results and stale
+ * plan capabilities are ignored, and retry derives its intent from the prior
+ * terminal state instead of accepting a replacement from the caller.
  */
 export function fileOperationReducer(
   state: FileOperationControllerState,
@@ -199,39 +365,121 @@ export function fileOperationReducer(
   if (event.type === 'start') {
     return tryStartFileOperation(state, event).state;
   }
-  if (!matchesRunningRequest(state, event)) return state;
+  if (event.type === 'prepare') {
+    if (state.sessionId !== event.sessionId || isFileOperationActive(state.operationState)) {
+      return state;
+    }
+    return {
+      ...state,
+      operationState: {
+        phase: 'preflighting',
+        requestId: event.requestId,
+        intent: event.intent,
+        stage: event.stage,
+      },
+    };
+  }
+  if (event.type === 'retry') {
+    const intent = getIntent(state.operationState);
+    if (state.sessionId !== event.sessionId
+      || (state.operationState.phase !== 'failed' && state.operationState.phase !== 'cancelled')
+      || state.operationState.requestId !== event.previousRequestId
+      || intent === undefined) {
+      return state;
+    }
+    return {
+      ...state,
+      operationState: {
+        phase: 'preflighting',
+        requestId: event.requestId,
+        intent,
+        stage: event.stage,
+      },
+    };
+  }
+  if (!hasMatchingRequest(state, event)) return state;
 
+  if (event.type === 'result-action-failed') {
+    if (state.operationState.phase !== 'succeeded' || !state.operationState.details) return state;
+    const warnings = state.operationState.details.warnings.includes(event.error.message)
+      ? state.operationState.details.warnings
+      : [...state.operationState.details.warnings, event.error.message];
+    return {
+      ...state,
+      operationState: {
+        ...state.operationState,
+        details: { ...state.operationState.details, warnings },
+      },
+    };
+  }
+
+  if (event.type === 'preflight') {
+    if (state.operationState.phase !== 'preflighting'
+      || !intentsEqual(state.operationState.intent, event.plan.intent)) return state;
+    return {
+      ...state,
+      operationState: {
+        phase: 'awaiting-confirmation',
+        requestId: event.requestId,
+        intent: state.operationState.intent,
+        plan: event.plan,
+      },
+    };
+  }
+  if (event.type === 'execute') {
+    if (state.operationState.phase !== 'awaiting-confirmation'
+      || state.operationState.plan.planId !== event.planId) return state;
+    return {
+      ...state,
+      operationState: {
+        phase: 'running',
+        requestId: event.requestId,
+        kind: state.operationState.intent.kind,
+        format: state.operationState.intent.format,
+        intent: state.operationState.intent,
+        planId: event.planId,
+        stage: event.stage,
+      },
+    };
+  }
   if (event.type === 'progress') {
+    if (state.operationState.phase !== 'running') return state;
     return {
       ...state,
       operationState: { ...state.operationState, stage: event.stage },
     };
   }
-  if (event.type === 'succeeded') {
+  if (event.type === 'cancel' || event.type === 'cancelled') {
+    if (!isFileOperationActive(state.operationState)) return state;
     return {
       ...state,
-      operationState: {
-        phase: 'succeeded',
+      operationState: withIntent({
+        phase: 'cancelled' as const,
         requestId: event.requestId,
-        result: event.result,
-      },
+      }, getIntent(state.operationState)),
     };
+  }
+  if (event.type === 'succeeded') {
+    if (!isFileOperationActive(state.operationState)
+      || (event.details !== undefined && event.details.outcome !== event.result)) return state;
+    const operationState = withIntent({
+      phase: 'succeeded' as const,
+      requestId: event.requestId,
+      result: event.result,
+      ...(event.details === undefined ? {} : { details: event.details }),
+    }, getIntent(state.operationState));
+    return { ...state, operationState };
   }
   if (event.type === 'failed') {
+    if (!isFileOperationActive(state.operationState)) return state;
     return {
       ...state,
-      operationState: {
-        phase: 'failed',
+      operationState: withIntent({
+        phase: 'failed' as const,
         requestId: event.requestId,
         error: event.error,
-      },
+      }, getIntent(state.operationState)),
     };
   }
-  return {
-    ...state,
-    operationState: {
-      phase: 'cancelled',
-      requestId: event.requestId,
-    },
-  };
+  return state;
 }

@@ -15,6 +15,10 @@ export default defineConfig({
     outDir: '../dist/webview',
     emptyOutDir: true,
     rollupOptions: {
+      input: {
+        index: resolve(__dirname, 'index.html'),
+        book: resolve(__dirname, 'book.html'),
+      },
       output: {
         entryFileNames: 'assets/[name].js',
         chunkFileNames: 'assets/[name].js',

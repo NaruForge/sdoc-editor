@@ -12,7 +12,11 @@ import { SidePanelBody } from '@shared/editor/components/SidePanelBody';
 import { DiagramRendererSettingsPanel } from '@shared/editor/components/DiagramRendererSettingsPanel';
 import { DiagramRendererConsentPanel } from '@shared/editor/components/DiagramRendererConsentPanel';
 import type { SidePanelSelection } from '@shared/editor/activityState';
-import type { FileOperationKind, FileOperationState } from '@shared/editor/fileOperations';
+import type {
+  FileOperationKind,
+  FileOperationResultAction,
+  FileOperationState,
+} from '@shared/editor/fileOperations';
 import type {
   FileExportFormat,
   FileImportFormat,
@@ -25,6 +29,7 @@ import type {
   DiagramRendererSettings,
   ResolvedDiagramRendererConsent,
 } from '@shared/diagramRenderer';
+import { useEditorContext } from '@shared/editor/context/EditorContext';
 
 interface SidePanelProps {
   selection: SidePanelSelection;
@@ -45,6 +50,10 @@ interface SidePanelProps {
     kind: FileOperationKind,
     format: FileExportFormat | FileImportFormat,
   ) => void;
+  onFileOperationConfirm: (planId: string) => void;
+  onFileOperationCancel: () => void;
+  onFileOperationRetry: () => void;
+  onFileOperationResultAction: (action: FileOperationResultAction, artifactId?: string) => void;
   fileOperationState: FileOperationState;
   diagramRendererSettings: DiagramRendererSettings;
   onDiagramRendererSettingsChange: (settings: DiagramRendererSettings) => void;
@@ -84,9 +93,7 @@ export const SidePanel: React.FC<SidePanelProps> = ({
   returnFocusRef,
   editor,
   settings,
-  showNumbering,
   onToggleNumbering,
-  showDecoration,
   onToggleDecoration,
   uiLanguagePreference,
   onUiLanguagePreferenceChange,
@@ -94,6 +101,10 @@ export const SidePanel: React.FC<SidePanelProps> = ({
   onPostMessage,
   onViewJson,
   onFileOperation,
+  onFileOperationConfirm,
+  onFileOperationCancel,
+  onFileOperationRetry,
+  onFileOperationResultAction,
   fileOperationState,
   diagramRendererSettings,
   onDiagramRendererSettingsChange,
@@ -114,6 +125,13 @@ export const SidePanel: React.FC<SidePanelProps> = ({
   onClose,
 }) => {
   const { t } = useEditorI18n();
+  const {
+    state: designState,
+    dispatch: dispatchEditorState,
+    retrySettingsSync,
+  } = useEditorContext();
+  const effectiveShowNumbering = designState.settings.headingNumbering;
+  const effectiveShowDecoration = designState.settings.headingDecoration;
   const title = selection.destination === 'navigate'
     ? t('activity.navigate')
     : selection.destination === 'design'
@@ -131,7 +149,7 @@ export const SidePanel: React.FC<SidePanelProps> = ({
     >
       <SidePanelBody selection={selection} onSelectionChange={onSelectionChange}>
         {selection.destination === 'navigate' && selection.tab === 'toc' && (
-          <TableOfContents editor={editor} showNumbering={showNumbering} settings={settings} />
+          <TableOfContents editor={editor} showNumbering={effectiveShowNumbering} settings={settings} />
         )}
         {selection.destination === 'navigate' && selection.tab === 'figures' && (
           <ListOfFigures editor={editor} settings={settings} />
@@ -141,13 +159,23 @@ export const SidePanel: React.FC<SidePanelProps> = ({
         )}
         {selection.destination === 'design' && (
           <DesignPanel
-            showNumbering={showNumbering}
+            showNumbering={effectiveShowNumbering}
             onToggleNumbering={onToggleNumbering}
-            showDecoration={showDecoration}
+            showDecoration={effectiveShowDecoration}
             onToggleDecoration={onToggleDecoration}
             uiLanguagePreference={uiLanguagePreference}
             onUiLanguagePreferenceChange={onUiLanguagePreferenceChange}
             onUpdateDocSettings={onUpdateDocSettings}
+            adapter={{
+              settingsSnapshot: designState.settingsSnapshot,
+              viewPreferences: designState.viewPreferences,
+              onViewPreferencesChange: (preferences) => dispatchEditorState({
+                type: 'SET_VIEW_PREFERENCES',
+                payload: preferences,
+              }),
+              settingsSyncState: designState.settingsSyncState,
+              onRetrySettingsSync: retrySettingsSync,
+            }}
             onSelectCssFile={onPostMessage
               ? (target) => onPostMessage({ type: 'selectCssFile', target })
               : undefined}
@@ -189,6 +217,10 @@ export const SidePanel: React.FC<SidePanelProps> = ({
               importFormats={[]}
               operationState={fileOperationState}
               onStart={onFileOperation}
+              onConfirm={onFileOperationConfirm}
+              onCancel={onFileOperationCancel}
+              onRetry={onFileOperationRetry}
+              onResultAction={onFileOperationResultAction}
               onViewJson={onViewJson}
             />
           </>
@@ -199,6 +231,10 @@ export const SidePanel: React.FC<SidePanelProps> = ({
             importFormats={IMPORT_FORMATS}
             operationState={fileOperationState}
             onStart={onFileOperation}
+            onConfirm={onFileOperationConfirm}
+            onCancel={onFileOperationCancel}
+            onRetry={onFileOperationRetry}
+            onResultAction={onFileOperationResultAction}
             onViewJson={onViewJson}
           />
         )}

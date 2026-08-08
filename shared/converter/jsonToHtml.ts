@@ -443,6 +443,26 @@ function generateHtmlDocument(bodyContent: string, theme?: HtmlTheme, meta?: Sdo
   const fontFamily = escapeStyleElementText(theme?.fontFamily || "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif");
   const customStyles = escapeStyleElementText(theme?.customStyles || '');
   const fw = theme?.fontWeights || { body: 400, bold: 700, h1: 700, h2: 600, h3: 600 };
+  const headingColor = (level: 1 | 2 | 3 | 4 | 5 | 6): string | undefined => {
+    const candidate = ctx?.settings[`headingH${level}Color`];
+    return typeof candidate === 'string'
+      && /^#(?:[0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(candidate)
+      ? candidate
+      : undefined;
+  };
+  const h1ProfileColor = headingColor(1) ?? primaryColor;
+  const headingDecoration = ctx?.settings.headingDecoration ?? true;
+  const headingDecorationCss = headingDecoration
+    ? `border-bottom: 2px solid ${h1ProfileColor};\n      padding-bottom: 0.3em;`
+    : 'border-bottom: none;\n      padding-bottom: 0;';
+  const headingNumberColorRules = ([1, 2, 3, 4, 5, 6] as const)
+    .flatMap((level) => {
+      const color = headingColor(level);
+      return color
+        ? [`h${level} { color: ${color}; }`, `h${level}::before { color: ${color}; }`]
+        : [];
+    })
+    .join('\n    ');
 
   // Generate @font-face rules if embeddedFonts are provided
   const fontFaceRules = (theme?.embeddedFonts || []).map(f => `
@@ -543,8 +563,7 @@ function generateHtmlDocument(bodyContent: string, theme?: HtmlTheme, meta?: Sdo
       margin-top: 1.5em;
       margin-bottom: 0.5em;
       color: ${primaryColor};
-      border-bottom: 2px solid ${primaryColor};
-      padding-bottom: 0.3em;
+      ${headingDecorationCss}
     }
 
     h1.document-title {
@@ -605,6 +624,8 @@ function generateHtmlDocument(bodyContent: string, theme?: HtmlTheme, meta?: Sdo
     h6::before {
       content: attr(data-number-label) ". ";
     }
+
+    ${headingNumberColorRules}
 
     /* Headings explicitly excluded from numbering (e.g. Introduction, Glossary, References) */
     h1[data-numbered="false"],

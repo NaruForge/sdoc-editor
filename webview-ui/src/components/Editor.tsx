@@ -59,6 +59,7 @@ import {
   type CapturedLinkSelection,
 } from '@shared/editor/linkEditing';
 import { resolveStructurePosition } from '@shared/editor/structureIndex';
+import { toSettingsSyncState } from '@shared/editor/designSettings';
 
 export function parseStoredZoom(value: string | null): number {
   if (!value) return 100;
@@ -68,11 +69,14 @@ export function parseStoredZoom(value: string | null): number {
 }
 
 export const Editor: React.FC = () => {
-  const { state, dispatch } = useEditorContext();
+  const {
+    state,
+    dispatch,
+    registerSettingsSyncRetry,
+  } = useEditorContext();
   const { t } = useEditorI18n();
   const translatorRef = useRef(t);
   translatorRef.current = t;
-  const [showNumbering, setShowNumbering] = useState(true);
   const [activityState, setActivityState] = useState(
     () => createActivitySessionState(null, { showTemplates: true }),
   );
@@ -111,8 +115,6 @@ export const Editor: React.FC = () => {
     const proseMirrorEl = document.querySelector('.ProseMirror') as HTMLElement;
     applyEditorSettingsCss(proseMirrorEl, document.documentElement, settings);
 
-    // Sync heading numbering toggle with settings
-    setShowNumbering(settings.headingNumbering);
   }, [settings]);
 
   // postMessageRef bridges the circular dependency: useTiptapEditor → postMessage → useEditorMessages
@@ -195,10 +197,23 @@ export const Editor: React.FC = () => {
     }
   }, [state.settings, editor]);
 
+  const handleShowFileOperation = useCallback((tab: 'export' | 'import') => {
+    activityTriggerRef.current = document.getElementById('activity-destination-publish');
+    setActivityState((current) => selectSidePanel(
+      current,
+      { destination: 'publish', tab },
+      { showTemplates: true },
+    ));
+  }, []);
+
   const {
     postMessage,
     handleViewJson,
     handleFileOperation,
+    handleFileOperationConfirm,
+    handleFileOperationCancel,
+    handleFileOperationRetry,
+    handleFileOperationResultAction,
     fileOperationState,
     renderDiagram,
     diagramRendererSettings,
@@ -247,7 +262,30 @@ export const Editor: React.FC = () => {
       meta: metaRef.current,
       documentSettings: docSettingsRef.current,
     } satisfies DocumentMutation : null,
+    onShowFileOperation: handleShowFileOperation,
   });
+
+  const settingsSyncPhase = savePresentation?.phase;
+  const settingsSyncRetryable = savePresentation?.retryable ?? false;
+  const settingsSyncMessage = savePresentation?.message;
+  const designSettingsSyncState = useMemo(() => toSettingsSyncState(
+    settingsSyncPhase
+      ? {
+          phase: settingsSyncPhase,
+          retryable: settingsSyncRetryable,
+          ...(settingsSyncMessage ? { message: settingsSyncMessage } : {}),
+        }
+      : null,
+  ), [settingsSyncMessage, settingsSyncPhase, settingsSyncRetryable]);
+
+  useEffect(() => {
+    dispatch({ type: 'SET_SETTINGS_SYNC_STATE', payload: designSettingsSyncState });
+  }, [designSettingsSyncState, dispatch]);
+
+  useEffect(() => {
+    registerSettingsSyncRetry(handleRetrySync);
+    return () => registerSettingsSyncRetry();
+  }, [handleRetrySync, registerSettingsSyncRetry]);
 
   useEffect(() => {
     if (!editor || state.documentAccess.status !== 'editable') return;
@@ -296,7 +334,13 @@ export const Editor: React.FC = () => {
   diagramRendererRef.current = renderDiagram;
 
   const handleToggleNumbering = () => {
-    setShowNumbering(!showNumbering);
+    dispatch({
+      type: 'SET_VIEW_PREFERENCES',
+      payload: {
+        ...state.viewPreferences,
+        headingNumbering: state.settings.headingNumbering ? 'hide' : 'show',
+      },
+    });
   };
 
   const handleToggleDecoration = () => {
@@ -806,7 +850,7 @@ export const Editor: React.FC = () => {
             returnFocusRef={activityTriggerRef}
             editor={editor}
             settings={state.settings}
-            showNumbering={showNumbering}
+            showNumbering={state.settings.headingNumbering}
             onToggleNumbering={handleToggleNumbering}
             showDecoration={state.settings.headingDecoration}
             onToggleDecoration={handleToggleDecoration}
@@ -816,6 +860,10 @@ export const Editor: React.FC = () => {
             onPostMessage={postMessage}
             onViewJson={handleViewJson}
             onFileOperation={handleFileOperation}
+            onFileOperationConfirm={handleFileOperationConfirm}
+            onFileOperationCancel={handleFileOperationCancel}
+            onFileOperationRetry={handleFileOperationRetry}
+            onFileOperationResultAction={handleFileOperationResultAction}
             fileOperationState={fileOperationState}
             diagramRendererSettings={diagramRendererSettings}
             onDiagramRendererSettingsChange={handleDiagramRendererSettingsChange}
@@ -852,7 +900,7 @@ export const Editor: React.FC = () => {
               </div>
               <EditorContent
                 editor={editor}
-                className={`${showNumbering ? 'show-numbering' : 'hide-numbering'} ${state.settings.headingDecoration ? 'show-heading-decoration' : ''} ${state.settings.captionNumbering === 'hierarchical' ? 'hierarchical-numbering' : 'sequential-numbering'}`}
+                className={`${state.settings.headingNumbering ? 'show-numbering' : 'hide-numbering'} ${state.settings.headingDecoration ? 'show-heading-decoration' : ''} ${state.settings.captionNumbering === 'hierarchical' ? 'hierarchical-numbering' : 'sequential-numbering'}`}
               />
             </div>
           </div>

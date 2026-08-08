@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { randomUUID } from 'crypto';
+import { computeRevision } from '../shared/document/operations/sha256';
 import { getNonce, getWebviewUri } from './utils/webviewHelper';
 import { ExpectedDocumentChanges } from './utils/expectedDocumentChanges';
 import { convertMarkdownToJson } from '../shared/converter';
@@ -12,11 +13,14 @@ import {
 } from '../shared/document/sdocUtils';
 import {
   getCaptionPreset,
+  resolveDocumentSettingsSnapshot,
   resolveEditorSettings,
-  resolveSettings,
-  SETTINGS_DEFAULTS,
 } from '../shared/settingsResolver';
-import type { DocumentSettings, CaptionStyleName, SdocMeta, TiptapNode } from '../shared/types';
+import type {
+  DocumentSettings,
+  SdocMeta,
+  TiptapNode,
+} from '../shared/types';
 import type {
   EditorToHostMessage,
   PersonalTemplateOperation,
@@ -25,7 +29,16 @@ import type {
 } from '../shared/types/messages';
 import { isEditorToHostMessage } from '../shared/types/messageGuards';
 import { VsCodeAssetService } from './services/VsCodeAssetService';
-import { VsCodeExportService, type ExportFormat } from './services/VsCodeExportService';
+import {
+  projectStandaloneExportSettings,
+  VsCodeExportService,
+  type ExportFormat,
+  type PreparedDocumentExport,
+} from './services/VsCodeExportService';
+import {
+  FileOperationPlanError,
+  FileOperationPlanRegistry,
+} from './services/FileOperationPlanRegistry';
 import { RecoverableSerialQueue } from '../shared/persistence/RecoverableSerialQueue';
 import {
   readDocumentMutationBestEffort,
@@ -39,7 +52,6 @@ import {
   type DocumentTextContractResult,
 } from '../shared/document/documentContract';
 import { dehydrateDocumentAssets } from '../shared/document/runtimeAssets';
-import { runExportAfterFlush } from '../shared/export/runExportAfterFlush';
 import {
   prepareExportDiagrams,
   type DiagramPreparationResult,
@@ -68,7 +80,14 @@ import {
   projectTemplateCatalogDiagnostic,
   projectTemplateCatalogDiagnostics,
 } from '../shared/template/catalogView';
-import { createFileOperationError } from '../shared/editor/fileOperations';
+import {
+  createFileOperationError,
+  type FileOperationArtifactId,
+  type FileOperationIntent,
+  type FileOperationPlanView,
+  type FileOperationResultAction,
+  type FileOperationState,
+} from '../shared/editor/fileOperations';
 import {
   DEFAULT_DIAGRAM_RENDERER_SETTINGS,
   type DiagramRendererConsent,
@@ -97,6 +116,28 @@ import {
   updateUiLanguagePreference,
 } from './uiLanguagePreferenceUpdate';
 
+type HostFileOperationPayload =
+  | {
+    kind: 'export';
+    prepared: PreparedDocumentExport;
+  }
+  | {
+    kind: 'import';
+    sourceUri: vscode.Uri;
+    sourceText: string;
+    imported: { kind: 'markdown'; content: TiptapNode } | { kind: 'html'; html: string };
+    checkpoint: DocumentMutation;
+  };
+
+type HostFileOperationArtifact =
+  | { kind: 'export'; uri: vscode.Uri; openKind: 'external' | 'html' | 'text' }
+  | {
+    kind: 'import-checkpoint';
+    mutation: DocumentMutation;
+    intent: Extract<FileOperationIntent, { kind: 'import' }>;
+    expectedCurrentFingerprint: string;
+  };
+
 async function readBoundedWorkspaceFile(
   uri: vscode.Uri,
   maximumBytes: number,
@@ -116,6 +157,27 @@ async function readBoundedWorkspaceFile(
   return bytes;
 }
 
+function summarizeImportedHtml(html: string): {
+  outline: { level: number; title: string }[];
+  topLevelBlockCount: number;
+  warnings: string[];
+} {
+  const outline = [...html.matchAll(/<h([1-6])\b[^>]*>([\s\S]*?)<\/h\1\s*>/gi)]
+    .map((match) => ({
+      level: Number(match[1]),
+      title: match[2].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(),
+    }))
+    .filter((item) => item.title.length > 0);
+  const topLevelBlockCount = [...html.matchAll(
+    /<(?:p|h[1-6]|ul|ol|blockquote|pre|table|figure|hr)\b/gi,
+  )].length;
+  const warnings: string[] = [];
+  if (/<(?:script|style|iframe|object|embed|form)\b/i.test(html)) {
+    warnings.push('Unsupported or unsafe HTML elements will be removed during import.');
+  }
+  return { outline, topLevelBlockCount, warnings };
+}
+
 export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
   private static readonly SDOC_VERSION = '1.0';
   private static readonly EDITOR_TEXT_FOCUS_CONTEXT = 'structuredDocEditor.editorTextFocus';
@@ -124,6 +186,10 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
   private static instance: SdocEditorProvider | undefined;
   private readonly assetService = new VsCodeAssetService();
   private readonly exportService: VsCodeExportService;
+  private readonly fileOperations = new FileOperationPlanRegistry<
+    HostFileOperationPayload,
+    HostFileOperationArtifact
+  >();
 
   public static register(context: vscode.ExtensionContext): vscode.Disposable {
     const provider = new SdocEditorProvider(context);
@@ -145,9 +211,40 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       // which owns the single document mutation and preserves its selection.
       () => undefined,
     );
+    const testRegistrations = context.extensionMode === vscode.ExtensionMode.Test
+      ? [
+        vscode.commands.registerCommand(
+          'structuredDocEditor.test.getActiveFileOperation',
+          () => provider.getActiveTestSession().getFileOperationSnapshot(),
+        ),
+        vscode.commands.registerCommand(
+          'structuredDocEditor.test.prepareActiveImport',
+          (source: string, format: 'markdown' | 'html' = 'markdown') => {
+            if (format !== 'markdown' && format !== 'html') {
+              throw new Error('Unsupported test import format.');
+            }
+            return provider.getActiveTestSession().prepareFileOperation(
+              randomUUID(),
+              { kind: 'import', format },
+              vscode.Uri.parse(source),
+            );
+          },
+        ),
+        vscode.commands.registerCommand(
+          'structuredDocEditor.test.confirmActiveFileOperation',
+          () => provider.getActiveTestSession().confirmFileOperation(),
+        ),
+        vscode.commands.registerCommand(
+          'structuredDocEditor.test.runActiveResultAction',
+          (action: FileOperationResultAction, artifactId?: string) =>
+            provider.getActiveTestSession().runResultAction(action, artifactId),
+        ),
+      ]
+      : [];
     return vscode.Disposable.from(
       providerRegistration,
       toggleBoldRegistration,
+      ...testRegistrations,
       { dispose: () => provider.dispose() },
     );
   }
@@ -177,6 +274,20 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     document: vscode.TextDocument;
     panel: vscode.WebviewPanel;
     sessionId: string;
+    prepareFileOperation: (
+      requestId: string,
+      intent: FileOperationIntent,
+      sourceUri?: vscode.Uri,
+    ) => Promise<void>;
+    getFileOperationSnapshot: () => {
+      state: FileOperationState;
+      plan?: FileOperationPlanView;
+    };
+    confirmFileOperation: () => void;
+    runResultAction: (
+      action: FileOperationResultAction,
+      artifactId?: string,
+    ) => Promise<void>;
   }>();
   private readonly uiReadySessionIds = new Set<string>();
 
@@ -341,13 +452,31 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     const sessionId = randomUUID();
     const documentId = document.uri.toString();
     const editorIdentity = { sessionId, documentId };
-    this.editorSessions.set(documentId, { document, panel: webviewPanel, sessionId });
+    let latestFileOperationState: FileOperationState = { phase: 'idle' };
+    let latestFileOperationPlan: FileOperationPlanView | undefined;
+    const unavailableTestSeam = (): never => {
+      throw new Error('The Structured Doc file-operation test seam is not ready.');
+    };
+    this.editorSessions.set(documentId, {
+      document,
+      panel: webviewPanel,
+      sessionId,
+      prepareFileOperation: async () => unavailableTestSeam(),
+      getFileOperationSnapshot: () => ({
+        state: latestFileOperationState,
+        ...(latestFileOperationPlan ? { plan: latestFileOperationPlan } : {}),
+      }),
+      confirmFileOperation: unavailableTestSeam,
+      runResultAction: unavailableTestSeam,
+    });
     let writeBlockedReason: string | undefined;
     let hasLoadedValidDocument = false;
     let readOnlyWarningShown = false;
     let templateApplicationPending = false;
     let templateManagementPending = false;
-    let fileOperationPending = false;
+    let sessionDisposed = false;
+    let activeFileOperationRequestId: string | undefined;
+    let latestImportCheckpointArtifactId: FileOperationArtifactId | undefined;
     let saveGeneration = 0;
     let availableTemplates = new Map<string, SdocTemplate>();
     let personalTemplateFingerprints = new Map<string, string>();
@@ -360,6 +489,8 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     });
     const diagramService = new KrokiDiagramService(this.readDiagramRendererSettings());
     const diagramRequests = new Map<string, AbortController>();
+    const filePreflightRequests = new Map<string, AbortController>();
+    const handledResultActionIds = new Set<string>();
     this.diagramRendererRuntimes.set(webviewPanel, {
       service: diagramService,
       requests: diagramRequests,
@@ -376,8 +507,24 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         }, 10_000);
         pendingImportAcks.set(requestId, { resolve, timer });
       });
+    const settleImportApplied = (requestId: string, applied: boolean): void => {
+      const pending = pendingImportAcks.get(requestId);
+      if (!pending) return;
+      clearTimeout(pending.timer);
+      pendingImportAcks.delete(requestId);
+      pending.resolve(applied);
+    };
+    const claimFileOperation = (requestId: string): boolean => {
+      if (activeFileOperationRequestId !== undefined) return false;
+      activeFileOperationRequestId = requestId;
+      return true;
+    };
+    const releaseFileOperation = (requestId: string): void => {
+      if (activeFileOperationRequestId === requestId) activeFileOperationRequestId = undefined;
+    };
     const prepareDiagramImages = async (
       format: ExportFormat,
+      sourceDocument: TiptapNode,
       signal?: AbortSignal,
     ): Promise<DiagramPreparationResult | undefined> => {
       if (format !== 'html' && format !== 'pdf' && format !== 'slides') {
@@ -386,7 +533,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       return prepareExportDiagrams([{
         kind: 'document',
         scopeId: documentId,
-        document: readCurrentMutation().content,
+        document: sourceDocument,
       }], {
         signal,
         render: async ({ language, source, signal: renderSignal }) => {
@@ -396,30 +543,243 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       });
     };
 
-    // Read and send editor settings to webview
-    const readVscodeDocDefaults = (): Partial<DocumentSettings> => {
-      const config = vscode.workspace.getConfiguration('structuredDocEditor');
-      return {
-        headingNumbering: config.get<boolean>('heading.numbering', true),
-        headingStartNumber: config.get<number>('heading.startNumber', SETTINGS_DEFAULTS.headingStartNumber),
-        headingDecoration: config.get<boolean>('heading.decoration', true),
-        headingH1Color: config.get<string>('heading.h1Color', SETTINGS_DEFAULTS.headingH1Color),
-        headingH2Color: config.get<string>('heading.h2Color', SETTINGS_DEFAULTS.headingH2Color),
-        headingH3Color: config.get<string>('heading.h3Color', SETTINGS_DEFAULTS.headingH3Color),
-        headingH4Color: config.get<string>('heading.h4Color', SETTINGS_DEFAULTS.headingH4Color),
-        headingH5Color: config.get<string>('heading.h5Color', SETTINGS_DEFAULTS.headingH5Color),
-        headingH6Color: config.get<string>('heading.h6Color', SETTINGS_DEFAULTS.headingH6Color),
-        captionStyle: config.get<CaptionStyleName>('caption.style', 'modern'),
-        captionNumbering: config.get<'sequential' | 'hierarchical'>('caption.numbering', 'sequential'),
-        equationNumbering: config.get<'sequential' | 'hierarchical'>('equation.numbering', 'sequential'),
-        crossRefIncludeCaption: config.get<boolean>('caption.crossRefIncludeCaption', false),
-        pdfScale: config.get<number>('export.pdfScale', 70),
-        selfContained: config.get<'none' | 'images-only' | 'full'>('export.selfContained', 'images-only'),
-        slideBreakLevel: config.get<'h1-only' | 'h1-h2-vertical'>('slide.breakLevel', 'h1-only'),
-        slideTransition: config.get<'none' | 'fade' | 'slide' | 'convex' | 'concave' | 'zoom'>('slide.transition', 'none'),
-        showTitleSlide: config.get<boolean>('slide.showTitleSlide', true),
-        outputDir: config.get<string>('export.outputDir', ''),
+    const postFileOperationFailure = async (
+      requestId: string,
+      code: string,
+      message: string,
+      retryable: boolean,
+      intent?: FileOperationIntent,
+    ): Promise<void> => {
+      latestFileOperationState = {
+        phase: 'failed',
+        requestId,
+        error: createFileOperationError(code, message, retryable),
+        ...(intent ? { intent } : {}),
       };
+      await webviewPanel.webview.postMessage({
+        type: 'fileOperationStatus',
+        sessionId,
+        documentId,
+        state: {
+          phase: 'failed',
+          requestId,
+          error: latestFileOperationState.phase === 'failed'
+            ? latestFileOperationState.error
+            : createFileOperationError(code, message, retryable),
+          ...(intent ? { intent } : {}),
+        },
+      });
+    };
+
+    const postResultActionStatus = async (
+      requestId: string,
+      actionRequestId: string,
+      action: FileOperationResultAction,
+      status: 'completed' | 'failed',
+      error?: ReturnType<typeof createFileOperationError>,
+    ): Promise<void> => {
+      await webviewPanel.webview.postMessage({
+        type: 'fileOperationResultActionStatus',
+        requestId,
+        actionRequestId,
+        sessionId,
+        documentId,
+        action,
+        status,
+        ...(error ? { error } : {}),
+      });
+    };
+
+    const beginFileOperationPreflight = async (
+      requestId: string,
+      intent: FileOperationIntent,
+      selectedImportUri?: vscode.Uri,
+    ): Promise<void> => {
+      if (!claimFileOperation(requestId)) {
+        await postFileOperationFailure(
+          requestId,
+          'FILE_OPERATION_BUSY',
+          'Another file operation is already running.',
+          false,
+          intent,
+        );
+        return;
+      }
+      this.fileOperations.rememberRetryIntent(sessionId, requestId, intent);
+      const controller = new AbortController();
+      let registeredPlanId: string | undefined;
+      filePreflightRequests.set(requestId, controller);
+      try {
+        latestFileOperationPlan = undefined;
+        latestFileOperationState = {
+          phase: 'preflighting',
+          requestId,
+          intent,
+          stage: intent.kind === 'export'
+            ? 'Preparing immutable export snapshot…'
+            : 'Choose a source file…',
+        };
+        await webviewPanel.webview.postMessage({
+          type: 'fileOperationStatus',
+          sessionId,
+          documentId,
+          state: {
+            phase: 'preflighting',
+            requestId,
+            intent,
+            stage: latestFileOperationState.phase === 'preflighting'
+              ? latestFileOperationState.stage
+              : undefined,
+          },
+        });
+        await this.flushEditor(webviewPanel.webview, sessionId, documentId);
+        controller.signal.throwIfAborted();
+        if (intent.kind === 'export') {
+          const prepared = await this.exportService.prepareDocumentExport(document, intent.format, {
+            signal: controller.signal,
+            diagramPreparation: (signal, sourceDocument) =>
+              prepareDiagramImages(intent.format, sourceDocument, signal),
+          });
+          const { planId } = this.fileOperations.registerPlan({
+            sessionId, requestId, intent,
+            sourceFingerprint: prepared.sourceFingerprint,
+            targetFingerprint: prepared.targetFingerprint,
+            payload: { kind: 'export', prepared },
+          });
+          registeredPlanId = planId;
+          controller.signal.throwIfAborted();
+          const effectiveSettings = projectStandaloneExportSettings(
+            prepared.settingsSnapshot,
+            intent.format,
+          );
+          const plan: FileOperationPlanView = {
+            planId, intent,
+            source: {
+              displayName: path.basename(document.uri.fsPath),
+              sizeBytes: new TextEncoder().encode(prepared.sourceText).byteLength,
+              revision: prepared.sourceVersion,
+            },
+            destination: {
+              displayName: `${prepared.outputScope === 'workspace' ? 'Workspace' : 'Document folder'} · ${prepared.outputRelativePath}`,
+              exists: prepared.targetExists,
+              scope: prepared.outputScope,
+              relativePath: prepared.outputRelativePath,
+            },
+            effectiveSettings,
+            diagram: {
+              failurePolicy: 'source-fallback',
+              fallbackCount: prepared.diagramFallbackCount,
+            },
+            warnings: prepared.warnings,
+            requiresConfirmation: true,
+          };
+          latestFileOperationPlan = plan;
+          latestFileOperationState = {
+            phase: 'awaiting-confirmation', requestId, intent, plan,
+          };
+          const delivered = await webviewPanel.webview.postMessage({
+            type: 'fileOperationPreflight', requestId, sessionId, documentId,
+            plan,
+          });
+          if (!delivered) throw new Error('The editor is unavailable for export confirmation.');
+        } else {
+          const selected = selectedImportUri ? [selectedImportUri] : await vscode.window.showOpenDialog({
+              canSelectMany: false,
+              filters: intent.format === 'markdown'
+                ? { 'Markdown Files': ['md', 'markdown'] }
+                : { 'HTML Files': ['html', 'htm'] },
+            });
+          if (!selected?.[0]) {
+            releaseFileOperation(requestId);
+            await webviewPanel.webview.postMessage({
+              type: 'fileOperationStatus', sessionId, documentId,
+              state: { phase: 'cancelled', requestId, intent },
+            });
+            return;
+          }
+          controller.signal.throwIfAborted();
+          const sourceUri = selected[0];
+          const bytes = await readBoundedWorkspaceFile(sourceUri, MAX_IMPORT_BYTES, 'Import source');
+          controller.signal.throwIfAborted();
+          const sourceText = new TextDecoder().decode(bytes);
+          const imported = intent.format === 'markdown'
+            ? {
+              kind: 'markdown' as const,
+              content: convertImagePathsToWebviewUris(
+                convertMarkdownToJson(sourceText), documentDir, webviewPanel.webview,
+              ),
+            }
+            : { kind: 'html' as const, html: sourceText };
+          const htmlSummary = imported.kind === 'html' ? summarizeImportedHtml(sourceText) : undefined;
+          const outline = imported.kind === 'markdown'
+            ? (imported.content.content ?? []).flatMap((node) => {
+              if (node.type !== 'heading') return [];
+              const title = (node.content ?? [])
+                .map((child) => typeof child.text === 'string' ? child.text : '')
+                .join('').trim();
+              return title ? [{
+                level: typeof node.attrs?.level === 'number' ? node.attrs.level : 1,
+                title,
+              }] : [];
+            })
+            : htmlSummary?.outline ?? [];
+          const { planId } = this.fileOperations.registerPlan({
+            sessionId, requestId, intent,
+            sourceFingerprint: computeRevision(sourceText),
+            targetFingerprint: this.exportService.readSourceFingerprint(document),
+            payload: {
+              kind: 'import', sourceUri, sourceText, imported,
+              checkpoint: readCurrentMutation(),
+            },
+          });
+          registeredPlanId = planId;
+          controller.signal.throwIfAborted();
+          const plan: FileOperationPlanView = {
+            planId, intent,
+            source: { displayName: path.basename(sourceUri.fsPath), sizeBytes: bytes.byteLength },
+            importPreview: {
+              outline,
+              topLevelBlockCount: imported.kind === 'markdown'
+                ? imported.content.content?.length ?? 0
+                : htmlSummary?.topLevelBlockCount ?? 0,
+              replacement: 'body-only',
+              preserved: ['metadata', 'settings'],
+            },
+            warnings: [
+              'The document body will be replaced; metadata and settings are preserved.',
+              ...(htmlSummary?.warnings ?? []),
+            ],
+            requiresConfirmation: true,
+          };
+          latestFileOperationPlan = plan;
+          latestFileOperationState = {
+            phase: 'awaiting-confirmation', requestId, intent, plan,
+          };
+          const delivered = await webviewPanel.webview.postMessage({
+            type: 'fileOperationPreflight', requestId, sessionId, documentId,
+            plan,
+          });
+          if (!delivered) throw new Error('The editor is unavailable for import confirmation.');
+        }
+      } catch (error) {
+        if (registeredPlanId) {
+          this.fileOperations.cancelPlan(sessionId, requestId, registeredPlanId);
+        }
+        releaseFileOperation(requestId);
+        if (controller.signal.aborted) {
+          await webviewPanel.webview.postMessage({
+            type: 'fileOperationStatus', sessionId, documentId,
+            state: { phase: 'cancelled', requestId, intent },
+          });
+        } else {
+          console.error('Structured Doc file operation preflight failed', error);
+          await postFileOperationFailure(
+            requestId, 'PREFLIGHT_FAILED', 'The file operation could not be prepared.', true, intent,
+          );
+        }
+      } finally {
+        filePreflightRequests.delete(requestId);
+      }
     };
 
     const readDocSettings = (): Partial<DocumentSettings> | undefined => {
@@ -434,9 +794,8 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
 
     const sendSettings = () => {
       const config = vscode.workspace.getConfiguration('structuredDocEditor');
-      const vscodeDefaults = readVscodeDocDefaults();
       const docSettings = readDocSettings();
-      const resolved = resolveEditorSettings(docSettings, vscodeDefaults, {
+      const resolved = resolveEditorSettings(docSettings, undefined, {
         defaultImageAlignment: config.get<'left' | 'center' | 'right'>('image.defaultAlignment', 'center'),
         exportImagePath: config.get<'relative' | 'absolute'>('export.imagePath', 'relative'),
       });
@@ -883,7 +1242,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
 
     // Handle messages from webview (sequential queue to preserve order)
     const messageQueue = new RecoverableSerialQueue();
-    webviewPanel.webview.onDidReceiveMessage((message: unknown) => {
+    const handleEditorMessage = (message: unknown): void => {
       if (!isEditorToHostMessage(message)) {
         console.warn('Ignoring malformed Structured Doc editor message', message);
         return;
@@ -900,6 +1259,8 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       const readOnlySafeMessages = new Set([
         'ready', 'flushComplete', 'viewJson', 'export', 'openDocument', 'browseSdocFiles',
         'fileOperationApplied', 'recoverInvalidDocument',
+        'fileOperationPrepare', 'fileOperationExecute', 'fileOperationCancel',
+        'fileOperationRetry', 'fileOperationResultAction',
         'requestTemplateCatalog',
         'savePersonalTemplate', 'updatePersonalTemplate', 'duplicatePersonalTemplate',
         'deletePersonalTemplate', 'openPersonalTemplateFolder',
@@ -934,72 +1295,428 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         }
         return;
       }
-      // Export must stay outside the serial message queue: its flush response is itself
-      // an editor message and would otherwise wait behind the export that is awaiting it.
+      // File preflight stays outside the serial queue because its flush acknowledgement
+      // is itself an editor message and would otherwise wait behind this request.
       if (message.type === 'export') {
-        if (fileOperationPending || message.sessionId !== sessionId || message.documentId !== documentId) {
-          webviewPanel.webview.postMessage({
-            type: 'fileOperationStatus',
-            sessionId: message.sessionId,
-            state: {
-              phase: 'failed',
-              requestId: message.requestId,
-              error: createFileOperationError(
-                'FILE_OPERATION_BUSY',
-                'Another file operation is already running.',
-                false,
-              ),
-            },
-          });
+        if (message.sessionId !== sessionId || message.documentId !== documentId) return;
+        void beginFileOperationPreflight(message.requestId, {
+          kind: 'export', format: message.format,
+        });
+        return;
+      }
+      if (message.type === 'importMarkdown' || message.type === 'importHtml') {
+        if (message.sessionId !== sessionId || message.documentId !== documentId) return;
+        void beginFileOperationPreflight(message.requestId, {
+          kind: 'import',
+          format: message.type === 'importMarkdown' ? 'markdown' : 'html',
+        });
+        return;
+      }
+      if (message.type === 'fileOperationPrepare') {
+        if (message.sessionId !== sessionId || message.documentId !== documentId) return;
+        void beginFileOperationPreflight(message.requestId, message.intent);
+        return;
+      }
+      if (message.type === 'fileOperationExecute') {
+        if (message.sessionId !== sessionId || message.documentId !== documentId) return;
+        if (activeFileOperationRequestId !== message.requestId) {
+          void postFileOperationFailure(
+            message.requestId,
+            'PLAN_NOT_FOUND',
+            'The prepared file operation is no longer active.',
+            false,
+          );
           return;
         }
-        fileOperationPending = true;
-        let exportResult: 'completed' | 'cancelled' | 'fallback' = 'completed';
-        void runExportAfterFlush(
-          () => this.flushEditor(webviewPanel.webview, sessionId, documentId),
-          async () => {
-            exportResult = await this.exportService.exportDocument(
-              document,
-              message.format,
-              (signal) => prepareDiagramImages(message.format, signal),
-            );
-          },
-        ).then(() => {
-          if (exportResult === 'cancelled') {
-            webviewPanel.webview.postMessage({
-              type: 'fileOperationStatus',
-              sessionId,
-              state: { phase: 'cancelled', requestId: message.requestId },
+        void (async () => {
+          try {
+            const plan = this.fileOperations.getPlan(sessionId, message.requestId, message.planId);
+            latestFileOperationState = {
+              phase: 'running', requestId: message.requestId,
+              kind: plan.intent.kind, format: plan.intent.format,
+              intent: plan.intent, planId: message.planId, stage: 'Starting export…',
+            };
+            await webviewPanel.webview.postMessage({
+              type: 'fileOperationStatus', sessionId, documentId,
+              state: {
+                phase: 'running', requestId: message.requestId,
+                kind: plan.intent.kind, format: plan.intent.format,
+                intent: plan.intent, planId: message.planId, stage: 'Starting export…',
+              },
             });
+            const result = await this.fileOperations.executePlan({
+              sessionId, requestId: message.requestId, planId: message.planId,
+              readSourceFingerprint: async () => plan.payload.kind === 'export'
+                ? this.exportService.readSourceFingerprint(document)
+                : computeRevision(new TextDecoder().decode(await readBoundedWorkspaceFile(
+                  plan.payload.sourceUri, MAX_IMPORT_BYTES, 'Import source',
+                ))),
+              readTargetFingerprint: async () => plan.payload.kind === 'export'
+                ? this.exportService.readTargetFingerprint(plan.payload.prepared.outputUri)
+                : this.exportService.readSourceFingerprint(document),
+              onProgress: (stage) => {
+                latestFileOperationState = {
+                  phase: 'running', requestId: message.requestId,
+                  kind: plan.intent.kind, format: plan.intent.format,
+                  intent: plan.intent, planId: message.planId, stage,
+                };
+                void webviewPanel.webview.postMessage({
+                  type: 'fileOperationStatus', sessionId, documentId,
+                  state: {
+                    phase: 'running', requestId: message.requestId,
+                    kind: plan.intent.kind, format: plan.intent.format,
+                    intent: plan.intent, planId: message.planId, stage,
+                  },
+                });
+              },
+              run: async (registered, signal, report) => {
+                if (registered.payload.kind === 'import') {
+                  signal.throwIfAborted();
+                  report('Applying imported body…');
+                  this.fileOperations.markCommitStarted(
+                    sessionId, message.requestId, message.planId,
+                  );
+                  const imported = registered.payload.imported;
+                  const applied = waitForImportApplied(message.requestId);
+                  const delivered = await webviewPanel.webview.postMessage(imported.kind === 'markdown' ? {
+                    type: 'importContent', requestId: message.requestId, sessionId, documentId,
+                    confirmation: 'preflight-confirmed', content: imported.content,
+                  } : {
+                    type: 'importHtml', requestId: message.requestId, sessionId, documentId,
+                    confirmation: 'preflight-confirmed', html: imported.html,
+                  });
+                  if (!delivered) settleImportApplied(message.requestId, false);
+                  if (!await applied) {
+                    throw new Error('The imported body was not applied.');
+                  }
+                  return { kind: 'import' as const, checkpoint: registered.payload.checkpoint };
+                }
+                const exportPayload = registered.payload;
+                return {
+                  kind: 'export' as const,
+                  value: await this.exportService.executePreparedExport(
+                    exportPayload.prepared,
+                    {
+                      signal,
+                      onProgress: report,
+                      validateTarget: async () => {
+                        await this.exportService.validatePreparedOutputScope(exportPayload.prepared);
+                        const current = await this.exportService.readTargetFingerprint(
+                          exportPayload.prepared.outputUri,
+                        );
+                        if (current !== registered.targetFingerprint) {
+                          throw new FileOperationPlanError(
+                            'STALE_TARGET', 'The destination changed after preflight.',
+                          );
+                        }
+                      },
+                      onCommitStart: () => this.fileOperations.markCommitStarted(
+                        sessionId, message.requestId, message.planId,
+                      ),
+                    },
+                  ),
+                };
+              },
+            });
+            if (sessionDisposed) return;
+            if (result.kind === 'import') {
+              if (latestImportCheckpointArtifactId) {
+                this.fileOperations.deleteArtifact(sessionId, latestImportCheckpointArtifactId);
+              }
+              const { artifactId } = this.fileOperations.registerArtifact(sessionId, {
+                kind: 'import-checkpoint',
+                mutation: result.checkpoint,
+                intent: plan.intent.kind === 'import'
+                  ? plan.intent
+                  : { kind: 'import', format: 'markdown' },
+                expectedCurrentFingerprint: this.exportService.readSourceFingerprint(document),
+              });
+              latestImportCheckpointArtifactId = artifactId;
+              latestFileOperationState = {
+                phase: 'succeeded', requestId: message.requestId,
+                result: 'completed', intent: plan.intent,
+                details: {
+                  outcome: 'completed',
+                  warnings: [],
+                  availableActions: [
+                    { action: 'undo', artifactId },
+                    { action: 'repeat' },
+                  ],
+                },
+              };
+              await webviewPanel.webview.postMessage({
+                type: 'fileOperationStatus', sessionId, documentId,
+                state: {
+                  phase: 'succeeded', requestId: message.requestId,
+                  result: 'completed', intent: plan.intent,
+                  details: {
+                    outcome: 'completed',
+                    warnings: [],
+                    availableActions: [
+                      { action: 'undo', artifactId },
+                      { action: 'repeat' },
+                    ],
+                  },
+                },
+              });
+              return;
+            }
+            if (result.value.outcome === 'cancelled' || !result.value.outputUri) {
+              latestFileOperationState = {
+                phase: 'cancelled', requestId: message.requestId, intent: plan.intent,
+              };
+              await webviewPanel.webview.postMessage({
+                type: 'fileOperationStatus', sessionId, documentId,
+                state: { phase: 'cancelled', requestId: message.requestId, intent: plan.intent },
+              });
+              return;
+            }
+            const { artifactId } = this.fileOperations.registerArtifact(sessionId, {
+              kind: 'export',
+              uri: result.value.outputUri,
+              openKind: plan.payload.kind === 'export'
+                ? plan.payload.prepared.openKind
+                : 'text',
+            });
+            latestFileOperationState = {
+              phase: 'succeeded', requestId: message.requestId,
+              result: result.value.outcome, intent: plan.intent,
+              details: {
+                outcome: result.value.outcome,
+                artifact: {
+                  artifactId,
+                  displayName: path.basename(result.value.outputUri.fsPath),
+                  sizeBytes: result.value.sizeBytes ?? 0,
+                },
+                warnings: plan.payload.kind === 'export'
+                  ? [...plan.payload.prepared.warnings]
+                  : [],
+                availableActions: [
+                  { action: 'open', artifactId },
+                  { action: 'reveal', artifactId },
+                  { action: 'copy', artifactId },
+                  { action: 'repeat' },
+                ],
+              },
+            };
+            await webviewPanel.webview.postMessage({
+              type: 'fileOperationStatus', sessionId, documentId,
+              state: {
+                phase: 'succeeded', requestId: message.requestId,
+                result: result.value.outcome, intent: plan.intent,
+                details: {
+                  outcome: result.value.outcome,
+                  artifact: {
+                    artifactId,
+                    displayName: path.basename(result.value.outputUri.fsPath),
+                    sizeBytes: result.value.sizeBytes ?? 0,
+                  },
+                  warnings: plan.payload.kind === 'export'
+                    ? [...plan.payload.prepared.warnings]
+                    : [],
+                  availableActions: [
+                    { action: 'open', artifactId },
+                    { action: 'reveal', artifactId },
+                    { action: 'copy', artifactId },
+                    { action: 'repeat' },
+                  ],
+                },
+              },
+            });
+          } catch (error) {
+            if (error instanceof Error && error.name === 'AbortError') {
+              latestFileOperationState = {
+                phase: 'cancelled', requestId: message.requestId,
+                intent: this.fileOperations.getRetryIntent(sessionId, message.requestId),
+              };
+              await webviewPanel.webview.postMessage({
+                type: 'fileOperationStatus', sessionId, documentId,
+                state: {
+                  phase: 'cancelled', requestId: message.requestId,
+                  intent: this.fileOperations.getRetryIntent(sessionId, message.requestId),
+                },
+              });
+              return;
+            }
+            console.error('Structured Doc file operation execution failed', error);
+            const retryIntent = this.fileOperations.getRetryIntent(sessionId, message.requestId);
+            const code = error instanceof FileOperationPlanError
+              ? error.code
+              : retryIntent?.kind === 'import' ? 'IMPORT_FAILED' : 'EXPORT_FAILED';
+            await postFileOperationFailure(
+              message.requestId,
+              code,
+              retryIntent?.kind === 'import'
+                ? 'The prepared import could not be completed.'
+                : 'The prepared export could not be completed.',
+              true,
+              retryIntent,
+            );
+          } finally {
+            releaseFileOperation(message.requestId);
+          }
+        })();
+        return;
+      }
+      if (message.type === 'fileOperationCancel') {
+        if (message.sessionId !== sessionId || message.documentId !== documentId) return;
+        const preflight = filePreflightRequests.get(message.requestId);
+        preflight?.abort();
+        const planCancelled = this.fileOperations.cancelPlan(
+          sessionId,
+          message.requestId,
+          preflight ? undefined : message.planId,
+        );
+        const cancelled = Boolean(preflight) || planCancelled;
+        if (!cancelled) return;
+        releaseFileOperation(message.requestId);
+        void webviewPanel.webview.postMessage({
+          type: 'fileOperationStatus', sessionId, documentId,
+          state: {
+            phase: 'cancelled', requestId: message.requestId,
+            intent: this.fileOperations.getRetryIntent(sessionId, message.requestId),
+          },
+        });
+        return;
+      }
+      if (message.type === 'fileOperationRetry') {
+        if (message.sessionId !== sessionId || message.documentId !== documentId) return;
+        const intent = this.fileOperations.getRetryIntent(sessionId, message.previousRequestId);
+        if (!intent) {
+          void postFileOperationFailure(
+            message.requestId, 'PLAN_NOT_FOUND', 'The previous operation is unavailable.', false,
+          );
+        } else {
+          void beginFileOperationPreflight(message.requestId, intent);
+        }
+        return;
+      }
+      if (message.type === 'fileOperationResultAction') {
+        if (message.sessionId !== sessionId || message.documentId !== documentId) return;
+        if (handledResultActionIds.has(message.actionRequestId)) return;
+        handledResultActionIds.add(message.actionRequestId);
+        if (message.action === 'repeat') {
+          const intent = this.fileOperations.getRetryIntent(sessionId, message.requestId);
+          if (intent) {
+            void beginFileOperationPreflight(message.actionRequestId, intent);
+          } else {
+            void postResultActionStatus(
+              message.requestId,
+              message.actionRequestId,
+              message.action,
+              'failed',
+              createFileOperationError(
+                'PLAN_NOT_FOUND', 'The previous operation is unavailable.', false,
+              ),
+            );
+          }
+          return;
+        }
+        void (async () => {
+          if (message.action === 'undo') {
+            if (!claimFileOperation(message.actionRequestId)) {
+              throw new FileOperationPlanError(
+                'PLAN_ALREADY_RUNNING', 'Another file operation is already running.',
+              );
+            }
+            try {
+              const lease = this.fileOperations.leaseArtifact(sessionId, message.artifactId);
+              try {
+                const artifact = lease.value;
+                if (artifact.kind !== 'import-checkpoint') {
+                  lease.release();
+                  return;
+                }
+                if (this.exportService.readSourceFingerprint(document)
+                  !== artifact.expectedCurrentFingerprint) {
+                  throw new FileOperationPlanError(
+                    'STALE_SOURCE', 'The document changed after the import completed.',
+                  );
+                }
+                await webviewPanel.webview.postMessage({
+                  type: 'fileOperationStatus', sessionId, documentId,
+                  state: {
+                    phase: 'running', requestId: message.actionRequestId,
+                    kind: 'import', format: artifact.intent.format,
+                    intent: artifact.intent,
+                    stage: 'Restoring previous body…',
+                  },
+                });
+                latestFileOperationState = {
+                  phase: 'running', requestId: message.actionRequestId,
+                  kind: 'import', format: artifact.intent.format,
+                  intent: artifact.intent,
+                  stage: 'Restoring previous body…',
+                };
+                const applied = waitForImportApplied(message.actionRequestId);
+                const delivered = await webviewPanel.webview.postMessage({
+                  type: 'importContent', requestId: message.actionRequestId, sessionId, documentId,
+                  confirmation: 'preflight-confirmed', content: artifact.mutation.content,
+                });
+                if (!delivered) settleImportApplied(message.actionRequestId, false);
+                if (!await applied) {
+                  throw new Error('The import checkpoint was not restored.');
+                }
+                lease.commit();
+                if (latestImportCheckpointArtifactId === message.artifactId) {
+                  latestImportCheckpointArtifactId = undefined;
+                }
+                latestFileOperationState = {
+                  phase: 'succeeded', requestId: message.actionRequestId, result: 'completed',
+                  intent: artifact.intent,
+                  details: { outcome: 'completed', warnings: [], availableActions: [] },
+                };
+                await webviewPanel.webview.postMessage({
+                  type: 'fileOperationStatus', sessionId, documentId,
+                  state: {
+                    phase: 'succeeded', requestId: message.actionRequestId, result: 'completed',
+                    intent: artifact.intent,
+                    details: { outcome: 'completed', warnings: [], availableActions: [] },
+                  },
+                });
+              } catch (error) {
+                lease.release();
+                throw error;
+              }
+            } finally {
+              releaseFileOperation(message.actionRequestId);
+            }
             return;
           }
-          webviewPanel.webview.postMessage({
-            type: 'fileOperationStatus',
-            sessionId,
-            state: {
-              phase: 'succeeded',
-              requestId: message.requestId,
-              result: exportResult === 'fallback' ? 'fallback' : 'completed',
-            },
-          });
-        }).catch((error: unknown) => {
-          const detail = error instanceof Error ? error.message : String(error);
-          vscode.window.showErrorMessage(`Structured Doc export failed: ${detail}`);
-          webviewPanel.webview.postMessage({
-            type: 'fileOperationStatus',
-            sessionId,
-            state: {
-              phase: 'failed',
-              requestId: message.requestId,
-              error: createFileOperationError(
-                'EXPORT_FAILED',
-                'The document could not be exported.',
-                true,
-              ),
-            },
-          });
-        }).finally(() => {
-          fileOperationPending = false;
+          const artifact = this.fileOperations.getArtifact(sessionId, message.artifactId);
+          if (artifact.kind !== 'export') return;
+          if (message.action === 'reveal') {
+            await vscode.commands.executeCommand('revealFileInOS', artifact.uri);
+          } else if (message.action === 'copy') {
+            await vscode.env.clipboard.writeText(artifact.uri.fsPath);
+          } else if (message.action === 'open') {
+            if (artifact.openKind === 'external') await vscode.env.openExternal(artifact.uri);
+            else if (artifact.openKind === 'html') {
+              await vscode.commands.executeCommand('vscode.open', artifact.uri);
+            } else {
+              const opened = await vscode.workspace.openTextDocument(artifact.uri);
+              await vscode.window.showTextDocument(opened, { preview: false });
+            }
+          }
+          await postResultActionStatus(
+            message.requestId,
+            message.actionRequestId,
+            message.action,
+            'completed',
+          );
+        })().catch((error: unknown) => {
+          console.error('Structured Doc result action failed', error);
+          void postResultActionStatus(
+            message.requestId,
+            message.actionRequestId,
+            message.action,
+            'failed',
+            createFileOperationError(
+              error instanceof FileOperationPlanError ? error.code : 'RESULT_ACTION_FAILED',
+              'The result action could not be completed.',
+              true,
+            ),
+          );
         });
         return;
       }
@@ -1129,12 +1846,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       }
       if (message.type === 'fileOperationApplied') {
         if (message.sessionId === sessionId && message.documentId === documentId) {
-          const pending = pendingImportAcks.get(message.requestId);
-          if (pending) {
-            clearTimeout(pending.timer);
-            pendingImportAcks.delete(message.requestId);
-            pending.resolve(message.applied);
-          }
+          settleImportApplied(message.requestId, message.applied);
         }
         return;
       }
@@ -1178,25 +1890,6 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
           return;
         }
         templateApplicationPending = true;
-      }
-      if (message.type === 'importMarkdown' || message.type === 'importHtml') {
-        if (fileOperationPending || message.sessionId !== sessionId || message.documentId !== documentId) {
-          webviewPanel.webview.postMessage({
-            type: 'fileOperationStatus',
-            sessionId: message.sessionId,
-            state: {
-              phase: 'failed',
-              requestId: message.requestId,
-              error: createFileOperationError(
-                'FILE_OPERATION_BUSY',
-                'Another file operation is already running.',
-                false,
-              ),
-            },
-          });
-          return;
-        }
-        fileOperationPending = true;
       }
       messageQueue.enqueue(async () => {
         switch (message.type) {
@@ -1426,30 +2119,6 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
           case 'browseSdocFiles':
             await this.browseSdocFiles(document, webviewPanel.webview);
             break;
-          case 'importMarkdown':
-            try {
-              await this.importMarkdown(
-                document,
-                webviewPanel,
-                message,
-                () => waitForImportApplied(message.requestId),
-              );
-            } finally {
-              fileOperationPending = false;
-            }
-            break;
-          case 'importHtml':
-            try {
-              await this.importHtml(
-                document,
-                webviewPanel,
-                message,
-                () => waitForImportApplied(message.requestId),
-              );
-            } finally {
-              fileOperationPending = false;
-            }
-            break;
           case 'selectCssFile': {
             const selectedPath = await this.selectCssFile(document);
             if (selectedPath !== undefined) {
@@ -1475,7 +2144,56 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         console.error('Structured Doc message failed', error);
         vscode.window.showErrorMessage(`Structured Doc operation failed: ${detail}`);
       });
-    });
+    };
+    const editorMessageSubscription = webviewPanel.webview.onDidReceiveMessage(handleEditorMessage);
+
+    const registeredSession = this.editorSessions.get(documentId);
+    if (registeredSession?.panel === webviewPanel && registeredSession.sessionId === sessionId) {
+      registeredSession.prepareFileOperation = beginFileOperationPreflight;
+      registeredSession.confirmFileOperation = () => {
+        const current = latestFileOperationState;
+        if (current.phase !== 'awaiting-confirmation') {
+          throw new Error('There is no file operation awaiting confirmation.');
+        }
+        handleEditorMessage({
+          type: 'fileOperationExecute',
+          requestId: current.requestId,
+          sessionId,
+          documentId,
+          planId: current.plan.planId,
+        });
+      };
+      registeredSession.runResultAction = async (action, artifactId) => {
+        const deadline = Date.now() + 5_000;
+        while (activeFileOperationRequestId !== undefined && Date.now() < deadline) {
+          await new Promise((resolve) => setTimeout(resolve, 10));
+        }
+        if (activeFileOperationRequestId !== undefined) {
+          throw new Error('The previous file operation has not released its execution lease.');
+        }
+        const current = latestFileOperationState;
+        if (current.phase !== 'succeeded') {
+          throw new Error('There is no completed file operation result.');
+        }
+        const matchingAction = current.details?.availableActions
+          .find((candidate) => candidate.action === action);
+        const resolvedArtifactId = artifactId ?? (matchingAction && 'artifactId' in matchingAction
+          ? matchingAction.artifactId
+          : undefined);
+        if (action !== 'repeat' && !resolvedArtifactId) {
+          throw new Error(`The completed result has no ${action} artifact.`);
+        }
+        handleEditorMessage({
+          type: 'fileOperationResultAction',
+          requestId: current.requestId,
+          actionRequestId: randomUUID(),
+          sessionId,
+          documentId,
+          action,
+          ...(resolvedArtifactId ? { artifactId: resolvedArtifactId } : {}),
+        });
+      };
+    }
 
     // Flush webview state before save to prevent data loss
     const willSaveSubscription = vscode.workspace.onWillSaveTextDocument((e) => {
@@ -1593,6 +2311,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
 
     // Cleanup
     webviewPanel.onDidDispose(() => {
+      sessionDisposed = true;
       this.releaseEditorTextFocus(webviewPanel, editorIdentity);
       if (this.editorSessions.get(documentId)?.panel === webviewPanel) {
         this.editorSessions.delete(documentId);
@@ -1605,8 +2324,13 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       pendingDrawioEvents.forEach((timer) => clearTimeout(timer));
       diagramRequests.forEach((controller) => controller.abort());
       diagramRequests.clear();
+      filePreflightRequests.forEach((controller) => controller.abort());
+      filePreflightRequests.clear();
+      for (const requestId of pendingImportAcks.keys()) settleImportApplied(requestId, false);
+      this.fileOperations.clearSession(sessionId);
       this.diagramRendererRuntimes.delete(webviewPanel);
       settingsSubscription.dispose();
+      editorMessageSubscription.dispose();
       viewStateSubscription.dispose();
       this.expectedDocumentChanges.clear(document.uri.toString());
       for (const [requestId, pending] of this.pendingFlushResolvers) {
@@ -1649,16 +2373,11 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       delete nextMeta.settings;
     }
 
-    // Resolve settings from doc settings > VS Code > default
-    const config = vscode.workspace.getConfiguration('structuredDocEditor');
-    const resolved = resolveSettings(nextMeta.settings, {
-      equationNumbering: config.get<'sequential' | 'hierarchical'>('equation.numbering', 'sequential'),
-      captionStyle: config.get<CaptionStyleName>('caption.style', 'modern'),
-      crossRefIncludeCaption: config.get<boolean>('caption.crossRefIncludeCaption', false),
-      captionNumbering: config.get<'sequential' | 'hierarchical'>('caption.numbering', 'sequential'),
-      headingNumbering: config.get<boolean>('heading.numbering', true),
-      headingStartNumber: config.get<number>('heading.startNumber', SETTINGS_DEFAULTS.headingStartNumber),
-    });
+    // Persisted normalization is portable: document settings over versioned built-ins.
+    const resolved = resolveDocumentSettingsSnapshot({
+      context: 'standalone',
+      documentSettings: nextMeta.settings,
+    }).values;
 
     const synced = normalizeDocument(convertedContent, {
       equationNumbering: resolved.equationNumbering,
@@ -1721,46 +2440,75 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
   }
 
   private async exportActive(format: ExportFormat): Promise<void> {
-    const activeTab = vscode.window.tabGroups.activeTabGroup.activeTab;
-    const input = activeTab?.input;
+    const activeGroup = vscode.window.tabGroups.activeTabGroup;
+    const input = activeGroup.activeTab?.input;
+    const sourceTextTab = input instanceof vscode.TabInputText
+      ? activeGroup.activeTab
+      : undefined;
     const uri = input instanceof vscode.TabInputCustom || input instanceof vscode.TabInputText
       ? input.uri
       : undefined;
     if (!uri || (!uri.path.endsWith('.sdoc') && !uri.path.endsWith('.tiptap.json'))) {
       throw new Error('The active tab is not a Structured Doc document.');
     }
+    const viewColumn = activeGroup.viewColumn;
 
     const key = uri.toString();
-    const session = this.editorSessions.get(key);
-    const document = session?.document
-      ?? vscode.workspace.textDocuments.find((candidate) => candidate.uri.toString() === key)
-      ?? await vscode.workspace.openTextDocument(uri);
-    await runExportAfterFlush(
-      session ? () => this.flushEditor(session.panel.webview, session.sessionId, key) : undefined,
-      async () => {
-        await this.exportService.exportDocument(document, format, async (signal) => {
-          if (format !== 'html' && format !== 'pdf' && format !== 'slides') return undefined;
-          const contract = parseDocumentTextContract(document.getText());
-          if (!contract.ok) {
-            throw new Error(contract.diagnostics
-              .map((diagnostic) => `${diagnostic.path}: ${diagnostic.message}`)
-              .join('; '));
-          }
-          const diagramService = new KrokiDiagramService(this.readDiagramRendererSettings());
-          return prepareExportDiagrams([{
-            kind: 'document',
-            scopeId: key,
-            document: contract.envelope.doc,
-          }], {
-            signal,
-            render: async ({ language, source, signal: renderSignal }) => {
-              const rendered = await diagramService.render(language, source, { signal: renderSignal });
-              return { dataUrl: rendered.dataUrl };
-            },
-          });
-        });
-      },
-    );
+    let session = this.editorSessions.get(key);
+    if (!session?.prepareFileOperation) {
+      await vscode.commands.executeCommand(
+        'vscode.openWith', uri, 'structuredDocEditor.sdoc',
+        {
+          viewColumn,
+          preview: false,
+        },
+      );
+      const deadline = Date.now() + 5_000;
+      while (Date.now() < deadline) {
+        session = this.editorSessions.get(key);
+        if (session?.prepareFileOperation) break;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+    }
+    if (!session?.prepareFileOperation) {
+      throw new Error('The Structured Doc editor is not ready for file operations.');
+    }
+    session.panel.reveal(viewColumn, false);
+    if (sourceTextTab && vscode.window.tabGroups.all.some(
+      (group) => group.tabs.includes(sourceTextTab),
+    )) {
+      const closed = await vscode.window.tabGroups.close(sourceTextTab, true);
+      if (!closed) {
+        throw new Error('The text editor could not be replaced by the Structured Doc editor.');
+      }
+      const closeDeadline = Date.now() + 2_000;
+      while (Date.now() < closeDeadline && vscode.window.tabGroups.all.some(
+        (group) => group.tabs.includes(sourceTextTab),
+      )) {
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      }
+      if (vscode.window.tabGroups.all.some((group) => group.tabs.includes(sourceTextTab))) {
+        throw new Error('The text editor remained open after the Structured Doc editor was ready.');
+      }
+      session.panel.reveal(viewColumn, false);
+    }
+    if (!this.uiReadySessionIds.has(session.sessionId)) {
+      const deadline = Date.now() + 10_000;
+      while (Date.now() < deadline && !this.uiReadySessionIds.has(session.sessionId)) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+    }
+    if (!this.uiReadySessionIds.has(session.sessionId)) {
+      throw new Error('The Structured Doc editor UI is not ready for file operations.');
+    }
+    await session.panel.webview.postMessage({ type: 'showFileOperation', tab: 'export' });
+    await session.prepareFileOperation(randomUUID(), { kind: 'export', format });
+  }
+
+  private getActiveTestSession(): (typeof this.editorSessions extends Map<string, infer T> ? T : never) {
+    const session = [...this.editorSessions.values()].find((candidate) => candidate.panel.active);
+    if (!session) throw new Error('There is no active Structured Doc editor session.');
+    return session;
   }
 
   private async flushActive(): Promise<void> {
@@ -1826,144 +2574,6 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     } catch (error) {
       vscode.window.showErrorMessage(
         `Failed to open JSON view: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
-  }
-
-  private async importMarkdown(
-    document: vscode.TextDocument,
-    webviewPanel: vscode.WebviewPanel,
-    request: Extract<EditorToHostMessage, { type: 'importMarkdown' }>,
-    waitUntilApplied: () => Promise<boolean>,
-  ): Promise<void> {
-    try {
-      const fileUris = await vscode.window.showOpenDialog({
-        canSelectMany: false,
-        openLabel: 'Import Markdown',
-        filters: { 'Markdown Files': ['md', 'markdown'] },
-      });
-      if (!fileUris || fileUris.length === 0) {
-        await webviewPanel.webview.postMessage({
-          type: 'fileOperationStatus',
-          sessionId: request.sessionId,
-          state: { phase: 'cancelled', requestId: request.requestId },
-        });
-        return;
-      }
-
-      const mdBytes = await readBoundedWorkspaceFile(fileUris[0], MAX_IMPORT_BYTES, 'Markdown import');
-      const mdText = new TextDecoder('utf-8').decode(mdBytes);
-      const doc = convertMarkdownToJson(mdText);
-
-      // Convert image paths to webview URIs
-      const documentDir = vscode.Uri.joinPath(document.uri, '..');
-      const convertedDoc = convertImagePathsToWebviewUris(doc, documentDir, webviewPanel.webview);
-
-      const applied = waitUntilApplied();
-      await webviewPanel.webview.postMessage({
-        type: 'importContent',
-        requestId: request.requestId,
-        sessionId: request.sessionId,
-        documentId: request.documentId,
-        content: convertedDoc,
-      });
-      if (!await applied) {
-        await webviewPanel.webview.postMessage({
-          type: 'fileOperationStatus',
-          sessionId: request.sessionId,
-          state: { phase: 'cancelled', requestId: request.requestId },
-        });
-        return;
-      }
-      await webviewPanel.webview.postMessage({
-        type: 'fileOperationStatus',
-        sessionId: request.sessionId,
-        state: { phase: 'succeeded', requestId: request.requestId, result: 'completed' },
-      });
-      vscode.window.showInformationMessage('Markdown imported successfully');
-    } catch (error) {
-      await webviewPanel.webview.postMessage({
-        type: 'fileOperationStatus',
-        sessionId: request.sessionId,
-        state: {
-          phase: 'failed',
-          requestId: request.requestId,
-          error: createFileOperationError(
-            'IMPORT_FAILED',
-            'The Markdown file could not be imported.',
-            true,
-          ),
-        },
-      });
-      vscode.window.showErrorMessage(
-        `Failed to import Markdown: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
-  }
-
-  private async importHtml(
-    _document: vscode.TextDocument,
-    webviewPanel: vscode.WebviewPanel,
-    request: Extract<EditorToHostMessage, { type: 'importHtml' }>,
-    waitUntilApplied: () => Promise<boolean>,
-  ): Promise<void> {
-    try {
-      const fileUris = await vscode.window.showOpenDialog({
-        canSelectMany: false,
-        openLabel: 'Import HTML',
-        filters: { 'HTML Files': ['html', 'htm'] },
-      });
-      if (!fileUris || fileUris.length === 0) {
-        await webviewPanel.webview.postMessage({
-          type: 'fileOperationStatus',
-          sessionId: request.sessionId,
-          state: { phase: 'cancelled', requestId: request.requestId },
-        });
-        return;
-      }
-
-      const htmlBytes = await readBoundedWorkspaceFile(fileUris[0], MAX_IMPORT_BYTES, 'HTML import');
-      const htmlText = new TextDecoder('utf-8').decode(htmlBytes);
-      const applied = waitUntilApplied();
-
-      // Send raw HTML to webview — Tiptap's setContent(htmlString) will parse it
-      await webviewPanel.webview.postMessage({
-        type: 'importHtml',
-        requestId: request.requestId,
-        sessionId: request.sessionId,
-        documentId: request.documentId,
-        html: htmlText,
-      });
-      if (!await applied) {
-        await webviewPanel.webview.postMessage({
-          type: 'fileOperationStatus',
-          sessionId: request.sessionId,
-          state: { phase: 'cancelled', requestId: request.requestId },
-        });
-        return;
-      }
-      await webviewPanel.webview.postMessage({
-        type: 'fileOperationStatus',
-        sessionId: request.sessionId,
-        state: { phase: 'succeeded', requestId: request.requestId, result: 'completed' },
-      });
-      vscode.window.showInformationMessage('HTML imported successfully');
-    } catch (error) {
-      await webviewPanel.webview.postMessage({
-        type: 'fileOperationStatus',
-        sessionId: request.sessionId,
-        state: {
-          phase: 'failed',
-          requestId: request.requestId,
-          error: createFileOperationError(
-            'IMPORT_FAILED',
-            'The HTML file could not be imported.',
-            true,
-          ),
-        },
-      });
-      vscode.window.showErrorMessage(
-        `Failed to import HTML: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
     }
   }

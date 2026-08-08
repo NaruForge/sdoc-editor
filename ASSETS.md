@@ -14,16 +14,18 @@ Provenance record:
 
 ## README VS Code product captures
 
-The current README uses two unretouched captures from the real VS Code
-Extension Development Host. They show the production v0.8.3 extension rather
-than the browser-only UI quality fixture or generated imagery:
+The current README uses one unretouched capture from the real VS Code Extension
+Development Host. It shows the production v0.8.3 extension rather than the
+browser-only UI quality fixture or generated imagery:
 
-- `media/readme/vscode-editor-publish-ko-dark.png`: 1600 x 900 pixels,
-  137,165 bytes, SHA-256
-  `201e3a02238a0a4ac20a8033e48314224bf59dc7dab2db5d6a6d643ff464bf40`.
 - `media/readme/vscode-templates-ko-light.png`: 1600 x 900 pixels,
   117,685 bytes, SHA-256
   `d07c5cbe63e0ff66ea4d26aaedf7d30082fa1b547d5c3a9e4f9ca727ff50a949`.
+
+The former `media/readme/vscode-editor-publish-ko-dark.png` capture is retained
+only as repository history. It documents the retired immediate Publish panel,
+is not referenced by the current README, and must not be presented as the
+current Files workflow.
 
 Provenance and redistribution record:
 
@@ -36,9 +38,10 @@ Provenance and redistribution record:
   used.
 - Content: the repository-owned `builtin:verification-report` document was
   copied to an isolated temporary workspace, opened and saved through the real
-  custom editor, then captured with the Publish panel in `Dark 2026` and the
-  Templates panel in `Light 2026`. The product locale was Korean (`ko-KR`) and
-  reduced motion was enabled. The input document SHA-256 was
+  custom editor, then captured with the Templates panel in `Light 2026`. The
+  separately retained historical capture used the retired Publish panel in
+  `Dark 2026`. The product locale was Korean (`ko-KR`) and reduced motion was
+  enabled. The input document SHA-256 was
   `d34ab434fe971f26a3a396e721324ded330d513dba8d4665a924ca016466e7b0`.
 - Capture method: Playwright controlled the installed VS Code Electron process,
   asserted the Extension Development Host argument, product frame, theme class,

@@ -50,6 +50,67 @@ export interface DocumentSettings {
   outputDir?: string;
 }
 
+export type DocumentSettingKey = keyof DocumentSettings;
+export type DocumentSettingSource =
+  | 'document'
+  | 'book-profile'
+  | 'host'
+  | 'built-in'
+  | 'temporary-view';
+export type DocumentSettingScope = 'document' | 'book' | 'host' | 'product' | 'session';
+export type DocumentSettingPortability = 'portable' | 'host-local' | 'session-only';
+export type DocumentSettingApplicationTarget =
+  | 'editor-view'
+  | 'html'
+  | 'pdf'
+  | 'markdown'
+  | 'asciidoc'
+  | 'slides';
+
+export type TemporaryViewPreference = 'follow-document' | 'show' | 'hide';
+
+export interface TemporaryDocumentViewPreferences {
+  headingNumbering?: TemporaryViewPreference;
+  headingDecoration?: TemporaryViewPreference;
+}
+
+export interface ResolvedDocumentSettingEntry<K extends DocumentSettingKey = DocumentSettingKey> {
+  value: Required<DocumentSettings>[K];
+  source: DocumentSettingSource;
+  scope: DocumentSettingScope;
+  portability: DocumentSettingPortability;
+  appliesTo: readonly DocumentSettingApplicationTarget[];
+}
+
+export type ResolvedDocumentSettingEntries = {
+  readonly [K in DocumentSettingKey]-?: Readonly<ResolvedDocumentSettingEntry<K>>;
+};
+
+export type DocumentSettingsDiagnosticCode = 'CHAPTER_SETTING_OVERRIDDEN';
+
+export interface DocumentSettingsDiagnostic {
+  severity: 'warning';
+  code: DocumentSettingsDiagnosticCode;
+  key: DocumentSettingKey;
+  message: string;
+  documentPath?: string;
+}
+
+export interface ResolvedDocumentSettingsSnapshot {
+  version: '1';
+  context: 'standalone' | 'book' | 'editor';
+  values: Readonly<Required<DocumentSettings>>;
+  entries: ResolvedDocumentSettingEntries;
+  diagnostics: readonly Readonly<DocumentSettingsDiagnostic>[];
+  fingerprint: `sha256:${string}`;
+}
+
+export interface DocumentSettingsSnapshotChange<K extends DocumentSettingKey = DocumentSettingKey> {
+  key: K;
+  before: Readonly<ResolvedDocumentSettingEntry<K>>;
+  after: Readonly<ResolvedDocumentSettingEntry<K>>;
+}
+
 /** Fully resolved settings consumed by the host-neutral editor UI. */
 export interface ResolvedEditorSettings {
   captionStyle: CaptionStyleName;
@@ -112,6 +173,15 @@ export interface ExportSettings {
   captionStyle?: CaptionStyleName;
   headingNumbering?: boolean;
   headingStartNumber?: number;
+  /** HTML/PDF presentation only; ignored by text and slide converters. */
+  headingDecoration?: boolean;
+  /** HTML/PDF heading-number colors; ignored by text and slide converters. */
+  headingH1Color?: string;
+  headingH2Color?: string;
+  headingH3Color?: string;
+  headingH4Color?: string;
+  headingH5Color?: string;
+  headingH6Color?: string;
   counterResetPaths?: string[];
   imageCaptionPrefix?: string;
   tableCaptionPrefix?: string;

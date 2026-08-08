@@ -1,0 +1,9 @@
+{
+  "sdocBook": "9.0",
+  "title": "Future Book host fixture",
+  "documents": [
+    {
+      "path": "valid.sdoc"
+    }
+  ]
+}

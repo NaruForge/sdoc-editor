@@ -4,7 +4,7 @@ import { SIDE_PANEL_TAB_CONTENT_ID } from '../../../shared/editor/components/Sid
 
 type Theme = 'light' | 'dark' | 'hc';
 type Locale = 'ko' | 'en';
-type Scene = 'editor' | 'settings' | 'templates' | 'files' | 'diagram-error' | 'external-change' | 'invalid-document' | 'interactions';
+type Scene = 'editor' | 'settings' | 'templates' | 'files' | 'book' | 'diagram-error' | 'external-change' | 'invalid-document' | 'interactions';
 
 interface FixtureOptions {
   width: number;
@@ -14,6 +14,7 @@ interface FixtureOptions {
   scene?: Scene;
   columns?: number;
   panel?: boolean;
+  operation?: 'idle' | 'running' | 'failed' | 'succeeded-export' | 'succeeded-import';
 }
 
 async function openFixture(page: Page, {
@@ -24,9 +25,10 @@ async function openFixture(page: Page, {
   scene = 'editor',
   columns = 8,
   panel = false,
+  operation = 'idle',
 }: FixtureOptions): Promise<void> {
   await page.setViewportSize({ width, height });
-  await page.goto(`/?theme=${theme}&locale=${locale}&scene=${scene}&columns=${columns}&panel=${panel ? '1' : '0'}`);
+  await page.goto(`/?theme=${theme}&locale=${locale}&scene=${scene}&columns=${columns}&panel=${panel ? '1' : '0'}&operation=${operation}`);
   await page.locator('.quality-harness[data-ready="true"]').waitFor();
   await page.evaluate(() => document.fonts.ready);
   await page.addStyleTag({
@@ -768,7 +770,352 @@ test.describe('commercial workflow scene gate', () => {
   }
 });
 
+test.describe('Book workspace contract', () => {
+  for (const fixture of [
+    { width: 480, theme: 'light' as const, locale: 'en' as const },
+    { width: 1024, theme: 'dark' as const, locale: 'ko' as const },
+    { width: 1440, theme: 'hc' as const, locale: 'en' as const },
+  ]) {
+    test(`${fixture.width}px ${fixture.theme} ${fixture.locale} is accessible and contained`, async ({ page }) => {
+      await openFixture(page, { ...fixture, height: 900, scene: 'book' });
+      const workspace = page.locator('.book-workspace');
+      await expect(workspace).toBeVisible();
+      await expect(page.getByRole('heading', { name: fixture.locale === 'ko' ? 'Book 개요' : 'Book outline' })).toBeVisible();
+      await expect(page.getByRole('heading', { name: fixture.locale === 'ko' ? '합본 읽기 전용 미리보기' : 'Composed read-only preview' })).toBeVisible();
+      await expect(page.getByRole('button', { name: fixture.locale === 'ko' ? 'HTML 내보내기' : 'Export HTML' })).toBeEnabled();
+
+      const accessibility = await new AxeBuilder({ page })
+        .include('.book-workspace')
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+        .analyze();
+      expect(accessibility.violations).toEqual([]);
+      for (const selector of ['html', '.book-workspace', '.book-content-grid']) {
+        const dimensions = await page.locator(selector).evaluate((element) => ({
+          clientWidth: element.clientWidth,
+          scrollWidth: element.scrollWidth,
+        }));
+        expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth + 1);
+      }
+    });
+  }
+
+  test('chapter rows support keyboard reorder, open, and removal shortcuts', async ({ page }) => {
+    await openFixture(page, { width: 800, height: 900, locale: 'en', scene: 'book' });
+    const rows = page.locator('.book-document-row');
+    await expect(rows).toHaveCount(2);
+    await rows.first().focus();
+    await page.keyboard.press('Alt+ArrowDown');
+    await expect(rows.first()).toContainText('Reference');
+    await expect(rows.nth(1)).toBeFocused();
+    await expect(page.getByRole('status')).toContainText('moved to position 2');
+    await rows.nth(1).focus();
+    await page.keyboard.press('Delete');
+    await expect(rows).toHaveCount(1);
+    await expect(rows.first()).toBeFocused();
+    await expect(page.getByRole('status')).toContainText('removed from the Book');
+  });
+
+  test('Book preflight is modal, cancel-first, trapped, inert, and restores export focus', async ({ page }) => {
+    await openFixture(page, { width: 1024, height: 900, locale: 'en', scene: 'book' });
+    const trigger = page.getByRole('button', { name: 'Export HTML' });
+    await trigger.click();
+    const dialog = page.getByRole('alertdialog', { name: 'Confirm export' });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole('heading', { name: 'Effective publish settings' })).toBeVisible();
+    await expect(page.locator('.book-workspace-background')).toHaveAttribute('inert', '');
+    const cancel = dialog.getByRole('button', { name: 'Cancel', exact: true });
+    const confirm = dialog.getByRole('button', { name: 'Export file', exact: true });
+    await expect(dialog).toContainText('Book folder');
+    await expect(dialog).toContainText('./dist/system-guide.html');
+    await expect(dialog).toContainText('Heading numbering');
+    await expect(dialog).toContainText('Book profile');
+    await expect(dialog).toContainText('Keep diagram source when rendering is unavailable.');
+    await expect(dialog).toContainText('1 diagram fallback');
+    await expect(cancel).toBeFocused();
+    await page.keyboard.press('Shift+Tab');
+    await expect(confirm).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(cancel).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    await expect(trigger).toBeFocused();
+  });
+
+  test('Book profile exposes all portable settings with localized validation', async ({ page }) => {
+    await openFixture(page, { width: 1024, height: 1100, locale: 'ko', scene: 'book' });
+    for (const label of [
+      '제목 번호 표시', '제목 시작 번호', '제목 장식', 'H1 번호 색상', 'H6 번호 색상',
+      '캡션 스타일', '캡션 번호 방식', '수식 번호 방식', '상호 참조에 캡션 포함',
+    ]) await expect(page.getByText(label, { exact: true })).toBeVisible();
+    const color = page.getByLabel('H1 번호 색상');
+    await color.fill('#abcde');
+    await expect(color).toHaveAttribute('aria-invalid', 'true');
+    await expect(page.getByText('3, 4, 6 또는 8자리 16진수 색상을 입력하세요.')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Publish 프로필 저장' })).toBeDisabled();
+  });
+
+  test('Book result exposes fallback, artifact details, warnings, and common actions', async ({ page }) => {
+    await openFixture(page, {
+      width: 800, height: 900, locale: 'en', scene: 'book', operation: 'succeeded-export',
+    });
+    const result = page.locator('.book-operation.succeeded');
+    await expect(result).toContainText('Export completed with fallback.');
+    await expect(result).toContainText('system-guide.html');
+    await expect(result).toContainText('4,096 bytes');
+    await expect(result).toContainText('PDF is unavailable; an HTML fallback was created.');
+    for (const action of ['Open', 'Reveal', 'Copy path', 'Repeat']) {
+      await expect(result.getByRole('button', { name: action, exact: true })).toBeVisible();
+    }
+    await result.getByRole('button', { name: 'Open', exact: true }).dblclick();
+    await expect(result).toContainText('Opening result…');
+    for (const action of ['Open', 'Reveal', 'Copy path', 'Repeat']) {
+      await expect(result.getByRole('button', { name: action, exact: true })).toBeDisabled();
+    }
+  });
+
+  test('Book preview uses the profile color for heading text, number, and decoration', async ({ page }) => {
+    await openFixture(page, { width: 1024, height: 900, locale: 'en', scene: 'book' });
+    const colors = await page.locator('.book-preview-editor .ProseMirror h1').evaluate((heading) => ({
+      text: getComputedStyle(heading).color,
+      number: getComputedStyle(heading, '::before').color,
+      border: getComputedStyle(heading).borderBottomColor,
+      borderStyle: getComputedStyle(heading).borderBottomStyle,
+    }));
+    expect(colors).toEqual({
+      text: 'rgb(37, 99, 235)',
+      number: 'rgb(37, 99, 235)',
+      border: 'rgb(37, 99, 235)',
+      borderStyle: 'solid',
+    });
+    const h2Colors = await page.locator('.book-preview-editor .ProseMirror h2').evaluate((heading) => ({
+      text: getComputedStyle(heading).color,
+      number: getComputedStyle(heading, '::before').color,
+    }));
+    expect(h2Colors).toEqual({ text: 'rgb(37, 99, 235)', number: 'rgb(37, 99, 235)' });
+  });
+
+});
+
+test.describe('Files operation UX contract', () => {
+  test('file preflight traps keyboard focus, starts on Cancel, and restores its trigger', async ({ page }) => {
+    await openFixture(page, {
+      scene: 'files', width: 1024, height: 800, theme: 'dark', locale: 'en',
+    });
+    const trigger = page.getByRole('button', { name: /HTML.*Web page for sharing or publishing/i });
+    await trigger.click();
+    const dialog = page.getByRole('alertdialog', { name: 'Confirm export' });
+    await expect(dialog).toBeVisible();
+    const cancel = dialog.getByRole('button', { name: 'Cancel', exact: true });
+    const confirm = dialog.getByRole('button', { name: 'Export file', exact: true });
+    await expect(cancel).toBeFocused();
+    await page.keyboard.press('Shift+Tab');
+    await expect(confirm).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(cancel).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    await expect(trigger).toBeFocused();
+  });
+
+  test('Korean import preflight remains modal, accessible, and contained at 320px', async ({ page }) => {
+    await openFixture(page, {
+      scene: 'files', width: 320, height: 800, theme: 'hc', locale: 'ko',
+    });
+    await page.getByRole('tab', { name: '가져오기' }).click();
+    const trigger = page.getByRole('button', { name: /Markdown.*현재 문서로 가져옵니다/i });
+    await trigger.click();
+    const dialog = page.getByRole('alertdialog', { name: '가져오기 확인' });
+    await expect(dialog).toHaveAttribute('aria-modal', 'true');
+    await expect(page.locator('.files-panel-background')).toHaveAttribute('inert', '');
+    await expect(page.locator('.files-panel-background')).toHaveAttribute('aria-hidden', 'true');
+    await expect(dialog.getByText('메타데이터와 설정은 유지됩니다.')).toBeVisible();
+    await expect(dialog.getByRole('button', { name: '취소', exact: true })).toBeFocused();
+    const accessibility = await new AxeBuilder({ page })
+      .include('.modal-overlay')
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+      .analyze();
+    expect(accessibility.violations).toEqual([]);
+    const dimensions = await dialog.evaluate((element) => ({
+      left: element.getBoundingClientRect().left,
+      right: element.getBoundingClientRect().right,
+      scrollWidth: element.scrollWidth,
+      clientWidth: element.clientWidth,
+    }));
+    expect(dimensions.left).toBeGreaterThanOrEqual(0);
+    expect(dimensions.right).toBeLessThanOrEqual(320);
+    expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth + 1);
+    await expect(page.locator('.scene-surface')).toHaveScreenshot('files-preflight-vscode-hc-ko-320.png');
+    await page.keyboard.press('Escape');
+    await expect(trigger).toBeFocused();
+  });
+
+  test('Files operation states expose localized live regions and distinct buffer persistence', async ({ page }) => {
+    await openFixture(page, {
+      scene: 'files', width: 800, height: 800, theme: 'dark', locale: 'ko', operation: 'running',
+    });
+    let status = page.locator('.file-operation-status[role="status"]');
+    await expect(status).toHaveAttribute('aria-live', 'polite');
+    await expect(status).toContainText('불변 스냅샷을 렌더링하는 중');
+
+    await openFixture(page, {
+      scene: 'files', width: 800, height: 800, theme: 'hc', locale: 'ko', operation: 'failed',
+    });
+    const alert = page.locator('.file-operation-status[role="alert"]');
+    await expect(alert).toHaveAttribute('aria-live', 'assertive');
+    await expect(alert.getByRole('button', { name: '다시 시도' })).toBeVisible();
+
+    await openFixture(page, {
+      scene: 'files', width: 800, height: 800, theme: 'light', locale: 'ko', operation: 'succeeded-export',
+    });
+    await expect(page.getByRole('button', { name: '열기', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: '탐색기에서 보기' })).toBeVisible();
+
+    await openFixture(page, {
+      scene: 'files', width: 800, height: 800, theme: 'dark', locale: 'ko', operation: 'succeeded-import',
+    });
+    status = page.locator('.file-operation-result[role="status"]');
+    await expect(status).toContainText('편집기 버퍼에 적용');
+    await expect(status).toContainText('디스크에 기록하려면 문서를 저장');
+    await expect(status.getByRole('button', { name: '가져오기 실행 취소' })).toBeVisible();
+  });
+
+  test('Design and Files remain horizontally contained with 200% text scaling', async ({ page }) => {
+    for (const scene of ['settings', 'files'] as const) {
+      await openFixture(page, { scene, width: 800, height: 900, theme: 'dark', locale: 'en' });
+      await page.addStyleTag({ content: '#editor-side-panel { font-size: 200%; }' });
+      const panel = page.locator('#editor-side-panel');
+      const dimensions = await panel.evaluate((element) => ({
+        clientWidth: element.clientWidth,
+        scrollWidth: element.scrollWidth,
+      }));
+      expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth + 1);
+    }
+  });
+
+  test('PDF scale keeps invalid drafts local and commits only a valid value', async ({ page }) => {
+    await openFixture(page, {
+      scene: 'files', width: 1024, height: 900, theme: 'dark', locale: 'en',
+    });
+    const surface = page.locator('.scene-surface');
+    const pdfSection = page.locator('.settings-section').filter({
+      has: page.getByRole('button', { name: 'PDF', exact: true }),
+    }).first();
+    await pdfSection.getByRole('button', { name: 'PDF', exact: true }).click();
+    const scale = pdfSection.getByRole('textbox', { name: 'PDF scale' });
+    await expect(surface).toHaveAttribute('data-pdf-scale', 'unset');
+
+    for (const invalid of ['', 'not-a-number', '201']) {
+      await scale.fill(invalid);
+      await scale.blur();
+      await expect(scale).toHaveAttribute('aria-invalid', 'true');
+      const errorId = await scale.getAttribute('aria-errormessage');
+      expect(errorId).toBeTruthy();
+      await expect(page.locator(`#${errorId}`)).toHaveText('Enter a number from 10 through 200.');
+      await expect(surface).toHaveAttribute('data-pdf-scale', 'unset');
+    }
+
+    await scale.fill('95');
+    await scale.press('Enter');
+    await expect(scale).not.toHaveAttribute('aria-invalid', 'true');
+    await expect(surface).toHaveAttribute('data-pdf-scale', '95');
+  });
+});
+
 test.describe('heading palette contract', () => {
+  test('view preference labels remain fully readable across widths, locales, and text scaling', async ({ page }) => {
+    for (const width of [800, 1024, 1440]) {
+      for (const locale of ['en', 'ko'] as const) {
+        for (const scale of [100, 200]) {
+          await openFixture(page, { scene: 'settings', width, height: 900, theme: 'dark', locale });
+          if (scale === 200) {
+            await page.addStyleTag({
+              content: `
+                #editor-side-panel .side-panel-view-preference .side-panel-control-copy,
+                #editor-side-panel .side-panel-view-preference .side-panel-select {
+                  font-size: 200%;
+                }
+              `,
+            });
+          }
+          const row = page.locator('.side-panel-view-preference').first();
+          const select = row.locator('select');
+          await expect(select.locator('option:checked')).toHaveText(
+            locale === 'ko' ? '문서 설정 따르기' : 'Follow document',
+          );
+          const fit = await select.evaluate((element: HTMLSelectElement) => {
+            const styles = getComputedStyle(element);
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            if (!context) throw new Error('Canvas context unavailable.');
+            context.font = styles.font;
+            const labelWidth = context.measureText(element.selectedOptions[0]?.text ?? '').width;
+            const horizontalPadding = Number.parseFloat(styles.paddingLeft)
+              + Number.parseFloat(styles.paddingRight);
+            return {
+              clientWidth: element.clientWidth,
+              requiredWidth: Math.ceil(labelWidth + horizontalPadding + 4),
+            };
+          });
+          expect(
+            fit.clientWidth,
+            `${width}px ${locale} at ${scale}% must show the selected label without truncation`,
+          ).toBeGreaterThanOrEqual(fit.requiredWidth);
+          const copy = await row.locator('.side-panel-control-copy').evaluate((element) => ({
+            clientWidth: element.clientWidth,
+            scrollWidth: element.scrollWidth,
+          }));
+          expect(copy.scrollWidth).toBeLessThanOrEqual(copy.clientWidth + 1);
+        }
+      }
+    }
+  });
+
+  test('keeps session view preferences separate from persisted document settings', async ({ page }) => {
+    await openFixture(page, {
+      scene: 'settings', width: 1024, height: 900, theme: 'dark', locale: 'en',
+    });
+
+    const viewRow = page.locator('.side-panel-view-preference')
+      .filter({ hasText: 'Heading numbering' });
+    const preference = viewRow.locator('select');
+    const persisted = page.locator('.settings-panel')
+      .getByRole('checkbox', { name: 'Heading numbering' });
+
+    await expect(preference).toHaveValue('follow-document');
+    await expect(persisted).toBeChecked();
+    await preference.selectOption('hide');
+    await expect(viewRow).toContainText('currently hidden');
+    await expect(viewRow).toContainText('Temporary view');
+    await expect(persisted).toBeChecked();
+    await expect(page.locator('.fixture-canvas')).toHaveAttribute('data-effective-numbering', 'hide');
+    await expect(page.locator('.design-compact-preview-h1')).toHaveText('Document heading');
+
+    await preference.selectOption('follow-document');
+    await expect(page.locator('.fixture-canvas')).toHaveAttribute('data-effective-numbering', 'show');
+    await expect(page.locator('.design-compact-preview-h1')).toHaveText('1 Document heading');
+  });
+
+  test('undoes persisted settings to the panel-open baseline', async ({ page }) => {
+    await openFixture(page, {
+      scene: 'settings', width: 1024, height: 900, theme: 'dark', locale: 'en',
+    });
+
+    const decoration = page.locator('.settings-panel')
+      .getByRole('checkbox', { name: 'Decoration' });
+    await decoration.uncheck();
+    const appearance = page.locator('.settings-section').filter({
+      has: page.getByRole('button', { name: 'Document appearance' }),
+    }).first();
+    await expect(appearance.locator('.settings-change-summary')).toHaveText(
+      '1 changes since panel opened',
+    );
+    await appearance.getByRole('button', { name: 'Undo group' }).click();
+    await expect(decoration).toBeChecked();
+    await expect(appearance.locator('.settings-change-summary')).toHaveText(
+      '0 changes since panel opened',
+    );
+  });
+
   test('uses four keyboard-operable cards and reveals Custom without rewriting Mixed', async ({ page }) => {
     await openFixture(page, {
       scene: 'settings', width: 1024, height: 900, theme: 'dark', locale: 'en',
@@ -787,7 +1134,7 @@ test.describe('heading palette contract', () => {
     await page.keyboard.press('Space');
     await expect(custom).toHaveAttribute('aria-pressed', 'true');
     await expect(page.getByLabel('Custom palette color picker')).toBeVisible();
-    await page.getByRole('button', { name: 'Use host defaults' }).first().click();
+    await page.getByRole('button', { name: 'Remove overrides' }).first().click();
     await expect(page.locator('.settings-custom-palette-controls')).toHaveCount(0);
     await expect(page.getByRole('button', { name: /Blue palette, #2563EB/i })).toHaveAttribute('aria-pressed', 'true');
 
@@ -810,11 +1157,13 @@ test.describe('heading palette contract', () => {
 
     await page.getByRole('button', { name: 'Advanced heading colors' }).click();
     await page.getByRole('button', { name: 'H1 Black' }).click();
-    await expect(page.getByRole('status')).toHaveText('Advanced heading colors are applied.');
+    await expect(page.locator('.settings-palette-mixed-notice'))
+      .toHaveText('Advanced heading colors are applied.');
     await expect(page.getByRole('button', { name: /^Mixed/ })).toHaveCount(0);
     await expect(page.locator('.settings-custom-palette-controls')).toHaveCount(0);
     await page.getByRole('button', { name: /Custom, #000000/i }).click();
-    await expect(page.getByRole('status')).toHaveText('Advanced heading colors are applied.');
+    await expect(page.locator('.settings-palette-mixed-notice'))
+      .toHaveText('Advanced heading colors are applied.');
     await expect(page.locator('.settings-custom-palette-controls')).toBeVisible();
   });
 

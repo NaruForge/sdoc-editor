@@ -203,6 +203,56 @@ describe('cross-format numbering', () => {
     }
   });
 
+  it('applies heading decoration and number colors only to HTML/PDF HTML', () => {
+    const doc: TiptapNode = { type: 'doc', content: [
+      { type: 'heading', attrs: { level: 1 }, content: [{ type: 'text', text: 'One' }] },
+      { type: 'heading', attrs: { level: 6 }, content: [{ type: 'text', text: 'Six' }] },
+    ] };
+    const baseline: ExportSettings = { headingNumbering: true };
+    const styled: ExportSettings = {
+      ...baseline,
+      headingDecoration: false,
+      headingH1Color: '#112233',
+      headingH6Color: '#aabbcc',
+    };
+
+    const html = convertJsonToHtml(doc, undefined, styled);
+    expect(html).toContain('border-bottom: none;');
+    expect(html).toContain('h1 { color: #112233; }');
+    expect(html).toContain('h1::before { color: #112233; }');
+    expect(html).toContain('h6 { color: #aabbcc; }');
+    expect(html).toContain('h6::before { color: #aabbcc; }');
+    expect(convertJsonToMarkdown(doc, styled)).toBe(convertJsonToMarkdown(doc, baseline));
+    expect(convertJsonToAdoc(doc, styled)).toBe(convertJsonToAdoc(doc, baseline));
+    expect(convertJsonToSlides(doc, undefined, styled as SlideSettings))
+      .toBe(convertJsonToSlides(doc, undefined, baseline as SlideSettings));
+  });
+
+  it('uses the H1 profile color for decorated heading text, number, and border', () => {
+    const html = convertJsonToHtml({
+      type: 'doc',
+      content: [{ type: 'heading', attrs: { level: 1 }, content: [{ type: 'text', text: 'One' }] }],
+    }, undefined, {
+      headingNumbering: true,
+      headingDecoration: true,
+      headingH1Color: '#1234',
+    });
+    expect(html).toContain('border-bottom: 2px solid #1234;');
+    expect(html).toContain('h1 { color: #1234; }');
+    expect(html).toContain('h1::before { color: #1234; }');
+  });
+
+  it.each(['#abc', '#abcd', '#aabbcc', '#aabbccdd'])(
+    'emits supported CSS hex heading color %s',
+    (color) => {
+      const html = convertJsonToHtml({
+        type: 'doc',
+        content: [{ type: 'heading', attrs: { level: 1 }, content: [{ type: 'text', text: 'One' }] }],
+      }, undefined, { headingH1Color: color });
+      expect(html).toContain(`h1::before { color: ${color}; }`);
+    },
+  );
+
   it('resolves document settings over host settings in the shared resolver', () => {
     const documentSettings = {
       captionStyle: 'ieee' as const,

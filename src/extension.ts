@@ -199,6 +199,7 @@ async function dispatchExport(format: ExportFormat): Promise<void> {
   try {
     await SdocEditorProvider.exportActiveDocument(format);
   } catch (error) {
+    console.error('Structured Doc export command failed', error);
     await vscode.window.showErrorMessage(
       `Failed to export: ${error instanceof Error ? error.message : String(error)}`,
     );

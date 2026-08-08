@@ -10,7 +10,10 @@ import {
   transitionActivityDestination,
 } from '../shared/editor/activityState';
 import { ActivityBar } from '../shared/editor/components/ActivityBar';
-import { DesignPanel } from '../shared/editor/components/DesignPanel';
+import {
+  buildDesignCompactPreview,
+  DesignPanel,
+} from '../shared/editor/components/DesignPanel';
 import { ViewControlPanel } from '../shared/editor/components/ViewControlPanel';
 import {
   nextSidePanelTabIndex,
@@ -25,18 +28,131 @@ import {
 } from '../shared/editor/components/SidePanelTabPanel';
 import {
   applyHeadingPalette,
+  DeferredNumberInput,
+  DeferredTextInput,
   DocumentSettingsPanel,
   getHeadingPalette,
+  isDeferredTextDraftValid,
+  parseDeferredNumberDraft,
   removeDocumentSettings,
 } from '../shared/editor/components/DocumentSettingsPanel';
 import { EditorProvider } from '../shared/editor/context/EditorContext';
 import { EditorI18nProvider } from '../shared/editor/i18n';
+import {
+  createDefaultViewPreferences,
+  materializeSettingsGroup,
+  removeSettingsOverrides,
+  restoreSettingsGroupBaseline,
+} from '../shared/editor/designSettings';
+import { resolveDocumentSettingsSnapshot } from '../shared/settingsResolver';
 
 const renderActivityBar = (element: React.ReactElement): string => renderToStaticMarkup(
   <EditorI18nProvider locale="en">{element}</EditorI18nProvider>,
 );
 
 describe('activity hubs and settings UI', () => {
+  it('keeps Design view preferences session-only and follows the document by default', () => {
+    expect(createDefaultViewPreferences()).toEqual({
+      headingNumbering: 'follow-document',
+      headingDecoration: 'follow-document',
+    });
+  });
+
+  it('builds the compact preview from the effective numbering and caption formatter', () => {
+    expect(buildDesignCompactPreview({
+      headingNumbering: true,
+      headingStartNumber: 5,
+      captionStyle: 'ieee',
+    }, 'Example caption')).toEqual({
+      headingOne: '5',
+      headingTwo: '5.1',
+      caption: 'Fig. 1. Example caption',
+    });
+    expect(buildDesignCompactPreview({
+      headingNumbering: false,
+      headingStartNumber: 8,
+      captionStyle: 'korean',
+    }, '캡션 예시')).toEqual({
+      headingOne: '',
+      headingTwo: '',
+      caption: '그림 1 캡션 예시',
+    });
+  });
+
+  it('restores panel-open group baselines without disturbing other settings', () => {
+    const baseline = { headingDecoration: false, captionStyle: 'iso' } as const;
+    const current = {
+      headingDecoration: true,
+      headingH1Color: '#123456',
+      captionStyle: 'korean',
+    } as const;
+
+    expect(restoreSettingsGroupBaseline(current, baseline, [
+      'headingDecoration',
+      'headingH1Color',
+    ])).toEqual({ headingDecoration: false, captionStyle: 'korean' });
+  });
+
+  it('can pin effective settings or remove only the selected overrides', () => {
+    const snapshot = resolveDocumentSettingsSnapshot({
+      context: 'standalone',
+      documentSettings: { captionStyle: 'korean' },
+    });
+
+    expect(materializeSettingsGroup(
+      { captionStyle: 'korean' },
+      snapshot,
+      ['headingDecoration', 'headingH1Color'],
+    )).toMatchObject({
+      captionStyle: 'korean',
+      headingDecoration: snapshot.values.headingDecoration,
+      headingH1Color: snapshot.values.headingH1Color,
+    });
+    expect(removeSettingsOverrides(
+      { captionStyle: 'korean', headingDecoration: false },
+      ['headingDecoration'],
+    )).toEqual({ captionStyle: 'korean' });
+  });
+
+  it('keeps invalid deferred drafts local and connects the error message', () => {
+    expect(isDeferredTextDraftValid('#GGGGGG', '^#[0-9a-fA-F]{6}$')).toBe(false);
+    const markup = renderToStaticMarkup(
+      <DeferredTextInput
+        value="#GGGGGG"
+        placeholder="#2563EB"
+        pattern="^#[0-9a-fA-F]{6}$"
+        errorMessage="Enter a valid HEX color"
+        onCommit={vi.fn()}
+      />,
+    );
+    const errorId = markup.match(/aria-errormessage="([^"]+)"/)?.[1];
+    expect(markup).toContain('aria-invalid="true"');
+    expect(errorId).toBeTruthy();
+    expect(markup).toContain(`id="${errorId}"`);
+    expect(markup).toContain('Enter a valid HEX color');
+  });
+
+  it('accepts only finite in-range PDF scale drafts before commit', () => {
+    expect(parseDeferredNumberDraft('', 10, 200)).toBeNull();
+    expect(parseDeferredNumberDraft('not-a-number', 10, 200)).toBeNull();
+    expect(parseDeferredNumberDraft('9', 10, 200)).toBeNull();
+    expect(parseDeferredNumberDraft('201', 10, 200)).toBeNull();
+    expect(parseDeferredNumberDraft('95', 10, 200)).toBe(95);
+
+    const markup = renderToStaticMarkup(
+      <DeferredNumberInput
+        value={70}
+        min={10}
+        max={200}
+        ariaLabel="PDF scale"
+        errorMessage="Enter a number from 10 through 200."
+        onCommit={vi.fn()}
+      />,
+    );
+    expect(markup).toContain('inputMode="decimal"');
+    expect(markup).toContain('aria-label="PDF scale"');
+    expect(markup).not.toContain('aria-invalid="true"');
+  });
   it('calculates wrapped side-panel tab focus for arrows, Home, and End', () => {
     expect(nextSidePanelTabIndex(0, 'ArrowLeft', 3)).toBe(2);
     expect(nextSidePanelTabIndex(2, 'ArrowRight', 3)).toBe(0);
@@ -92,11 +208,11 @@ describe('activity hubs and settings UI', () => {
     expect(sharedMarkup.match(/class="activity-bar-icon/g)).toHaveLength(4);
     expect(sharedMarkup.indexOf('Navigate')).toBeLessThan(sharedMarkup.indexOf('Design'));
     expect(sharedMarkup.indexOf('Design')).toBeLessThan(sharedMarkup.indexOf('Templates'));
-    expect(sharedMarkup.indexOf('Templates')).toBeLessThan(sharedMarkup.indexOf('Publish'));
+    expect(sharedMarkup.indexOf('Templates')).toBeLessThan(sharedMarkup.indexOf('Files'));
     expect(sharedMarkup).not.toContain('Workspace');
   });
 
-  it('keeps only Export and Import in Publish and remembers its last tab', () => {
+  it('keeps only Export and Import in Files and remembers its last tab', () => {
     const markup = renderToStaticMarkup(
       <EditorI18nProvider locale="en">
         <SidePanelTabs
@@ -185,6 +301,8 @@ describe('activity hubs and settings UI', () => {
     );
     expect(source).toContain("import { SidePanelBody } from '@shared/editor/components/SidePanelBody'");
     expect(source).toContain("import { DesignPanel } from '@shared/editor/components/DesignPanel'");
+    expect(source).toContain('settingsSnapshot: designState.settingsSnapshot');
+    expect(source).toContain("type: 'SET_VIEW_PREFERENCES'");
     expect(source).toContain('<SidePanelBody selection={selection} onSelectionChange={onSelectionChange}>');
     expect(source).toContain("selection.destination === 'design'");
     expect(source).not.toContain("selection.destination === 'design' && selection.tab");
@@ -225,6 +343,11 @@ describe('activity hubs and settings UI', () => {
   });
 
   it('renders screen-only and document-persisted controls together without Design tabs', () => {
+    const snapshot = resolveDocumentSettingsSnapshot({
+      context: 'editor',
+      documentSettings: { headingDecoration: false },
+      temporaryView: { headingNumbering: 'show' },
+    });
     const markup = renderToStaticMarkup(
       <EditorI18nProvider locale="en">
         <EditorProvider>
@@ -237,6 +360,15 @@ describe('activity hubs and settings UI', () => {
               uiLanguagePreference="auto"
               onUiLanguagePreferenceChange={vi.fn()}
               onUpdateDocSettings={vi.fn()}
+              adapter={{
+                settingsSnapshot: snapshot,
+                viewPreferences: {
+                  headingNumbering: 'show',
+                  headingDecoration: 'follow-document',
+                },
+                onViewPreferencesChange: vi.fn(),
+                settingsSyncState: { status: 'saved' },
+              }}
             />
           </SidePanelBody>
         </EditorProvider>
@@ -247,6 +379,12 @@ describe('activity hubs and settings UI', () => {
     expect(markup).toContain('do not modify the document');
     expect(markup).toContain('Document settings');
     expect(markup).toContain('saved with this document');
+    expect(markup).toContain('Temporary view');
+    expect(markup).toContain('Session only');
+    expect(markup).toContain('Stored in document');
+    expect(markup).toContain('Applies to Editor view, HTML, PDF');
+    expect(markup).toContain('Saved to disk');
+    expect(markup).toContain('Portable style preview');
     expect(markup).not.toContain('role="tablist"');
     expect(markup).not.toContain('role="tabpanel"');
   });
@@ -269,6 +407,8 @@ describe('activity hubs and settings UI', () => {
     expect(markup).toContain('<option value="auto">Auto</option>');
     expect(markup).toContain('<option value="ko" selected="">한국어</option>');
     expect(markup).toContain('<option value="en">English</option>');
+    expect(markup.match(/<option value="follow-document" selected="">Follow document<\/option>/g))
+      .toHaveLength(2);
   });
 
   it('applies a document-wide palette as one H1-H6 settings patch', () => {
@@ -324,7 +464,9 @@ describe('activity hubs and settings UI', () => {
     expect(settingsMarkup).toContain('min="0"');
     expect(settingsMarkup).toContain('Advanced heading colors');
     expect(settingsMarkup).toContain('aria-expanded="false"');
-    expect(settingsMarkup).toContain('Use host defaults');
+    expect(settingsMarkup).toContain('Remove overrides');
+    expect(settingsMarkup).toContain('Store effective values');
+    expect(settingsMarkup).toContain('Undo all panel changes');
     expect(settingsMarkup).toContain('Reset all document settings');
     expect(settingsMarkup.match(/settings-palette-card/g)).toHaveLength(4);
     expect(settingsMarkup).toContain('Blue palette, #2563EB');
@@ -333,7 +475,7 @@ describe('activity hubs and settings UI', () => {
     expect(settingsMarkup).toContain('Custom, #2563EB');
     expect(settingsMarkup).not.toContain('settings-palette-mixed-notice');
     expect(settingsMarkup).not.toContain('settings-custom-palette-controls');
-    expect(settingsMarkup).not.toContain('disabled=""');
+    expect(settingsMarkup).toContain('disabled="">Undo group');
     expect(exportMarkup).toContain('Export options');
     expect(exportMarkup).not.toContain('Document appearance');
   });
@@ -354,7 +496,7 @@ describe('activity hubs and settings UI', () => {
 
     expect(markup).toContain(title);
     expect(markup).toContain(section);
-    expect(markup).toContain(locale === 'ko' ? '호스트 기본값 사용' : 'Use host defaults');
+    expect(markup).toContain(locale === 'ko' ? '재정의 제거' : 'Remove overrides');
   });
 
   it.each(['settings', 'export', 'slides'] as const)(
@@ -372,7 +514,7 @@ describe('activity hubs and settings UI', () => {
         'Mixed',
         'Advanced heading colors',
         'Numbering and references',
-        'Use host defaults',
+        'Remove overrides',
         'Shown when heading levels use different colors',
         'Custom document heading color',
         'Export options',

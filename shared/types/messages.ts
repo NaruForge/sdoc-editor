@@ -21,7 +21,16 @@ import type {
   EditorLocale,
   UiLanguagePreference,
 } from '../editor/i18n/locale';
-import type { FileOperationState } from '../editor/fileOperations';
+import type {
+  FileOperationArtifactId,
+  FileOperationError,
+  FileOperationIntent,
+  FileOperationPlanId,
+  FileOperationPlanView,
+  FileOperationRequestId,
+  FileOperationResultAction,
+  FileOperationState,
+} from '../editor/fileOperations';
 import type { ContractDiagnostic } from '../document/documentContract';
 import type { KnownDiagramLanguage } from '../editor/diagram/languages';
 import type {
@@ -245,6 +254,8 @@ export interface ImportContentMessage {
   sessionId: string;
   documentId: string;
   content: TiptapNode;
+  /** The common Files preflight already obtained the destructive confirmation. */
+  confirmation?: 'preflight-confirmed';
 }
 
 export interface ImportHtmlToWebviewMessage {
@@ -253,6 +264,13 @@ export interface ImportHtmlToWebviewMessage {
   sessionId: string;
   documentId: string;
   html: string;
+  /** The common Files preflight already obtained the destructive confirmation. */
+  confirmation?: 'preflight-confirmed';
+}
+
+export interface ShowFileOperationMessage {
+  type: 'showFileOperation';
+  tab: 'export' | 'import';
 }
 
 export interface ImageSavedMessage {
@@ -311,10 +329,31 @@ export interface RequestFlushMessage {
   requestId: string;
 }
 
+export interface FileOperationPreflightMessage {
+  type: 'fileOperationPreflight';
+  requestId: FileOperationRequestId;
+  sessionId: string;
+  documentId: string;
+  plan: FileOperationPlanView;
+}
+
 export interface FileOperationStatusMessage {
   type: 'fileOperationStatus';
   sessionId: string;
+  /** Omitted by the legacy operation status flow. */
+  documentId?: string;
   state: FileOperationState;
+}
+
+export interface FileOperationResultActionStatusMessage {
+  type: 'fileOperationResultActionStatus';
+  requestId: FileOperationRequestId;
+  actionRequestId: FileOperationRequestId;
+  sessionId: string;
+  documentId: string;
+  action: FileOperationResultAction;
+  status: 'completed' | 'failed';
+  error?: FileOperationError;
 }
 
 export interface DiagramRenderReadyMessage {
@@ -385,13 +424,16 @@ export type ExtensionToWebviewMessage =
   | MetaUpdateMessage
   | ImportContentMessage
   | ImportHtmlToWebviewMessage
+  | ShowFileOperationMessage
   | ImageSavedMessage
   | DrawioCreatedMessage
   | ImageInsertedMessage
   | ImageReplacedMessage
   | DrawioFileUpdatedMessage
   | RequestFlushMessage
+  | FileOperationPreflightMessage
   | FileOperationStatusMessage
+  | FileOperationResultActionStatusMessage
   | DiagramRenderReadyMessage
   | DiagramRenderFailedMessage
   | DiagramRendererSettingsMessage
@@ -535,6 +577,48 @@ export interface ExportMessage {
   format: 'html' | 'adoc' | 'markdown' | 'pdf' | 'slides';
 }
 
+interface FileOperationRequestIdentity {
+  requestId: FileOperationRequestId;
+  sessionId: string;
+  documentId: string;
+}
+
+export interface FileOperationPrepareMessage extends FileOperationRequestIdentity {
+  type: 'fileOperationPrepare';
+  baseRevision: number;
+  intent: FileOperationIntent;
+}
+
+export interface FileOperationExecuteMessage extends FileOperationRequestIdentity {
+  type: 'fileOperationExecute';
+  planId: FileOperationPlanId;
+}
+
+export interface FileOperationCancelMessage extends FileOperationRequestIdentity {
+  type: 'fileOperationCancel';
+  planId?: FileOperationPlanId;
+}
+
+export interface FileOperationRetryMessage extends FileOperationRequestIdentity {
+  type: 'fileOperationRetry';
+  previousRequestId: FileOperationRequestId;
+}
+
+interface FileOperationResultActionMessageBase extends FileOperationRequestIdentity {
+  type: 'fileOperationResultAction';
+  actionRequestId: FileOperationRequestId;
+}
+
+export type FileOperationResultActionMessage =
+  | (FileOperationResultActionMessageBase & {
+    action: Exclude<FileOperationResultAction, 'repeat'>;
+    artifactId: FileOperationArtifactId;
+  })
+  | (FileOperationResultActionMessageBase & {
+    action: 'repeat';
+    artifactId?: never;
+  });
+
 export interface OpenDocumentMessage {
   type: 'openDocument';
   path: string;
@@ -652,6 +736,11 @@ export type WebviewToExtensionMessage =
   | InsertExistingImageMessage
   | ReplaceImageMessage
   | ExportMessage
+  | FileOperationPrepareMessage
+  | FileOperationExecuteMessage
+  | FileOperationCancelMessage
+  | FileOperationRetryMessage
+  | FileOperationResultActionMessage
   | OpenDocumentMessage
   | BrowseSdocFilesMessage
   | ImportMarkdownMessage
