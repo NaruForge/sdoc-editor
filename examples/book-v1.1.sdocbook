@@ -1,0 +1,49 @@
+{
+  "sdocBook": "1.1",
+  "title": "Portable system guide",
+  "author": "Documentation team",
+  "version": "1.0",
+  "counterPolicy": "continue",
+  "publish": {
+    "profileVersion": "1",
+    "settings": {
+      "headingNumbering": true,
+      "headingStartNumber": 1,
+      "headingDecoration": true,
+      "headingH1Color": "#2563EB",
+      "headingH2Color": "#2563EB",
+      "headingH3Color": "#2563EB",
+      "headingH4Color": "#2563EB",
+      "headingH5Color": "#2563EB",
+      "headingH6Color": "#2563EB",
+      "captionStyle": "modern",
+      "captionNumbering": "sequential",
+      "equationNumbering": "sequential",
+      "crossRefIncludeCaption": false
+    },
+    "theme": {
+      "id": "default-v1",
+      "cssPath": "./styles/book.css"
+    },
+    "html": {
+      "selfContained": "images-only"
+    },
+    "pdf": {
+      "scale": 70
+    },
+    "diagrams": {
+      "failurePolicy": "source-fallback"
+    },
+    "outputDir": "./dist"
+  },
+  "documents": [
+    {
+      "path": "./chapters/introduction.sdoc",
+      "label": "Introduction"
+    },
+    {
+      "path": "./chapters/reference.sdoc",
+      "label": "Reference"
+    }
+  ]
+}

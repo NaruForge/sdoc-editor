@@ -6,3 +6,5 @@ export * from './messages';
 export * from './limits';
 export * from './mutations';
 export * from './rendering';
+export * from './publishProfile';
+export * from './exportIntegrity';

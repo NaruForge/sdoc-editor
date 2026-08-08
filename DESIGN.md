@@ -61,7 +61,7 @@ or exported meaning of those settings.
 
 The navigation model has one Activity rail and, when a destination is open, one
 contextual Side Panel. The destinations are `Navigate`, `Design`, `Templates`,
-and `Publish`. VS Code owns workspace navigation. Availability differences must
+and `Files`. The internal activity discriminant remains `publish` for compatibility. VS Code owns workspace navigation. Availability differences must
 be capability-driven, not a second navigation model.
 
 Each destination has an icon and a clear text label. Do not duplicate these

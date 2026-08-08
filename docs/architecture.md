@@ -92,6 +92,23 @@ includes. Manifest, chapter-count, per-chapter, and aggregate byte limits are
 enforced before composition. Book mutations are serialized and carry the
 manifest revision so a stale browser action cannot overwrite a newer edit.
 
+The VS Code Book surface is a shared React workspace in
+`shared/editor/components/BookEditorWorkspace.tsx`, loaded through the separate
+`webview-ui/src/bookMain.tsx` entry. It renders the composed tree through a
+browser-safe, read-only Tiptap extension set, alongside manifest-order chapters,
+outline, and diagnostics. `.sdocbook` 1.0 remains previewable and editable but
+fails closed for export; 1.1 export resolves only the persisted inline publish
+profile through the portable Book settings snapshot.
+Book export preflight freezes that same composition together with the profile
+fingerprint, custom CSS, embedded images, bundled runtime assets, diagram
+results, destination fingerprint, and rendered HTML. Its authoritative digest
+covers manifest bytes and revision, every chapter byte stream and open-buffer
+revision, canonical paths, custom CSS, and local images. The common
+`FileOperationPlanRegistry` revalidates those inputs and the canonical Book
+destination before execution; the host repeats both checks immediately before
+the atomic commit while `VsCodeExportService` writes or prints only the
+prepared HTML.
+
 ### Editor UI
 
 `shared/editor/` owns reusable React components, editor context, hooks, Tiptap
@@ -237,8 +254,8 @@ remote, legacy, malformed, and uncertain locks remain blocked. See
 
 - `src/SdocEditorProvider.ts`: editor lifecycle, TextDocument synchronization,
   and message routing
-- `src/SdocBookProvider.ts`: Book webview orchestration, open-buffer loader,
-  file watching, and export destination handling
+- `src/SdocBookProvider.ts`: Book React-webview orchestration, open-buffer
+  loader, file watching, profile validation, and export destination handling
 - `src/services/VsCodeAssetService.ts`: image and Draw.io operations
 - `src/services/VsCodeExportService.ts`: export orchestration
 - `src/services/VsCodeTemplateService.ts`: workspace and personal template

@@ -1,0 +1,10 @@
+{
+  "sdocBook": "1.0",
+  "title": "Legacy Book host fixture",
+  "documents": [
+    {
+      "path": "valid.sdoc",
+      "label": "Valid chapter"
+    }
+  ]
+}

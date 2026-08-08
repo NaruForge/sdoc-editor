@@ -1,9 +1,9 @@
 import React from 'react';
 import {
   Compass,
+  FolderOpen,
   LayoutTemplate,
   Palette,
-  Send,
 } from 'lucide-react';
 import type { ActivityDestination } from '../activityState';
 import { useEditorI18n, type EditorTranslationKey } from '../i18n';
@@ -25,7 +25,7 @@ const DESTINATIONS: ReadonlyArray<{
   { id: 'navigate', icon: <Compass size={18} />, labelKey: 'activity.navigate' },
   { id: 'design', icon: <Palette size={18} />, labelKey: 'activity.design' },
   { id: 'templates', icon: <LayoutTemplate size={18} />, labelKey: 'activity.templates' },
-  { id: 'publish', icon: <Send size={18} />, labelKey: 'activity.publish' },
+  { id: 'publish', icon: <FolderOpen size={18} />, labelKey: 'activity.publish' },
 ];
 
 export const ActivityBar: React.FC<ActivityBarProps> = ({

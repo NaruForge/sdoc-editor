@@ -9,11 +9,23 @@ import {
 } from '@shared/editor/constants/headings';
 import type {
   CaptionStyleName,
+  DocumentSettingApplicationTarget,
+  DocumentSettingKey,
   DocumentSettings,
+  ResolvedDocumentSettingEntry,
+  ResolvedDocumentSettingsSnapshot,
   SelfContainedMode,
   SlideBreakLevel,
   SlideTransition,
 } from '@shared/types';
+import { resolveDocumentSettingsSnapshot } from '@shared/settingsResolver';
+import {
+  countChangedSettings,
+  materializeSettingsGroup,
+  removeSettingsOverrides,
+  restoreSettingsGroupBaseline,
+  type SettingsSyncState,
+} from '../designSettings';
 import { useEditorI18n, type EditorTranslationKey } from '../i18n';
 
 export type CssTarget = 'slide' | 'html';
@@ -24,6 +36,9 @@ export interface DocumentSettingsPanelProps {
   onSelectCssFile?: (target: CssTarget) => void;
   onClearCssFile?: (target: CssTarget) => void;
   exportMode?: DocumentSettingsExportMode;
+  settingsSnapshot?: ResolvedDocumentSettingsSnapshot;
+  syncState?: SettingsSyncState;
+  onRetrySync?: () => void;
 }
 
 interface CollapsibleSectionProps {
@@ -178,6 +193,15 @@ const SLIDE_KEYS: ReadonlyArray<keyof DocumentSettings> = [
   'showTitleSlide',
 ];
 const ADVANCED_KEYS: ReadonlyArray<keyof DocumentSettings> = ['slideCssPath', 'htmlCssPath'];
+const ALL_SETTINGS_KEYS: ReadonlyArray<DocumentSettingKey> = [
+  ...APPEARANCE_KEYS,
+  ...NUMBERING_KEYS,
+  'outputDir',
+  'selfContained',
+  'pdfScale',
+  ...SLIDE_KEYS,
+  ...ADVANCED_KEYS,
+];
 
 const documentSettingsEqual = (
   left: Partial<DocumentSettings> | null,
@@ -265,7 +289,7 @@ const HeadingColorControl: React.FC<HeadingColorControlProps> = ({
   );
 };
 
-interface DeferredTextInputProps {
+export interface DeferredTextInputProps {
   value: string;
   placeholder: string;
   onCommit: (value: string) => void;
@@ -273,9 +297,14 @@ interface DeferredTextInputProps {
   pattern?: string;
   maxLength?: number;
   title?: string;
+  errorMessage?: string;
 }
 
-const DeferredTextInput: React.FC<DeferredTextInputProps> = ({
+export function isDeferredTextDraftValid(draft: string, pattern?: string): boolean {
+  return pattern ? new RegExp(pattern).test(draft) : true;
+}
+
+export const DeferredTextInput: React.FC<DeferredTextInputProps> = ({
   value,
   placeholder,
   onCommit,
@@ -283,10 +312,12 @@ const DeferredTextInput: React.FC<DeferredTextInputProps> = ({
   pattern,
   maxLength,
   title,
+  errorMessage,
 }) => {
   const [draft, setDraft] = React.useState(value);
   const skipCommitOnBlurRef = React.useRef(false);
-  const invalid = pattern ? !new RegExp(pattern).test(draft) : false;
+  const errorId = React.useId();
+  const invalid = !isDeferredTextDraftValid(draft, pattern);
 
   React.useEffect(() => setDraft(value), [value]);
 
@@ -295,8 +326,8 @@ const DeferredTextInput: React.FC<DeferredTextInputProps> = ({
       skipCommitOnBlurRef.current = false;
       return;
     }
-    if (draft !== value) onCommit(draft);
-  }, [draft, onCommit, value]);
+    if (!invalid && draft !== value) onCommit(draft);
+  }, [draft, invalid, onCommit, value]);
 
   const handleKeyDown = useCallback((event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Enter') {
@@ -309,52 +340,258 @@ const DeferredTextInput: React.FC<DeferredTextInputProps> = ({
   }, [value]);
 
   return (
-    <input
-      type="text"
-      className="settings-text-input settings-path-input"
-      style={{ minWidth: 0, maxWidth: '100%' }}
-      value={draft}
-      onChange={(event) => setDraft(event.target.value)}
-      onBlur={handleCommit}
-      onKeyDown={handleKeyDown}
-      placeholder={placeholder}
-      aria-label={ariaLabel}
-      aria-invalid={invalid || undefined}
-      pattern={pattern}
-      maxLength={maxLength}
-      title={title}
-      spellCheck={false}
-    />
+    <span className="settings-deferred-field">
+      <input
+        type="text"
+        className="settings-text-input settings-path-input"
+        style={{ minWidth: 0, maxWidth: '100%' }}
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={handleCommit}
+        onKeyDown={handleKeyDown}
+        placeholder={placeholder}
+        aria-label={ariaLabel}
+        aria-invalid={invalid || undefined}
+        aria-errormessage={invalid ? errorId : undefined}
+        pattern={pattern}
+        maxLength={maxLength}
+        title={title}
+        spellCheck={false}
+      />
+      {invalid && (
+        <span id={errorId} className="settings-field-error" role="alert">
+          {errorMessage ?? title}
+        </span>
+      )}
+    </span>
   );
 };
 
-interface GroupDefaultsButtonProps {
-  onClick: () => void;
-  label: string;
+export interface DeferredNumberInputProps {
+  value: number;
+  min: number;
+  max: number;
+  onCommit: (value: number) => void;
+  ariaLabel: string;
+  errorMessage: string;
 }
 
-const GroupDefaultsButton: React.FC<GroupDefaultsButtonProps> = ({ onClick, label }) => (
-  <button type="button" className="settings-reset-btn" onClick={onClick}>
-    {label}
-  </button>
-);
+export function parseDeferredNumberDraft(
+  draft: string,
+  min: number,
+  max: number,
+): number | null {
+  if (!draft.trim()) return null;
+  const parsed = Number(draft);
+  return Number.isFinite(parsed) && parsed >= min && parsed <= max ? parsed : null;
+}
+
+/** Keep incomplete numeric input local until a valid value is explicitly committed. */
+export const DeferredNumberInput: React.FC<DeferredNumberInputProps> = ({
+  value,
+  min,
+  max,
+  onCommit,
+  ariaLabel,
+  errorMessage,
+}) => {
+  const [draft, setDraft] = React.useState(String(value));
+  const skipCommitOnBlurRef = React.useRef(false);
+  const errorId = React.useId();
+  const parsed = parseDeferredNumberDraft(draft, min, max);
+  const invalid = parsed === null;
+
+  React.useEffect(() => setDraft(String(value)), [value]);
+
+  const handleCommit = useCallback(() => {
+    if (skipCommitOnBlurRef.current) {
+      skipCommitOnBlurRef.current = false;
+      return;
+    }
+    if (parsed !== null && parsed !== value) onCommit(parsed);
+  }, [onCommit, parsed, value]);
+
+  const handleKeyDown = useCallback((event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') {
+      event.currentTarget.blur();
+    } else if (event.key === 'Escape') {
+      skipCommitOnBlurRef.current = true;
+      setDraft(String(value));
+      event.currentTarget.blur();
+    }
+  }, [value]);
+
+  return (
+    <span className="settings-deferred-field settings-deferred-number-field">
+      <input
+        type="text"
+        inputMode="decimal"
+        className="settings-number-input"
+        value={draft}
+        onChange={(event) => setDraft(event.currentTarget.value)}
+        onBlur={handleCommit}
+        onKeyDown={handleKeyDown}
+        aria-label={ariaLabel}
+        aria-invalid={invalid || undefined}
+        aria-errormessage={invalid ? errorId : undefined}
+        spellCheck={false}
+      />
+      {invalid && (
+        <span id={errorId} className="settings-field-error" role="alert">
+          {errorMessage}
+        </span>
+      )}
+    </span>
+  );
+};
+
+const extractDocumentOverrides = (
+  snapshot: ResolvedDocumentSettingsSnapshot | undefined,
+): Partial<DocumentSettings> | undefined => {
+  if (!snapshot) return undefined;
+  const overrides: Partial<DocumentSettings> = {};
+  for (const key of Object.keys(snapshot.entries) as DocumentSettingKey[]) {
+    if (snapshot.entries[key].source === 'document') {
+      (overrides as Record<DocumentSettingKey, unknown>)[key] = snapshot.values[key];
+    }
+  }
+  return Object.keys(overrides).length > 0 ? overrides : undefined;
+};
+
+const SOURCE_LABEL_KEYS = {
+  document: 'settings.sourceDocument',
+  'book-profile': 'settings.sourceBook',
+  host: 'settings.sourceHost',
+  'built-in': 'settings.sourceBuiltIn',
+  'temporary-view': 'settings.sourceTemporary',
+} as const satisfies Record<ResolvedDocumentSettingEntry['source'], EditorTranslationKey>;
+
+const SCOPE_LABEL_KEYS = {
+  document: 'settings.scopeDocument',
+  book: 'settings.scopeBook',
+  host: 'settings.scopeHost',
+  product: 'settings.scopeProduct',
+  session: 'settings.scopeSession',
+} as const satisfies Record<ResolvedDocumentSettingEntry['scope'], EditorTranslationKey>;
+
+const PORTABILITY_LABEL_KEYS = {
+  portable: 'settings.portable',
+  'host-local': 'settings.hostLocal',
+  'session-only': 'settings.sessionOnly',
+} as const satisfies Record<ResolvedDocumentSettingEntry['portability'], EditorTranslationKey>;
+
+const APPLICATION_TARGET_LABEL_KEYS = {
+  'editor-view': 'settings.targetEditorView',
+  html: 'settings.targetHtml',
+  pdf: 'settings.targetPdf',
+  markdown: 'settings.targetMarkdown',
+  asciidoc: 'settings.targetAsciiDoc',
+  slides: 'settings.targetSlides',
+} as const satisfies Record<DocumentSettingApplicationTarget, EditorTranslationKey>;
+
+interface SettingLabelProps {
+  label: string;
+  settingKey: DocumentSettingKey;
+  snapshot: ResolvedDocumentSettingsSnapshot;
+  as?: 'label' | 'span';
+}
+
+const SettingLabel: React.FC<SettingLabelProps> = ({
+  label,
+  settingKey,
+  snapshot,
+  as = 'label',
+}) => {
+  const { t } = useEditorI18n();
+  const entry = snapshot.entries[settingKey];
+  const content = (
+    <>
+      <span>{label}</span>
+      <span className="settings-provenance" aria-label={t('settings.valueOrigin')}>
+        <span className="settings-badge">{t(SOURCE_LABEL_KEYS[entry.source])}</span>
+        <span className="settings-badge">{t(SCOPE_LABEL_KEYS[entry.scope])}</span>
+        <span className="settings-badge">{t(PORTABILITY_LABEL_KEYS[entry.portability])}</span>
+      </span>
+      <span className="settings-targets">
+        {t('settings.appliesTo', {
+          targets: entry.appliesTo.map((target) => t(APPLICATION_TARGET_LABEL_KEYS[target])).join(', '),
+        })}
+      </span>
+    </>
+  );
+  return as === 'span'
+    ? <span className="settings-label settings-label-with-meta">{content}</span>
+    : <label className="settings-label settings-label-with-meta">{content}</label>;
+};
+
+export function useSettingsSyncPresentation(syncState: SettingsSyncState | undefined): {
+  labelKey: EditorTranslationKey;
+  tone: 'neutral' | 'progress' | 'success' | 'error' | 'warning';
+  detail?: string;
+  canRetry: boolean;
+} {
+  return React.useMemo(() => {
+    if (!syncState || syncState.status === 'idle') {
+      return { labelKey: 'settings.syncIdle', tone: 'neutral', canRetry: false };
+    }
+    const labelKey: EditorTranslationKey = `settings.sync${syncState.status
+      .split('-')
+      .map((part) => part[0].toUpperCase() + part.slice(1))
+      .join('')}` as EditorTranslationKey;
+    const tone = syncState.status === 'failed'
+      ? 'error'
+      : syncState.status === 'conflict' ? 'warning'
+        : syncState.status === 'saved' ? 'success'
+          : syncState.status === 'syncing' || syncState.status === 'saving' ? 'progress'
+            : 'neutral';
+    return {
+      labelKey,
+      tone,
+      detail: 'message' in syncState ? syncState.message : undefined,
+      canRetry: syncState.status === 'failed' && syncState.canRetry,
+    };
+  }, [syncState]);
+}
 
 export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
   onUpdateSettings,
   onSelectCssFile,
   onClearCssFile,
   exportMode = 'settings',
+  settingsSnapshot,
+  syncState,
+  onRetrySync,
 }) => {
   const { t } = useEditorI18n();
   const { state } = useEditorContext();
   const docSettings = state.docSettings;
   const mergedSettings = state.settings;
+  const panelBaselineRef = React.useRef<Partial<DocumentSettings> | null>(docSettings);
   const latestDocSettingsRef = React.useRef<Partial<DocumentSettings> | null>(docSettings);
   const pendingDocSettingsRef = React.useRef<Partial<DocumentSettings> | null | undefined>(undefined);
   const [draftDocSettings, setDraftDocSettings] = React.useState<Partial<DocumentSettings> | null>(docSettings);
   const [confirmResetAll, setConfirmResetAll] = React.useState(false);
-  const displaySettings = { ...mergedSettings, ...(draftDocSettings ?? {}) };
+  const suppliedSnapshotHasTemporaryView = settingsSnapshot
+    ? settingsSnapshot.entries.headingNumbering.source === 'temporary-view'
+      || settingsSnapshot.entries.headingDecoration.source === 'temporary-view'
+    : false;
+  const snapshotDocumentOverrides = extractDocumentOverrides(settingsSnapshot);
+  const resolvedSnapshot = settingsSnapshot
+    && !suppliedSnapshotHasTemporaryView
+    && documentSettingsEqual(draftDocSettings, docSettings)
+    ? settingsSnapshot
+    : resolveDocumentSettingsSnapshot({
+        context: 'standalone',
+        documentSettings: draftDocSettings ?? snapshotDocumentOverrides,
+      });
+  const displaySettings = {
+    ...mergedSettings,
+    ...resolvedSnapshot.values,
+    ...(draftDocSettings ?? {}),
+  };
+  const syncPresentation = useSettingsSyncPresentation(syncState);
   const headingPalette = getHeadingPalette(displaySettings);
+  const previousSyncStatusRef = React.useRef(syncState?.status);
   const [customPaletteOpen, setCustomPaletteOpen] = React.useState(
     headingPalette === 'custom',
   );
@@ -363,11 +600,26 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
     const pending = pendingDocSettingsRef.current;
     if (pending !== undefined && !documentSettingsEqual(pending, docSettings)) return;
     const acknowledgedPendingUpdate = pending !== undefined;
+    if (!acknowledgedPendingUpdate
+      && !documentSettingsEqual(latestDocSettingsRef.current, docSettings)) {
+      // An explicit replacement/reload owns a new settings baseline. Local
+      // updates set pending first and therefore never take this path.
+      panelBaselineRef.current = docSettings;
+    }
     latestDocSettingsRef.current = docSettings;
     setDraftDocSettings(docSettings);
     if (!acknowledgedPendingUpdate) setCustomPaletteOpen(false);
     pendingDocSettingsRef.current = undefined;
   }, [docSettings]);
+
+  React.useEffect(() => {
+    const previousStatus = previousSyncStatusRef.current;
+    if (previousStatus === 'conflict' && syncState?.status !== 'conflict') {
+      // Both conflict decisions establish a new agreed persistence baseline.
+      panelBaselineRef.current = latestDocSettingsRef.current;
+    }
+    previousSyncStatusRef.current = syncState?.status;
+  }, [syncState?.status]);
 
   React.useEffect(() => {
     if (headingPalette === 'custom') setCustomPaletteOpen(true);
@@ -388,8 +640,25 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
   }, [emitSettings]);
 
   const resetGroupToHostDefaults = useCallback((keys: ReadonlyArray<keyof DocumentSettings>) => {
-    emitSettings(removeDocumentSettings(latestDocSettingsRef.current, keys));
+    if (keys.some((key) => APPEARANCE_KEYS.includes(key))) setCustomPaletteOpen(false);
+    emitSettings(removeSettingsOverrides(latestDocSettingsRef.current, keys));
   }, [emitSettings]);
+
+  const undoGroup = useCallback((keys: readonly DocumentSettingKey[]) => {
+    emitSettings(restoreSettingsGroupBaseline(
+      latestDocSettingsRef.current,
+      panelBaselineRef.current,
+      keys,
+    ));
+  }, [emitSettings]);
+
+  const materializeGroup = useCallback((keys: readonly DocumentSettingKey[]) => {
+    emitSettings(materializeSettingsGroup(
+      latestDocSettingsRef.current,
+      resolvedSnapshot,
+      keys,
+    ));
+  }, [emitSettings, resolvedSnapshot]);
 
   const handleNumberingModeChange = useCallback((mode: 'sequential' | 'hierarchical') => {
     emitSettings({
@@ -435,20 +704,77 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
     ? t('settings.title')
     : exportMode === 'export' ? t('settings.exportOptions') : t('settings.slideOptions');
   const hostDefaultsLabel = t('settings.hostDefaults');
+  const renderGroupActions = (keys: readonly DocumentSettingKey[]) => {
+    const changedCount = countChangedSettings(
+      draftDocSettings,
+      panelBaselineRef.current,
+      keys,
+    );
+    return (
+      <div className="settings-group-actions">
+        <div className="settings-change-summary" role="status">
+          {t('settings.changesSinceOpen', { count: changedCount })}
+        </div>
+        <div className="settings-group-action-buttons">
+          <button
+            type="button"
+            className="settings-reset-btn"
+            onClick={() => undoGroup(keys)}
+            disabled={changedCount === 0}
+          >
+            {t('settings.undoGroup')}
+          </button>
+          <button
+            type="button"
+            className="settings-reset-btn"
+            onClick={() => materializeGroup(keys)}
+          >
+            {t('settings.pinEffective')}
+          </button>
+          <button
+            type="button"
+            className="settings-reset-btn"
+            onClick={() => resetGroupToHostDefaults(keys)}
+          >
+            {hostDefaultsLabel}
+          </button>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="settings-panel">
       <div className="settings-panel-title">{title}</div>
       {exportMode === 'settings' && (
-        <div className="settings-panel-description">
-          {t('settings.documentSavedDescription')}
-        </div>
+        <>
+          <div className="settings-panel-description">
+            {t('settings.documentSavedDescription')}
+          </div>
+          {syncState && (
+            <div
+              className={`settings-sync-state is-${syncPresentation.tone}`}
+              role="status"
+              aria-live="polite"
+            >
+              <span>{t(syncPresentation.labelKey)}</span>
+              {syncPresentation.detail && <span>{syncPresentation.detail}</span>}
+              {syncPresentation.canRetry && onRetrySync && (
+                <button type="button" onClick={onRetrySync}>{t('common.retry')}</button>
+              )}
+            </div>
+          )}
+        </>
       )}
 
       {renderAppearance && (
         <CollapsibleSection title={t('settings.documentAppearance')} defaultOpen>
           <div className="settings-row">
-            <label className="settings-label">{t('settings.decoration')}</label>
+            <SettingLabel
+              label={t('settings.decoration')}
+              settingKey="headingDecoration"
+              snapshot={resolvedSnapshot}
+            />
             <input
               type="checkbox"
               className="settings-toggle"
@@ -458,7 +784,12 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
             />
           </div>
           <div className="settings-row settings-palette-row">
-            <span className="settings-label">{t('settings.headingPalette')}</span>
+            <SettingLabel
+              as="span"
+              label={t('settings.headingPalette')}
+              settingKey="headingH1Color"
+              snapshot={resolvedSnapshot}
+            />
             <div className="settings-palette-layout">
               <div className="settings-palette-grid" role="group" aria-label={t('settings.headingPalette')}>
               {([
@@ -517,6 +848,7 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
                     pattern="^#[0-9a-fA-F]{6}$"
                     maxLength={7}
                     title={t('settings.customPaletteHexHint')}
+                    errorMessage={t('settings.customPaletteHexHint')}
                     onCommit={(value) => {
                       if (/^#[0-9a-f]{6}$/i.test(value)) {
                         handleHeadingPaletteChange('custom', value.toUpperCase());
@@ -532,9 +864,11 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
               const key = headingColorKey(level);
               return (
                 <div className="settings-row settings-heading-color-row" key={key}>
-                  <label className="settings-label">
-                    {t('settings.headingColor', { level })}
-                  </label>
+                  <SettingLabel
+                    label={t('settings.headingColor', { level })}
+                    settingKey={key}
+                    snapshot={resolvedSnapshot}
+                  />
                   <HeadingColorControl
                     level={level}
                     value={displaySettings[key]}
@@ -547,20 +881,18 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
               );
             })}
           </CollapsibleSection>
-          <GroupDefaultsButton
-            label={hostDefaultsLabel}
-            onClick={() => {
-              setCustomPaletteOpen(false);
-              resetGroupToHostDefaults(APPEARANCE_KEYS);
-            }}
-          />
+          {renderGroupActions(APPEARANCE_KEYS)}
         </CollapsibleSection>
       )}
 
       {renderNumbering && (
         <CollapsibleSection title={t('settings.numberingAndReferences')} defaultOpen>
           <div className="settings-row">
-            <label className="settings-label">{t('settings.headingNumbering')}</label>
+            <SettingLabel
+              label={t('settings.headingNumbering')}
+              settingKey="headingNumbering"
+              snapshot={resolvedSnapshot}
+            />
             <input
               type="checkbox"
               className="settings-toggle"
@@ -570,7 +902,11 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
             />
           </div>
           <div className="settings-row">
-            <label className="settings-label">{t('settings.headingStartNumber')}</label>
+            <SettingLabel
+              label={t('settings.headingStartNumber')}
+              settingKey="headingStartNumber"
+              snapshot={resolvedSnapshot}
+            />
             <input
               type="number"
               min={0}
@@ -586,7 +922,11 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
             />
           </div>
           <div className="settings-row">
-            <label className="settings-label">{t('settings.captionStyle')}</label>
+            <SettingLabel
+              label={t('settings.captionStyle')}
+              settingKey="captionStyle"
+              snapshot={resolvedSnapshot}
+            />
             <select
               className="settings-select"
               aria-label={t('settings.captionStyle')}
@@ -604,7 +944,12 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
             )?.description}
           </div>
           <div className="settings-row">
-            <span className="settings-label">{t('settings.numberingStyle')}</span>
+            <SettingLabel
+              as="span"
+              label={t('settings.numberingStyle')}
+              settingKey="captionNumbering"
+              snapshot={resolvedSnapshot}
+            />
             <div className="settings-radio-group">
               <label className="settings-radio-label">
                 <input
@@ -629,7 +974,11 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
             </div>
           </div>
           <div className="settings-row">
-            <label className="settings-label">{t('settings.includeCaptionCrossRef')}</label>
+            <SettingLabel
+              label={t('settings.includeCaptionCrossRef')}
+              settingKey="crossRefIncludeCaption"
+              snapshot={resolvedSnapshot}
+            />
             <input
               type="checkbox"
               className="settings-toggle"
@@ -638,7 +987,7 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
               onChange={(event) => updateField('crossRefIncludeCaption', event.target.checked)}
             />
           </div>
-          <GroupDefaultsButton label={hostDefaultsLabel} onClick={() => resetGroupToHostDefaults(NUMBERING_KEYS)} />
+          {renderGroupActions(NUMBERING_KEYS)}
         </CollapsibleSection>
       )}
 
@@ -646,7 +995,11 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
         <>
         <CollapsibleSection title={t('settings.general')}>
           <div className="settings-row">
-            <label className="settings-label">{t('settings.outputFolder')}</label>
+            <SettingLabel
+              label={t('settings.outputFolder')}
+              settingKey="outputDir"
+              snapshot={resolvedSnapshot}
+            />
             <DeferredTextInput
               value={draftDocSettings?.outputDir ?? displaySettings.outputDir}
               placeholder="./export"
@@ -655,11 +1008,15 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
             />
           </div>
           <div className="settings-hint">{t('settings.outputFolderHint')}</div>
-          <GroupDefaultsButton label={hostDefaultsLabel} onClick={() => resetGroupToHostDefaults(['outputDir'])} />
+          {renderGroupActions(['outputDir'])}
         </CollapsibleSection>
         <CollapsibleSection title="HTML">
           <div className="settings-row">
-            <label className="settings-label">{t('settings.htmlEmbedding')}</label>
+            <SettingLabel
+              label={t('settings.htmlEmbedding')}
+              settingKey="selfContained"
+              snapshot={resolvedSnapshot}
+            />
             <select
               className="settings-select"
               aria-label={t('settings.htmlEmbedding')}
@@ -671,26 +1028,25 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
               ))}
             </select>
           </div>
-          <GroupDefaultsButton label={hostDefaultsLabel} onClick={() => resetGroupToHostDefaults(['selfContained', 'htmlCssPath'])} />
+          {renderGroupActions(['selfContained', 'htmlCssPath'])}
         </CollapsibleSection>
         <CollapsibleSection title="PDF">
           <div className="settings-row">
-            <label className="settings-label">{t('settings.pdfScale')}</label>
-            <input
-              type="number"
-              className="settings-number-input"
-              aria-label={t('settings.pdfScale')}
+            <SettingLabel
+              label={t('settings.pdfScale')}
+              settingKey="pdfScale"
+              snapshot={resolvedSnapshot}
+            />
+            <DeferredNumberInput
+              value={draftDocSettings?.pdfScale ?? displaySettings.pdfScale}
               min={10}
               max={200}
-              step={5}
-              value={draftDocSettings?.pdfScale ?? displaySettings.pdfScale}
-              onChange={(event) => updateField(
-                'pdfScale',
-                Math.min(200, Math.max(10, Number(event.target.value) || 70)),
-              )}
+              ariaLabel={t('settings.pdfScale')}
+              errorMessage={t('settings.pdfScaleError')}
+              onCommit={(value) => updateField('pdfScale', value)}
             />
           </div>
-          <GroupDefaultsButton label={hostDefaultsLabel} onClick={() => resetGroupToHostDefaults(['pdfScale'])} />
+          {renderGroupActions(['pdfScale'])}
         </CollapsibleSection>
         </>
       )}
@@ -698,7 +1054,11 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
       {renderSlides && (
         <CollapsibleSection title={t('settings.slides')}>
           <div className="settings-row">
-            <label className="settings-label">{t('settings.slideSplit')}</label>
+            <SettingLabel
+              label={t('settings.slideSplit')}
+              settingKey="slideBreakLevel"
+              snapshot={resolvedSnapshot}
+            />
             <select
               className="settings-select"
               aria-label={t('settings.slideSplit')}
@@ -711,7 +1071,11 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
             </select>
           </div>
           <div className="settings-row">
-            <label className="settings-label">{t('settings.titleSlide')}</label>
+            <SettingLabel
+              label={t('settings.titleSlide')}
+              settingKey="showTitleSlide"
+              snapshot={resolvedSnapshot}
+            />
             <input
               type="checkbox"
               className="settings-toggle"
@@ -721,7 +1085,11 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
             />
           </div>
           <div className="settings-row">
-            <label className="settings-label">{t('settings.transition')}</label>
+            <SettingLabel
+              label={t('settings.transition')}
+              settingKey="slideTransition"
+              snapshot={resolvedSnapshot}
+            />
             <select
               className="settings-select"
               aria-label={t('settings.transition')}
@@ -735,7 +1103,7 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
               ))}
             </select>
           </div>
-          <GroupDefaultsButton label={hostDefaultsLabel} onClick={() => resetGroupToHostDefaults(SLIDE_KEYS)} />
+          {renderGroupActions(SLIDE_KEYS)}
         </CollapsibleSection>
       )}
 
@@ -747,7 +1115,7 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
             const hasPath = typeof cssPath === 'string' && cssPath.length > 0;
             return (
               <div className="settings-row" key={target}>
-                <label className="settings-label">{label}</label>
+                <SettingLabel label={label} settingKey={pathKey} snapshot={resolvedSnapshot} />
                 {onSelectCssFile ? (
                   <div className="settings-file-picker">
                     <span className="settings-file-path" title={hasPath ? cssPath : t('settings.notSet')}>
@@ -783,12 +1151,24 @@ export const DocumentSettingsPanel: React.FC<DocumentSettingsPanelProps> = ({
               </div>
             );
           })}
-          <GroupDefaultsButton label={hostDefaultsLabel} onClick={() => resetGroupToHostDefaults(ADVANCED_KEYS)} />
+          {renderGroupActions(ADVANCED_KEYS)}
         </CollapsibleSection>
       )}
 
       {exportMode === 'settings' && (
         <div className="settings-footer">
+          <button
+            type="button"
+            className="settings-reset-btn"
+            disabled={countChangedSettings(
+              draftDocSettings,
+              panelBaselineRef.current,
+              ALL_SETTINGS_KEYS,
+            ) === 0}
+            onClick={() => undoGroup(ALL_SETTINGS_KEYS)}
+          >
+            {t('settings.undoAll')}
+          </button>
           {confirmResetAll ? (
             <div role="group" aria-label={t('settings.resetConfirmGroup')}>
               <span>{t('settings.resetConfirmPrompt')}</span>

@@ -1,18 +1,64 @@
-import type { SdocMeta, TiptapNode } from '../types';
+import type { DocumentSettings, SdocMeta, SelfContainedMode, TiptapNode } from '../types';
 
 export interface SdocBookDocumentEntry {
   path: string;
   label?: string;
 }
 
-export interface SdocBook {
-  sdocBook: '1.0';
+interface SdocBookBase {
   title?: string;
   author?: string;
   version?: string;
   counterPolicy?: 'continue' | 'reset';
   documents: SdocBookDocumentEntry[];
 }
+
+export type SdocBookPublishSettingsV1 = Required<Pick<DocumentSettings,
+  | 'headingNumbering'
+  | 'headingStartNumber'
+  | 'headingDecoration'
+  | 'headingH1Color'
+  | 'headingH2Color'
+  | 'headingH3Color'
+  | 'headingH4Color'
+  | 'headingH5Color'
+  | 'headingH6Color'
+  | 'captionStyle'
+  | 'captionNumbering'
+  | 'equationNumbering'
+  | 'crossRefIncludeCaption'
+>>;
+
+export interface SdocBookPublishProfileV1 {
+  profileVersion: '1';
+  settings: SdocBookPublishSettingsV1;
+  theme: {
+    id: 'default-v1';
+    cssPath?: string;
+  };
+  html: {
+    selfContained: SelfContainedMode;
+  };
+  pdf: {
+    scale: number;
+  };
+  diagrams: {
+    failurePolicy: 'fail' | 'source-fallback';
+  };
+  outputDir?: string;
+}
+
+export interface SdocBookV1_0 extends SdocBookBase {
+  sdocBook: '1.0';
+  publish?: never;
+}
+
+export interface SdocBookV1_1 extends SdocBookBase {
+  sdocBook: '1.1';
+  publish: SdocBookPublishProfileV1;
+}
+
+export type SdocBook = SdocBookV1_0 | SdocBookV1_1;
 
 export type BookDiagnosticSeverity = 'error' | 'warning';
 
@@ -25,6 +71,9 @@ export type BookDiagnosticCode =
   | 'BOOK_DIAGNOSTICS_TRUNCATED'
   | 'BOOK_AGGREGATE_TOO_LARGE'
   | 'BOOK_PROPERTY_UNSUPPORTED'
+  | 'BOOK_PUBLISH_PROFILE_REQUIRED'
+  | 'PUBLISH_PROFILE_INVALID'
+  | 'PUBLISH_PATH_OUTSIDE_BOOK'
   | 'DOCUMENT_PATH_INVALID'
   | 'DOCUMENT_PATH_OUTSIDE_BOOK'
   | 'DOCUMENT_DUPLICATE'

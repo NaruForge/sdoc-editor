@@ -23,10 +23,6 @@
   · <a href="#프로젝트-문서">문서</a>
 </p>
 
-<p align="center">
-  <img src="media/readme/vscode-editor-publish-ko-dark.png" alt="VS Code 확장에서 Publish 패널과 시험·검증 보고서를 함께 연 Structured Doc Editor 어두운 테마 전체 화면" width="1600">
-</p>
-
 Structured Doc Editor는 `.sdoc`와 레거시 `.tiptap.json` 문서를 위한 오픈 소스 기술 문서 편집기입니다. 제목·표·수식·다이어그램·캡션·교차 참조를 문서 화면에서 편집하면서, 사람이 검토하고 Git으로 추적하기 쉬운 원본을 유지합니다.
 
 VS Code 확장과 SDOC CLI는 같은 문서 계약을 사용합니다. VS Code는 시각 편집과 import/export를, CLI는 자동 검사와 revision-safe 의미 연산을 담당합니다.
@@ -97,7 +93,7 @@ npm install --save-dev sdoc-editor-cli@latest
 | 구조화 편집 | H1–H6, 자동 번호, 섹션 접기, 목차, 그림·표 목록, 문서 메타데이터 |
 | 기술 콘텐츠 | 병합 셀 표, 이미지와 캡션, KaTeX 수식, 코드 블록, Mermaid·PlantUML·D2·Graphviz, Draw.io |
 | 문서 연결 | 제목·그림·표·수식 교차 참조, 안정적인 ID, 참조 번호 자동 동기화 |
-| 편집 경험 | 탐색·디자인·템플릿·배포 허브, 커서 이동 기록, 60–200% 확대/축소, 문서별 테마·폰트·사용자 CSS |
+| 편집 경험 | 탐색·디자인·템플릿·파일 허브, 커서 이동 기록, 60–200% 확대/축소, 문서별 테마·폰트·사용자 CSS |
 | 재사용과 출판 | 팀·개인 template, `.sdocbook`, Markdown·HTML import, HTML·PDF·Markdown·AsciiDoc·Slides export |
 | 자동화 | 문서 생성·검사·검증, bounded semantic read, preview-first 의미 연산, versioned JSON response |
 
@@ -111,6 +107,8 @@ npm install --save-dev sdoc-editor-cli@latest
 | HTML·Markdown·AsciiDoc·PDF·Slides 내보내기 | ✓ | — |
 | `.sdocbook` 편집·진단·통합 export | ✓ | — |
 | revision-bound semantic read와 operation | — | ✓ |
+
+`Files / 파일` 패널의 내보내기와 가져오기는 실행 전에 고정된 원본·대상·적용 설정·덮어쓰기 여부를 보여 줍니다. 실행 중에는 진행 단계와 취소 동작을, 완료 후에는 결과 파일 열기·위치 보기·경로 복사·다시 실행을 제공합니다. 가져오기는 문서 본문만 교체하고 메타데이터와 문서 설정을 유지하며, 적용 후 문서를 저장해야 디스크에 기록됩니다.
 
 편집기에서 `@`를 입력하면 제목·그림·표·수식 참조를 삽입할 수 있고, 클립보드 이미지는 붙여 넣은 뒤 캡션과 정렬을 지정할 수 있습니다. Mermaid는 로컬에서 렌더링합니다. PlantUML·D2·Graphviz 온라인 미리보기는 전송할 원문과 endpoint를 알리고 동의를 받은 뒤에만 사용합니다. Draw.io 편집에는 [Draw.io Integration](https://marketplace.visualstudio.com/items?itemName=hediet.vscode-drawio)이 필요합니다.
 
@@ -151,13 +149,15 @@ npm install --save-dev sdoc-editor-cli@latest
 - 팀 template은 workspace의 `.sdoc/templates/*.sdoc`에 두고 Git으로 공유합니다.
 - 개인 template은 `~/.sdoc/templates/`에 저장됩니다. Remote·WSL·SSH에서는 원격 사용자 홈에 별도로 저장됩니다.
 - template 적용은 현재 본문과 문서 설정을 교체하기 전에 확인을 받으며, 이미지·Draw.io asset을 포함한 잘못된 경로 연결은 거부합니다.
-- `.sdocbook`은 여러 `.sdoc`의 순서와 책 메타데이터를 관리하고 하나의 HTML/PDF로 내보냅니다. Book 편집·진단·통합 export는 현재 VS Code 전용입니다.
+- `.sdocbook`은 여러 `.sdoc`의 순서와 책 메타데이터를 관리하고 하나의 HTML/PDF로 내보냅니다. `1.0` Book은 편집·미리보기를 유지하지만 export는 차단됩니다. Book 편집기에서 **Publish 프로필 만들기**를 누르고 명시적으로 저장해야 manifest가 `1.1`로 승격되며, 파일을 여는 것만으로는 version이나 dirty 상태가 바뀌지 않습니다.
+- `1.1`은 번호·캡션 설정, `default-v1` theme와 선택적 Book-relative CSS, HTML 포함 방식, PDF 배율, 다이어그램 실패 정책, 선택적 출력 폴더를 inline `publish`에 고정합니다. 전체 JSON 형태는 [`.sdocbook` 1.1 예제](examples/book-v1.1.sdocbook)와 [Book JSON Schema](sdocbook.schema.json)를 참고하세요. Book workspace는 현재 VS Code 전용입니다.
 
 ## 프로젝트 문서
 
 - [제품 비전과 범위](PRODUCT.md)
 - [CLI 설치와 전체 명령 계약](cli/README.md)
 - [문서 JSON Schema](sdoc.schema.json)
+- [Book JSON Schema](sdocbook.schema.json)
 - [기여 가이드](CONTRIBUTING.md)
 - [아키텍처와 의존성 규칙](docs/architecture.md)
 - [보안 취약점 신고](SECURITY.md)

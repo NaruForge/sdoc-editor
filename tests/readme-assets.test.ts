@@ -10,11 +10,6 @@ const vscodeIgnore = readFileSync(resolve(root, '.vscodeignore'), 'utf8');
 
 const screenshots = [
   {
-    path: 'media/readme/vscode-editor-publish-ko-dark.png',
-    alt: 'VS Code 확장에서 Publish 패널과 시험·검증 보고서를 함께 연 Structured Doc Editor 어두운 테마 전체 화면',
-    sha256: '201e3a02238a0a4ac20a8033e48314224bf59dc7dab2db5d6a6d643ff464bf40',
-  },
-  {
     path: 'media/readme/vscode-templates-ko-light.png',
     alt: 'VS Code 확장에서 내장 템플릿 목록과 시험·검증 보고서를 함께 연 Structured Doc Editor 밝은 테마 화면',
     sha256: 'd07c5cbe63e0ff66ea4d26aaedf7d30082fa1b547d5c3a9e4f9ca727ff50a949',
@@ -45,6 +40,12 @@ describe('README product screenshots', () => {
     );
     expect(assetRecord).toContain(`\`${screenshot.path}\``);
     expect(assetRecord).toContain(`\`${screenshot.sha256}\``);
+  });
+
+  it('does not present the retired immediate Publish UI as the current Files workflow', () => {
+    expect(readme).not.toContain('media/readme/vscode-editor-publish-ko-dark.png');
+    expect(assetRecord).toContain('retired immediate Publish panel');
+    expect(assetRecord).not.toContain('current README uses two unretouched captures');
   });
 
   it('does not retain or reference the retired two-host overview', () => {

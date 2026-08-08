@@ -10,6 +10,8 @@ import { useVSCodeMessaging } from './useVSCodeMessaging';
 import { preprocessImportedHtml } from '@shared/editor/utils/preprocessImportedHtml';
 import { isUpdatedDrawioAsset } from '@shared/editor/drawioUpdates';
 import type {
+  FileOperationPreflightMessage,
+  FileOperationStatusMessage,
   ImportContentMessage,
   ImportHtmlToWebviewMessage,
   ManagedTemplateDescriptor,
@@ -20,11 +22,14 @@ import {
   templateSessionReducer,
 } from '@shared/editor/templateSession';
 import {
+  createFileOperationError,
   createFileOperationControllerState,
   fileOperationReducer,
-  tryStartFileOperation,
+  isFileOperationActive,
   type FileOperationControllerState,
   type FileOperationKind,
+  type FileOperationState,
+  type FileOperationResultAction,
 } from '@shared/editor/fileOperations';
 import type { FileExportFormat, FileImportFormat } from '@shared/editor/components/FilesPanel';
 import {
@@ -67,6 +72,110 @@ export interface MetaState extends Partial<SdocMeta> {
 }
 
 type PendingImportMessage = ImportContentMessage | ImportHtmlToWebviewMessage;
+type SucceededFileOperationState = Extract<FileOperationState, { phase: 'succeeded' }>;
+
+interface PendingResultAction {
+  action: FileOperationResultAction;
+  actionRequestId: string;
+  resultRequestId: string;
+  resultState: SucceededFileOperationState;
+}
+
+export function requiresLegacyImportConfirmation(message: PendingImportMessage): boolean {
+  return message.confirmation !== 'preflight-confirmed';
+}
+
+interface FileOperationHostIdentity {
+  sessionId: string;
+  documentId: string;
+}
+
+/** Reconcile a trusted host-started standalone operation, including Palette starts from idle. */
+export function reduceStandaloneFileOperationHostMessage(
+  controller: FileOperationControllerState,
+  message: FileOperationPreflightMessage | FileOperationStatusMessage,
+  identity: FileOperationHostIdentity,
+): FileOperationControllerState {
+  if (message.sessionId !== identity.sessionId
+    || (message.documentId !== undefined && message.documentId !== identity.documentId)) return controller;
+  if (message.type === 'fileOperationPreflight') {
+    return fileOperationReducer(controller, {
+      type: 'preflight', sessionId: identity.sessionId,
+      requestId: message.requestId, plan: message.plan,
+    });
+  }
+  const state = message.state;
+  if (state.phase === 'idle') return controller;
+  if (state.phase === 'preflighting') {
+    if (controller.operationState.phase === 'preflighting'
+      && controller.operationState.requestId === state.requestId) {
+      return { ...controller, operationState: state };
+    }
+    return fileOperationReducer(controller, {
+      type: 'prepare', sessionId: identity.sessionId,
+      requestId: state.requestId, intent: state.intent, stage: state.stage,
+    });
+  }
+  if (state.phase === 'awaiting-confirmation') return controller;
+  if (state.phase === 'running') {
+    if (controller.operationState.phase === 'awaiting-confirmation' && state.planId) {
+      return fileOperationReducer(controller, {
+        type: 'execute', sessionId: identity.sessionId,
+        requestId: state.requestId, planId: state.planId, stage: state.stage,
+      });
+    }
+    if (controller.operationState.phase !== 'running'
+      || controller.operationState.requestId !== state.requestId) {
+      return { ...controller, operationState: state };
+    }
+    return fileOperationReducer(controller, {
+      type: 'progress', sessionId: identity.sessionId,
+      requestId: state.requestId, stage: state.stage,
+    });
+  }
+  if (state.phase === 'succeeded') return fileOperationReducer(controller, {
+    type: 'succeeded', sessionId: identity.sessionId,
+    requestId: state.requestId, result: state.result, details: state.details,
+  });
+  if (state.phase === 'failed') return fileOperationReducer(controller, {
+    type: 'failed', sessionId: identity.sessionId,
+    requestId: state.requestId, error: state.error,
+  });
+  return fileOperationReducer(controller, {
+    type: 'cancelled', sessionId: identity.sessionId, requestId: state.requestId,
+  });
+}
+
+export interface ApplyImportedContentWithRollbackOptions {
+  content: JSONContent;
+  checkpoint: JSONContent;
+  replace(content: JSONContent): boolean;
+  flush(): void;
+  afterAcknowledged(): Promise<void>;
+  restoreSyncCheckpoint(): void;
+  reportApplied(applied: boolean): Promise<unknown>;
+}
+
+/** Apply an import only when persistence acknowledges it; restore the local body on failure. */
+export async function applyImportedContentWithRollback(
+  options: ApplyImportedContentWithRollbackOptions,
+): Promise<boolean> {
+  if (!options.replace(options.content)) {
+    await options.reportApplied(false);
+    return false;
+  }
+  try {
+    options.flush();
+    await options.afterAcknowledged();
+  } catch {
+    options.replace(options.checkpoint);
+    options.restoreSyncCheckpoint();
+    await options.reportApplied(false);
+    return false;
+  }
+  await options.reportApplied(true);
+  return true;
+}
 
 const replaceMetaState = (meta: Partial<SdocMeta>): MetaState => ({
   title: '',
@@ -94,6 +203,7 @@ interface UseEditorMessagesOptions {
   } | null>;
   syncCoordinatorRef: MutableRefObject<DocumentSyncCoordinator | null>;
   getCurrentMutation: () => DocumentMutation | null;
+  onShowFileOperation?: (tab: 'export' | 'import') => void;
 }
 
 export function useEditorMessages({
@@ -106,6 +216,7 @@ export function useEditorMessages({
   persistenceSessionRef,
   syncCoordinatorRef,
   getCurrentMutation,
+  onShowFileOperation,
 }: UseEditorMessagesOptions) {
   const { dispatch } = useEditorContext();
   const editorRef = useRef(editor);
@@ -124,6 +235,17 @@ export function useEditorMessages({
   const [fileController, setFileController] = useState<FileOperationControllerState>(
     () => createFileOperationControllerState('pending'),
   );
+  const fileControllerRef = useRef(fileController);
+  fileControllerRef.current = fileController;
+  const updateFileController = (
+    update: (current: FileOperationControllerState) => FileOperationControllerState,
+  ): void => {
+    const next = update(fileControllerRef.current);
+    fileControllerRef.current = next;
+    setFileController(next);
+  };
+  const pendingResultActionRef = useRef<PendingResultAction | null>(null);
+  const hostAuthorizedImportRequestRef = useRef<string | null>(null);
   const [diagramRendererSettings, setDiagramRendererSettings] =
     useState<DiagramRendererSettings>({ ...DEFAULT_DIAGRAM_RENDERER_SETTINGS });
   const [pendingDiagramExportFormat, setPendingDiagramExportFormat] =
@@ -183,6 +305,38 @@ export function useEditorMessages({
   const { postMessage } = useVSCodeMessaging((message) => {
     const ed = editorRef.current;
     const flush = flushRef.current;
+    const applyImportAfterAcknowledgement = (
+      importMessage: PendingImportMessage,
+      content: JSONContent,
+    ): void => {
+      const sync = syncCoordinatorRef.current;
+      const checkpoint = getCurrentMutation();
+      if (!sync || !checkpoint) {
+        void postMessage({
+          type: 'fileOperationApplied',
+          requestId: importMessage.requestId,
+          sessionId: importMessage.sessionId,
+          documentId: importMessage.documentId,
+          applied: false,
+        });
+        return;
+      }
+      void applyImportedContentWithRollback({
+        content,
+        checkpoint: checkpoint.content,
+        replace: (next) => replaceEditorDocumentRef.current?.('user-import', next) ?? false,
+        flush: () => { flush(); },
+        afterAcknowledged: () => new SaveCoordinator(sync).afterAcknowledged(() => undefined),
+        restoreSyncCheckpoint: () => { sync.submit(checkpoint); },
+        reportApplied: (applied) => postMessage({
+          type: 'fileOperationApplied',
+          requestId: importMessage.requestId,
+          sessionId: importMessage.sessionId,
+          documentId: importMessage.documentId,
+          applied,
+        }),
+      });
+    };
 
     switch (message.type) {
       case 'init':
@@ -193,7 +347,7 @@ export function useEditorMessages({
           documentId: message.documentId,
           revision: message.revision,
         };
-        setFileController(createFileOperationControllerState(message.sessionId));
+        updateFileController(() => createFileOperationControllerState(message.sessionId));
         if (message.documentState.status === 'invalid') {
           attachSyncCoordinator(null);
           setHostSaveState(null);
@@ -464,19 +618,37 @@ export function useEditorMessages({
         if (ed
           && persistenceSessionRef.current?.sessionId === message.sessionId
           && persistenceSessionRef.current.documentId === message.documentId
-          && fileController.operationState.phase === 'running'
-          && fileController.operationState.requestId === message.requestId) {
-          setPendingImport(message);
+          && ((fileControllerRef.current.operationState.phase === 'running'
+            && fileControllerRef.current.operationState.requestId === message.requestId)
+            || hostAuthorizedImportRequestRef.current === message.requestId)) {
+          hostAuthorizedImportRequestRef.current = null;
+          if (requiresLegacyImportConfirmation(message)) {
+            setPendingImport(message);
+          } else {
+            applyImportAfterAcknowledgement(message, message.content);
+          }
         }
         break;
       case 'importHtml':
         if (ed
           && persistenceSessionRef.current?.sessionId === message.sessionId
           && persistenceSessionRef.current.documentId === message.documentId
-          && fileController.operationState.phase === 'running'
-          && fileController.operationState.requestId === message.requestId) {
-          setPendingImport(message);
+          && ((fileControllerRef.current.operationState.phase === 'running'
+            && fileControllerRef.current.operationState.requestId === message.requestId)
+            || hostAuthorizedImportRequestRef.current === message.requestId)) {
+          hostAuthorizedImportRequestRef.current = null;
+          if (requiresLegacyImportConfirmation(message)) {
+            setPendingImport(message);
+          } else {
+            applyImportAfterAcknowledgement(
+              message,
+              preprocessImportedHtml(message.html) as unknown as JSONContent,
+            );
+          }
         }
+        break;
+      case 'showFileOperation':
+        onShowFileOperation?.(message.tab);
         break;
       case 'imageSaved':
         if (ed && message.webviewUri) {
@@ -533,36 +705,93 @@ export function useEditorMessages({
           flush();
         }
         break;
+      case 'fileOperationPreflight':
+        if (persistenceSessionRef.current?.documentId !== message.documentId) break;
+        updateFileController((current) => reduceStandaloneFileOperationHostMessage(
+          current,
+          message,
+          { sessionId: message.sessionId, documentId: message.documentId },
+        ));
+        break;
       case 'fileOperationStatus':
-        setFileController((current) => {
-          if (current.sessionId !== message.sessionId
-            || message.state.phase === 'idle'
-            || message.state.phase === 'running') {
-            return current;
+        if (message.documentId !== undefined
+          && persistenceSessionRef.current?.documentId !== message.documentId) break;
+        if (message.state.phase === 'running' && message.state.kind === 'import') {
+          hostAuthorizedImportRequestRef.current = message.state.requestId;
+        } else if (message.state.phase === 'failed'
+          || message.state.phase === 'cancelled'
+          || message.state.phase === 'succeeded') {
+          hostAuthorizedImportRequestRef.current = null;
+        }
+        updateFileController((current) => {
+          if (current.sessionId !== message.sessionId || message.state.phase === 'idle') return current;
+          const state = message.state;
+          const pending = pendingResultActionRef.current;
+          if (pending && pending.actionRequestId === state.requestId) {
+            if (state.phase === 'preflighting' && pending.action === 'repeat') {
+              pendingResultActionRef.current = null;
+              return fileOperationReducer(
+                { ...current, operationState: pending.resultState },
+                {
+                  type: 'prepare', sessionId: message.sessionId,
+                  requestId: state.requestId, intent: state.intent, stage: state.stage,
+                },
+              );
+            }
+            if (state.phase === 'running' && pending.action === 'undo') {
+              return { ...current, operationState: state };
+            }
+            if (state.phase === 'succeeded' && pending.action === 'undo') {
+              pendingResultActionRef.current = null;
+              return { ...current, operationState: state };
+            }
+            if (state.phase === 'failed' || state.phase === 'cancelled') {
+              pendingResultActionRef.current = null;
+              const messageText = state.phase === 'failed'
+                ? state.error.message
+                : 'The result action was cancelled.';
+              return fileOperationReducer(
+                { ...current, operationState: pending.resultState },
+                {
+                  type: 'result-action-failed', sessionId: message.sessionId,
+                  requestId: pending.resultRequestId,
+                  error: createFileOperationError(
+                    state.phase === 'failed' ? state.error.code : 'ACTION_CANCELLED',
+                    messageText,
+                    state.phase === 'failed' && state.error.retryable,
+                  ),
+                },
+              );
+            }
           }
-          if (message.state.phase === 'succeeded') {
-            return fileOperationReducer(current, {
-              type: 'succeeded',
-              sessionId: message.sessionId,
-              requestId: message.state.requestId,
-              result: message.state.result,
-            });
-          }
-          if (message.state.phase === 'failed') {
-            return fileOperationReducer(current, {
-              type: 'failed',
-              sessionId: message.sessionId,
-              requestId: message.state.requestId,
-              error: message.state.error,
-            });
-          }
-          return fileOperationReducer(current, {
-            type: 'cancelled',
-            sessionId: message.sessionId,
-            requestId: message.state.requestId,
-          });
+          const identity = persistenceSessionRef.current;
+          if (!identity) return current;
+          return reduceStandaloneFileOperationHostMessage(current, message, identity);
         });
         break;
+      case 'fileOperationResultActionStatus': {
+        const session = persistenceSessionRef.current;
+        const pending = pendingResultActionRef.current;
+        if (!session
+          || message.sessionId !== session.sessionId
+          || message.documentId !== session.documentId
+          || !pending
+          || message.requestId !== pending.resultRequestId
+          || message.actionRequestId !== pending.actionRequestId
+          || message.action !== pending.action) break;
+        pendingResultActionRef.current = null;
+        const actionError = message.error;
+        if (message.status === 'failed' && actionError) {
+          updateFileController((current) => fileOperationReducer(
+            { ...current, operationState: pending.resultState },
+            {
+              type: 'result-action-failed', sessionId: message.sessionId,
+              requestId: pending.resultRequestId, error: actionError,
+            },
+          ));
+        }
+        break;
+      }
       case 'diagramRenderResult': {
         const pending = diagramRequestsRef.current.get(message.requestId);
         if (!pending) break;
@@ -621,32 +850,108 @@ export function useEditorMessages({
     }
     const session = persistenceSessionRef.current;
     if (!session) return;
+    if (isFileOperationActive(fileControllerRef.current.operationState)) return;
     const requestId = crypto.randomUUID();
-    const start = tryStartFileOperation(fileController, {
-      sessionId: session.sessionId,
+    const intent = kind === 'export'
+      ? { kind, format: format as FileExportFormat } as const
+      : { kind, format: format as FileImportFormat } as const;
+    updateFileController((current) => fileOperationReducer(current, {
+      type: 'prepare', sessionId: session.sessionId, requestId, intent,
+      stage: kind === 'export' ? 'Preparing export…' : 'Choose a file…',
+    }));
+    flushPendingRef.current();
+    postMessage({
+      type: 'fileOperationPrepare',
       requestId,
-      kind,
-      format,
-      stage: kind === 'export' ? 'Preparing export...' : 'Choose a file...',
+      sessionId: session.sessionId,
+      documentId: session.documentId,
+      baseRevision: syncCoordinatorRef.current?.state.acknowledgedRevision ?? session.revision,
+      intent,
     });
-    if (!start.accepted) return;
-    setFileController(start.state);
-    if (kind === 'export') {
-      postMessage({
-        type: 'export',
-        requestId,
-        sessionId: session.sessionId,
-        documentId: session.documentId,
-        format: format as FileExportFormat,
-      });
-    } else {
-      postMessage({
-        type: format === 'markdown' ? 'importMarkdown' : 'importHtml',
-        requestId,
-        sessionId: session.sessionId,
-        documentId: session.documentId,
-      });
-    }
+  };
+
+  const handleFileOperationConfirm = (planId: string): void => {
+    const session = persistenceSessionRef.current;
+    const state = fileControllerRef.current.operationState;
+    if (!session || state.phase !== 'awaiting-confirmation' || state.plan.planId !== planId) return;
+    updateFileController((current) => fileOperationReducer(current, {
+      type: 'execute', sessionId: session.sessionId, requestId: state.requestId,
+      planId, stage: state.intent.kind === 'export' ? 'Starting export…' : 'Applying import…',
+    }));
+    postMessage({
+      type: 'fileOperationExecute', requestId: state.requestId,
+      sessionId: session.sessionId, documentId: session.documentId, planId,
+    });
+  };
+
+  const handleFileOperationCancel = (): void => {
+    const session = persistenceSessionRef.current;
+    const state = fileControllerRef.current.operationState;
+    if (!session || (state.phase !== 'preflighting'
+      && state.phase !== 'awaiting-confirmation'
+      && state.phase !== 'running')) return;
+    const planId = state.phase === 'awaiting-confirmation'
+      ? state.plan.planId : state.phase === 'running' ? state.planId : undefined;
+    postMessage({
+      type: 'fileOperationCancel', requestId: state.requestId,
+      sessionId: session.sessionId, documentId: session.documentId,
+      ...(planId ? { planId } : {}),
+    });
+  };
+
+  const handleFileOperationRetry = (): void => {
+    const session = persistenceSessionRef.current;
+    const state = fileControllerRef.current.operationState;
+    if (!session || (state.phase !== 'failed' && state.phase !== 'cancelled') || !state.intent) return;
+    const requestId = crypto.randomUUID();
+    updateFileController((current) => fileOperationReducer(current, {
+      type: 'retry', sessionId: session.sessionId, previousRequestId: state.requestId,
+      requestId, stage: 'Preparing file operation again…',
+    }));
+    postMessage({
+      type: 'fileOperationRetry', requestId, previousRequestId: state.requestId,
+      sessionId: session.sessionId, documentId: session.documentId,
+    });
+  };
+
+  const handleFileOperationResultAction = (
+    action: FileOperationResultAction,
+    artifactId?: string,
+  ): void => {
+    const session = persistenceSessionRef.current;
+    const state = fileControllerRef.current.operationState;
+    if (!session || state.phase !== 'succeeded' || pendingResultActionRef.current) return;
+    if (action !== 'repeat' && !artifactId) return;
+    const actionRequestId = crypto.randomUUID();
+    pendingResultActionRef.current = {
+      action,
+      actionRequestId,
+      resultRequestId: state.requestId,
+      resultState: state,
+    };
+    void postMessage({
+      type: 'fileOperationResultAction', requestId: state.requestId,
+      actionRequestId,
+      sessionId: session.sessionId, documentId: session.documentId,
+      action,
+      ...(artifactId ? { artifactId } : {}),
+    } as Parameters<typeof postMessage>[0]).catch(() => {
+      const pending = pendingResultActionRef.current;
+      if (!pending || pending.actionRequestId !== actionRequestId) return;
+      pendingResultActionRef.current = null;
+      updateFileController((current) => fileOperationReducer(
+        { ...current, operationState: pending.resultState },
+        {
+          type: 'result-action-failed', sessionId: session.sessionId,
+          requestId: pending.resultRequestId,
+          error: createFileOperationError(
+            'RESULT_ACTION_TRANSPORT_FAILED',
+            'The result action could not be sent to the extension host.',
+            true,
+          ),
+        },
+      ));
+    });
   };
 
   const handleMetaChange = (field: string, value: string) => {
@@ -936,22 +1241,37 @@ export function useEditorMessages({
     const session = persistenceSessionRef.current;
     const matchesCurrentOperation = session?.sessionId === message.sessionId
       && session.documentId === message.documentId
-      && fileController.operationState.phase === 'running'
-      && fileController.operationState.requestId === message.requestId;
-    if (applied && matchesCurrentOperation) {
-      const content = message.type === 'importContent'
-        ? message.content
-        : preprocessImportedHtml(message.html) as unknown as JSONContent;
-      replaceEditorDocumentRef.current?.('user-import', content);
-      flushRef.current();
-    }
-    void postMessage({
+      && fileControllerRef.current.operationState.phase === 'running'
+      && fileControllerRef.current.operationState.requestId === message.requestId;
+    const reportApplied = (didApply: boolean): Promise<void> => postMessage({
       type: 'fileOperationApplied',
       requestId: message.requestId,
       sessionId: message.sessionId,
       documentId: message.documentId,
-      applied: applied && matchesCurrentOperation,
+      applied: didApply,
     });
+    if (applied && matchesCurrentOperation) {
+      const content = message.type === 'importContent'
+        ? message.content
+        : preprocessImportedHtml(message.html) as unknown as JSONContent;
+      const sync = syncCoordinatorRef.current;
+      const checkpoint = getCurrentMutation();
+      if (sync && checkpoint) {
+        void applyImportedContentWithRollback({
+          content,
+          checkpoint: checkpoint.content,
+          replace: (next) => replaceEditorDocumentRef.current?.('user-import', next) ?? false,
+          flush: () => { flushRef.current(); },
+          afterAcknowledged: () => new SaveCoordinator(sync).afterAcknowledged(() => undefined),
+          restoreSyncCheckpoint: () => { sync.submit(checkpoint); },
+          reportApplied,
+        });
+      } else {
+        void reportApplied(false);
+      }
+    } else {
+      void reportApplied(false);
+    }
     setPendingImport(null);
   };
 
@@ -974,6 +1294,10 @@ export function useEditorMessages({
     postMessage,
     handleViewJson,
     handleFileOperation,
+    handleFileOperationConfirm,
+    handleFileOperationCancel,
+    handleFileOperationRetry,
+    handleFileOperationResultAction,
     fileOperationState: fileController.operationState,
     renderDiagram,
     diagramRendererSettings,

@@ -3,7 +3,22 @@
  * Caption presets: IEEE / ISO / Modern / Korean.
  */
 
-import type { DocumentSettings, CaptionStyleName, ResolvedEditorSettings } from './types';
+import { computeRevision } from './document/operations/sha256';
+import type {
+  CaptionStyleName,
+  DocumentSettingApplicationTarget,
+  DocumentSettingKey,
+  DocumentSettingPortability,
+  DocumentSettingScope,
+  DocumentSettingSource,
+  DocumentSettings,
+  DocumentSettingsSnapshotChange,
+  ResolvedDocumentSettingEntries,
+  ResolvedDocumentSettingEntry,
+  ResolvedDocumentSettingsSnapshot,
+  ResolvedEditorSettings,
+  TemporaryDocumentViewPreferences,
+} from './types';
 export type { CaptionStyleName };
 
 // ─── Caption Presets ────────────────────────────────────────────
@@ -74,30 +89,64 @@ export function toRoman(num: number): string {
 
 // ─── Settings Defaults & Resolution ─────────────────────────────
 
-/** Hardcoded defaults — last-resort fallback. */
-export const SETTINGS_DEFAULTS: Required<DocumentSettings> = {
-  headingNumbering: true,
-  headingStartNumber: 1,
-  headingDecoration: true,
-  headingH1Color: '#2563EB',
-  headingH2Color: '#2563EB',
-  headingH3Color: '#2563EB',
-  headingH4Color: '#2563EB',
-  headingH5Color: '#2563EB',
-  headingH6Color: '#2563EB',
-  captionStyle: 'modern',
-  captionNumbering: 'sequential',
-  equationNumbering: 'sequential',
-  crossRefIncludeCaption: false,
-  slideCssPath: '',
-  htmlCssPath: '',
-  pdfScale: 70,
-  selfContained: 'images-only',
-  slideBreakLevel: 'h1-only',
-  slideTransition: 'none',
-  showTitleSlide: true,
-  outputDir: '',
+export interface DocumentSettingDefinition<K extends DocumentSettingKey = DocumentSettingKey> {
+  defaultValue: Required<DocumentSettings>[K];
+  appliesTo: readonly DocumentSettingApplicationTarget[];
+}
+
+export type DocumentSettingRegistry = {
+  readonly [K in DocumentSettingKey]-?: Readonly<DocumentSettingDefinition<K>>;
 };
+
+const setting = <T>(
+  defaultValue: T,
+  appliesTo: readonly DocumentSettingApplicationTarget[],
+): Readonly<{ defaultValue: T; appliesTo: readonly DocumentSettingApplicationTarget[] }> => ({
+  defaultValue,
+  appliesTo,
+});
+
+const ALL_CONTENT_TARGETS = [
+  'editor-view', 'html', 'pdf', 'markdown', 'asciidoc', 'slides',
+] as const satisfies readonly DocumentSettingApplicationTarget[];
+const VISUAL_DOCUMENT_TARGETS = [
+  'editor-view', 'html', 'pdf',
+] as const satisfies readonly DocumentSettingApplicationTarget[];
+const ALL_EXPORT_TARGETS = [
+  'html', 'pdf', 'markdown', 'asciidoc', 'slides',
+] as const satisfies readonly DocumentSettingApplicationTarget[];
+
+/** Versioned built-in values and application metadata; the registry is the defaults source of truth. */
+export const DOCUMENT_SETTING_REGISTRY = {
+  headingNumbering: setting(true, ALL_CONTENT_TARGETS),
+  headingStartNumber: setting(1, ALL_CONTENT_TARGETS),
+  headingDecoration: setting(true, VISUAL_DOCUMENT_TARGETS),
+  headingH1Color: setting('#2563EB', VISUAL_DOCUMENT_TARGETS),
+  headingH2Color: setting('#2563EB', VISUAL_DOCUMENT_TARGETS),
+  headingH3Color: setting('#2563EB', VISUAL_DOCUMENT_TARGETS),
+  headingH4Color: setting('#2563EB', VISUAL_DOCUMENT_TARGETS),
+  headingH5Color: setting('#2563EB', VISUAL_DOCUMENT_TARGETS),
+  headingH6Color: setting('#2563EB', VISUAL_DOCUMENT_TARGETS),
+  captionStyle: setting('modern', ALL_CONTENT_TARGETS),
+  captionNumbering: setting('sequential', ALL_CONTENT_TARGETS),
+  equationNumbering: setting('sequential', ALL_CONTENT_TARGETS),
+  crossRefIncludeCaption: setting(false, ALL_CONTENT_TARGETS),
+  slideCssPath: setting('', ['slides']),
+  htmlCssPath: setting('', ['html', 'pdf']),
+  pdfScale: setting(70, ['pdf']),
+  selfContained: setting('images-only', ['html', 'pdf', 'slides']),
+  slideBreakLevel: setting('h1-only', ['slides']),
+  slideTransition: setting('none', ['slides']),
+  showTitleSlide: setting(true, ['slides']),
+  outputDir: setting('', ALL_EXPORT_TARGETS),
+} satisfies DocumentSettingRegistry;
+
+const DOCUMENT_SETTING_KEYS = Object.keys(DOCUMENT_SETTING_REGISTRY) as DocumentSettingKey[];
+
+/** Hardcoded, versioned defaults — last-resort fallback. */
+export const SETTINGS_DEFAULTS = Object.freeze(Object.fromEntries(
+  DOCUMENT_SETTING_KEYS.map((key) => [key, DOCUMENT_SETTING_REGISTRY[key].defaultValue]),
+)) as Readonly<Required<DocumentSettings>>;
 
 /** Defaults shared by the VS Code extension, webview, converters, and CLI. */
 export const EDITOR_SETTINGS_DEFAULTS: ResolvedEditorSettings = {
@@ -131,18 +180,191 @@ export const EDITOR_SETTINGS_DEFAULTS: ResolvedEditorSettings = {
 };
 
 /**
- * Merge settings with priority: docSettings > externalDefaults > hardcoded.
- * Returns a fully-resolved (no undefined) DocumentSettings object.
+ * Compatibility wrapper with the historical priority:
+ * docSettings > externalDefaults > built-in. New portable flows must use
+ * resolveDocumentSettingsSnapshot so host defaults cannot leak into exports.
  */
 export function resolveSettings(
   docSettings?: Partial<DocumentSettings>,
   externalDefaults?: Partial<DocumentSettings>,
 ): Required<DocumentSettings> {
-  return {
-    ...SETTINGS_DEFAULTS,
-    ...stripUndefined(externalDefaults),
-    ...stripUndefined(docSettings),
-  };
+  return { ...resolveDocumentSettingsSnapshot({
+    context: 'editor',
+    documentSettings: docSettings,
+    hostSettings: externalDefaults,
+  }).values };
+}
+
+export interface ResolveDocumentSettingsSnapshotOptions {
+  context: ResolvedDocumentSettingsSnapshot['context'];
+  documentSettings?: Partial<DocumentSettings>;
+  bookProfileSettings?: Partial<DocumentSettings>;
+  hostSettings?: Partial<DocumentSettings>;
+  temporaryView?: TemporaryDocumentViewPreferences;
+  chapterSettings?: readonly {
+    documentPath: string;
+    settings?: Partial<DocumentSettings>;
+  }[];
+}
+
+const SOURCE_METADATA: Record<DocumentSettingSource, {
+  scope: DocumentSettingScope;
+  portability: DocumentSettingPortability;
+}> = {
+  document: { scope: 'document', portability: 'portable' },
+  'book-profile': { scope: 'book', portability: 'portable' },
+  host: { scope: 'host', portability: 'host-local' },
+  'built-in': { scope: 'product', portability: 'portable' },
+  'temporary-view': { scope: 'session', portability: 'session-only' },
+};
+
+function getDefinedSetting(
+  settings: Partial<DocumentSettings> | undefined,
+  key: DocumentSettingKey,
+): Required<DocumentSettings>[DocumentSettingKey] | undefined {
+  const value = settings?.[key];
+  return value === undefined ? undefined : value;
+}
+
+function getTemporaryViewValue(
+  preferences: TemporaryDocumentViewPreferences | undefined,
+  key: DocumentSettingKey,
+): boolean | undefined {
+  if (key !== 'headingNumbering' && key !== 'headingDecoration') return undefined;
+  const preference = preferences?.[key];
+  if (preference === 'show') return true;
+  if (preference === 'hide') return false;
+  return undefined;
+}
+
+function createResolvedEntry(
+  key: DocumentSettingKey,
+  value: Required<DocumentSettings>[DocumentSettingKey],
+  source: DocumentSettingSource,
+): ResolvedDocumentSettingEntry {
+  return Object.freeze({
+    value,
+    source,
+    ...SOURCE_METADATA[source],
+    appliesTo: DOCUMENT_SETTING_REGISTRY[key].appliesTo,
+  });
+}
+
+/**
+ * Resolve an immutable, provenance-aware settings snapshot.
+ *
+ * Portable standalone and Book contexts deliberately ignore host settings.
+ * The editor context retains host inheritance for UI provenance only and may
+ * overlay session-only view preferences.
+ */
+export function resolveDocumentSettingsSnapshot(
+  options: ResolveDocumentSettingsSnapshotOptions,
+): ResolvedDocumentSettingsSnapshot {
+  const valueRecord: Partial<Required<DocumentSettings>> = {};
+  const entryRecord: Partial<Record<DocumentSettingKey, ResolvedDocumentSettingEntry>> = {};
+
+  for (const key of DOCUMENT_SETTING_KEYS) {
+    let value = DOCUMENT_SETTING_REGISTRY[key].defaultValue;
+    let source: DocumentSettingSource = 'built-in';
+
+    if (options.context === 'book') {
+      const profileValue = getDefinedSetting(options.bookProfileSettings, key);
+      if (profileValue !== undefined) {
+        value = profileValue;
+        source = 'book-profile';
+      }
+    } else {
+      if (options.context === 'editor') {
+        const hostValue = getDefinedSetting(options.hostSettings, key);
+        if (hostValue !== undefined) {
+          value = hostValue;
+          source = 'host';
+        }
+      }
+      const documentValue = getDefinedSetting(options.documentSettings, key);
+      if (documentValue !== undefined) {
+        value = documentValue;
+        source = 'document';
+      }
+      if (options.context === 'editor') {
+        const temporaryValue = getTemporaryViewValue(options.temporaryView, key);
+        if (temporaryValue !== undefined) {
+          value = temporaryValue;
+          source = 'temporary-view';
+        }
+      }
+    }
+
+    (valueRecord as Record<DocumentSettingKey, unknown>)[key] = value;
+    entryRecord[key] = createResolvedEntry(key, value, source);
+  }
+
+  const values = Object.freeze(valueRecord) as Readonly<Required<DocumentSettings>>;
+  const entries = Object.freeze(entryRecord) as ResolvedDocumentSettingEntries;
+  const diagnostics = options.context === 'book'
+    ? Object.freeze((options.chapterSettings ?? []).flatMap(({ documentPath, settings }) =>
+      DOCUMENT_SETTING_KEYS.flatMap((key) => {
+        const chapterValue = getDefinedSetting(settings, key);
+        if (chapterValue === undefined || Object.is(chapterValue, values[key])) return [];
+        return [Object.freeze({
+          severity: 'warning' as const,
+          code: 'CHAPTER_SETTING_OVERRIDDEN' as const,
+          key,
+          documentPath,
+          message: `${documentPath} stores ${key}, but the Book publish profile overrides it.`,
+        })];
+      })))
+    : Object.freeze([]);
+  const fingerprint = computeRevision(JSON.stringify({
+    version: '1',
+    context: options.context,
+    entries: DOCUMENT_SETTING_KEYS.map((key) => ({
+      key,
+      value: entries[key].value,
+      source: entries[key].source,
+    })),
+    diagnostics,
+  }));
+
+  return Object.freeze({
+    version: '1',
+    context: options.context,
+    values,
+    entries,
+    diagnostics,
+    fingerprint,
+  });
+}
+
+export function materializeDocumentSettings(
+  snapshot: ResolvedDocumentSettingsSnapshot,
+): Required<DocumentSettings>;
+export function materializeDocumentSettings(
+  snapshot: ResolvedDocumentSettingsSnapshot,
+  keys: readonly DocumentSettingKey[],
+): Partial<DocumentSettings>;
+export function materializeDocumentSettings(
+  snapshot: ResolvedDocumentSettingsSnapshot,
+  keys: readonly DocumentSettingKey[] = DOCUMENT_SETTING_KEYS,
+): Partial<DocumentSettings> {
+  const materialized: Partial<DocumentSettings> = {};
+  for (const key of keys) {
+    (materialized as Record<DocumentSettingKey, unknown>)[key] = snapshot.values[key];
+  }
+  return materialized;
+}
+
+export function diffDocumentSettingsSnapshots(
+  baseline: ResolvedDocumentSettingsSnapshot,
+  current: ResolvedDocumentSettingsSnapshot,
+): DocumentSettingsSnapshotChange[] {
+  return DOCUMENT_SETTING_KEYS.flatMap((key) => {
+    const before = baseline.entries[key];
+    const after = current.entries[key];
+    return Object.is(before.value, after.value) && before.source === after.source
+      ? []
+      : [{ key, before, after } as DocumentSettingsSnapshotChange];
+  });
 }
 
 export function resolveEditorSettings(
