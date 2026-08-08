@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-08-08
+
+### Added
+- Added versioned `.sdocbook` 1.1 inline publish profiles, composed Book previews, outlines, chapter diagnostics, and explicit profile-based export readiness
+- Added provenance-aware Design controls for persisted, built-in, and temporary values with materialize, remove, revert, and compact preview actions
+
+### Changed
+- Unified standalone and Book import/export in the Files activity through immutable preflight plans, explicit progress and cancellation states, retry, recovery, and durable result actions
+- Made portable standalone and Book output resolve from versioned document or publish-profile settings instead of legacy host defaults
+
+### Fixed
+- Bound exports to preflighted source bytes, settings, assets, diagrams, destinations, and target fingerprints to reject stale inputs and close source and destination TOCTOU gaps
+- Hardened Book-relative path validation, opaque plan and artifact handling, atomic export publication, and session-scoped import undo
+
 ## [0.9.3] - 2026-08-07
 
 ### Changed
