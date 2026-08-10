@@ -3,11 +3,10 @@ updates:
   - package-ecosystem: npm
     directory: /
     schedule:
-      interval: weekly
-      day: monday
+      interval: monthly
       time: '09:00'
       timezone: Asia/Seoul
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 3
     groups:
       javascript:
         patterns: ['*']
@@ -15,11 +14,10 @@ updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: weekly
-      day: monday
+      interval: monthly
       time: '10:00'
       timezone: Asia/Seoul
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 3
     groups:
       github-actions:
         patterns: ['*']
