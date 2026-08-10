@@ -88,6 +88,17 @@ export interface DocumentSyncCoordinatorOptions {
 const mutationsEqual = (left: DocumentMutation | null, right: DocumentMutation): boolean =>
   left !== null && JSON.stringify(left) === JSON.stringify(right);
 
+const reconcileMutationModified = (
+  mutation: DocumentMutation,
+  modified: string | undefined,
+): DocumentMutation => {
+  if (!modified || mutation.meta.modified === modified) return mutation;
+  return {
+    ...mutation,
+    meta: { ...mutation.meta, modified },
+  };
+};
+
 export function readDocumentMutationBestEffort(
   reader: () => DocumentMutation,
 ): DocumentMutation | undefined {
@@ -168,6 +179,18 @@ export class DocumentSyncCoordinator {
       && this.current.externalChange.revision > message.revision
       ? this.current.externalChange
       : null;
+    const localMutation = this.current.localMutation
+      ? reconcileMutationModified(this.current.localMutation, message.modified)
+      : null;
+    const pending = this.current.pending
+      ? {
+          ...this.current.pending,
+          mutation: reconcileMutationModified(
+            this.current.pending.mutation,
+            message.modified,
+          ),
+        }
+      : null;
 
     this.publish({
       ...this.current,
@@ -177,7 +200,9 @@ export class DocumentSyncCoordinator {
         this.current.acknowledgedGeneration,
         inFlight.localGeneration,
       ),
+      localMutation,
       inFlight: null,
+      pending,
       error: null,
       conflict: null,
       externalChange: remainingExternalChange,

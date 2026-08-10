@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.2] - 2026-08-10
+
+### Fixed
+- Prevented Ctrl+S save lifecycle events without content changes from being reported as external document edits, eliminating the repeated conflict and comparison loop
+- Reconciled host-confirmed modified timestamps with queued editor snapshots so successful disk saves settle on `Saved` without redundant persistence mutations
+
 ## [0.10.1] - 2026-08-08
 
 ### Fixed
