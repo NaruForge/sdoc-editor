@@ -3,7 +3,10 @@ import * as path from 'path';
 import { randomUUID } from 'crypto';
 import { computeRevision } from '../shared/document/operations/sha256';
 import { getNonce, getWebviewUri } from './utils/webviewHelper';
-import { ExpectedDocumentChanges } from './utils/expectedDocumentChanges';
+import {
+  ExpectedDocumentChanges,
+  shouldReportExternalDocumentChange,
+} from './utils/expectedDocumentChanges';
 import { convertMarkdownToJson } from '../shared/converter';
 import { generateFontFaceCSS } from './utils/fontUtils';
 import { convertImagePathsToWebviewUris, convertWebviewUrisToRelativePaths } from './utils/imageUtils';
@@ -218,6 +221,10 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
           () => provider.getActiveTestSession().getFileOperationSnapshot(),
         ),
         vscode.commands.registerCommand(
+          'structuredDocEditor.test.getActivePersistenceState',
+          () => provider.getActiveTestSession().getPersistenceSnapshot(),
+        ),
+        vscode.commands.registerCommand(
           'structuredDocEditor.test.prepareActiveImport',
           (source: string, format: 'markdown' | 'html' = 'markdown') => {
             if (format !== 'markdown' && format !== 'html') {
@@ -282,6 +289,12 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     getFileOperationSnapshot: () => {
       state: FileOperationState;
       plan?: FileOperationPlanView;
+    };
+    getPersistenceSnapshot: () => {
+      phase: 'dirty' | 'saving' | 'saved' | 'failed';
+      revision: number;
+      isDirty: boolean;
+      externalChangeCount: number;
     };
     confirmFileOperation: () => void;
     runResultAction: (
@@ -466,6 +479,12 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         state: latestFileOperationState,
         ...(latestFileOperationPlan ? { plan: latestFileOperationPlan } : {}),
       }),
+      getPersistenceSnapshot: () => ({
+        phase: latestSavePhase,
+        revision: latestSaveRevision,
+        isDirty: document.isDirty,
+        externalChangeCount,
+      }),
       confirmFileOperation: unavailableTestSeam,
       runResultAction: unavailableTestSeam,
     });
@@ -478,6 +497,11 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     let activeFileOperationRequestId: string | undefined;
     let latestImportCheckpointArtifactId: FileOperationArtifactId | undefined;
     let saveGeneration = 0;
+    let latestSavePhase: 'dirty' | 'saving' | 'saved' | 'failed' = document.isDirty
+      ? 'dirty'
+      : 'saved';
+    let latestSaveRevision = document.version;
+    let externalChangeCount = 0;
     let availableTemplates = new Map<string, SdocTemplate>();
     let personalTemplateFingerprints = new Map<string, string>();
     let templateCatalogGeneration = 0;
@@ -943,6 +967,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         return;
       }
       writeBlockedReason = undefined;
+      externalChangeCount += 1;
       void webviewPanel.webview.postMessage({
         type: 'externalChange', sessionId, documentId, revision: document.version,
         snapshot: mutationFromEnvelope(contract.envelope),
@@ -2065,6 +2090,8 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
             }
             try {
               const modified = await this.updateDocument(document, message.mutation);
+              latestSavePhase = 'dirty';
+              latestSaveRevision = document.version;
               webviewPanel.webview.postMessage({
                 type: 'editAcknowledged',
                 sessionId,
@@ -2199,6 +2226,8 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     const willSaveSubscription = vscode.workspace.onWillSaveTextDocument((e) => {
       if (e.document.uri.toString() !== document.uri.toString()) return;
       const generation = ++saveGeneration;
+      latestSavePhase = 'saving';
+      latestSaveRevision = document.version;
       void webviewPanel.webview.postMessage({
         type: 'documentSaveState',
         sessionId,
@@ -2210,6 +2239,8 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       e.waitUntil(this.flushEditor(webviewPanel.webview, sessionId, documentId, 1000)
         .catch(async (error: unknown) => {
           const message = error instanceof Error ? error.message : String(error);
+          latestSavePhase = 'failed';
+          latestSaveRevision = document.version;
           await webviewPanel.webview.postMessage({
             type: 'documentSaveState',
             sessionId,
@@ -2226,6 +2257,8 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       if (savedDocument.uri.toString() !== document.uri.toString()) return;
       const generation = saveGeneration === 0 ? ++saveGeneration : saveGeneration;
       const snapshot = tryReadCurrentMutation();
+      latestSavePhase = 'saved';
+      latestSaveRevision = savedDocument.version;
       void webviewPanel.webview.postMessage({
         type: 'documentSaveState',
         sessionId,
@@ -2242,13 +2275,14 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     // Handle external document changes
     const changeDocumentSubscription = vscode.workspace.onDidChangeTextDocument((e) => {
       if (e.document.uri.toString() === document.uri.toString()) {
-        // Don't send update if we caused the change
-        if (this.expectedDocumentChanges.consume(
+        // VS Code emits this event for dirty-state transitions during save too.
+        // Only content changes can represent an editor or external mutation.
+        if (!shouldReportExternalDocumentChange(
+          e.contentChanges,
+          this.expectedDocumentChanges,
           document.uri.toString(),
           document.getText(),
-        )) {
-          return;
-        }
+        )) return;
 
         if (isUninitializedSdocText(document.getText())) {
           postExternalChange();

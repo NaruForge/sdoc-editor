@@ -19,6 +19,83 @@ const mutation = (text: string): DocumentMutation => ({
 });
 
 describe('DocumentSyncCoordinator', () => {
+  it('reconciles the host-owned modified time without creating a no-op save mutation', () => {
+    const sent: DocumentMutationRequest[] = [];
+    const sync = new DocumentSyncCoordinator({
+      identity: { sessionId: 'session-a', documentId: 'doc-a', revision: 4 },
+      createEditId: () => 'edit-1',
+      send: (request) => { sent.push(request); },
+    });
+    const documentSettings = { pdfScale: 80 };
+    const local: DocumentMutation = {
+      ...mutation('draft'),
+      meta: { title: 'draft', modified: '2026-08-09T00:00:00.000Z' },
+      documentSettings,
+    };
+    const reconciled = {
+      ...local,
+      meta: { ...local.meta, modified: '2026-08-10T00:00:00.000Z' },
+    };
+
+    expect(sync.submit(local)).toBe(1);
+    expect(sync.acknowledge({
+      sessionId: 'session-a',
+      documentId: 'doc-a',
+      editId: 'edit-1',
+      revision: 5,
+      modified: reconciled.meta.modified,
+    })).toBe(true);
+
+    expect(sync.state.localMutation).toEqual(reconciled);
+    expect(sync.state.localMutation?.content).toBe(local.content);
+    expect(sync.state.localMutation?.documentSettings).toBe(documentSettings);
+    expect(sync.submit(reconciled)).toBe(1);
+    expect(sync.state.localGeneration).toBe(1);
+    expect(sent).toHaveLength(1);
+  });
+
+  it('reconciles a newer pending snapshot before dispatching it once', () => {
+    const sent: DocumentMutationRequest[] = [];
+    let nextId = 0;
+    const sync = new DocumentSyncCoordinator({
+      identity: { sessionId: 'session-a', documentId: 'doc-a', revision: 4 },
+      createEditId: () => `edit-${++nextId}`,
+      send: (request) => { sent.push(request); },
+    });
+    const initialModified = '2026-08-09T00:00:00.000Z';
+    const acknowledgedModified = '2026-08-10T00:00:00.000Z';
+    sync.submit({
+      ...mutation('first body'),
+      meta: { title: 'first body', modified: initialModified },
+    });
+    sync.submit({
+      ...mutation('newer body'),
+      meta: { title: 'newer body', modified: initialModified },
+    });
+
+    expect(sync.acknowledge({
+      sessionId: 'session-a',
+      documentId: 'doc-a',
+      editId: 'edit-1',
+      revision: 5,
+      modified: acknowledgedModified,
+    })).toBe(true);
+
+    expect(sent).toHaveLength(2);
+    expect(sent[1]).toMatchObject({
+      editId: 'edit-2',
+      baseRevision: 5,
+      localGeneration: 2,
+      mutation: {
+        content: content('newer body'),
+        meta: { title: 'newer body', modified: acknowledgedModified },
+        documentSettings: null,
+      },
+    });
+    expect(sync.state.localMutation).toEqual(sent[1].mutation);
+    expect(sync.state.pending).toBeNull();
+  });
+
   it('publishes immutable snapshots and accepts the authoritative modified time only from the matching ack', () => {
     const sent: DocumentMutationRequest[] = [];
     const sync = new DocumentSyncCoordinator({
@@ -270,6 +347,36 @@ describe('DocumentSyncCoordinator', () => {
     expect(sync.state.localMutation).toEqual(local);
     expect(sync.state.externalChange?.hostSnapshot).toEqual(host);
     expect(sync.state.acknowledgedRevision).toBe(4);
+  });
+
+  it('keeps a newer external body change as a conflict after modified-time reconciliation', () => {
+    const sync = new DocumentSyncCoordinator({
+      identity: { sessionId: 'session-a', documentId: 'doc-a', revision: 4 },
+      createEditId: () => 'edit-1',
+      send: () => {},
+    });
+    sync.submit({
+      ...mutation('local body'),
+      meta: { title: 'local body', modified: '2026-08-09T00:00:00.000Z' },
+    });
+    sync.acknowledge({
+      sessionId: 'session-a',
+      documentId: 'doc-a',
+      editId: 'edit-1',
+      revision: 5,
+      modified: '2026-08-10T00:00:00.000Z',
+    });
+    const external = {
+      ...mutation('external body'),
+      meta: { title: 'external body', modified: '2026-08-10T01:00:00.000Z' },
+    };
+
+    expect(sync.observeExternalChange(6, external)).toBe(true);
+    expect(sync.state.externalChange).toEqual({ revision: 6, hostSnapshot: external });
+    expect(sync.state.localMutation).toMatchObject({
+      content: content('local body'),
+      meta: { title: 'local body', modified: '2026-08-10T00:00:00.000Z' },
+    });
   });
 
   it('persists the seeded pristine snapshot and keeps its barrier pending until ack', async () => {

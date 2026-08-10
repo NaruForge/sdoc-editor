@@ -95,6 +95,7 @@ async function run() {
       'structuredDocEditor.exportToSlides',
       'structuredDocEditor.cleanUpLegacySettings',
       'structuredDocEditor.test.waitForEditorUiReady',
+      'structuredDocEditor.test.getActivePersistenceState',
       'structuredDocEditor.test.getActiveFileOperation',
       'structuredDocEditor.test.prepareActiveImport',
       'structuredDocEditor.test.confirmActiveFileOperation',
@@ -236,6 +237,72 @@ async function run() {
     } catch (error) {
       throw new Error(`${error.message} Current source: ${document.getText()}`);
     }
+    await closeActiveEditor();
+  });
+
+  await scenario('saves an editor mutation to disk without entering an external-change loop', async () => {
+    const fixtureUri = vscode.Uri.joinPath(workspace.uri, 'valid.sdoc');
+    const sourceUri = vscode.Uri.joinPath(workspace.uri, 'save-loop.sdoc');
+    await vscode.workspace.fs.writeFile(sourceUri, await readBytes(fixtureUri));
+    await openCustomEditor(workspace, 'save-loop.sdoc', 'structuredDocEditor.sdoc', true);
+    const importUri = vscode.Uri.joinPath(workspace.uri, 'import.md');
+    const document = vscode.workspace.textDocuments.find(
+      (candidate) => candidate.uri.toString() === sourceUri.toString(),
+    );
+    assert.ok(document, 'Expected the save-loop text document behind the custom editor.');
+
+    await vscode.commands.executeCommand(
+      'structuredDocEditor.test.prepareActiveImport', importUri.toString(), 'markdown',
+    );
+    await vscode.commands.executeCommand('structuredDocEditor.test.confirmActiveFileOperation');
+    await waitFor(
+      () => document.getText().includes('Imported heading'),
+      'The webview mutation did not reach the VS Code text document before save.',
+    );
+    await waitFor(
+      () => document.isDirty,
+      'The editor mutation did not make the VS Code text document dirty.',
+    );
+
+    const beforeSave = await vscode.commands.executeCommand(
+      'structuredDocEditor.test.getActivePersistenceState',
+    );
+    assert.equal(beforeSave.externalChangeCount, 0);
+    await vscode.commands.executeCommand('workbench.action.files.save');
+    await waitFor(
+      () => !document.isDirty,
+      'Ctrl+S-equivalent save did not clear the VS Code dirty state.',
+    );
+    await waitFor(async () => {
+      const state = await vscode.commands.executeCommand(
+        'structuredDocEditor.test.getActivePersistenceState',
+      );
+      return state.phase === 'saved';
+    }, 'The editor did not reach the host-confirmed Saved state.');
+
+    const savedState = await vscode.commands.executeCommand(
+      'structuredDocEditor.test.getActivePersistenceState',
+    );
+    assert.equal(savedState.phase, 'saved');
+    assert.equal(savedState.isDirty, false);
+    assert.equal(
+      savedState.externalChangeCount,
+      0,
+      'The extension must not report its own save lifecycle as an external change.',
+    );
+    assert.equal(
+      Buffer.from(await readBytes(sourceUri)).toString('utf8'),
+      document.getText(),
+      'The disk contents must match the host-confirmed editor snapshot.',
+    );
+
+    await vscode.commands.executeCommand('workbench.action.files.save');
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    const repeatedSaveState = await vscode.commands.executeCommand(
+      'structuredDocEditor.test.getActivePersistenceState',
+    );
+    assert.equal(repeatedSaveState.phase, 'saved');
+    assert.equal(repeatedSaveState.externalChangeCount, 0);
     await closeActiveEditor();
   });
 

@@ -1,5 +1,9 @@
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { DocumentSyncState } from '../shared/persistence/DocumentSyncCoordinator';
+import { DocumentHeader } from '../shared/editor/components/DocumentHeader';
+import { EditorI18nProvider, useEditorI18n } from '../shared/editor/i18n';
 import {
   createHostDocumentSaveState,
   deriveDocumentSavePresentation,
@@ -22,7 +26,47 @@ const syncState = (patch: Partial<DocumentSyncState> = {}): DocumentSyncState =>
   ...patch,
 });
 
+const LocalizedDocumentHeader = ({ phase }: { phase: 'disk-pending' | 'saved' }) => {
+  const { t } = useEditorI18n();
+  return React.createElement(DocumentHeader, {
+    author: '',
+    version: '',
+    created: '2026-08-06T00:00:00.000Z',
+    modified: '2026-08-06T01:00:00.000Z',
+    onAuthorChange: () => undefined,
+    onVersionChange: () => undefined,
+    saveStatus: {
+      phase,
+      label: t(phase === 'saved' ? 'editor.saved' : 'editor.diskPending'),
+      retryable: false,
+    },
+  });
+};
+
+const renderKoreanDocumentHeader = (phase: 'disk-pending' | 'saved'): string =>
+  renderToStaticMarkup(React.createElement(
+    EditorI18nProvider,
+    { locale: 'ko' },
+    React.createElement(LocalizedDocumentHeader, { phase }),
+  ));
+
 describe('document save presentation', () => {
+  it('renders the host-confirmed final save state as 저장됨 in Korean', () => {
+    const markup = renderKoreanDocumentHeader('saved');
+
+    expect(markup).toContain('role="status"');
+    expect(markup).toContain('저장됨');
+    expect(markup).not.toContain('디스크 저장 대기 중');
+  });
+
+  it('distinguishes the Korean disk-pending state from the final saved state', () => {
+    const markup = renderKoreanDocumentHeader('disk-pending');
+
+    expect(markup).toContain('role="status"');
+    expect(markup).toContain('디스크 저장 대기 중');
+    expect(markup).not.toContain('>저장됨<');
+  });
+
   it('does not call a buffer acknowledgement saved until a matching disk-save event arrives', () => {
     const initial = createHostDocumentSaveState({
       sessionId: 'session-a', documentId: 'doc-a', revision: 4, isDirty: false,
