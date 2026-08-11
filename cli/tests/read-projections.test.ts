@@ -103,6 +103,28 @@ describe('explicit inspect projections', () => {
     expect(targeted.json).not.toHaveProperty('projection');
   });
 
+  it('reports an optional paragraph id as an id operation target', async () => {
+    const { documentPath } = await writeDocument([
+      textBlock('paragraph', 'Tracked', { id: 'para-1' }),
+    ]);
+
+    const inspected = await execute(['inspect', documentPath]);
+    expect(inspected.exitCode).toBe(0);
+    expect(inspected.json).toMatchObject({
+      blocks: expect.arrayContaining([
+        expect.objectContaining({
+          type: 'paragraph',
+          id: 'para-1',
+          operationTarget: {
+            kind: 'id',
+            id: 'para-1',
+            expectedType: 'paragraph',
+          },
+        }),
+      ]),
+    });
+  });
+
   it('paginates the default block catalog beyond 1,000 entries without gaps or duplicates', async () => {
     const blocks = Array.from({ length: 1_005 }, (_, index) =>
       textBlock('paragraph', `Block ${index}`));

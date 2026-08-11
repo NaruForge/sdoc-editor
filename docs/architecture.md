@@ -44,6 +44,21 @@ SDOC CLI ─ filesystem boundary ─ shared/document/operations
 - Save and mutation protocols carry document identity, base revision, edit
   identity, and acknowledgement so stale or cross-document writes are rejected.
 
+Stable node identity is broader than cross-reference eligibility. `heading`,
+`image`, `table`, and `mathBlock` are the only referenceable node types.
+`paragraph`, `bulletList`, `orderedList`, `taskList`, `codeBlock`, `blockquote`,
+`callout`, and `diagram` may additionally carry an optional stable `attrs.id`,
+but this does not make them cross-reference targets. Existing documents do not
+receive these IDs automatically. `horizontalRule` is outside the #148
+identity-bearing feature, although historical schemas may allow its `id`
+attribute. Provenance belongs in an external sidecar keyed by stable IDs, not
+in the core document schema; the engineering-canonical profile proposed in
+#183 remains separate future work.
+
+Compatibility note (ASCII IDs): Persistent IDs follow
+`^[A-Za-z][A-Za-z0-9._:-]*$` and reject the `provisional:` prefix. This may
+invalidate previously loose IDs on existing referenceable nodes too.
+
 ### Document templates
 
 `shared/template/` owns built-in template data, untrusted template metadata
@@ -201,10 +216,11 @@ VSIX and performs no CDN fetch.
 `shared/document/operations/` is the host-neutral boundary for inspecting,
 validating, and atomically applying versioned semantic operation batches.
 Callers identify a document revision by SHA-256 of its exact bytes, including
-any UTF-8 BOM. Persistent IDs target referenceable nodes; other mutable blocks
-use a revision-scoped path, node type, and canonical subtree digest. Targets
-are resolved before a batch starts, so an earlier insertion or move cannot
-redirect a later operation.
+any UTF-8 BOM. Inspection returns an ID target for any persistent ID. Without
+one, a non-referenceable mutable block uses a revision-scoped path, node type,
+and canonical subtree digest. Provisional IDs remain revision-scoped and
+limited to referenceable nodes. Targets are resolved before a batch starts, so
+an earlier insertion or move cannot redirect a later operation.
 
 Section operations use heading ranges in one parent content array. The core
 normalizes through resolved document settings, validates schema and

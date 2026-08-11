@@ -78,6 +78,12 @@
       "additionalProperties": false
     },
 
+    "persistentId": {
+      "type": ["string", "null"],
+      "pattern": "^[A-Za-z][A-Za-z0-9._:-]*$",
+      "description": "Optional stable identity for a persisted block. On heading, image, table, and mathBlock nodes, it also serves as a cross-reference anchor."
+    },
+
     "docNode": {
       "type": "object",
       "required": ["type"],
@@ -128,7 +134,7 @@
           "required": ["level"],
           "properties": {
             "level": { "type": "integer", "minimum": 1, "maximum": 6 },
-            "id": { "type": ["string", "null"], "description": "Anchor id for cross-references." },
+            "id": { "$ref": "#/definitions/persistentId" },
             "textAlign": { "type": ["string", "null"], "enum": ["left", "center", "right", "justify", null] },
             "numbered": { "type": ["boolean", "null"], "description": "false면 자동 번호 매김에서 제외 (예: Introduction, Glossary, References). 생략 또는 null이면 번호 매김 대상." }
           },
@@ -150,7 +156,8 @@
         "attrs": {
           "type": "object",
           "properties": {
-            "textAlign": { "type": ["string", "null"], "enum": ["left", "center", "right", "justify", null] }
+            "textAlign": { "type": ["string", "null"], "enum": ["left", "center", "right", "justify", null] },
+            "id": { "$ref": "#/definitions/persistentId" }
           },
           "additionalProperties": false
         },
@@ -167,6 +174,13 @@
       "required": ["type"],
       "properties": {
         "type": { "const": "bulletList" },
+        "attrs": {
+          "type": "object",
+          "properties": {
+            "id": { "$ref": "#/definitions/persistentId" }
+          },
+          "additionalProperties": false
+        },
         "content": {
           "type": "array",
           "items": { "$ref": "#/definitions/listItemNode" }
@@ -184,7 +198,8 @@
           "type": "object",
           "properties": {
             "start": { "type": ["integer", "null"], "default": 1 },
-            "type": { "type": ["string", "null"] }
+            "type": { "type": ["string", "null"] },
+            "id": { "$ref": "#/definitions/persistentId" }
           },
           "additionalProperties": false
         },
@@ -214,6 +229,13 @@
       "required": ["type"],
       "properties": {
         "type": { "const": "taskList" },
+        "attrs": {
+          "type": "object",
+          "properties": {
+            "id": { "$ref": "#/definitions/persistentId" }
+          },
+          "additionalProperties": false
+        },
         "content": {
           "type": "array",
           "items": { "$ref": "#/definitions/taskItemNode" }
@@ -249,7 +271,8 @@
         "attrs": {
           "type": "object",
           "properties": {
-            "language": { "type": ["string", "null"] }
+            "language": { "type": ["string", "null"] },
+            "id": { "$ref": "#/definitions/persistentId" }
           },
           "additionalProperties": false
         },
@@ -272,7 +295,7 @@
             "caption": { "type": ["string", "null"], "description": "Table caption text." },
             "align": { "type": "string", "enum": ["left", "center", "right"], "default": "left" },
             "width": { "type": "string", "description": "CSS width value (e.g., '100%', '50%', 'auto').", "default": "auto" },
-            "id": { "type": ["string", "null"], "description": "Anchor id for cross-references." }
+            "id": { "$ref": "#/definitions/persistentId" }
           },
           "additionalProperties": false
         },
@@ -363,7 +386,7 @@
             "align": { "type": "string", "enum": ["left", "center", "right"], "default": "center" },
             "width": { "type": ["string", "number", "null"] },
             "height": { "type": ["string", "number", "null"] },
-            "id": { "type": ["string", "null"], "description": "Anchor id for cross-references." }
+            "id": { "$ref": "#/definitions/persistentId" }
           },
           "additionalProperties": false
         }
@@ -381,7 +404,7 @@
           "required": ["latex"],
           "properties": {
             "latex": { "type": "string", "description": "LaTeX math expression." },
-            "id": { "type": ["string", "null"], "description": "Anchor id for cross-references." }
+            "id": { "$ref": "#/definitions/persistentId" }
           },
           "additionalProperties": false
         }
@@ -416,7 +439,8 @@
           "required": ["language", "code"],
           "properties": {
             "language": { "type": "string", "description": "Diagram language, e.g. mermaid, plantuml, d2." },
-            "code": { "type": "string", "description": "Diagram source code." }
+            "code": { "type": "string", "description": "Diagram source code." },
+            "id": { "$ref": "#/definitions/persistentId" }
           },
           "additionalProperties": false
         }
@@ -441,10 +465,7 @@
         "attrs": {
           "type": "object",
           "properties": {
-            "id": {
-              "type": ["string", "null"],
-              "pattern": "^[A-Za-z][A-Za-z0-9._:-]*$"
-            }
+            "id": { "$ref": "#/definitions/persistentId" }
           },
           "additionalProperties": false
         }
@@ -457,6 +478,13 @@
       "required": ["type"],
       "properties": {
         "type": { "const": "blockquote" },
+        "attrs": {
+          "type": "object",
+          "properties": {
+            "id": { "$ref": "#/definitions/persistentId" }
+          },
+          "additionalProperties": false
+        },
         "content": {
           "type": "array",
           "items": { "$ref": "#/definitions/blockNode" }
@@ -477,7 +505,8 @@
               "type": "string",
               "enum": ["note", "info", "tip", "warning", "danger"],
               "description": "Visual style of the callout block."
-            }
+            },
+            "id": { "$ref": "#/definitions/persistentId" }
           },
           "additionalProperties": false
         },

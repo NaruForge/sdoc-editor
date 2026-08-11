@@ -15,6 +15,11 @@ const heading = (level: number, id: string | undefined, title: string): TiptapNo
 const paragraph = (value: string): TiptapNode => ({
   type: 'paragraph', content: [{ type: 'text', text: value }],
 });
+const paragraphWithId = (id: string, value: string): TiptapNode => ({
+  type: 'paragraph',
+  attrs: { id },
+  content: [{ type: 'text', text: value }],
+});
 const envelope = (content: TiptapNode[]): SdocEnvelope => ({
   sdoc: '1.0',
   meta: {
@@ -325,16 +330,17 @@ describe('document operations core', () => {
     ]));
   });
 
-  it('uses Unicode code-point limits and rejects duplicate or reserved renamed ids', () => {
+  it('enforces ASCII id format and length limits for renamed ids', () => {
     const text = source([
       heading(1, 'first', 'First'),
       heading(1, 'second', 'Second'),
     ]);
     expect(apply(text, [{
-      op: 'renameBlockId', target: target('first'), newId: '😀'.repeat(128),
+      op: 'renameBlockId', target: target('first'), newId: `a${'b'.repeat(127)}`,
     }]).ok).toBe(true);
     for (const [newId, code] of [
-      ['😀'.repeat(129), 'INVALID_NEW_ID'],
+      ['😀'.repeat(128), 'INVALID_NEW_ID'],
+      ['a'.repeat(129), 'INVALID_NEW_ID'],
       ['second', 'DUPLICATE_ID'],
       ['provisional:reserved', 'INVALID_NEW_ID'],
     ] as const) {
@@ -558,6 +564,44 @@ describe('document operations core', () => {
         content: [{ text: 'new' }],
       });
     }
+  });
+
+  it('preserves an existing id when replaceBlock replacement omits attrs.id', () => {
+    const text = source([
+      heading(1, 'intro', 'Intro'),
+      paragraphWithId('para-1', 'Old'),
+    ]);
+    const result = apply(text, [{
+      op: 'replaceBlock',
+      target: target('para-1'),
+      block: paragraph('New'),
+    }]);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.envelope.doc.content?.[1]).toMatchObject({
+      type: 'paragraph',
+      attrs: { id: 'para-1' },
+      content: [{ type: 'text', text: 'New' }],
+    });
+  });
+
+  it('rejects replaceBlock when the replacement changes an existing id', () => {
+    const text = source([
+      heading(1, 'intro', 'Intro'),
+      paragraphWithId('para-1', 'Old'),
+    ]);
+    const result = apply(text, [{
+      op: 'replaceBlock',
+      target: target('para-1'),
+      block: paragraphWithId('para-2', 'New'),
+    }]);
+
+    expect(result).toMatchObject({
+      ok: false,
+      category: 'argument',
+      diagnostics: [{ code: 'ID_CHANGE_FORBIDDEN' }],
+    });
   });
 
   it('compares baseline violations as a multiset and rejects an increased duplicate warning', () => {
@@ -1479,5 +1523,178 @@ describe('sdoc.read/1 projections', () => {
       });
       expect(result).not.toHaveProperty('page.nextCursor');
     }
+  });
+});
+
+describe('optional stable block ids', () => {
+  it('accepts optional ids without auto-inserting ids on plain paragraphs', () => {
+    const text = source([
+      heading(1, 'intro', 'Intro'),
+      paragraph('Body'),
+      paragraphWithId('para-1', 'Tracked'),
+    ]);
+    const validated = validateDocumentBytes(text);
+    expect(validated.ok).toBe(true);
+    const inspected = inspectDocumentBytes(text);
+    expect(inspected.ok).toBe(true);
+    if (!inspected.ok) return;
+    const tracked = inspected.blocks.find((block) => block.id === 'para-1');
+    expect(tracked?.operationTarget).toMatchObject({ kind: 'id', id: 'para-1', expectedType: 'paragraph' });
+    // plain paragraph remains snapshot-targeted and has no id
+    const plainBlock = inspected.blocks.find((block) => block.type === 'paragraph' && !block.id);
+    expect(plainBlock?.operationTarget.kind).toBe('snapshot');
+    expect(inspected.referenceables.every((item) => item.type !== 'paragraph')).toBe(true);
+    expect((JSON.parse(text) as SdocEnvelope).doc.content?.[1]).toEqual(paragraph('Body'));
+  });
+
+  it('validates optional ids on code blocks, callouts, diagrams, and lists', () => {
+    const text = source([
+      heading(1, 'intro', 'Intro'),
+      {
+        type: 'codeBlock',
+        attrs: { id: 'code-1', language: 'ts' },
+        content: [{ type: 'text', text: 'const answer = 42;' }],
+      },
+      {
+        type: 'callout',
+        attrs: { id: 'callout-1', variant: 'note' },
+        content: [paragraph('A note')],
+      },
+      {
+        type: 'diagram',
+        attrs: { id: 'diagram-1', language: 'mermaid', code: 'graph TD; A-->B' },
+      },
+      {
+        type: 'bulletList',
+        attrs: { id: 'list-1' },
+        content: [{ type: 'listItem', content: [paragraph('An item')] }],
+      },
+      {
+        type: 'orderedList',
+        attrs: { id: 'ordered-list-1', start: 1 },
+        content: [{ type: 'listItem', content: [paragraph('First item')] }],
+      },
+    ]);
+    const validated = validateDocumentBytes(text);
+    expect(validated.ok).toBe(true);
+    const inspected = inspectDocumentBytes(text);
+    expect(inspected.ok).toBe(true);
+    if (!inspected.ok) return;
+    expect(inspected.blocks).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: 'codeBlock', id: 'code-1',
+        operationTarget: { kind: 'id', id: 'code-1', expectedType: 'codeBlock' },
+      }),
+      expect.objectContaining({
+        type: 'callout', id: 'callout-1',
+        operationTarget: { kind: 'id', id: 'callout-1', expectedType: 'callout' },
+      }),
+      expect.objectContaining({
+        type: 'diagram', id: 'diagram-1',
+        operationTarget: { kind: 'id', id: 'diagram-1', expectedType: 'diagram' },
+      }),
+      expect.objectContaining({
+        type: 'bulletList', id: 'list-1',
+        operationTarget: { kind: 'id', id: 'list-1', expectedType: 'bulletList' },
+      }),
+      expect.objectContaining({
+        type: 'orderedList', id: 'ordered-list-1',
+        operationTarget: { kind: 'id', id: 'ordered-list-1', expectedType: 'orderedList' },
+      }),
+    ]));
+  });
+
+  it('keeps paragraph ids out of the referenceables catalog', () => {
+    const table: TiptapNode = {
+      type: 'table',
+      attrs: { id: 'table-1' },
+      content: [{
+        type: 'tableRow',
+        content: [{ type: 'tableCell', content: [paragraph('Cell')] }],
+      }],
+    };
+    const text = source([
+      heading(1, 'intro', 'Intro'),
+      { type: 'image', attrs: { id: 'figure-1', src: './figure.png' } },
+      table,
+      { type: 'mathBlock', attrs: { id: 'equation-1', latex: 'x = 1' } },
+      paragraphWithId('para-1', 'Body'),
+    ]);
+    const inspected = inspectDocumentBytes(text);
+    expect(inspected.ok).toBe(true);
+    if (!inspected.ok) return;
+    expect(inspected.referenceables.map((item) => item.type)).toEqual([
+      'heading', 'image', 'table', 'mathBlock',
+    ]);
+    expect(inspected.referenceables).not.toContainEqual(
+      expect.objectContaining({ id: 'para-1' }),
+    );
+  });
+
+  it('rejects invalid and duplicate optional ids', () => {
+    for (const invalidNode of [
+      heading(1, '1bad', 'Bad heading'),
+      heading(1, '😀', 'Emoji heading'),
+      paragraphWithId('1bad', 'Bad paragraph'),
+    ]) {
+      const invalid = validateDocumentBytes(source([
+        heading(1, 'intro', 'Intro'),
+        invalidNode,
+      ]));
+      expect(invalid.ok).toBe(false);
+      if (!invalid.ok) expect(invalid.diagnostics[0].code).toBe('INVALID_ID');
+    }
+
+    const provisional = validateDocumentBytes(source([
+      heading(1, 'intro', 'Intro'),
+      paragraphWithId('provisional:x', 'Bad'),
+    ]));
+    expect(provisional.ok).toBe(false);
+    if (!provisional.ok) expect(provisional.diagnostics[0].code).toBe('INVALID_ID');
+
+    const duplicate = validateDocumentBytes(source([
+      heading(1, 'same', 'Intro'),
+      paragraphWithId('same', 'Body'),
+    ]));
+    expect(duplicate.ok).toBe(false);
+    if (!duplicate.ok) expect(duplicate.diagnostics[0].code).toBe('DUPLICATE_ID');
+  });
+
+  it('preserves paragraph ids across replaceBlock and moveBlock', () => {
+    const text = source([
+      heading(1, 'intro', 'Intro'),
+      paragraphWithId('para-1', 'One'),
+      paragraph('Two'),
+    ]);
+    const inspected = inspectDocumentBytes(text);
+    expect(inspected.ok).toBe(true);
+    if (!inspected.ok) return;
+    const paraTarget = inspected.blocks.find((block) => block.id === 'para-1')?.operationTarget;
+    const twoTarget = inspected.blocks.find((block) => block.type === 'paragraph' && !block.id)?.operationTarget;
+    expect(paraTarget?.kind).toBe('id');
+    expect(twoTarget?.kind).toBe('snapshot');
+    if (!paraTarget || !twoTarget) return;
+
+    const replaced = apply(text, [{
+      op: 'replaceBlock',
+      target: paraTarget,
+      block: paragraph('Updated'),
+    }]);
+    expect(replaced.ok).toBe(true);
+    if (!replaced.ok) return;
+    expect(replaced.envelope.doc.content?.[1]).toMatchObject({
+      type: 'paragraph',
+      attrs: { id: 'para-1' },
+    });
+
+    const moved = apply(text, [{
+      op: 'moveBlock',
+      target: paraTarget,
+      destination: { position: 'after', target: twoTarget },
+    }]);
+    expect(moved.ok).toBe(true);
+    if (!moved.ok) return;
+    const nodes = moved.envelope.doc.content ?? [];
+    expect(nodes[2]).toMatchObject({ type: 'paragraph', attrs: { id: 'para-1' } });
   });
 });

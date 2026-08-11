@@ -3,6 +3,7 @@
 - Status: Accepted
 - Date: 2026-07-24
 - Decision issue: #41
+- Amended: 2026-08-11 for optional stable block IDs (#148)
 
 ## Context
 
@@ -11,11 +12,11 @@ regenerating the complete persisted JSON. Whole-document replacement makes it
 too easy to overwrite concurrent edits, discard IDs or formatting, create
 invalid cross-references, and produce noisy diffs.
 
-Most referenceable nodes have persistent IDs, but ordinary mutable blocks do
-not. A locator based only on an array path becomes ambiguous after another
-operation inserts or moves content. The command-line host must also preserve
-the original file representation and must not turn preview or no-op commands
-into writes.
+Referenceable nodes may have persistent IDs. Selected ordinary mutable blocks
+may also carry stable identity without becoming cross-reference targets. A
+locator based only on an array path becomes ambiguous after another operation
+inserts or moves content. The command-line host must also preserve the original
+file representation and must not turn preview or no-op commands into writes.
 
 ## Decision
 
@@ -39,18 +40,38 @@ supply `expected.documentId`. The CLI does not infer document identity: when a
 requested identity cannot be supplied or checked by the document contract, it
 returns an unsupported-contract diagnostic.
 
-Nodes with persistent IDs use ID targets. Other mutable blocks use a protected
-snapshot locator containing the original path, node type, and a SHA-256 digest.
+Inspection returns an ID target for any persistent ID. Otherwise, a
+non-referenceable mutable block uses a protected snapshot locator containing
+the original path, node type, and a SHA-256 digest.
 The subtree digest is computed from canonical JSON with recursively sorted
 object keys; array order and JSON scalar values remain significant. Snapshot
 targets and provisional IDs are valid only for the inspected byte revision.
 All targets are resolved to internal handles at batch start, so earlier
 operations cannot redirect later operations by changing paths.
 
+Persistent identity and cross-reference eligibility are separate properties.
+`heading`, `image`, `table`, and `mathBlock` remain the complete set of
+referenceable node types. In addition to those nodes, `paragraph`,
+`bulletList`, `orderedList`, `taskList`, `codeBlock`, `blockquote`, `callout`,
+and `diagram` may carry an optional stable `attrs.id`. Inspection exposes and
+uses that ID when present; an identity-bearing non-referenceable without one
+continues to receive a snapshot target. Existing documents are not rewritten
+to insert IDs automatically. `horizontalRule` is not an identity-bearing
+target in #148; historical schemas may still allow its `id` attribute.
+
 Inspection may expose deterministic provisional IDs for referenceable nodes
 that lack an ID. Applying one is allowed only against the same revision and
 persists the assigned ID. Existing duplicate IDs are rejected rather than
 repaired automatically.
+
+Compatibility note (ASCII IDs): Persistent IDs now follow
+`^[A-Za-z][A-Za-z0-9._:-]*$` and reject the `provisional:` prefix. This may
+invalidate previously loose IDs on existing referenceable nodes too.
+
+Provenance is not part of the persisted document schema. Systems that require
+provenance store it in an external sidecar keyed by stable block IDs. These IDs
+are groundwork for the later engineering-canonical profile in #183; that
+profile and its additional policy are outside this decision.
 
 ### Section and batch semantics
 
@@ -92,10 +113,11 @@ metadata, arbitrary extensions, and filesystem-bearing CSS/output paths are
 not mutable through this contract.
 
 Inspection supplies a canonical operation target for each returned block.
-Persistent and provisional IDs are preferred where available; ordinary blocks
-receive the complete revision-scoped snapshot locator. A caller may also select
-a block by an explicit content-index path to obtain its full node and canonical
-target. This is request-authoring assistance only and does not introduce fuzzy
+Persistent IDs are preferred for every identity-bearing block. Provisional IDs
+remain limited to referenceable nodes; blocks without either receive the
+complete revision-scoped snapshot locator. A caller may also select a block by
+an explicit content-index path to obtain its full node and canonical target.
+This is request-authoring assistance only and does not introduce fuzzy
 selection or bypass revision checks.
 
 ### Preview-first CLI and persistence boundary
@@ -134,6 +156,8 @@ indentation, line endings, and final-newline style.
   requiring re-inspection before mutation.
 - Canonical subtree hashing protects target identity without changing the
   persisted SDOC schema.
+- Stable block identity supports external sidecars without making those blocks
+  cross-reference targets or adding provenance to the core schema.
 - The npm package is built and tested as an installable artifact but is not
   published to the public npm registry by this decision. Tagged GitHub
   Releases attach the package tarball, including the public contracts and
