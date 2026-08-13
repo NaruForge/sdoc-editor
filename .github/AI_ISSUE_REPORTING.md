@@ -17,9 +17,9 @@ Read the references that apply, in this order:
    - [CLI bug report](ISSUE_TEMPLATE/cli_bug_report.yml)
    - [VS Code bug report](ISSUE_TEMPLATE/bug_report.yml)
    - [Feature request](ISSUE_TEMPLATE/feature_request.yml)
-4. [`AGENTS.md`](../AGENTS.md#github-operations) when the reporting agent is
-   working in this repository. It defines the allowed GitHub tooling and the
-   issue lifecycle for implementation work.
+4. [`AGENTS.md`](../AGENTS.md#github-issue-workflow) when the reporting agent is
+   working in this repository. It defines the issue lifecycle for
+   implementation work.
 
 The Issue Forms are the field-level source of truth. Do not bypass a required
 field because an API or CLI permits an unstructured issue body. If no form fits
@@ -74,12 +74,7 @@ than opening a duplicate.
 
 ## Creation and verification
 
-Repository agents must use the authenticated GitHub CLI (`gh`) as required by
-`AGENTS.md`. For multiline non-ASCII text, write a bounded UTF-8 body file and
-pass it with `--body-file`; do not put a long body directly on the command line.
-
-After every create or edit operation, read the issue back with `gh issue view`
-and verify:
+After every create or edit operation, read the issue back and verify:
 
 - title and Issue Form prefix;
 - body text and character encoding;
@@ -103,4 +98,4 @@ linking this file instead of copying its full contents. At minimum, add:
 > reading the issue back. Apply `area: cli` and `area: vscode` according to the
 > affected supported delivery surfaces. When operating
 > inside this repository, also follow
-> the GitHub tooling and lifecycle rules in the repository's `AGENTS.md`.
+> the issue lifecycle rules in the repository's `AGENTS.md`.

@@ -60,14 +60,6 @@ npm run build:all
   `.github/workflows/release-vscode.yml` and attaches the CLI package through
   `.github/workflows/release-cli.yml`.
 
-## GitHub operations
-
-- Always use the authenticated GitHub CLI (`gh`) for GitHub repository, issue, pull request, Actions, release, and API operations.
-- Do not use a GitHub App, GitHub MCP connector, or browser-based GitHub workflow unless the user explicitly overrides this rule.
-- If `gh` is unavailable or unauthenticated, report the blocker instead of silently switching to another GitHub integration.
-- Use the relevant `gh issue`, `gh pr`, `gh run`, `gh release`, or `gh api` command and verify every remote mutation with a follow-up `gh` read.
-- For multiline Korean or other non-ASCII bodies, use a UTF-8 `--body-file` and verify the posted text to prevent shell-pipeline encoding corruption.
-
 ## GitHub issue workflow
 
 - GitHub Issues are the public source of truth for bugs, features, UX changes, architectural improvements, and technical debt.
