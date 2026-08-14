@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-08-14
+
+### Added
+- Added a host-local reading-width control on the zoom bar (`narrow`, `comfortable`, `wide`, `full`) so writers can use the full editor pane or a capped measure without changing the document
+
+### Changed
+- Aligned the document title and body on one content column, restored paragraph rhythm, and mapped links, callouts, and code highlighting to VS Code theme roles
+- Quieted the Activity rail, added toolbar group separators, and kept overlay panels from clipping the document title
+- Led Files export with format actions, unified Design view-control rows, and localized Book workspace chrome
+
 ## [0.10.3] - 2026-08-14
 
 ### Fixed
