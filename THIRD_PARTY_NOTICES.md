@@ -163,7 +163,7 @@ Dependency count: 202
 | npm | delaunator | 5.1.0 | ISC | [source](https://github.com/mapbox/delaunator) |
 | npm | dequal | 2.0.3 | MIT | [source](https://www.npmjs.com/package/dequal/v/2.0.3) |
 | npm | devlop | 1.1.0 | MIT | [source](https://www.npmjs.com/package/devlop/v/1.1.0) |
-| npm | dompurify | 3.4.12 | (MPL-2.0 OR Apache-2.0) | [source](https://github.com/cure53/DOMPurify) |
+| npm | dompurify | 3.4.13 | (MPL-2.0 OR Apache-2.0) | [source](https://github.com/cure53/DOMPurify) |
 | npm | es-toolkit | 1.49.0 | MIT | [source](https://github.com/toss/es-toolkit) |
 | npm | fast-deep-equal | 3.1.3 | MIT | [source](https://github.com/epoberezkin/fast-deep-equal) |
 | npm | fast-equals | 5.4.0 | MIT | [source](https://github.com/planttheidea/fast-equals) |
@@ -184,7 +184,7 @@ Dependency count: 202
 | npm | lowlight | 3.3.0 | MIT | [source](https://www.npmjs.com/package/lowlight/v/3.3.0) |
 | npm | lucide-react | 1.25.0 | ISC | [source](https://github.com/lucide-icons/lucide) |
 | npm | marked | 16.4.2 | MIT | [source](https://marked.js.org) |
-| npm | mermaid | 11.16.0 | MIT | [source](https://github.com/mermaid-js/mermaid) |
+| npm | mermaid | 11.16.1 | MIT | [source](https://github.com/mermaid-js/mermaid) |
 | npm | mlly | 1.8.2 | MIT | [source](https://www.npmjs.com/package/mlly/v/1.8.2) |
 | npm | orderedmap | 2.1.1 | MIT | [source](https://github.com/marijnh/orderedmap) |
 | npm | package-manager-detector | 1.6.0 | MIT | [source](https://github.com/antfu-collective/package-manager-detector) |
@@ -833,7 +833,7 @@ terms above.
 
 ### Notice group 17 (283ea6cc2997)
 
-Packages: `npm:@chevrotain/types@11.1.2`, `npm:dompurify@3.4.12`
+Packages: `npm:@chevrotain/types@11.1.2`, `npm:dompurify@3.4.13`
 
 Source filenames: `LICENSE`, `LICENSE.txt`
 
@@ -1252,7 +1252,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ### Notice group 25 (4b89d4518bd1)
 
-Packages: `npm:dompurify@3.4.12`
+Packages: `npm:dompurify@3.4.13`
 
 Source filenames: `LICENSE-MPL`
 
@@ -2323,7 +2323,7 @@ THE SOFTWARE.
 
 ### Notice group 49 (94228ab8fc0b)
 
-Packages: `npm:mermaid@11.16.0`
+Packages: `npm:mermaid@11.16.1`
 
 Source filenames: `LICENSE`
 
