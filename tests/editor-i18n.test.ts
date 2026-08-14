@@ -49,6 +49,11 @@ describe('editor i18n', () => {
     expect(translate('invalidDocument.recoverLocalDraft')).toBe('로컬 초안에서 복구');
     expect(createEditorTranslator('en')('invalidDocument.recoveryFailed'))
       .toBe('The invalid source could not be recovered.');
+    expect(translate('book.openChapter', { label: 'Intro' })).toBe('Intro 열기');
+    expect(createEditorTranslator('en')('book.openChapter', { label: 'Intro' }))
+      .toBe('Open Intro');
+    expect(createEditorTranslator('en')('book.bytes', { count: (4096).toLocaleString('en-US') }))
+      .toBe('4,096 bytes');
   });
 
   it('formats valid dates for the selected locale and preserves invalid values', () => {

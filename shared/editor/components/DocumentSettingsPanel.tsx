@@ -504,13 +504,20 @@ const SettingLabel: React.FC<SettingLabelProps> = ({
 }) => {
   const { t } = useEditorI18n();
   const entry = snapshot.entries[settingKey];
+  const provenance = t('settings.provenanceLine', {
+    source: t(SOURCE_LABEL_KEYS[entry.source]),
+    scope: t(SCOPE_LABEL_KEYS[entry.scope]),
+    portability: t(PORTABILITY_LABEL_KEYS[entry.portability]),
+  });
   const content = (
     <>
       <span>{label}</span>
-      <span className="settings-provenance" aria-label={t('settings.valueOrigin')}>
-        <span className="settings-badge">{t(SOURCE_LABEL_KEYS[entry.source])}</span>
-        <span className="settings-badge">{t(SCOPE_LABEL_KEYS[entry.scope])}</span>
-        <span className="settings-badge">{t(PORTABILITY_LABEL_KEYS[entry.portability])}</span>
+      <span
+        className="settings-provenance"
+        title={provenance}
+        aria-label={`${t('settings.valueOrigin')}: ${provenance}`}
+      >
+        {provenance}
       </span>
       <span className="settings-targets">
         {t('settings.appliesTo', {

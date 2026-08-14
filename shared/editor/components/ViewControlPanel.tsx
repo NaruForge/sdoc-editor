@@ -38,6 +38,11 @@ const ViewPreferenceControl: React.FC<ViewPreferenceControlProps> = ({
   onChange,
 }) => {
   const { t } = useEditorI18n();
+  const provenance = t('settings.provenanceLine', {
+    source: t('settings.sourceTemporary'),
+    scope: t('settings.scopeSession'),
+    portability: t('settings.sessionOnly'),
+  });
   return (
     <label className="side-panel-control-row side-panel-view-preference">
       <span className="side-panel-control-copy">
@@ -48,9 +53,12 @@ const ViewPreferenceControl: React.FC<ViewPreferenceControlProps> = ({
           })}
         </span>
         {value !== 'follow-document' && (
-          <span className="settings-provenance" aria-label={t('settings.valueOrigin')}>
-            <span className="settings-badge">{t('settings.sourceTemporary')}</span>
-            <span className="settings-badge">{t('settings.sessionOnly')}</span>
+          <span
+            className="settings-provenance"
+            title={provenance}
+            aria-label={`${t('settings.valueOrigin')}: ${provenance}`}
+          >
+            {provenance}
           </span>
         )}
       </span>

@@ -1,10 +1,11 @@
 .book-workspace {
   box-sizing: border-box;
   min-height: 100vh;
-  padding: 20px;
+  padding: calc(var(--sdoc-space-control) + var(--sdoc-space-panel));
   color: var(--vscode-foreground);
   background: var(--vscode-editor-background);
   font-family: var(--sdoc-font-sans);
+  font-size: var(--sdoc-font-ui);
 }
 
 .book-workspace *,
@@ -35,9 +36,11 @@
   min-height: 30px;
   padding: 5px 10px;
   border: 1px solid transparent;
+  border-radius: var(--sdoc-radius-control);
   color: var(--vscode-button-foreground);
   background: var(--vscode-button-background);
   cursor: pointer;
+  font-size: var(--sdoc-font-ui);
 }
 
 .book-workspace button:hover:not(:disabled) {
@@ -60,7 +63,7 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
+  gap: var(--sdoc-space-panel);
 }
 
 .book-header h1,
@@ -81,14 +84,14 @@
 .book-row-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--sdoc-space-control);
 }
 
 .book-meta,
 .book-profile-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 12px;
+  gap: var(--sdoc-space-panel);
 }
 
 .book-meta {
@@ -110,8 +113,10 @@
   min-height: 30px;
   padding: 4px 7px;
   border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
+  border-radius: var(--sdoc-radius-control);
   color: var(--vscode-input-foreground);
   background: var(--vscode-input-background);
+  font-size: var(--sdoc-font-ui);
 }
 
 .book-meta input[aria-invalid="true"],
@@ -128,8 +133,9 @@
 }
 
 .book-profile {
-  padding: 14px;
+  padding: var(--sdoc-space-panel);
   border: 1px solid var(--vscode-panel-border);
+  border-radius: var(--sdoc-radius-menu);
   background: var(--vscode-sideBar-background);
 }
 
@@ -182,8 +188,9 @@
 
 .book-operation {
   margin-top: 18px;
-  padding: 14px;
+  padding: var(--sdoc-space-panel);
   border: 1px solid var(--vscode-panel-border);
+  border-radius: var(--sdoc-radius-menu);
   background: var(--vscode-sideBar-background, var(--vscode-editor-background));
 }
 
@@ -193,7 +200,7 @@
   inset: 0;
   display: grid;
   place-items: center;
-  padding: 16px;
+  padding: var(--sdoc-space-panel);
   background: color-mix(in srgb, var(--vscode-editor-background) 45%, transparent);
 }
 
@@ -201,8 +208,9 @@
   width: min(680px, 100%);
   max-height: min(760px, calc(100vh - 32px));
   overflow: auto;
-  padding: 18px;
+  padding: calc(var(--sdoc-space-panel) + var(--sdoc-space-control));
   border: 1px solid var(--vscode-focusBorder);
+  border-radius: var(--sdoc-radius-menu);
   color: var(--vscode-foreground);
   background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
   box-shadow: 0 12px 36px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.35));
@@ -342,8 +350,9 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 6px;
-  padding: 8px;
+  padding: var(--sdoc-space-control);
   border: 1px solid var(--vscode-panel-border);
+  border-radius: var(--sdoc-radius-control);
   background: var(--vscode-list-inactiveSelectionBackground);
 }
 
@@ -383,6 +392,7 @@
   align-self: start;
   padding: 2px 5px;
   border: 1px solid var(--vscode-panel-border);
+  border-radius: var(--sdoc-radius-control);
   color: var(--vscode-descriptionForeground);
   font-size: 10px;
 }
@@ -437,6 +447,7 @@
   min-height: 480px;
   padding: 28px clamp(18px, 5vw, 64px);
   border: 1px solid var(--vscode-panel-border);
+  border-radius: var(--sdoc-radius-menu);
   color: var(--vscode-editor-foreground);
   background: var(--vscode-editor-background);
 }
@@ -477,8 +488,9 @@
 
 .book-invalid-notice {
   width: min(100%, 620px);
-  padding: 20px;
+  padding: calc(var(--sdoc-space-control) + var(--sdoc-space-panel));
   border: 1px solid var(--vscode-inputValidation-errorBorder, var(--vscode-errorForeground));
+  border-radius: var(--sdoc-radius-menu);
   background: var(--vscode-inputValidation-errorBackground);
 }
 
@@ -488,7 +500,7 @@
 
 @media (max-width: 800px) {
   .book-workspace {
-    padding: 12px;
+    padding: var(--sdoc-space-panel);
   }
 
   .book-header,
