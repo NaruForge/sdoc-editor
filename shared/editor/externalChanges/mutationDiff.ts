@@ -76,3 +76,9 @@ export const buildExternalMutationDiff = (
     content,
   });
 };
+
+/** Uses the same semantic contract as the external-change comparison UI. */
+export const areDocumentMutationsSemanticallyEqual = (
+  mine: DocumentMutation,
+  external: DocumentMutation,
+): boolean => !buildExternalMutationDiff(mine, external).hasChanges;

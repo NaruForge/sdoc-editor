@@ -2,8 +2,10 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { TiptapNode } from '../shared/types';
+import { parseDocumentTextContract } from '../shared/document/documentContract';
 import type { DocumentMutation } from '../shared/persistence/DocumentSyncCoordinator';
 import {
+  areDocumentMutationsSemanticallyEqual,
   ExternalChangeBanner,
   ExternalChangeComparison,
   ExternalChangePrompt,
@@ -136,6 +138,44 @@ describe('external mutation diff', () => {
     expect(result.metadata.map((field) => field.key)).toEqual(['alpha', 'zeta']);
     expect(result.metadata[0].mine?.truncated).toBe(true);
     expect(result.metadata[0].mine?.preview.length).toBeLessThanOrEqual(4097);
+  });
+
+  it('has no semantic changes when persisted JSON differs only by a final newline', () => {
+    const persisted = JSON.stringify(persistedEnvelope, null, 2);
+    expect(persisted.endsWith('\n')).toBe(false);
+
+    const result = buildExternalMutationDiff(
+      mutationFromPersistedText(persisted),
+      mutationFromPersistedText(`${persisted}\n`),
+    );
+
+    expect(result.hasChanges).toBe(false);
+    expect(result.metadata).toEqual([]);
+    expect(result.settings).toEqual([]);
+    expect(result.content.hasChanges).toBe(false);
+    expect(areDocumentMutationsSemanticallyEqual(
+      mutationFromPersistedText(persisted),
+      mutationFromPersistedText(`${persisted}\n`),
+    )).toBe(true);
+  });
+
+  it('has no semantic changes when persisted JSON differs only by CRLF versus LF', () => {
+    const persisted = JSON.stringify(persistedEnvelope, null, 2);
+    const appliedCrlf = persisted.replace(/\n/g, '\r\n');
+
+    const result = buildExternalMutationDiff(
+      mutationFromPersistedText(appliedCrlf),
+      mutationFromPersistedText(persisted),
+    );
+
+    expect(result.hasChanges).toBe(false);
+    expect(result.metadata).toEqual([]);
+    expect(result.settings).toEqual([]);
+    expect(result.content.hasChanges).toBe(false);
+    expect(areDocumentMutationsSemanticallyEqual(
+      mutationFromPersistedText(appliedCrlf),
+      mutationFromPersistedText(persisted),
+    )).toBe(true);
   });
 });
 
@@ -296,3 +336,32 @@ describe('external change resolution prompt', () => {
     expect(failedMarkup).toContain('Resolution failed');
   });
 });
+
+const persistedEnvelope = {
+  sdoc: '1.0',
+  meta: {
+    title: 'Newline probe',
+    author: '',
+    version: '0.1',
+    created: '2026-08-14T00:00:00.000Z',
+    modified: '2026-08-14T00:00:00.000Z',
+    settings: { pdfScale: 80 },
+  },
+  doc: {
+    type: 'doc',
+    content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Body' }] }],
+  },
+};
+
+const mutationFromPersistedText = (text: string): DocumentMutation => {
+  const contract = parseDocumentTextContract(text);
+  if (!contract.ok) {
+    throw new Error(`expected valid persisted document: ${contract.kind}`);
+  }
+  const { settings: documentSettings, ...persistedMeta } = contract.envelope.meta;
+  return {
+    content: contract.envelope.doc,
+    meta: persistedMeta,
+    documentSettings: documentSettings ?? null,
+  };
+};

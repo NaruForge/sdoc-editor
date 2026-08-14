@@ -306,6 +306,150 @@ async function run() {
     await closeActiveEditor();
   });
 
+  await scenario('ignores final-newline and formatting-only edits without an external warning', async () => {
+    const filesConfig = vscode.workspace.getConfiguration('files');
+    await filesConfig.update('insertFinalNewline', true, vscode.ConfigurationTarget.Workspace);
+    try {
+      assert.equal(
+        vscode.workspace.getConfiguration('files').get('insertFinalNewline'),
+        true,
+        'The workspace must enable files.insertFinalNewline for this probe.',
+      );
+
+      const fixtureUri = vscode.Uri.joinPath(workspace.uri, 'valid.sdoc');
+      const sourceUri = vscode.Uri.joinPath(workspace.uri, 'save-final-newline.sdoc');
+      await vscode.workspace.fs.writeFile(sourceUri, await readBytes(fixtureUri));
+      await openCustomEditor(workspace, 'save-final-newline.sdoc', 'structuredDocEditor.sdoc', true);
+      const importUri = vscode.Uri.joinPath(workspace.uri, 'import.md');
+      const document = vscode.workspace.textDocuments.find(
+        (candidate) => candidate.uri.toString() === sourceUri.toString(),
+      );
+      assert.ok(document, 'Expected the insertFinalNewline text document behind the custom editor.');
+
+      await vscode.commands.executeCommand(
+        'structuredDocEditor.test.prepareActiveImport', importUri.toString(), 'markdown',
+      );
+      await vscode.commands.executeCommand('structuredDocEditor.test.confirmActiveFileOperation');
+      await waitFor(
+        () => document.getText().includes('Imported heading'),
+        'The webview mutation did not reach the VS Code text document before save.',
+      );
+      await waitFor(
+        () => document.isDirty,
+        'The editor mutation did not make the VS Code text document dirty.',
+      );
+
+      const afterMutation = document.getText();
+      assert.equal(
+        afterMutation.endsWith('\n'),
+        true,
+        'The extension persistence snapshot must include a trailing newline.',
+      );
+      const beforeSave = await vscode.commands.executeCommand(
+        'structuredDocEditor.test.getActivePersistenceState',
+      );
+      assert.equal(beforeSave.externalChangeCount, 0);
+
+      await vscode.commands.executeCommand('workbench.action.files.save');
+      await waitFor(
+        () => !document.isDirty,
+        'Ctrl+S-equivalent save did not clear the VS Code dirty state.',
+      );
+      await waitFor(async () => {
+        const state = await vscode.commands.executeCommand(
+          'structuredDocEditor.test.getActivePersistenceState',
+        );
+        return state.phase === 'saved';
+      }, 'The editor did not reach the host-confirmed Saved state.');
+
+      const afterSave = document.getText();
+      const savedState = await vscode.commands.executeCommand(
+        'structuredDocEditor.test.getActivePersistenceState',
+      );
+      assert.equal(afterSave.endsWith('\n'), true);
+      assert.equal(
+        savedState.externalChangeCount,
+        0,
+        'files.insertFinalNewline must not produce an external-change warning.',
+      );
+      assert.deepEqual(JSON.parse(afterSave), JSON.parse(afterMutation));
+      assert.equal(
+        Buffer.from(await readBytes(sourceUri)).toString('utf8'),
+        afterSave,
+        'The final-newline save must leave matching valid disk and editor snapshots.',
+      );
+
+      const lineEnding = document.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n';
+      const reformatted = `${JSON.stringify(JSON.parse(afterSave), null, 4)}\n`
+        .replace(/\n/g, lineEnding);
+      assert.notEqual(reformatted, afterSave, 'The formatting-only probe must change source text.');
+      const formattingEdit = new vscode.WorkspaceEdit();
+      formattingEdit.replace(
+        sourceUri,
+        new vscode.Range(
+          document.positionAt(0),
+          document.positionAt(document.getText().length),
+        ),
+        reformatted,
+      );
+      assert.equal(
+        await vscode.workspace.applyEdit(formattingEdit),
+        true,
+        'The real formatting-only WorkspaceEdit must apply.',
+      );
+      await waitFor(
+        () => document.getText() === reformatted,
+        'The formatting-only edit did not reach the backing text document.',
+      );
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      const reformattedState = await vscode.commands.executeCommand(
+        'structuredDocEditor.test.getActivePersistenceState',
+      );
+      assert.equal(
+        reformattedState.externalChangeCount,
+        0,
+        'Parse-equal JSON formatting must not be reported as an external change.',
+      );
+      assert.deepEqual(JSON.parse(document.getText()), JSON.parse(afterSave));
+
+      // A freshly preflighted semantic edit proves the parse-equal revision was
+      // acknowledged rather than silently leaving the webview on a stale base.
+      const secondImportUri = vscode.Uri.joinPath(workspace.uri, 'import-after-format.md');
+      await vscode.workspace.fs.writeFile(
+        secondImportUri,
+        Buffer.from('# Revision advanced\n\nSecond semantic import.\n', 'utf8'),
+      );
+      await vscode.commands.executeCommand(
+        'structuredDocEditor.test.prepareActiveImport', secondImportUri.toString(), 'markdown',
+      );
+      await vscode.commands.executeCommand('structuredDocEditor.test.confirmActiveFileOperation');
+      await waitFor(
+        () => document.getText().includes('Revision advanced')
+          && !document.getText().includes('Imported heading'),
+        'The next semantic editor mutation was rejected after the formatting-only revision.',
+      );
+      assert.equal(document.getText().endsWith(lineEnding), true);
+      assert.doesNotThrow(() => JSON.parse(document.getText()));
+      await vscode.commands.executeCommand('workbench.action.files.save');
+      await waitFor(
+        () => !document.isDirty,
+        'The document did not save after the post-format semantic mutation.',
+      );
+      assert.deepEqual(
+        JSON.parse(Buffer.from(await readBytes(sourceUri)).toString('utf8')),
+        JSON.parse(document.getText()),
+        'Disk and editor must remain valid after the post-format semantic mutation.',
+      );
+      const finalState = await vscode.commands.executeCommand(
+        'structuredDocEditor.test.getActivePersistenceState',
+      );
+      assert.equal(finalState.externalChangeCount, 0);
+    } finally {
+      await filesConfig.update('insertFinalNewline', undefined, vscode.ConfigurationTarget.Workspace);
+      await closeActiveEditor();
+    }
+  });
+
   await scenario('preserves invalid and future Book manifest bytes on open', async () => {
     for (const fileName of ['invalid.sdocbook', 'future.sdocbook']) {
       const uri = vscode.Uri.joinPath(workspace.uri, fileName);

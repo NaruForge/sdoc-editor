@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.3] - 2026-08-14
+
+### Fixed
+- Ignored external JSON formatting and line-ending changes when document metadata, settings, and body are unchanged, while persisting edited documents with a final newline
+
 ## [0.10.2] - 2026-08-10
 
 ### Fixed

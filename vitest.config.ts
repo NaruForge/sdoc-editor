@@ -3,7 +3,7 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
-    exclude: ['tests/ui/**', '**/node_modules/**'],
+    exclude: ['tests/ui/**', '**/node_modules/**', '**/.vscode-test/**'],
   },
   resolve: {
     alias: {

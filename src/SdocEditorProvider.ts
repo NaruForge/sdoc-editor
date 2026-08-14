@@ -5,6 +5,8 @@ import { computeRevision } from '../shared/document/operations/sha256';
 import { getNonce, getWebviewUri } from './utils/webviewHelper';
 import {
   ExpectedDocumentChanges,
+  hasTextDocumentContentChanges,
+  normalizeDocumentEndOfLines,
   shouldReportExternalDocumentChange,
 } from './utils/expectedDocumentChanges';
 import { convertMarkdownToJson } from '../shared/converter';
@@ -47,6 +49,7 @@ import {
   readDocumentMutationBestEffort,
   type DocumentMutation,
 } from '../shared/persistence/DocumentSyncCoordinator';
+import { areDocumentMutationsSemanticallyEqual } from '../shared/editor/externalChanges/mutationDiff';
 import {
   assertPersistedDocument,
   parseDocumentContract,
@@ -502,6 +505,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       : 'saved';
     let latestSaveRevision = document.version;
     let externalChangeCount = 0;
+    let lastLocalMutation: DocumentMutation | undefined;
     let availableTemplates = new Map<string, SdocTemplate>();
     let personalTemplateFingerprints = new Map<string, string>();
     let templateCatalogGeneration = 0;
@@ -920,6 +924,8 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       } else {
         writeBlockedReason = undefined;
         hasLoadedValidDocument = true;
+        const snapshot = mutationFromEnvelope(contract.envelope);
+        lastLocalMutation = snapshot;
         void webviewPanel.webview.postMessage({
           type: 'init',
           locale: this.resolveUiLocale(),
@@ -927,7 +933,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
           documentId,
           revision: document.version,
           isDirty: document.isDirty,
-          documentState: { status: 'ready', snapshot: mutationFromEnvelope(contract.envelope) },
+          documentState: { status: 'ready', snapshot },
         });
       }
       sendUiLanguage();
@@ -967,23 +973,37 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         return;
       }
       writeBlockedReason = undefined;
+      const snapshot = mutationFromEnvelope(contract.envelope);
+      if (lastLocalMutation
+        && areDocumentMutationsSemanticallyEqual(lastLocalMutation, snapshot)) {
+        lastLocalMutation = snapshot;
+        void webviewPanel.webview.postMessage({
+          type: 'documentRevisionAdvanced',
+          sessionId,
+          documentId,
+          revision: document.version,
+        });
+        return;
+      }
       externalChangeCount += 1;
       void webviewPanel.webview.postMessage({
         type: 'externalChange', sessionId, documentId, revision: document.version,
-        snapshot: mutationFromEnvelope(contract.envelope),
+        snapshot,
       });
     };
 
     const postExplicitReplacement = (
       reason: 'user-reload' | 'confirmed-template',
     ): void => {
+      const snapshot = readCurrentMutation();
+      lastLocalMutation = snapshot;
       webviewPanel.webview.postMessage({
         type: 'replaceDocument',
         sessionId,
         documentId,
         revision: document.version,
         reason,
-        snapshot: readCurrentMutation(),
+        snapshot,
       });
     };
 
@@ -1926,6 +1946,13 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
               settings: this.readDiagramRendererSettings(),
             });
             break;
+          case 'externalChangeAdopted': {
+            if (message.sessionId !== sessionId || message.documentId !== documentId
+              || message.revision !== document.version) break;
+            const snapshot = tryReadCurrentMutation();
+            if (snapshot) lastLocalMutation = snapshot;
+            break;
+          }
           case 'uiReady': {
             const currentSession = this.editorSessions.get(documentId);
             if (message.sessionId === sessionId
@@ -2282,7 +2309,13 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
           this.expectedDocumentChanges,
           document.uri.toString(),
           document.getText(),
-        )) return;
+        )) {
+          if (hasTextDocumentContentChanges(e.contentChanges)) {
+            const snapshot = tryReadCurrentMutation();
+            if (snapshot) lastLocalMutation = snapshot;
+          }
+          return;
+        }
 
         if (isUninitializedSdocText(document.getText())) {
           postExternalChange();
@@ -2442,7 +2475,10 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     assertPersistedDocument(sdocFile);
 
     // Pretty-print JSON for better git diffs
-    const json = JSON.stringify(sdocFile, null, 2);
+    const json = normalizeDocumentEndOfLines(
+      `${JSON.stringify(sdocFile, null, 2)}\n`,
+      document.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n',
+    );
     edit.replace(document.uri, fullRange, json);
 
     await this.applyExpectedEdit(document, edit, json);
