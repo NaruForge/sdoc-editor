@@ -1657,25 +1657,20 @@ describe('optional stable block ids', () => {
       expect(validateDocumentBytes(source([heading(1, legacyId, 'Legacy')])).ok).toBe(true);
     }
 
+    expect(validateDocumentBytes(source([paragraph('Untracked')])).ok).toBe(true);
     for (const stableId of ['1-introduction', '개요', '😀', 'x'.repeat(128)]) {
       expect(validateDocumentBytes(source([paragraphWithId(stableId, 'Tracked')])).ok).toBe(true);
     }
 
-    for (const stableId of ['', 'x'.repeat(129), 'provisional:x']) {
+    for (const stableId of [null, '', 'x'.repeat(129), 'provisional:x']) {
       const invalid = validateDocumentBytes(source([{
         type: 'paragraph',
         attrs: { id: stableId },
         content: [{ type: 'text', text: 'Bad' }],
       }]));
       expect(invalid.ok).toBe(false);
+      if (!invalid.ok) expect(invalid.diagnostics[0].code).toBe('INVALID_ID');
     }
-
-    const provisional = validateDocumentBytes(source([
-      heading(1, 'intro', 'Intro'),
-      paragraphWithId('provisional:x', 'Bad'),
-    ]));
-    expect(provisional.ok).toBe(false);
-    if (!provisional.ok) expect(provisional.diagnostics[0].code).toBe('INVALID_ID');
 
     const duplicate = validateDocumentBytes(source([
       heading(1, 'same', 'Intro'),

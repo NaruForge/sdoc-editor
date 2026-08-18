@@ -49,9 +49,11 @@ Stable node identity is broader than cross-reference eligibility. `heading`,
 `paragraph`, list containers/items, task-list containers, `codeBlock`, `blockquote`,
 `callout`, and `diagram` may additionally carry an optional stable `attrs.id`,
 but this does not make them cross-reference targets. Existing documents do not
-receive these IDs automatically. A historical `horizontalRule.attrs.id`
+receive these IDs automatically. Absence is represented by omitting `attrs.id`;
+`null` is not a valid authored stable ID. A historical `horizontalRule.attrs.id`
 participates in duplicate detection and editor paste normalization, but is
-neither an operation identity nor a cross-reference anchor. Provenance belongs
+limited to its existing ASCII shape and is neither an operation identity nor a
+cross-reference anchor. Provenance belongs
 in an external sidecar keyed by stable IDs, not
 in the core document schema; the engineering-canonical profile proposed in
 #183 remains separate future work.

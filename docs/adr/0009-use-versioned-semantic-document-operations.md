@@ -56,7 +56,9 @@ referenceable node types. In addition to those nodes, `paragraph`,
 `blockquote`, `callout`, and `diagram` may carry an optional stable `attrs.id`. Inspection exposes and
 uses that ID when present; an identity-bearing non-referenceable without one
 continues to receive a snapshot target. Existing documents are not rewritten
-to insert IDs automatically. A historical `horizontalRule.attrs.id` reserves
+to insert IDs automatically. The optional field is omitted when absent;
+`attrs.id: null` is not a stable identity. A historical ASCII-shaped
+`horizontalRule.attrs.id` reserves
 its value for duplicate and paste-collision detection, but does not become an
 operation identity or cross-reference target.
 

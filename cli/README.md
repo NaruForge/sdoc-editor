@@ -194,8 +194,10 @@ without one receives a snapshot target. Provisional IDs remain limited to
 referenceable nodes, are valid only for the inspected revision, and persist
 when applied. Inspection does not add IDs to the source document.
 
-Newly authored stable IDs are non-empty Unicode strings of at most 128 code
-points and cannot use the reserved `provisional:` prefix. Korean and
+Optional stable IDs are omitted when absent; `attrs.id: null` is invalid for
+these newly identity-bearing blocks. When present, newly authored stable IDs
+are non-empty Unicode strings of at most 128 code points and cannot use the
+reserved `provisional:` prefix. Korean and
 numeric-leading heading slugs are valid. Existing `.sdoc` 1.0 referenceable
 anchors remain loadable because that schema already allowed arbitrary strings;
 they are not silently migrated on inspect or save.
@@ -524,7 +526,7 @@ the operation-relevant node types and required attributes:
 | `mathBlock` | `attrs.latex` | ID target |
 | `diagram` | `attrs.language`, `attrs.code` (`attrs.id` optional) | ID target when `attrs.id` is present; otherwise snapshot target; not referenceable; stores source such as Mermaid, PlantUML, or D2 |
 | `callout` | None (`attrs.variant` and `attrs.id` optional) | ID target when `attrs.id` is present; otherwise snapshot target; not referenceable |
-| `horizontalRule` | None | Snapshot target; a historical `attrs.id` is preserved and collision-reserved, but is not exposed as identity or xref anchor |
+| `horizontalRule` | None | Snapshot target; a historical ASCII-shaped `attrs.id` is preserved and collision-reserved, but is not exposed as identity or xref anchor |
 | `hardBreak` | None | Snapshot target |
 | `tableRow` | None | Structural container, not an operation block target |
 | `text`, `mathInline` | `mathInline.attrs.latex` only | Inline content, not an operation target |

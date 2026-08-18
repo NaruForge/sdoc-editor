@@ -231,6 +231,41 @@ describe('shared editor core', () => {
       .not.toMatchObject({ id: 'provisional:external' });
     expect(parse(element({ id: 'not valid', 'data-id': 'tracked-1' })))
       .toMatchObject({ id: 'tracked-1' });
+    const unicodeAttrs = parse(element({ 'data-id': '개요' }));
+    expect(unicodeAttrs).toMatchObject({ id: '개요' });
+    const persisted = schema.nodeFromJSON({
+      type: 'doc',
+      content: [{
+        type: 'paragraph',
+        attrs: unicodeAttrs,
+        content: [{ type: 'text', text: 'Tracked' }],
+      }],
+    }).toJSON();
+    expect(() => assertPersistedDocument(wrapSdoc(persisted, {}))).not.toThrow();
+  });
+
+  it('imports horizontal-rule ids only when they match the historical schema', () => {
+    const schema = getSchema(createTiptapExtensions(createRuntime()));
+    const horizontalRule = schema.nodes.horizontalRule.spec.parseDOM?.find((rule) => rule.tag === 'hr');
+    const parse = horizontalRule && 'getAttrs' in horizontalRule ? horizontalRule.getAttrs : undefined;
+    expect(parse).toEqual(expect.any(Function));
+    if (typeof parse !== 'function') return;
+    const element = (attributes: Record<string, string>) => ({
+      getAttribute: (name: string) => attributes[name] ?? null,
+    }) as HTMLElement;
+
+    const historicalAttrs = parse(element({ 'data-id': 'rule-1' }));
+    expect(historicalAttrs).toMatchObject({ id: 'rule-1' });
+    expect(parse(element({ 'data-id': '개요' }))).not.toMatchObject({ id: '개요' });
+    expect(parse(element({ 'data-id': '1-rule' }))).not.toMatchObject({ id: '1-rule' });
+    expect(parse(element({ 'data-id': 'not valid' }))).not.toMatchObject({ id: 'not valid' });
+
+    const persisted = schema.nodeFromJSON({
+      type: 'doc',
+      content: [{ type: 'horizontalRule', attrs: historicalAttrs }],
+    }).toJSON();
+    expect(persisted.content?.[0].attrs?.id).toBe('rule-1');
+    expect(() => assertPersistedDocument(wrapSdoc(persisted, {}))).not.toThrow();
   });
 
   it('strips pasted identity collisions, including historical horizontal-rule ids', () => {
@@ -249,6 +284,7 @@ describe('shared editor core', () => {
       content: [
         { type: 'paragraph', attrs: { id: 'shared-id' }, content: [{ type: 'text', text: 'Duplicate' }] },
         { type: 'paragraph', attrs: { id: 'fresh-id' }, content: [{ type: 'text', text: 'Fresh' }] },
+        { type: 'paragraph', attrs: { id: 'fresh-id' }, content: [{ type: 'text', text: 'Sibling duplicate' }] },
       ],
     });
     const transform = plugins[0].props.transformPasted;
@@ -260,7 +296,43 @@ describe('shared editor core', () => {
     );
     const ids = transformed.content.content.map((node) => node.attrs.id);
 
-    expect(ids).toEqual([undefined, 'fresh-id']);
+    expect(ids).toEqual([undefined, 'fresh-id', undefined]);
+  });
+
+  it('retains a shared pasted id on the parent before its descendant', () => {
+    const { extensions, plugins } = blockIdentityPlugins();
+    const schema = getSchema(extensions);
+    const state = EditorState.create({
+      schema,
+      plugins,
+      doc: schema.nodeFromJSON({
+        type: 'doc',
+        content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Existing' }] }],
+      }),
+    });
+    const pasted = schema.nodeFromJSON({
+      type: 'doc',
+      content: [{
+        type: 'blockquote',
+        attrs: { id: 'nested-id' },
+        content: [{
+          type: 'paragraph',
+          attrs: { id: 'nested-id' },
+          content: [{ type: 'text', text: 'Nested duplicate' }],
+        }],
+      }],
+    });
+    const transform = plugins[0].props.transformPasted;
+    expect(transform).toEqual(expect.any(Function));
+    if (!transform) return;
+    const transformed = transform(
+      new Slice(Fragment.fromArray([...pasted.content.content]), 0, 0),
+      { state } as never,
+    );
+    const parent = transformed.content.firstChild;
+
+    expect(parent?.attrs.id).toBe('nested-id');
+    expect(parent?.firstChild?.attrs.id).toBeUndefined();
   });
 
   it('keeps a stable id on only the first half after splitting a block', () => {

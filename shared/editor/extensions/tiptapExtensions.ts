@@ -30,6 +30,7 @@ import { assignAutoIds } from '../../document/sdocUtils';
 import {
   ID_COLLISION_NODE_TYPES,
   isAuthorablePersistentId,
+  isHistoricalHorizontalRuleId,
   OPTIONAL_IDENTITY_NODE_TYPES,
   REFERENCEABLE_NODE_TYPES,
 } from '../../document/nodeIdentity';
@@ -252,6 +253,21 @@ const optionalBlockIdAttribute = {
   },
 };
 
+const historicalHorizontalRuleIdAttribute = {
+  default: undefined,
+  keepOnSplit: false,
+  parseHTML: (element: HTMLElement) => {
+    const id = element.getAttribute('data-id');
+    return id && isHistoricalHorizontalRuleId(id) ? id : undefined;
+  },
+  renderHTML: (attributes: Record<string, unknown>) => {
+    const id = attributes.id;
+    return typeof id === 'string' && isHistoricalHorizontalRuleId(id)
+      ? { 'data-id': id }
+      : {};
+  },
+};
+
 function collectIdentityIds(doc: ProseMirrorNode): Set<string> {
   const ids = new Set<string>();
   doc.descendants((node) => {
@@ -269,23 +285,22 @@ function stripPastedIdCollisions(
 ): Fragment {
   const nodes: ProseMirrorNode[] = [];
   fragment.forEach((node) => {
-    let nextNode = node;
-    if (node.content.size > 0) {
-      nextNode = node.copy(stripPastedIdCollisions(node.content, usedIds));
-    }
-
+    let nextAttrs = node.attrs;
     const id = node.attrs.id;
     if (ID_COLLISION_NODE_TYPES.has(node.type.name) && typeof id === 'string' && id) {
       if (usedIds.has(id)) {
-        nextNode = node.type.create(
-          { ...node.attrs, id: undefined },
-          nextNode.content,
-          nextNode.marks,
-        );
+        nextAttrs = { ...node.attrs, id: undefined };
       } else {
         usedIds.add(id);
       }
     }
+
+    const nextContent = node.content.size > 0
+      ? stripPastedIdCollisions(node.content, usedIds)
+      : node.content;
+    const nextNode = nextAttrs === node.attrs && nextContent.eq(node.content)
+      ? node
+      : node.type.create(nextAttrs, nextContent, node.marks);
     nodes.push(nextNode);
   });
   return Fragment.fromArray(nodes);
@@ -307,11 +322,18 @@ const BlockIdentity = Extension.create({
   name: 'blockIdentity',
 
   addGlobalAttributes() {
-    return [{
-      // data-id preserves editor identity without creating an HTML anchor.
-      types: [...OPTIONAL_IDENTITY_NODE_TYPES, 'horizontalRule'],
-      attributes: { id: optionalBlockIdAttribute },
-    }];
+    return [
+      {
+        // data-id preserves editor identity without creating an HTML anchor.
+        types: [...OPTIONAL_IDENTITY_NODE_TYPES],
+        attributes: { id: optionalBlockIdAttribute },
+      },
+      {
+        // horizontalRule is a legacy collision reservation, not authored identity.
+        types: ['horizontalRule'],
+        attributes: { id: historicalHorizontalRuleIdAttribute },
+      },
+    ];
   },
 
   addProseMirrorPlugins() {

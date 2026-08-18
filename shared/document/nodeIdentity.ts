@@ -3,6 +3,7 @@ import { unicodeCodePointLength } from './title';
 
 export const MAX_AUTHORED_PERSISTENT_ID_LENGTH = 128;
 export const PROVISIONAL_ID_PREFIX = 'provisional:';
+export const HISTORICAL_HORIZONTAL_RULE_ID_PATTERN = /^[A-Za-z][A-Za-z0-9._:-]*$/;
 
 export const REFERENCEABLE_NODE_TYPES: ReadonlySet<string> = new Set([
   'heading', 'image', 'table', 'mathBlock',
@@ -41,6 +42,10 @@ export function isAuthorablePersistentId(value: string): boolean {
   return value.length > 0
     && unicodeCodePointLength(value) <= MAX_AUTHORED_PERSISTENT_ID_LENGTH
     && !value.startsWith(PROVISIONAL_ID_PREFIX);
+}
+
+export function isHistoricalHorizontalRuleId(value: string): boolean {
+  return HISTORICAL_HORIZONTAL_RULE_ID_PATTERN.test(value);
 }
 
 export function truncatePersistentId(value: string, maximum = MAX_AUTHORED_PERSISTENT_ID_LENGTH): string {

@@ -84,11 +84,11 @@
     },
 
     "stableId": {
-      "type": ["string", "null"],
+      "type": "string",
       "minLength": 1,
       "maxLength": 128,
       "not": { "pattern": "^provisional:" },
-      "description": "Optional stable block identity. Authored values are non-empty, at most 128 Unicode code points, and cannot use the reserved provisional: namespace."
+      "description": "Optional stable block identity. Omit attrs.id when absent; when present, authored values are non-empty strings of at most 128 Unicode code points and cannot use the reserved provisional: namespace."
     },
 
     "historicalHorizontalRuleId": {

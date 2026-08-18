@@ -70,6 +70,29 @@ const text = (value: string, href?: string): TiptapNode => ({
 });
 
 describe('sdoc envelope', () => {
+  it('defines optional stable ids as omitted or valid strings, never null', () => {
+    const schema = JSON.parse(
+      readFileSync(new URL('../sdoc.schema.json', import.meta.url), 'utf8'),
+    ) as { definitions: { stableId: { type: unknown } } };
+    expect(schema.definitions.stableId.type).toBe('string');
+
+    const documentWithParagraphId = (id?: unknown): unknown => wrapSdoc({
+      type: 'doc',
+      content: [{
+        type: 'paragraph',
+        ...(id === undefined ? {} : { attrs: { id } }),
+        content: [{ type: 'text', text: 'Tracked' }],
+      }],
+    }, {});
+
+    expect(() => assertPersistedDocument(documentWithParagraphId())).not.toThrow();
+    expect(() => assertPersistedDocument(documentWithParagraphId('개요'))).not.toThrow();
+    expect(() => assertPersistedDocument(documentWithParagraphId('x'.repeat(128)))).not.toThrow();
+    expect(() => assertPersistedDocument(documentWithParagraphId(null))).toThrow();
+    expect(() => assertPersistedDocument(documentWithParagraphId('x'.repeat(129)))).toThrow();
+    expect(() => assertPersistedDocument(documentWithParagraphId('provisional:tracked'))).toThrow();
+  });
+
   it('uses precompiled validators without runtime code generation', () => {
     const source = readFileSync(
       new URL('../shared/document/documentContract.ts', import.meta.url),
