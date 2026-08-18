@@ -5,6 +5,11 @@ import type { SdocEnvelope, SdocMeta, TiptapMark, TiptapNode } from '../types';
 import { preserveMeta } from './documentContract';
 import { mapDocument, walkDocument } from './walker';
 import { migrateAttributes } from './migrations';
+import {
+  MAX_AUTHORED_PERSISTENT_ID_LENGTH,
+  REFERENCEABLE_NODE_TYPES,
+  truncatePersistentId,
+} from './nodeIdentity';
 import { buildNumberingIndex } from './numbering';
 
 export { migrateAttributes } from './migrations';
@@ -127,9 +132,16 @@ export function assignAutoIds(doc: TiptapNode): TiptapNode {
   let equationCounter = 0;
 
   const uniqueGeneratedId = (base: string): string => {
-    let id = base;
+    const boundedBase = truncatePersistentId(base);
+    let id = boundedBase;
     let suffix = 2;
-    while (reservedExistingIds.has(id) || assignedIds.has(id)) id = `${base}-${suffix++}`;
+    while (reservedExistingIds.has(id) || assignedIds.has(id)) {
+      const renderedSuffix = `-${suffix++}`;
+      id = `${truncatePersistentId(
+        boundedBase,
+        MAX_AUTHORED_PERSISTENT_ID_LENGTH - renderedSuffix.length,
+      )}${renderedSuffix}`;
+    }
     assignedIds.add(id);
     return id;
   };
@@ -249,11 +261,11 @@ export function queryDocumentStructure(
     captionStyle: options.captionStyle ?? 'modern',
     crossRefIncludeCaption: options.crossRefIncludeCaption ?? false,
   });
-  const allIds = new Set<string>();
+  const referenceableIds = new Set<string>();
 
   for (const { node, path } of walkDocument(doc)) {
     const id = attrString(node, 'id');
-    if (id) allIds.add(id);
+    if (id && REFERENCEABLE_NODE_TYPES.has(node.type)) referenceableIds.add(id);
     const entry = numbering.byPath.get(path.join('.'));
     if (node.type === 'heading') {
       const level = numberValue(node.attrs?.level, 1);
@@ -276,7 +288,7 @@ export function queryDocumentStructure(
       result.crossReferences.push({
         href,
         text: node.text || '',
-        targetExists: allIds.has(href.slice(1)),
+        targetExists: referenceableIds.has(href.slice(1)),
       });
     }
   }

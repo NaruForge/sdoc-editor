@@ -52,21 +52,25 @@ operations cannot redirect later operations by changing paths.
 Persistent identity and cross-reference eligibility are separate properties.
 `heading`, `image`, `table`, and `mathBlock` remain the complete set of
 referenceable node types. In addition to those nodes, `paragraph`,
-`bulletList`, `orderedList`, `taskList`, `codeBlock`, `blockquote`, `callout`,
-and `diagram` may carry an optional stable `attrs.id`. Inspection exposes and
+`bulletList`, `orderedList`, `listItem`, `taskList`, `codeBlock`,
+`blockquote`, `callout`, and `diagram` may carry an optional stable `attrs.id`. Inspection exposes and
 uses that ID when present; an identity-bearing non-referenceable without one
 continues to receive a snapshot target. Existing documents are not rewritten
-to insert IDs automatically. `horizontalRule` is not an identity-bearing
-target in #148; historical schemas may still allow its `id` attribute.
+to insert IDs automatically. A historical `horizontalRule.attrs.id` reserves
+its value for duplicate and paste-collision detection, but does not become an
+operation identity or cross-reference target.
 
 Inspection may expose deterministic provisional IDs for referenceable nodes
 that lack an ID. Applying one is allowed only against the same revision and
 persists the assigned ID. Existing duplicate IDs are rejected rather than
 repaired automatically.
 
-Compatibility note (ASCII IDs): Persistent IDs now follow
-`^[A-Za-z][A-Za-z0-9._:-]*$` and reject the `provisional:` prefix. This may
-invalidate previously loose IDs on existing referenceable nodes too.
+Newly authored stable IDs are non-empty Unicode strings of at most 128 code
+points and reject the reserved `provisional:` prefix. This deliberately accepts
+the Korean and numeric-leading slugs produced by existing generators. Because
+`.sdoc` 1.0 already accepted arbitrary string IDs on referenceable nodes, those
+legacy anchor fields stay permissive; narrowing them requires a future versioned
+migration. New optional identity fields use the bounded authored-ID contract.
 
 Provenance is not part of the persisted document schema. Systems that require
 provenance store it in an external sidecar keyed by stable block IDs. These IDs

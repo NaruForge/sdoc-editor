@@ -472,6 +472,24 @@ describe('document structure', () => {
     ]);
   });
 
+  it('generates schema-valid ids for Korean, numeric-leading, and long headings', () => {
+    const normalized = assignAutoIds({
+      type: 'doc',
+      content: [
+        { type: 'heading', attrs: { level: 1 }, content: [text('개요')] },
+        { type: 'heading', attrs: { level: 1 }, content: [text('1. Introduction')] },
+        { type: 'heading', attrs: { level: 1 }, content: [text('가'.repeat(200))] },
+      ],
+    });
+
+    expect(normalized.content?.map((node) => node.attrs?.id)).toEqual([
+      '개요',
+      '1-introduction',
+      '가'.repeat(128),
+    ]);
+    expect(() => assertPersistedDocument(wrapSdoc(normalized, {}))).not.toThrow();
+  });
+
   it('synchronizes labels and reports missing cross-reference targets', () => {
     const doc: TiptapNode = {
       type: 'doc',
@@ -490,6 +508,20 @@ describe('document structure', () => {
     expect(query.crossReferences).toEqual([
       { href: '#system', text: 'Figure 1: System view', targetExists: true },
       { href: '#unknown', text: 'missing', targetExists: false },
+    ]);
+  });
+
+  it('does not treat a paragraph identity as a cross-reference target', () => {
+    const result = queryDocumentStructure({
+      type: 'doc',
+      content: [
+        { type: 'paragraph', attrs: { id: 'paragraph-1' }, content: [text('Tracked')] },
+        { type: 'paragraph', content: [text('link', '#paragraph-1')] },
+      ],
+    });
+
+    expect(result.crossReferences).toEqual([
+      { href: '#paragraph-1', text: 'link', targetExists: false },
     ]);
   });
 

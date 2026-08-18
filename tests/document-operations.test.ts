@@ -330,7 +330,7 @@ describe('document operations core', () => {
     ]));
   });
 
-  it('enforces ASCII id format and length limits for renamed ids', () => {
+  it('enforces Unicode id length and reserved-prefix limits for renamed ids', () => {
     const text = source([
       heading(1, 'first', 'First'),
       heading(1, 'second', 'Second'),
@@ -338,9 +338,12 @@ describe('document operations core', () => {
     expect(apply(text, [{
       op: 'renameBlockId', target: target('first'), newId: `a${'b'.repeat(127)}`,
     }]).ok).toBe(true);
+    for (const newId of ['1-introduction', '개요', '😀'.repeat(128)]) {
+      expect(apply(text, [{ op: 'renameBlockId', target: target('first'), newId }]).ok).toBe(true);
+    }
     for (const [newId, code] of [
-      ['😀'.repeat(128), 'INVALID_NEW_ID'],
       ['a'.repeat(129), 'INVALID_NEW_ID'],
+      ['😀'.repeat(129), 'INVALID_NEW_ID'],
       ['second', 'DUPLICATE_ID'],
       ['provisional:reserved', 'INVALID_NEW_ID'],
     ] as const) {
@@ -1567,7 +1570,7 @@ describe('optional stable block ids', () => {
       {
         type: 'bulletList',
         attrs: { id: 'list-1' },
-        content: [{ type: 'listItem', content: [paragraph('An item')] }],
+        content: [{ type: 'listItem', attrs: { id: 'item-1' }, content: [paragraph('An item')] }],
       },
       {
         type: 'orderedList',
@@ -1601,7 +1604,25 @@ describe('optional stable block ids', () => {
         type: 'orderedList', id: 'ordered-list-1',
         operationTarget: { kind: 'id', id: 'ordered-list-1', expectedType: 'orderedList' },
       }),
+      expect.objectContaining({
+        type: 'listItem', id: 'item-1',
+        operationTarget: { kind: 'id', id: 'item-1', expectedType: 'listItem' },
+      }),
     ]));
+  });
+
+  it('applies the authored-id contract to inserted sections', () => {
+    const text = source([heading(1, 'root', 'Root')]);
+    expect(apply(text, [{
+      op: 'insertSection', target: target('root'), title: '개요', id: '1-개요',
+    }]).ok).toBe(true);
+    for (const id of ['😀'.repeat(129), 'provisional:reserved']) {
+      const result = apply(text, [{
+        op: 'insertSection', target: target('root'), title: 'Invalid', id,
+      }]);
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.diagnostics[0].code).toBe('INVALID_NEW_ID');
+    }
   });
 
   it('keeps paragraph ids out of the referenceables catalog', () => {
@@ -1631,18 +1652,22 @@ describe('optional stable block ids', () => {
     );
   });
 
-  it('rejects invalid and duplicate optional ids', () => {
-    for (const invalidNode of [
-      heading(1, '1bad', 'Bad heading'),
-      heading(1, '😀', 'Emoji heading'),
-      paragraphWithId('1bad', 'Bad paragraph'),
-    ]) {
-      const invalid = validateDocumentBytes(source([
-        heading(1, 'intro', 'Intro'),
-        invalidNode,
-      ]));
+  it('preserves legacy referenceable ids while bounding new optional stable ids', () => {
+    for (const legacyId of ['1-introduction', '개요', 'legacy id 😀', 'x'.repeat(129), 'provisional:legacy']) {
+      expect(validateDocumentBytes(source([heading(1, legacyId, 'Legacy')])).ok).toBe(true);
+    }
+
+    for (const stableId of ['1-introduction', '개요', '😀', 'x'.repeat(128)]) {
+      expect(validateDocumentBytes(source([paragraphWithId(stableId, 'Tracked')])).ok).toBe(true);
+    }
+
+    for (const stableId of ['', 'x'.repeat(129), 'provisional:x']) {
+      const invalid = validateDocumentBytes(source([{
+        type: 'paragraph',
+        attrs: { id: stableId },
+        content: [{ type: 'text', text: 'Bad' }],
+      }]));
       expect(invalid.ok).toBe(false);
-      if (!invalid.ok) expect(invalid.diagnostics[0].code).toBe('INVALID_ID');
     }
 
     const provisional = validateDocumentBytes(source([
@@ -1655,6 +1680,61 @@ describe('optional stable block ids', () => {
     const duplicate = validateDocumentBytes(source([
       heading(1, 'same', 'Intro'),
       paragraphWithId('same', 'Body'),
+    ]));
+    expect(duplicate.ok).toBe(false);
+    if (!duplicate.ok) expect(duplicate.diagnostics[0].code).toBe('DUPLICATE_ID');
+  });
+
+  it('keeps paragraph ids addressable without satisfying internal references', () => {
+    const text = source([
+      paragraphWithId('paragraph-1', 'Tracked'),
+      {
+        type: 'paragraph',
+        content: [{
+          type: 'text',
+          text: 'See tracked paragraph',
+          marks: [{ type: 'link', attrs: { href: '#paragraph-1' } }],
+        }],
+      },
+    ]);
+    const inspected = inspectDocumentBytes(text);
+    expect(inspected.ok).toBe(true);
+    if (!inspected.ok) return;
+
+    expect(inspected.blocks[0].operationTarget).toMatchObject({
+      kind: 'id', id: 'paragraph-1', expectedType: 'paragraph',
+    });
+    expect(inspected.references).toContainEqual(expect.objectContaining({
+      href: '#paragraph-1', targetExists: false,
+    }));
+    expect(inspected.warnings).toContainEqual(expect.objectContaining({
+      code: 'DANGLING_REFERENCE',
+    }));
+  });
+
+  it('reserves historical horizontal-rule ids for collisions without exposing them as targets', () => {
+    const unique = inspectDocumentBytes(source([
+      { type: 'horizontalRule', attrs: { id: 'rule-id' } },
+      {
+        type: 'paragraph',
+        content: [{
+          type: 'text', text: 'rule', marks: [{ type: 'link', attrs: { href: '#rule-id' } }],
+        }],
+      },
+    ]));
+    expect(unique.ok).toBe(true);
+    if (unique.ok) {
+      const rule = unique.blocks.find((block) => block.type === 'horizontalRule');
+      expect(rule?.operationTarget.kind).toBe('snapshot');
+      expect(rule).not.toHaveProperty('id');
+      expect(unique.references).toContainEqual(expect.objectContaining({
+        href: '#rule-id', targetExists: false,
+      }));
+    }
+
+    const duplicate = validateDocumentBytes(source([
+      { type: 'horizontalRule', attrs: { id: 'rule-id' } },
+      paragraphWithId('rule-id', 'Duplicate'),
     ]));
     expect(duplicate.ok).toBe(false);
     if (!duplicate.ok) expect(duplicate.diagnostics[0].code).toBe('DUPLICATE_ID');

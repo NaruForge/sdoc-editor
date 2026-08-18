@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { getSchema } from '@tiptap/core';
+import { Fragment, Slice } from '@tiptap/pm/model';
 import type { Editor as TiptapEditor } from '@tiptap/react';
 import { EditorState } from '@tiptap/pm/state';
 import type { DecorationSet } from '@tiptap/pm/view';
@@ -21,6 +22,7 @@ import {
   type EditorExtensionRuntime,
 } from '../shared/editor/extensionRuntime';
 import { assertPersistedDocument } from '../shared/document/documentContract';
+import { inspectDocumentBytes } from '../shared/document/operations';
 import { wrapSdoc } from '../shared/document/sdocUtils';
 import { dehydrateDocumentAssets } from '../shared/document/runtimeAssets';
 
@@ -33,6 +35,15 @@ function createRuntime(): EditorExtensionRuntime {
     openDiagramDialog: vi.fn(),
     openDocument: vi.fn(),
     openDrawio: vi.fn(),
+  };
+}
+
+function blockIdentityPlugins() {
+  const extensions = createTiptapExtensions(createRuntime());
+  const extension = extensions.find((candidate) => candidate.name === 'blockIdentity');
+  return {
+    extensions,
+    plugins: extension?.config.addProseMirrorPlugins?.call(extension) ?? [],
   };
 }
 
@@ -162,6 +173,135 @@ describe('shared editor core', () => {
       'heading-custom', 'figure-custom', 'table-custom', 'eq-custom',
     ]);
     expect(() => assertPersistedDocument(wrapSdoc(dehydrateDocumentAssets(roundTripped), {}))).not.toThrow();
+  });
+
+  it('round-trips optional identities without materializing absent ids', () => {
+    const schema = getSchema(createTiptapExtensions(createRuntime()));
+    for (const type of [
+      'paragraph', 'bulletList', 'orderedList', 'listItem', 'taskList',
+      'codeBlock', 'blockquote', 'callout', 'diagram', 'horizontalRule',
+    ]) {
+      expect(schema.nodes[type].spec.attrs).toHaveProperty('id');
+    }
+
+    const persisted = {
+      type: 'doc',
+      content: [
+        { type: 'paragraph', attrs: { textAlign: null }, content: [{ type: 'text', text: 'Plain' }] },
+        {
+          type: 'bulletList',
+          content: [{
+            type: 'listItem',
+            content: [{ type: 'paragraph', attrs: { textAlign: null }, content: [{ type: 'text', text: 'Item' }] }],
+          }],
+        },
+        { type: 'codeBlock', attrs: { language: null }, content: [{ type: 'text', text: 'code' }] },
+        { type: 'blockquote', content: [{ type: 'paragraph', attrs: { textAlign: null } }] },
+        { type: 'horizontalRule' },
+      ],
+    };
+    const editorJson = schema.nodeFromJSON(persisted).toJSON();
+    const dehydrated = dehydrateDocumentAssets(editorJson);
+    const before = inspectDocumentBytes(JSON.stringify(wrapSdoc(persisted, {})));
+    const after = inspectDocumentBytes(JSON.stringify(wrapSdoc(dehydrated, {})));
+
+    expect(dehydrated).toEqual(persisted);
+    expect(JSON.stringify(dehydrated)).not.toContain('"id":null');
+    expect(before.ok).toBe(true);
+    expect(after.ok).toBe(true);
+    if (before.ok && after.ok) {
+      expect(after.blocks.map(({ path, digest }) => ({ path, digest })))
+        .toEqual(before.blocks.map(({ path, digest }) => ({ path, digest })));
+    }
+  });
+
+  it('imports non-referenceable identities only from data-id', () => {
+    const schema = getSchema(createTiptapExtensions(createRuntime()));
+    const paragraphRule = schema.nodes.paragraph.spec.parseDOM?.find((rule) => rule.tag === 'p');
+    const parse = paragraphRule && 'getAttrs' in paragraphRule ? paragraphRule.getAttrs : undefined;
+    expect(parse).toEqual(expect.any(Function));
+    if (typeof parse !== 'function') return;
+    const element = (attributes: Record<string, string>) => ({
+      getAttribute: (name: string) => attributes[name] ?? null,
+      style: { textAlign: '' },
+    }) as HTMLElement;
+
+    expect(parse(element({ id: '123' }))).not.toMatchObject({ id: '123' });
+    expect(parse(element({ 'data-id': 'provisional:external' })))
+      .not.toMatchObject({ id: 'provisional:external' });
+    expect(parse(element({ id: 'not valid', 'data-id': 'tracked-1' })))
+      .toMatchObject({ id: 'tracked-1' });
+  });
+
+  it('strips pasted identity collisions, including historical horizontal-rule ids', () => {
+    const { extensions, plugins } = blockIdentityPlugins();
+    const schema = getSchema(extensions);
+    const state = EditorState.create({
+      schema,
+      plugins,
+      doc: schema.nodeFromJSON({
+        type: 'doc',
+        content: [{ type: 'horizontalRule', attrs: { id: 'shared-id' } }],
+      }),
+    });
+    const pasted = schema.nodeFromJSON({
+      type: 'doc',
+      content: [
+        { type: 'paragraph', attrs: { id: 'shared-id' }, content: [{ type: 'text', text: 'Duplicate' }] },
+        { type: 'paragraph', attrs: { id: 'fresh-id' }, content: [{ type: 'text', text: 'Fresh' }] },
+      ],
+    });
+    const transform = plugins[0].props.transformPasted;
+    expect(transform).toEqual(expect.any(Function));
+    if (!transform) return;
+    const transformed = transform(
+      new Slice(Fragment.fromArray([...pasted.content.content]), 0, 0),
+      { state } as never,
+    );
+    const ids = transformed.content.content.map((node) => node.attrs.id);
+
+    expect(ids).toEqual([undefined, 'fresh-id']);
+  });
+
+  it('keeps a stable id on only the first half after splitting a block', () => {
+    const { extensions, plugins } = blockIdentityPlugins();
+    const schema = getSchema(extensions);
+    const state = EditorState.create({
+      schema,
+      plugins,
+      doc: schema.nodeFromJSON({
+        type: 'doc',
+        content: [{
+          type: 'paragraph',
+          attrs: { id: 'paragraph-1' },
+          content: [{ type: 'text', text: 'AB' }],
+        }],
+      }),
+    });
+    const applied = state.applyTransaction(state.tr.split(2)).state;
+
+    expect(applied.doc.content.content.map((node) => node.attrs.id))
+      .toEqual(['paragraph-1', undefined]);
+  });
+
+  it('does not run collision normalization for ordinary paragraph typing', () => {
+    const { extensions, plugins } = blockIdentityPlugins();
+    const schema = getSchema(extensions);
+    const state = EditorState.create({
+      schema,
+      plugins,
+      doc: schema.nodeFromJSON({
+        type: 'doc',
+        content: [
+          { type: 'paragraph', attrs: { id: 'duplicate' }, content: [{ type: 'text', text: 'A' }] },
+          { type: 'paragraph', attrs: { id: 'duplicate' }, content: [{ type: 'text', text: 'B' }] },
+        ],
+      }),
+    });
+    const applied = state.applyTransaction(state.tr.insertText('x', 2)).state;
+
+    expect(applied.doc.content.content.map((node) => node.attrs.id))
+      .toEqual(['duplicate', 'duplicate']);
   });
 
   it('defaults newly created tables to Auto width while preserving explicit widths', () => {

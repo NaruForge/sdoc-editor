@@ -46,18 +46,21 @@ SDOC CLI ─ filesystem boundary ─ shared/document/operations
 
 Stable node identity is broader than cross-reference eligibility. `heading`,
 `image`, `table`, and `mathBlock` are the only referenceable node types.
-`paragraph`, `bulletList`, `orderedList`, `taskList`, `codeBlock`, `blockquote`,
+`paragraph`, list containers/items, task-list containers, `codeBlock`, `blockquote`,
 `callout`, and `diagram` may additionally carry an optional stable `attrs.id`,
 but this does not make them cross-reference targets. Existing documents do not
-receive these IDs automatically. `horizontalRule` is outside the #148
-identity-bearing feature, although historical schemas may allow its `id`
-attribute. Provenance belongs in an external sidecar keyed by stable IDs, not
+receive these IDs automatically. A historical `horizontalRule.attrs.id`
+participates in duplicate detection and editor paste normalization, but is
+neither an operation identity nor a cross-reference anchor. Provenance belongs
+in an external sidecar keyed by stable IDs, not
 in the core document schema; the engineering-canonical profile proposed in
 #183 remains separate future work.
 
-Compatibility note (ASCII IDs): Persistent IDs follow
-`^[A-Za-z][A-Za-z0-9._:-]*$` and reject the `provisional:` prefix. This may
-invalidate previously loose IDs on existing referenceable nodes too.
+Newly authored stable IDs are non-empty Unicode strings of at most 128 code
+points and reject the reserved `provisional:` prefix. This includes existing
+generator output such as Korean headings and numeric-leading slugs. The
+referenceable-node fields remain schema-permissive because `.sdoc` 1.0 already
+allowed arbitrary string anchors; narrowing them requires a versioned migration.
 
 ### Document templates
 

@@ -9,6 +9,14 @@ import { normalizeDocumentTitle, unicodeCodePointLength } from '../title';
 import { normalizeSafeLinkUrl } from '../linkUrl';
 import { normalizeDocument } from '../sdocUtils';
 import { buildNumberingIndex } from '../numbering';
+import {
+  IDENTITY_BEARING_NODE_TYPES,
+  ID_COLLISION_NODE_TYPES,
+  isAuthorablePersistentId,
+  OPTIONAL_IDENTITY_NODE_TYPES,
+  persistedIdFor,
+  REFERENCEABLE_NODE_TYPES,
+} from '../nodeIdentity';
 import { walkDocument } from '../walker';
 import { parsePortableAssetPath } from '../../security/portableAssets';
 import { MAX_DOCUMENT_BYTES } from '../../resourceLimits';
@@ -35,10 +43,9 @@ const MAX_CATALOG_LIMIT = 10_000;
 const DEFAULT_SUMMARY_LENGTH = 120;
 const MIN_SUMMARY_LENGTH = 20;
 const MAX_SUMMARY_LENGTH = 500;
-const REFERENCEABLE = new Set(['heading', 'image', 'table', 'mathBlock']);
 const RENAMABLE_ID_TYPES = new Set(['heading', 'table']);
 const NON_BLOCK = new Set([
-  'doc', 'text', 'mathInline', 'tableRow', 'listItem',
+  'doc', 'text', 'mathInline', 'tableRow',
 ]);
 const PORTABLE_SETTING_KEYS = new Set<keyof DocumentSettings>([
   'headingNumbering',
@@ -77,13 +84,6 @@ const ATTR_ALLOWLIST: Record<string, ReadonlySet<string>> = {
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
-const PERSISTENT_ID_PATTERN = /^[A-Za-z][A-Za-z0-9._:-]*$/;
-const persistentIdFor = (node: TiptapNode): string | undefined => {
-  const id = node.attrs?.id;
-  return typeof id === 'string' && id ? id : undefined;
-};
-const isValidPersistentId = (id: string): boolean =>
-  PERSISTENT_ID_PATTERN.test(id) && !id.startsWith('provisional:');
 const hasOnlyKeys = (
   value: Record<string, unknown>,
   allowed: ReadonlySet<string>,
@@ -243,17 +243,23 @@ interface Baseline {
 }
 
 function analyze(doc: TiptapNode): Baseline {
-  const ids = new Set<string>();
+  const collisionIds = new Set<string>();
+  const referenceableIds = new Set<string>();
   const duplicates: string[] = [];
   const invalidIds: string[] = [];
   let missingIds = false;
   for (const { node } of walkDocument(doc)) {
-    const id = persistentIdFor(node);
+    const id = persistedIdFor(node);
     if (id) {
-      if (!isValidPersistentId(id)) invalidIds.push(id);
-      if (ids.has(id)) duplicates.push(id);
-      ids.add(id);
-    } else if (REFERENCEABLE.has(node.type)) missingIds = true;
+      if (OPTIONAL_IDENTITY_NODE_TYPES.has(node.type) && !isAuthorablePersistentId(id)) {
+        invalidIds.push(id);
+      }
+      if (ID_COLLISION_NODE_TYPES.has(node.type)) {
+        if (collisionIds.has(id)) duplicates.push(id);
+        collisionIds.add(id);
+      }
+      if (REFERENCEABLE_NODE_TYPES.has(node.type)) referenceableIds.add(id);
+    } else if (REFERENCEABLE_NODE_TYPES.has(node.type)) missingIds = true;
   }
   const violations = new Map<string, number>();
   const addViolation = (kind: string, value: string): void => {
@@ -272,7 +278,7 @@ function analyze(doc: TiptapNode): Baseline {
       if (typeof href !== 'string') continue;
       const normalized = normalizeSafeLinkUrl(href);
       if (!normalized.ok) addViolation('link', href.trim());
-      else if (normalized.url.startsWith('#') && !ids.has(normalized.url.slice(1))) {
+      else if (normalized.url.startsWith('#') && !referenceableIds.has(normalized.url.slice(1))) {
         addViolation('dangling', normalized.url);
       }
     }
@@ -306,10 +312,12 @@ const operationTargetFor = (
   path: readonly number[],
   node: TiptapNode,
 ): NodeTarget => {
-  const id = persistentIdFor(node)
-    ?? (REFERENCEABLE.has(node.type) ? provisionalId(revision, path, node) : undefined);
-  return id
-    ? { kind: 'id', id, expectedType: node.type }
+  const id = persistedIdFor(node);
+  const identityId = IDENTITY_BEARING_NODE_TYPES.has(node.type) ? id : undefined;
+  const targetId = identityId
+    ?? (REFERENCEABLE_NODE_TYPES.has(node.type) ? provisionalId(revision, path, node) : undefined);
+  return targetId
+    ? { kind: 'id', id: targetId, expectedType: node.type }
     : { kind: 'snapshot', path: [...path], nodeType: node.type, digest: nodeDigest(node) };
 };
 
@@ -323,9 +331,11 @@ function indexTargets(root: TiptapNode, revision: Sha256Digest): TargetIndex {
   const paths = new Map<TiptapNode, number[]>();
   for (const { node, path } of walkDocument(root)) {
     paths.set(node, [...path]);
-    const id = persistentIdFor(node);
+    const id = IDENTITY_BEARING_NODE_TYPES.has(node.type) ? persistedIdFor(node) : undefined;
     if (id) byId.set(id, node);
-    else if (REFERENCEABLE.has(node.type)) byId.set(provisionalId(revision, path, node), node);
+    else if (REFERENCEABLE_NODE_TYPES.has(node.type)) {
+      byId.set(provisionalId(revision, path, node), node);
+    }
   }
   return { byId, paths };
 }
@@ -738,8 +748,8 @@ function catalogItems(
   const ids = new Set<string>();
   if (kind === 'references') {
     for (const { node } of walkDocument(loaded.envelope.doc)) {
-      const id = node.attrs?.id;
-      if (typeof id === 'string' && id) ids.add(id);
+      const id = persistedIdFor(node);
+      if (REFERENCEABLE_NODE_TYPES.has(node.type) && id) ids.add(id);
     }
   }
   let seen = 0;
@@ -755,8 +765,9 @@ function catalogItems(
   };
   traversal:
   for (const { node, path } of walkDocument(loaded.envelope.doc)) {
-    const id = typeof node.attrs?.id === 'string' && node.attrs.id ? node.attrs.id : undefined;
-    const provisional = !id && REFERENCEABLE.has(node.type)
+    const persistedId = persistedIdFor(node);
+    const id = IDENTITY_BEARING_NODE_TYPES.has(node.type) ? persistedId : undefined;
+    const provisional = !id && REFERENCEABLE_NODE_TYPES.has(node.type)
       ? provisionalId(loaded.revision, path, node) : undefined;
     if (kind === 'blocks' && !NON_BLOCK.has(node.type)) {
       if (add(() => ({
@@ -785,7 +796,7 @@ function catalogItems(
           }
         }
       }
-    } else if (kind === 'referenceables' && REFERENCEABLE.has(node.type)) {
+    } else if (kind === 'referenceables' && REFERENCEABLE_NODE_TYPES.has(node.type)) {
       if (add(() => ({
         type: node.type,
         ...(id ? { id } : {}),
@@ -983,6 +994,10 @@ function applyOne(
     if (newLevel < 1 || newLevel > 6) {
       return failure('argument', 'INVALID_HEADING_LEVEL', `resulting heading level ${newLevel} is out of range 1-6`);
     }
+    if (op.id !== undefined && !isAuthorablePersistentId(op.id)) {
+      return failure('argument', 'INVALID_NEW_ID',
+        'id must be non-empty, at most 128 Unicode code points, and outside the reserved provisional: namespace');
+    }
     const heading: TiptapNode = {
       type: 'heading', attrs: { level: newLevel, ...(op.id ? { id: op.id } : {}) },
       content: op.title ? [{ type: 'text', text: op.title }] : [],
@@ -1004,8 +1019,8 @@ function applyOne(
     if (!target) return failure('conflict', 'TARGET_REMOVED', 'target is unavailable');
     if (target.type === 'heading') return failure('argument', 'SECTION_OPERATION_REQUIRED', 'heading replacement requires a section operation');
     if (op.block.type !== target.type) return failure('argument', 'NODE_TYPE_CHANGE', 'replaceBlock must preserve node type');
-    const oldId = persistentIdFor(target);
-    const newId = persistentIdFor(op.block);
+    const oldId = persistedIdFor(target);
+    const newId = persistedIdFor(op.block);
     if (oldId && newId && oldId !== newId) {
       return failure('argument', 'ID_CHANGE_FORBIDDEN', 'replaceBlock must preserve the existing id');
     }
@@ -1117,9 +1132,9 @@ function applyOne(
         'renameBlockId requires a target with an existing persistent id');
     }
     const newId = op.newId;
-    if (!newId || unicodeCodePointLength(newId) > 128 || !isValidPersistentId(newId)) {
+    if (!isAuthorablePersistentId(newId)) {
       return failure('argument', 'INVALID_NEW_ID',
-        'newId must use the persistent id format and must not use the reserved provisional: prefix');
+        'newId must be non-empty, at most 128 Unicode code points, and outside the reserved provisional: namespace');
     }
     if (oldId === newId) return operationEvent(op, oldId, newId);
     for (const { node } of walkDocument(root)) {
@@ -1171,18 +1186,19 @@ export function inspectDocumentBytes(
   let blockCount = 0;
   const ids = new Set<string>();
   for (const { node } of walkDocument(loaded.envelope.doc)) {
-    const id = node.attrs?.id;
-    if (typeof id === 'string' && id) ids.add(id);
+    const id = persistedIdFor(node);
+    if (REFERENCEABLE_NODE_TYPES.has(node.type) && id) ids.add(id);
   }
   for (const { node, path } of walkDocument(loaded.envelope.doc)) {
-    const id = typeof node.attrs?.id === 'string' && node.attrs.id ? node.attrs.id : undefined;
-    const provisional = !id && REFERENCEABLE.has(node.type)
+    const persistedId = persistedIdFor(node);
+    const id = IDENTITY_BEARING_NODE_TYPES.has(node.type) ? persistedId : undefined;
+    const provisional = !id && REFERENCEABLE_NODE_TYPES.has(node.type)
       ? provisionalId(loaded.revision, path, node) : undefined;
     if (node.type === 'heading' && outline.length < maxBlocks) outline.push({
       ...(id ? { id } : {}), ...(provisional ? { provisionalId: provisional } : {}),
       level: Number(node.attrs?.level), text: textOf(node).slice(0, maxSummary), path: [...path],
     });
-    if (REFERENCEABLE.has(node.type) && referenceables.length < maxBlocks) referenceables.push({
+    if (REFERENCEABLE_NODE_TYPES.has(node.type) && referenceables.length < maxBlocks) referenceables.push({
       type: node.type, ...(id ? { id } : {}),
       ...(provisional ? { provisionalId: provisional } : {}), path: [...path],
     });
