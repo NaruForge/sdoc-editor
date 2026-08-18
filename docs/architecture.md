@@ -44,6 +44,26 @@ SDOC CLI ─ filesystem boundary ─ shared/document/operations
 - Save and mutation protocols carry document identity, base revision, edit
   identity, and acknowledgement so stale or cross-document writes are rejected.
 
+Stable node identity is broader than cross-reference eligibility. `heading`,
+`image`, `table`, and `mathBlock` are the only referenceable node types.
+`paragraph`, list containers/items, task-list containers, `codeBlock`, `blockquote`,
+`callout`, and `diagram` may additionally carry an optional stable `attrs.id`,
+but this does not make them cross-reference targets. Existing documents do not
+receive these IDs automatically. Absence is represented by omitting `attrs.id`;
+`null` is not a valid authored stable ID. A historical `horizontalRule.attrs.id`
+participates in duplicate detection and editor paste normalization, but is
+limited to its existing ASCII shape and is neither an operation identity nor a
+cross-reference anchor. Provenance belongs
+in an external sidecar keyed by stable IDs, not
+in the core document schema; the engineering-canonical profile proposed in
+#183 remains separate future work.
+
+Newly authored stable IDs are non-empty Unicode strings of at most 128 code
+points and reject the reserved `provisional:` prefix. This includes existing
+generator output such as Korean headings and numeric-leading slugs. The
+referenceable-node fields remain schema-permissive because `.sdoc` 1.0 already
+allowed arbitrary string anchors; narrowing them requires a versioned migration.
+
 ### Document templates
 
 `shared/template/` owns built-in template data, untrusted template metadata
@@ -201,10 +221,11 @@ VSIX and performs no CDN fetch.
 `shared/document/operations/` is the host-neutral boundary for inspecting,
 validating, and atomically applying versioned semantic operation batches.
 Callers identify a document revision by SHA-256 of its exact bytes, including
-any UTF-8 BOM. Persistent IDs target referenceable nodes; other mutable blocks
-use a revision-scoped path, node type, and canonical subtree digest. Targets
-are resolved before a batch starts, so an earlier insertion or move cannot
-redirect a later operation.
+any UTF-8 BOM. Inspection returns an ID target for any persistent ID. Without
+one, a non-referenceable mutable block uses a revision-scoped path, node type,
+and canonical subtree digest. Provisional IDs remain revision-scoped and
+limited to referenceable nodes. Targets are resolved before a batch starts, so
+an earlier insertion or move cannot redirect a later operation.
 
 Section operations use heading ranges in one parent content array. The core
 normalizes through resolved document settings, validates schema and

@@ -189,9 +189,18 @@ slash-delimited content path. For example, `/1/0` selects
 
 Copy `target.operationTarget` directly instead of assembling a snapshot
 target. Every `blocks[]` entry also includes its canonical `operationTarget`.
-Referenceable nodes receive an ID target; other blocks receive a snapshot
-target. A provisional ID is valid only for that inspected revision; applying
-it persists the ID.
+A block with a persistent ID receives an ID target. A non-referenceable block
+without one receives a snapshot target. Provisional IDs remain limited to
+referenceable nodes, are valid only for the inspected revision, and persist
+when applied. Inspection does not add IDs to the source document.
+
+Optional stable IDs are omitted when absent; `attrs.id: null` is invalid for
+these newly identity-bearing blocks. When present, newly authored stable IDs
+are non-empty Unicode strings of at most 128 code points and cannot use the
+reserved `provisional:` prefix. Korean and
+numeric-leading heading slugs are valid. Existing `.sdoc` 1.0 referenceable
+anchors remain loadable because that schema already allowed arbitrary strings;
+they are not silently migrated on inspect or save.
 
 An explicit `--projection` selects the additive bounded `sdoc.read/1`
 contract. Projected JSON still uses `contract: "sdoc.cli.response/1"` as its
@@ -384,8 +393,15 @@ or revision-scoped provisional IDs:
 { "kind": "id", "id": "intro", "expectedType": "heading" }
 ```
 
-Other mutable blocks, including `paragraph`, `codeBlock`, and `diagram`, use a
-protected snapshot locator:
+Identity-bearing and referenceable are not synonyms. `paragraph`, `bulletList`,
+`orderedList`, `listItem`, `taskList`, `codeBlock`, `blockquote`, `callout`, and `diagram`
+may carry an optional stable `attrs.id`. When present, inspection exposes the
+persistent ID and returns an ID operation target, but the block does not enter
+the `referenceables` catalog and cannot be an xref target. No IDs are inserted
+automatically into existing documents.
+
+A mutable non-referenceable block without a persistent ID uses a protected
+snapshot locator:
 
 ```json
 {
@@ -397,8 +413,9 @@ protected snapshot locator:
 ```
 
 Prefer the ready-to-use `operationTarget` returned by `inspect` over copying
-these fields manually. A `diagram` is snapshot-targeted; it is not a
-persistent-ID node.
+these fields manually. For example, a `diagram` with `attrs.id` is ID-targeted;
+without one it is snapshot-targeted. In both cases it remains
+non-referenceable.
 
 Snapshot targets and provisional IDs are revision-scoped. Re-inspect after any
 source-byte change. A batch resolves all targets before applying its first
@@ -500,20 +517,28 @@ the operation-relevant node types and required attributes:
 | Nodes | Required attributes | Target kind and notes |
 |---|---|---|
 | `heading` | `attrs.level` (1-6) | ID target; rename with `renameHeading`, and move/delete as a complete section |
-| `paragraph`, `blockquote`, `bulletList`, `orderedList`, `taskList`, `taskItem` | None | Snapshot target |
-| `codeBlock` | None (`attrs.language` optional) | Snapshot target |
+| `paragraph`, `blockquote`, `bulletList`, `orderedList`, `listItem`, `taskList` | None (`attrs.id` optional) | ID target when `attrs.id` is present; otherwise snapshot target; not referenceable |
+| `taskItem` | None | Snapshot target |
+| `codeBlock` | None (`attrs.language` and `attrs.id` optional) | ID target when `attrs.id` is present; otherwise snapshot target; not referenceable |
 | `table` | None | ID target |
 | `tableCell`, `tableHeader` | None | Snapshot target; span, width, and alignment attrs are optional |
 | `image` | None | ID target; a new `src`, when present, must be portable |
 | `mathBlock` | `attrs.latex` | ID target |
-| `diagram` | `attrs.language`, `attrs.code` | Snapshot target; stores source such as Mermaid, PlantUML, or D2 |
-| `horizontalRule`, `hardBreak`, `callout` | None | Snapshot target; callout `variant` is optional |
-| `listItem`, `tableRow` | None | Structural container, not an operation block target |
+| `diagram` | `attrs.language`, `attrs.code` (`attrs.id` optional) | ID target when `attrs.id` is present; otherwise snapshot target; not referenceable; stores source such as Mermaid, PlantUML, or D2 |
+| `callout` | None (`attrs.variant` and `attrs.id` optional) | ID target when `attrs.id` is present; otherwise snapshot target; not referenceable |
+| `horizontalRule` | None | Snapshot target; a historical ASCII-shaped `attrs.id` is preserved and collision-reserved, but is not exposed as identity or xref anchor |
+| `hardBreak` | None | Snapshot target |
+| `tableRow` | None | Structural container, not an operation block target |
 | `text`, `mathInline` | `mathInline.attrs.latex` only | Inline content, not an operation target |
 
 `updateBlockAttrs` accepts only the attrs defined for that node type.
 `replaceBlock` must preserve the node type, while headings require the
 heading/section operations.
+
+Stable IDs may key provenance records in an external sidecar. Provenance is not
+part of the core `.sdoc` schema. The engineering-canonical profile tracked in
+#183 may build on this identity contract, but that profile is outside the CLI
+contract documented here.
 
 Portable image assets use `./images/...`. Draw.io content is an `image` node
 whose `src` is under `./drawio/` and ends in `.drawio.svg`; it is not a
@@ -612,7 +637,7 @@ must branch on `diagnostics[].code` from explicit `--json` output.
 | `INVALID_HEADING_LEVEL`, `SECTION_LEVEL_OUT_OF_RANGE` | A requested heading level is outside 1-6, or shifting the section would push a descendant outside that range | Choose a valid target level that keeps every descendant heading within 1-6 |
 | `FORMATTED_HEADING` | Replacing a rich heading would discard marks or inline nodes | Preserve it, or explicitly use `discardFormatting` / `--discard-formatting` |
 | `ATTRIBUTE_NOT_ALLOWED`, `NODE_TYPE_CHANGE` | An attr is not allowed for the node, or replacement changes its type | Consult the node catalog/schema and keep replacements type-compatible |
-| `ID_RENAME_NOT_SUPPORTED`, `ID_RENAME_REQUIRES_EXISTING_ID`, `INVALID_NEW_ID` | An ID rename targeted an unsupported or provisional node, or supplied an invalid new ID | Target an inspected heading/table with an existing persistent ID and choose a unique non-reserved ID |
+| `ID_RENAME_NOT_SUPPORTED`, `ID_RENAME_REQUIRES_EXISTING_ID`, `INVALID_NEW_ID` | An ID creation or rename targeted an unsupported/provisional node or supplied an invalid ID | For renames, target an inspected heading/table; choose a unique, bounded, non-reserved ID for renames and inserted sections |
 | `NEW_NONPORTABLE_ASSET`, `NEW_DANGLING_REFERENCE`, `NEW_UNSAFE_LINK` | The batch introduces an invalid asset path, missing internal target, or unsafe link | Use `./images/...` or `./drawio/*.drawio.svg`, create referenced IDs, and use a safe URL |
 | `DUPLICATE_ID` | The document contains conflicting persistent IDs | Assign unique IDs before retrying |
 | `CLI_TEMPLATE_INVALID` | An explicit template has malformed UTF-8, invalid JSON, or violates the template contract | Repair or re-encode the template as UTF-8; creation leaves the destination absent |

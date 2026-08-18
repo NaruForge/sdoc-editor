@@ -124,6 +124,7 @@ describe('public operation contract', () => {
       { op: 'setDocumentTitle', title: boundary },
       { op: 'updateDocumentMetadata', patch: { author: boundary, version: boundary } },
       { op: 'renameBlockId', target: { kind: 'id', id: 'old' }, newId: '😀'.repeat(128) },
+      { op: 'insertSection', target: { kind: 'id', id: 'old' }, title: 'New', id: '개요' },
     ]) {
       expect(validate({
         contract: 'sdoc.operations/1',
@@ -139,12 +140,14 @@ describe('public operation contract', () => {
       { op: 'updateDocumentMetadata', patch: { version: `${boundary}😀` } },
       { op: 'renameBlockId', target: { kind: 'id', id: 'old' }, newId: '😀'.repeat(129) },
       { op: 'renameBlockId', target: { kind: 'id', id: 'old' }, newId: 'provisional:reserved' },
+      { op: 'insertSection', target: { kind: 'id', id: 'old' }, title: 'New', id: '😀'.repeat(129) },
+      { op: 'insertSection', target: { kind: 'id', id: 'old' }, title: 'New', id: 'provisional:reserved' },
     ]) {
       expect(validate({
         contract: 'sdoc.operations/1',
         expected: { revision },
         operations: [operation],
-      }), formatErrors(validate.errors)).toBe(false);
+      }), `${JSON.stringify(operation)}: ${formatErrors(validate.errors)}`).toBe(false);
     }
   });
 

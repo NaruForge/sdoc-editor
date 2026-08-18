@@ -15,6 +15,11 @@ const heading = (level: number, id: string | undefined, title: string): TiptapNo
 const paragraph = (value: string): TiptapNode => ({
   type: 'paragraph', content: [{ type: 'text', text: value }],
 });
+const paragraphWithId = (id: string, value: string): TiptapNode => ({
+  type: 'paragraph',
+  attrs: { id },
+  content: [{ type: 'text', text: value }],
+});
 const envelope = (content: TiptapNode[]): SdocEnvelope => ({
   sdoc: '1.0',
   meta: {
@@ -325,15 +330,19 @@ describe('document operations core', () => {
     ]));
   });
 
-  it('uses Unicode code-point limits and rejects duplicate or reserved renamed ids', () => {
+  it('enforces Unicode id length and reserved-prefix limits for renamed ids', () => {
     const text = source([
       heading(1, 'first', 'First'),
       heading(1, 'second', 'Second'),
     ]);
     expect(apply(text, [{
-      op: 'renameBlockId', target: target('first'), newId: '😀'.repeat(128),
+      op: 'renameBlockId', target: target('first'), newId: `a${'b'.repeat(127)}`,
     }]).ok).toBe(true);
+    for (const newId of ['1-introduction', '개요', '😀'.repeat(128)]) {
+      expect(apply(text, [{ op: 'renameBlockId', target: target('first'), newId }]).ok).toBe(true);
+    }
     for (const [newId, code] of [
+      ['a'.repeat(129), 'INVALID_NEW_ID'],
       ['😀'.repeat(129), 'INVALID_NEW_ID'],
       ['second', 'DUPLICATE_ID'],
       ['provisional:reserved', 'INVALID_NEW_ID'],
@@ -558,6 +567,44 @@ describe('document operations core', () => {
         content: [{ text: 'new' }],
       });
     }
+  });
+
+  it('preserves an existing id when replaceBlock replacement omits attrs.id', () => {
+    const text = source([
+      heading(1, 'intro', 'Intro'),
+      paragraphWithId('para-1', 'Old'),
+    ]);
+    const result = apply(text, [{
+      op: 'replaceBlock',
+      target: target('para-1'),
+      block: paragraph('New'),
+    }]);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.envelope.doc.content?.[1]).toMatchObject({
+      type: 'paragraph',
+      attrs: { id: 'para-1' },
+      content: [{ type: 'text', text: 'New' }],
+    });
+  });
+
+  it('rejects replaceBlock when the replacement changes an existing id', () => {
+    const text = source([
+      heading(1, 'intro', 'Intro'),
+      paragraphWithId('para-1', 'Old'),
+    ]);
+    const result = apply(text, [{
+      op: 'replaceBlock',
+      target: target('para-1'),
+      block: paragraphWithId('para-2', 'New'),
+    }]);
+
+    expect(result).toMatchObject({
+      ok: false,
+      category: 'argument',
+      diagnostics: [{ code: 'ID_CHANGE_FORBIDDEN' }],
+    });
   });
 
   it('compares baseline violations as a multiset and rejects an increased duplicate warning', () => {
@@ -1479,5 +1526,250 @@ describe('sdoc.read/1 projections', () => {
       });
       expect(result).not.toHaveProperty('page.nextCursor');
     }
+  });
+});
+
+describe('optional stable block ids', () => {
+  it('accepts optional ids without auto-inserting ids on plain paragraphs', () => {
+    const text = source([
+      heading(1, 'intro', 'Intro'),
+      paragraph('Body'),
+      paragraphWithId('para-1', 'Tracked'),
+    ]);
+    const validated = validateDocumentBytes(text);
+    expect(validated.ok).toBe(true);
+    const inspected = inspectDocumentBytes(text);
+    expect(inspected.ok).toBe(true);
+    if (!inspected.ok) return;
+    const tracked = inspected.blocks.find((block) => block.id === 'para-1');
+    expect(tracked?.operationTarget).toMatchObject({ kind: 'id', id: 'para-1', expectedType: 'paragraph' });
+    // plain paragraph remains snapshot-targeted and has no id
+    const plainBlock = inspected.blocks.find((block) => block.type === 'paragraph' && !block.id);
+    expect(plainBlock?.operationTarget.kind).toBe('snapshot');
+    expect(inspected.referenceables.every((item) => item.type !== 'paragraph')).toBe(true);
+    expect((JSON.parse(text) as SdocEnvelope).doc.content?.[1]).toEqual(paragraph('Body'));
+  });
+
+  it('validates optional ids on code blocks, callouts, diagrams, and lists', () => {
+    const text = source([
+      heading(1, 'intro', 'Intro'),
+      {
+        type: 'codeBlock',
+        attrs: { id: 'code-1', language: 'ts' },
+        content: [{ type: 'text', text: 'const answer = 42;' }],
+      },
+      {
+        type: 'callout',
+        attrs: { id: 'callout-1', variant: 'note' },
+        content: [paragraph('A note')],
+      },
+      {
+        type: 'diagram',
+        attrs: { id: 'diagram-1', language: 'mermaid', code: 'graph TD; A-->B' },
+      },
+      {
+        type: 'bulletList',
+        attrs: { id: 'list-1' },
+        content: [{ type: 'listItem', attrs: { id: 'item-1' }, content: [paragraph('An item')] }],
+      },
+      {
+        type: 'orderedList',
+        attrs: { id: 'ordered-list-1', start: 1 },
+        content: [{ type: 'listItem', content: [paragraph('First item')] }],
+      },
+    ]);
+    const validated = validateDocumentBytes(text);
+    expect(validated.ok).toBe(true);
+    const inspected = inspectDocumentBytes(text);
+    expect(inspected.ok).toBe(true);
+    if (!inspected.ok) return;
+    expect(inspected.blocks).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: 'codeBlock', id: 'code-1',
+        operationTarget: { kind: 'id', id: 'code-1', expectedType: 'codeBlock' },
+      }),
+      expect.objectContaining({
+        type: 'callout', id: 'callout-1',
+        operationTarget: { kind: 'id', id: 'callout-1', expectedType: 'callout' },
+      }),
+      expect.objectContaining({
+        type: 'diagram', id: 'diagram-1',
+        operationTarget: { kind: 'id', id: 'diagram-1', expectedType: 'diagram' },
+      }),
+      expect.objectContaining({
+        type: 'bulletList', id: 'list-1',
+        operationTarget: { kind: 'id', id: 'list-1', expectedType: 'bulletList' },
+      }),
+      expect.objectContaining({
+        type: 'orderedList', id: 'ordered-list-1',
+        operationTarget: { kind: 'id', id: 'ordered-list-1', expectedType: 'orderedList' },
+      }),
+      expect.objectContaining({
+        type: 'listItem', id: 'item-1',
+        operationTarget: { kind: 'id', id: 'item-1', expectedType: 'listItem' },
+      }),
+    ]));
+  });
+
+  it('applies the authored-id contract to inserted sections', () => {
+    const text = source([heading(1, 'root', 'Root')]);
+    expect(apply(text, [{
+      op: 'insertSection', target: target('root'), title: '개요', id: '1-개요',
+    }]).ok).toBe(true);
+    for (const id of ['😀'.repeat(129), 'provisional:reserved']) {
+      const result = apply(text, [{
+        op: 'insertSection', target: target('root'), title: 'Invalid', id,
+      }]);
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.diagnostics[0].code).toBe('INVALID_NEW_ID');
+    }
+  });
+
+  it('keeps paragraph ids out of the referenceables catalog', () => {
+    const table: TiptapNode = {
+      type: 'table',
+      attrs: { id: 'table-1' },
+      content: [{
+        type: 'tableRow',
+        content: [{ type: 'tableCell', content: [paragraph('Cell')] }],
+      }],
+    };
+    const text = source([
+      heading(1, 'intro', 'Intro'),
+      { type: 'image', attrs: { id: 'figure-1', src: './figure.png' } },
+      table,
+      { type: 'mathBlock', attrs: { id: 'equation-1', latex: 'x = 1' } },
+      paragraphWithId('para-1', 'Body'),
+    ]);
+    const inspected = inspectDocumentBytes(text);
+    expect(inspected.ok).toBe(true);
+    if (!inspected.ok) return;
+    expect(inspected.referenceables.map((item) => item.type)).toEqual([
+      'heading', 'image', 'table', 'mathBlock',
+    ]);
+    expect(inspected.referenceables).not.toContainEqual(
+      expect.objectContaining({ id: 'para-1' }),
+    );
+  });
+
+  it('preserves legacy referenceable ids while bounding new optional stable ids', () => {
+    for (const legacyId of ['1-introduction', '개요', 'legacy id 😀', 'x'.repeat(129), 'provisional:legacy']) {
+      expect(validateDocumentBytes(source([heading(1, legacyId, 'Legacy')])).ok).toBe(true);
+    }
+
+    expect(validateDocumentBytes(source([paragraph('Untracked')])).ok).toBe(true);
+    for (const stableId of ['1-introduction', '개요', '😀', 'x'.repeat(128)]) {
+      expect(validateDocumentBytes(source([paragraphWithId(stableId, 'Tracked')])).ok).toBe(true);
+    }
+
+    for (const stableId of [null, '', 'x'.repeat(129), 'provisional:x']) {
+      const invalid = validateDocumentBytes(source([{
+        type: 'paragraph',
+        attrs: { id: stableId },
+        content: [{ type: 'text', text: 'Bad' }],
+      }]));
+      expect(invalid.ok).toBe(false);
+      if (!invalid.ok) expect(invalid.diagnostics[0].code).toBe('INVALID_ID');
+    }
+
+    const duplicate = validateDocumentBytes(source([
+      heading(1, 'same', 'Intro'),
+      paragraphWithId('same', 'Body'),
+    ]));
+    expect(duplicate.ok).toBe(false);
+    if (!duplicate.ok) expect(duplicate.diagnostics[0].code).toBe('DUPLICATE_ID');
+  });
+
+  it('keeps paragraph ids addressable without satisfying internal references', () => {
+    const text = source([
+      paragraphWithId('paragraph-1', 'Tracked'),
+      {
+        type: 'paragraph',
+        content: [{
+          type: 'text',
+          text: 'See tracked paragraph',
+          marks: [{ type: 'link', attrs: { href: '#paragraph-1' } }],
+        }],
+      },
+    ]);
+    const inspected = inspectDocumentBytes(text);
+    expect(inspected.ok).toBe(true);
+    if (!inspected.ok) return;
+
+    expect(inspected.blocks[0].operationTarget).toMatchObject({
+      kind: 'id', id: 'paragraph-1', expectedType: 'paragraph',
+    });
+    expect(inspected.references).toContainEqual(expect.objectContaining({
+      href: '#paragraph-1', targetExists: false,
+    }));
+    expect(inspected.warnings).toContainEqual(expect.objectContaining({
+      code: 'DANGLING_REFERENCE',
+    }));
+  });
+
+  it('reserves historical horizontal-rule ids for collisions without exposing them as targets', () => {
+    const unique = inspectDocumentBytes(source([
+      { type: 'horizontalRule', attrs: { id: 'rule-id' } },
+      {
+        type: 'paragraph',
+        content: [{
+          type: 'text', text: 'rule', marks: [{ type: 'link', attrs: { href: '#rule-id' } }],
+        }],
+      },
+    ]));
+    expect(unique.ok).toBe(true);
+    if (unique.ok) {
+      const rule = unique.blocks.find((block) => block.type === 'horizontalRule');
+      expect(rule?.operationTarget.kind).toBe('snapshot');
+      expect(rule).not.toHaveProperty('id');
+      expect(unique.references).toContainEqual(expect.objectContaining({
+        href: '#rule-id', targetExists: false,
+      }));
+    }
+
+    const duplicate = validateDocumentBytes(source([
+      { type: 'horizontalRule', attrs: { id: 'rule-id' } },
+      paragraphWithId('rule-id', 'Duplicate'),
+    ]));
+    expect(duplicate.ok).toBe(false);
+    if (!duplicate.ok) expect(duplicate.diagnostics[0].code).toBe('DUPLICATE_ID');
+  });
+
+  it('preserves paragraph ids across replaceBlock and moveBlock', () => {
+    const text = source([
+      heading(1, 'intro', 'Intro'),
+      paragraphWithId('para-1', 'One'),
+      paragraph('Two'),
+    ]);
+    const inspected = inspectDocumentBytes(text);
+    expect(inspected.ok).toBe(true);
+    if (!inspected.ok) return;
+    const paraTarget = inspected.blocks.find((block) => block.id === 'para-1')?.operationTarget;
+    const twoTarget = inspected.blocks.find((block) => block.type === 'paragraph' && !block.id)?.operationTarget;
+    expect(paraTarget?.kind).toBe('id');
+    expect(twoTarget?.kind).toBe('snapshot');
+    if (!paraTarget || !twoTarget) return;
+
+    const replaced = apply(text, [{
+      op: 'replaceBlock',
+      target: paraTarget,
+      block: paragraph('Updated'),
+    }]);
+    expect(replaced.ok).toBe(true);
+    if (!replaced.ok) return;
+    expect(replaced.envelope.doc.content?.[1]).toMatchObject({
+      type: 'paragraph',
+      attrs: { id: 'para-1' },
+    });
+
+    const moved = apply(text, [{
+      op: 'moveBlock',
+      target: paraTarget,
+      destination: { position: 'after', target: twoTarget },
+    }]);
+    expect(moved.ok).toBe(true);
+    if (!moved.ok) return;
+    const nodes = moved.envelope.doc.content ?? [];
+    expect(nodes[2]).toMatchObject({ type: 'paragraph', attrs: { id: 'para-1' } });
   });
 });

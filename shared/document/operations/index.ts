@@ -9,6 +9,14 @@ import { normalizeDocumentTitle, unicodeCodePointLength } from '../title';
 import { normalizeSafeLinkUrl } from '../linkUrl';
 import { normalizeDocument } from '../sdocUtils';
 import { buildNumberingIndex } from '../numbering';
+import {
+  IDENTITY_BEARING_NODE_TYPES,
+  ID_COLLISION_NODE_TYPES,
+  isAuthorablePersistentId,
+  OPTIONAL_IDENTITY_NODE_TYPES,
+  persistedIdFor,
+  REFERENCEABLE_NODE_TYPES,
+} from '../nodeIdentity';
 import { walkDocument } from '../walker';
 import { parsePortableAssetPath } from '../../security/portableAssets';
 import { MAX_DOCUMENT_BYTES } from '../../resourceLimits';
@@ -35,10 +43,9 @@ const MAX_CATALOG_LIMIT = 10_000;
 const DEFAULT_SUMMARY_LENGTH = 120;
 const MIN_SUMMARY_LENGTH = 20;
 const MAX_SUMMARY_LENGTH = 500;
-const REFERENCEABLE = new Set(['heading', 'image', 'table', 'mathBlock']);
 const RENAMABLE_ID_TYPES = new Set(['heading', 'table']);
 const NON_BLOCK = new Set([
-  'doc', 'text', 'mathInline', 'tableRow', 'listItem',
+  'doc', 'text', 'mathInline', 'tableRow',
 ]);
 const PORTABLE_SETTING_KEYS = new Set<keyof DocumentSettings>([
   'headingNumbering',
@@ -174,6 +181,11 @@ function load(bytes: Uint8Array | string): Loaded | OperationFailure {
       'document could not be validated within structural limits');
   }
   if (!contract.ok) {
+    const invalidIdDiagnostic = contract.diagnostics.find((item) => item.path.endsWith('/attrs/id'));
+    if (invalidIdDiagnostic) {
+      return failure('document', 'INVALID_ID',
+        `persistent id is invalid: ${invalidIdDiagnostic.message}`, invalidIdDiagnostic.path);
+    }
     return {
       ok: false,
       category: 'document',
@@ -224,21 +236,30 @@ function checkLimits(doc: TiptapNode): OperationFailure | undefined {
 
 interface Baseline {
   duplicates: string[];
+  invalidIds: string[];
   violations: Map<string, number>;
   warnings: OperationDiagnostic[];
   missingIds: boolean;
 }
 
 function analyze(doc: TiptapNode): Baseline {
-  const ids = new Set<string>();
+  const collisionIds = new Set<string>();
+  const referenceableIds = new Set<string>();
   const duplicates: string[] = [];
+  const invalidIds: string[] = [];
   let missingIds = false;
   for (const { node } of walkDocument(doc)) {
-    const id = typeof node.attrs?.id === 'string' && node.attrs.id ? node.attrs.id : undefined;
+    const id = persistedIdFor(node);
     if (id) {
-      if (ids.has(id)) duplicates.push(id);
-      ids.add(id);
-    } else if (REFERENCEABLE.has(node.type)) missingIds = true;
+      if (OPTIONAL_IDENTITY_NODE_TYPES.has(node.type) && !isAuthorablePersistentId(id)) {
+        invalidIds.push(id);
+      }
+      if (ID_COLLISION_NODE_TYPES.has(node.type)) {
+        if (collisionIds.has(id)) duplicates.push(id);
+        collisionIds.add(id);
+      }
+      if (REFERENCEABLE_NODE_TYPES.has(node.type)) referenceableIds.add(id);
+    } else if (REFERENCEABLE_NODE_TYPES.has(node.type)) missingIds = true;
   }
   const violations = new Map<string, number>();
   const addViolation = (kind: string, value: string): void => {
@@ -257,7 +278,7 @@ function analyze(doc: TiptapNode): Baseline {
       if (typeof href !== 'string') continue;
       const normalized = normalizeSafeLinkUrl(href);
       if (!normalized.ok) addViolation('link', href.trim());
-      else if (normalized.url.startsWith('#') && !ids.has(normalized.url.slice(1))) {
+      else if (normalized.url.startsWith('#') && !referenceableIds.has(normalized.url.slice(1))) {
         addViolation('dangling', normalized.url);
       }
     }
@@ -268,8 +289,12 @@ function analyze(doc: TiptapNode): Baseline {
     message: `${entry.slice(entry.indexOf(':') + 1)} (${count})`,
     severity: 'warning',
   }));
-  return { ids, duplicates, violations, warnings, missingIds } as Baseline & { ids: Set<string> };
+  return { duplicates, invalidIds, violations, warnings, missingIds };
 }
+
+const invalidIdFailure = (state: Baseline): OperationFailure | undefined => state.invalidIds.length
+  ? failure('document', 'INVALID_ID', `invalid persistent id: ${state.invalidIds[0]}`)
+  : undefined;
 
 const nodeAt = (root: TiptapNode, path: readonly number[]): TiptapNode | undefined => {
   let current: TiptapNode | undefined = root;
@@ -287,11 +312,12 @@ const operationTargetFor = (
   path: readonly number[],
   node: TiptapNode,
 ): NodeTarget => {
-  const id = typeof node.attrs?.id === 'string' && node.attrs.id
-    ? node.attrs.id
-    : REFERENCEABLE.has(node.type) ? provisionalId(revision, path, node) : undefined;
-  return id
-    ? { kind: 'id', id, expectedType: node.type }
+  const id = persistedIdFor(node);
+  const identityId = IDENTITY_BEARING_NODE_TYPES.has(node.type) ? id : undefined;
+  const targetId = identityId
+    ?? (REFERENCEABLE_NODE_TYPES.has(node.type) ? provisionalId(revision, path, node) : undefined);
+  return targetId
+    ? { kind: 'id', id: targetId, expectedType: node.type }
     : { kind: 'snapshot', path: [...path], nodeType: node.type, digest: nodeDigest(node) };
 };
 
@@ -305,9 +331,11 @@ function indexTargets(root: TiptapNode, revision: Sha256Digest): TargetIndex {
   const paths = new Map<TiptapNode, number[]>();
   for (const { node, path } of walkDocument(root)) {
     paths.set(node, [...path]);
-    const id = node.attrs?.id;
-    if (typeof id === 'string' && id) byId.set(id, node);
-    else if (REFERENCEABLE.has(node.type)) byId.set(provisionalId(revision, path, node), node);
+    const id = IDENTITY_BEARING_NODE_TYPES.has(node.type) ? persistedIdFor(node) : undefined;
+    if (id) byId.set(id, node);
+    else if (REFERENCEABLE_NODE_TYPES.has(node.type)) {
+      byId.set(provisionalId(revision, path, node), node);
+    }
   }
   return { byId, paths };
 }
@@ -720,8 +748,8 @@ function catalogItems(
   const ids = new Set<string>();
   if (kind === 'references') {
     for (const { node } of walkDocument(loaded.envelope.doc)) {
-      const id = node.attrs?.id;
-      if (typeof id === 'string' && id) ids.add(id);
+      const id = persistedIdFor(node);
+      if (REFERENCEABLE_NODE_TYPES.has(node.type) && id) ids.add(id);
     }
   }
   let seen = 0;
@@ -737,8 +765,9 @@ function catalogItems(
   };
   traversal:
   for (const { node, path } of walkDocument(loaded.envelope.doc)) {
-    const id = typeof node.attrs?.id === 'string' && node.attrs.id ? node.attrs.id : undefined;
-    const provisional = !id && REFERENCEABLE.has(node.type)
+    const persistedId = persistedIdFor(node);
+    const id = IDENTITY_BEARING_NODE_TYPES.has(node.type) ? persistedId : undefined;
+    const provisional = !id && REFERENCEABLE_NODE_TYPES.has(node.type)
       ? provisionalId(loaded.revision, path, node) : undefined;
     if (kind === 'blocks' && !NON_BLOCK.has(node.type)) {
       if (add(() => ({
@@ -767,7 +796,7 @@ function catalogItems(
           }
         }
       }
-    } else if (kind === 'referenceables' && REFERENCEABLE.has(node.type)) {
+    } else if (kind === 'referenceables' && REFERENCEABLE_NODE_TYPES.has(node.type)) {
       if (add(() => ({
         type: node.type,
         ...(id ? { id } : {}),
@@ -965,6 +994,10 @@ function applyOne(
     if (newLevel < 1 || newLevel > 6) {
       return failure('argument', 'INVALID_HEADING_LEVEL', `resulting heading level ${newLevel} is out of range 1-6`);
     }
+    if (op.id !== undefined && !isAuthorablePersistentId(op.id)) {
+      return failure('argument', 'INVALID_NEW_ID',
+        'id must be non-empty, at most 128 Unicode code points, and outside the reserved provisional: namespace');
+    }
     const heading: TiptapNode = {
       type: 'heading', attrs: { level: newLevel, ...(op.id ? { id: op.id } : {}) },
       content: op.title ? [{ type: 'text', text: op.title }] : [],
@@ -986,15 +1019,15 @@ function applyOne(
     if (!target) return failure('conflict', 'TARGET_REMOVED', 'target is unavailable');
     if (target.type === 'heading') return failure('argument', 'SECTION_OPERATION_REQUIRED', 'heading replacement requires a section operation');
     if (op.block.type !== target.type) return failure('argument', 'NODE_TYPE_CHANGE', 'replaceBlock must preserve node type');
-    const oldId = target.attrs?.id;
-    const newId = op.block.attrs?.id;
-    if (oldId !== undefined && newId !== undefined && oldId !== newId) {
+    const oldId = persistedIdFor(target);
+    const newId = persistedIdFor(op.block);
+    if (oldId && newId && oldId !== newId) {
       return failure('argument', 'ID_CHANGE_FORBIDDEN', 'replaceBlock must preserve the existing id');
     }
     const location = findCurrent(root, target);
     if (!location) return failure('conflict', 'TARGET_REMOVED', 'target was removed');
     const replacement = clone(op.block);
-    if (oldId !== undefined) replacement.attrs = { ...replacement.attrs, id: oldId };
+    if (oldId) replacement.attrs = { ...replacement.attrs, id: oldId };
     location.parent.content?.splice(location.index, 1, replacement);
     for (const [key, value] of targets) {
       if (value === target) targets.set(key, replacement);
@@ -1099,11 +1132,9 @@ function applyOne(
         'renameBlockId requires a target with an existing persistent id');
     }
     const newId = op.newId;
-    if (!newId || unicodeCodePointLength(newId) > 128) {
-      return failure('argument', 'INVALID_NEW_ID', 'newId must be a non-empty string of at most 128 characters');
-    }
-    if (/^provisional:/.test(newId)) {
-      return failure('argument', 'INVALID_NEW_ID', 'newId must not use the reserved provisional: prefix');
+    if (!isAuthorablePersistentId(newId)) {
+      return failure('argument', 'INVALID_NEW_ID',
+        'newId must be non-empty, at most 128 Unicode code points, and outside the reserved provisional: namespace');
     }
     if (oldId === newId) return operationEvent(op, oldId, newId);
     for (const { node } of walkDocument(root)) {
@@ -1141,6 +1172,8 @@ export function inspectDocumentBytes(
   const loaded = load(bytes);
   if (isFailure(loaded)) return loaded;
   const state = analyze(loaded.envelope.doc);
+  const invalidId = invalidIdFailure(state);
+  if (invalidId) return invalidId;
   if (state.duplicates.length) {
     return failure('document', 'DUPLICATE_ID', `duplicate id: ${state.duplicates[0]}`);
   }
@@ -1153,18 +1186,19 @@ export function inspectDocumentBytes(
   let blockCount = 0;
   const ids = new Set<string>();
   for (const { node } of walkDocument(loaded.envelope.doc)) {
-    const id = node.attrs?.id;
-    if (typeof id === 'string' && id) ids.add(id);
+    const id = persistedIdFor(node);
+    if (REFERENCEABLE_NODE_TYPES.has(node.type) && id) ids.add(id);
   }
   for (const { node, path } of walkDocument(loaded.envelope.doc)) {
-    const id = typeof node.attrs?.id === 'string' && node.attrs.id ? node.attrs.id : undefined;
-    const provisional = !id && REFERENCEABLE.has(node.type)
+    const persistedId = persistedIdFor(node);
+    const id = IDENTITY_BEARING_NODE_TYPES.has(node.type) ? persistedId : undefined;
+    const provisional = !id && REFERENCEABLE_NODE_TYPES.has(node.type)
       ? provisionalId(loaded.revision, path, node) : undefined;
     if (node.type === 'heading' && outline.length < maxBlocks) outline.push({
       ...(id ? { id } : {}), ...(provisional ? { provisionalId: provisional } : {}),
       level: Number(node.attrs?.level), text: textOf(node).slice(0, maxSummary), path: [...path],
     });
-    if (REFERENCEABLE.has(node.type) && referenceables.length < maxBlocks) referenceables.push({
+    if (REFERENCEABLE_NODE_TYPES.has(node.type) && referenceables.length < maxBlocks) referenceables.push({
       type: node.type, ...(id ? { id } : {}),
       ...(provisional ? { provisionalId: provisional } : {}), path: [...path],
     });
@@ -1254,6 +1288,8 @@ export function projectDocumentBytes(
     return failure('conflict', 'STALE_REVISION', 'expected revision does not match document bytes');
   }
   const state = analyze(loaded.envelope.doc);
+  const invalidId = invalidIdFailure(state);
+  if (invalidId) return invalidId;
   if (state.duplicates.length) {
     return failure('document', 'DUPLICATE_ID', `duplicate id: ${state.duplicates[0]}`);
   }
@@ -1430,6 +1466,8 @@ export function validateDocumentBytes(bytes: Uint8Array | string): ValidateDocum
   const loaded = load(bytes);
   if (isFailure(loaded)) return loaded;
   const state = analyze(loaded.envelope.doc);
+  const invalidId = invalidIdFailure(state);
+  if (invalidId) return invalidId;
   if (state.duplicates.length) {
     return failure('document', 'DUPLICATE_ID', `duplicate id: ${state.duplicates[0]}`);
   }
@@ -1464,6 +1502,8 @@ export function applyOperationRequest(
   const baseline = analyze(loaded.envelope.doc);
   const originalSettings = resolveSettings(loaded.envelope.meta.settings, options.externalSettings);
   const originalNumbering = numberingById(loaded.envelope.doc, originalSettings);
+  const invalidId = invalidIdFailure(baseline);
+  if (invalidId) return invalidId;
   if (baseline.duplicates.length) {
     return failure('document', 'DUPLICATE_ID', `duplicate id: ${baseline.duplicates[0]}`);
   }
@@ -1514,6 +1554,8 @@ export function applyOperationRequest(
     };
   }
   const rawState = analyze(envelope.doc);
+  const rawInvalidId = invalidIdFailure(rawState);
+  if (rawInvalidId) return rawInvalidId;
   if (rawState.duplicates.length) {
     return failure('document', 'DUPLICATE_ID', `duplicate id: ${rawState.duplicates[0]}`);
   }
@@ -1569,6 +1611,8 @@ export function applyOperationRequest(
       : entry.startsWith('dangling:') ? 'NEW_DANGLING_REFERENCE' : 'NEW_UNSAFE_LINK',
     'operation introduces or increases an integrity violation');
   }
+  const afterInvalidId = invalidIdFailure(after);
+  if (afterInvalidId) return afterInvalidId;
   if (after.duplicates.length) {
     return failure('document', 'DUPLICATE_ID', `duplicate id: ${after.duplicates[0]}`);
   }

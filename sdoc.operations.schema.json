@@ -16,6 +16,13 @@
   },
   "additionalProperties": false,
   "definitions": {
+    "authoredPersistentId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "not": { "pattern": "^provisional:" },
+      "description": "A non-empty Unicode ID of at most 128 code points outside the reserved provisional: namespace."
+    },
     "sha256": {
       "type": "string",
       "pattern": "^sha256:[0-9a-f]{64}$"
@@ -128,7 +135,7 @@
         "op": { "const": "insertSection" },
         "target": { "$ref": "#/definitions/target" },
         "title": { "type": "string" },
-        "id": { "type": "string" },
+        "id": { "$ref": "#/definitions/authoredPersistentId" },
         "position": { "enum": ["child", "before", "after"] },
         "blocks": {
           "type": "array",
@@ -201,12 +208,7 @@
       "properties": {
         "op": { "const": "renameBlockId" },
         "target": { "$ref": "#/definitions/target" },
-        "newId": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 128,
-          "not": { "pattern": "^provisional:" }
-        }
+        "newId": { "$ref": "#/definitions/authoredPersistentId" }
       },
       "additionalProperties": false
     },

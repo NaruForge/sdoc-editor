@@ -78,6 +78,25 @@
       "additionalProperties": false
     },
 
+    "legacyReferenceId": {
+      "type": ["string", "null"],
+      "description": "Backward-compatible cross-reference anchor. Existing .sdoc 1.0 documents allowed any string; newly authored IDs should follow stableId."
+    },
+
+    "stableId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "not": { "pattern": "^provisional:" },
+      "description": "Optional stable block identity. Omit attrs.id when absent; when present, authored values are non-empty strings of at most 128 Unicode code points and cannot use the reserved provisional: namespace."
+    },
+
+    "historicalHorizontalRuleId": {
+      "type": ["string", "null"],
+      "pattern": "^[A-Za-z][A-Za-z0-9._:-]*$",
+      "description": "Historical horizontal-rule ID shape retained for .sdoc 1.0 compatibility; it is collision-reserved but is not an operation identity or cross-reference anchor."
+    },
+
     "docNode": {
       "type": "object",
       "required": ["type"],
@@ -128,7 +147,7 @@
           "required": ["level"],
           "properties": {
             "level": { "type": "integer", "minimum": 1, "maximum": 6 },
-            "id": { "type": ["string", "null"], "description": "Anchor id for cross-references." },
+            "id": { "$ref": "#/definitions/legacyReferenceId" },
             "textAlign": { "type": ["string", "null"], "enum": ["left", "center", "right", "justify", null] },
             "numbered": { "type": ["boolean", "null"], "description": "false면 자동 번호 매김에서 제외 (예: Introduction, Glossary, References). 생략 또는 null이면 번호 매김 대상." }
           },
@@ -150,7 +169,8 @@
         "attrs": {
           "type": "object",
           "properties": {
-            "textAlign": { "type": ["string", "null"], "enum": ["left", "center", "right", "justify", null] }
+            "textAlign": { "type": ["string", "null"], "enum": ["left", "center", "right", "justify", null] },
+            "id": { "$ref": "#/definitions/stableId" }
           },
           "additionalProperties": false
         },
@@ -167,6 +187,13 @@
       "required": ["type"],
       "properties": {
         "type": { "const": "bulletList" },
+        "attrs": {
+          "type": "object",
+          "properties": {
+            "id": { "$ref": "#/definitions/stableId" }
+          },
+          "additionalProperties": false
+        },
         "content": {
           "type": "array",
           "items": { "$ref": "#/definitions/listItemNode" }
@@ -184,7 +211,8 @@
           "type": "object",
           "properties": {
             "start": { "type": ["integer", "null"], "default": 1 },
-            "type": { "type": ["string", "null"] }
+            "type": { "type": ["string", "null"] },
+            "id": { "$ref": "#/definitions/stableId" }
           },
           "additionalProperties": false
         },
@@ -201,6 +229,13 @@
       "required": ["type"],
       "properties": {
         "type": { "const": "listItem" },
+        "attrs": {
+          "type": "object",
+          "properties": {
+            "id": { "$ref": "#/definitions/stableId" }
+          },
+          "additionalProperties": false
+        },
         "content": {
           "type": "array",
           "items": { "$ref": "#/definitions/blockNode" }
@@ -214,6 +249,13 @@
       "required": ["type"],
       "properties": {
         "type": { "const": "taskList" },
+        "attrs": {
+          "type": "object",
+          "properties": {
+            "id": { "$ref": "#/definitions/stableId" }
+          },
+          "additionalProperties": false
+        },
         "content": {
           "type": "array",
           "items": { "$ref": "#/definitions/taskItemNode" }
@@ -249,7 +291,8 @@
         "attrs": {
           "type": "object",
           "properties": {
-            "language": { "type": ["string", "null"] }
+            "language": { "type": ["string", "null"] },
+            "id": { "$ref": "#/definitions/stableId" }
           },
           "additionalProperties": false
         },
@@ -272,7 +315,7 @@
             "caption": { "type": ["string", "null"], "description": "Table caption text." },
             "align": { "type": "string", "enum": ["left", "center", "right"], "default": "left" },
             "width": { "type": "string", "description": "CSS width value (e.g., '100%', '50%', 'auto').", "default": "auto" },
-            "id": { "type": ["string", "null"], "description": "Anchor id for cross-references." }
+            "id": { "$ref": "#/definitions/legacyReferenceId" }
           },
           "additionalProperties": false
         },
@@ -363,7 +406,7 @@
             "align": { "type": "string", "enum": ["left", "center", "right"], "default": "center" },
             "width": { "type": ["string", "number", "null"] },
             "height": { "type": ["string", "number", "null"] },
-            "id": { "type": ["string", "null"], "description": "Anchor id for cross-references." }
+            "id": { "$ref": "#/definitions/legacyReferenceId" }
           },
           "additionalProperties": false
         }
@@ -381,7 +424,7 @@
           "required": ["latex"],
           "properties": {
             "latex": { "type": "string", "description": "LaTeX math expression." },
-            "id": { "type": ["string", "null"], "description": "Anchor id for cross-references." }
+            "id": { "$ref": "#/definitions/legacyReferenceId" }
           },
           "additionalProperties": false
         }
@@ -416,7 +459,8 @@
           "required": ["language", "code"],
           "properties": {
             "language": { "type": "string", "description": "Diagram language, e.g. mermaid, plantuml, d2." },
-            "code": { "type": "string", "description": "Diagram source code." }
+            "code": { "type": "string", "description": "Diagram source code." },
+            "id": { "$ref": "#/definitions/stableId" }
           },
           "additionalProperties": false
         }
@@ -441,10 +485,7 @@
         "attrs": {
           "type": "object",
           "properties": {
-            "id": {
-              "type": ["string", "null"],
-              "pattern": "^[A-Za-z][A-Za-z0-9._:-]*$"
-            }
+            "id": { "$ref": "#/definitions/historicalHorizontalRuleId" }
           },
           "additionalProperties": false
         }
@@ -457,6 +498,13 @@
       "required": ["type"],
       "properties": {
         "type": { "const": "blockquote" },
+        "attrs": {
+          "type": "object",
+          "properties": {
+            "id": { "$ref": "#/definitions/stableId" }
+          },
+          "additionalProperties": false
+        },
         "content": {
           "type": "array",
           "items": { "$ref": "#/definitions/blockNode" }
@@ -477,7 +525,8 @@
               "type": "string",
               "enum": ["note", "info", "tip", "warning", "danger"],
               "description": "Visual style of the callout block."
-            }
+            },
+            "id": { "$ref": "#/definitions/stableId" }
           },
           "additionalProperties": false
         },

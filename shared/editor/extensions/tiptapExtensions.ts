@@ -1,6 +1,8 @@
 import { StarterKit } from '@tiptap/starter-kit';
 import { Extension } from '@tiptap/core';
 import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
+import type { Transaction } from '@tiptap/pm/state';
+import { Fragment, Slice } from '@tiptap/pm/model';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import type { EditorView } from '@tiptap/pm/view';
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
@@ -25,6 +27,13 @@ import { Superscript } from '@tiptap/extension-superscript';
 import { Callout } from './Callout';
 import { CursorHistory } from './CursorHistory';
 import { assignAutoIds } from '../../document/sdocUtils';
+import {
+  ID_COLLISION_NODE_TYPES,
+  isAuthorablePersistentId,
+  isHistoricalHorizontalRuleId,
+  OPTIONAL_IDENTITY_NODE_TYPES,
+  REFERENCEABLE_NODE_TYPES,
+} from '../../document/nodeIdentity';
 import { getCaptionPreset } from '../../settingsResolver';
 import {
   NOOP_EDITOR_EXTENSION_RUNTIME,
@@ -231,7 +240,141 @@ const HeadingKeyboardShortcuts = Extension.create({
   },
 });
 
-const REFERENCEABLE_NODE_TYPES = new Set(['heading', 'image', 'table', 'mathBlock']);
+const optionalBlockIdAttribute = {
+  default: undefined,
+  keepOnSplit: false,
+  parseHTML: (element: HTMLElement) => {
+    const id = element.getAttribute('data-id');
+    return id && isAuthorablePersistentId(id) ? id : undefined;
+  },
+  renderHTML: (attributes: Record<string, unknown>) => {
+    const id = attributes.id;
+    return typeof id === 'string' && id ? { 'data-id': id } : {};
+  },
+};
+
+const historicalHorizontalRuleIdAttribute = {
+  default: undefined,
+  keepOnSplit: false,
+  parseHTML: (element: HTMLElement) => {
+    const id = element.getAttribute('data-id');
+    return id && isHistoricalHorizontalRuleId(id) ? id : undefined;
+  },
+  renderHTML: (attributes: Record<string, unknown>) => {
+    const id = attributes.id;
+    return typeof id === 'string' && isHistoricalHorizontalRuleId(id)
+      ? { 'data-id': id }
+      : {};
+  },
+};
+
+function collectIdentityIds(doc: ProseMirrorNode): Set<string> {
+  const ids = new Set<string>();
+  doc.descendants((node) => {
+    const id = node.attrs.id;
+    if (ID_COLLISION_NODE_TYPES.has(node.type.name) && typeof id === 'string' && id) {
+      ids.add(id);
+    }
+  });
+  return ids;
+}
+
+function stripPastedIdCollisions(
+  fragment: Fragment,
+  usedIds: Set<string>,
+): Fragment {
+  const nodes: ProseMirrorNode[] = [];
+  fragment.forEach((node) => {
+    let nextAttrs = node.attrs;
+    const id = node.attrs.id;
+    if (ID_COLLISION_NODE_TYPES.has(node.type.name) && typeof id === 'string' && id) {
+      if (usedIds.has(id)) {
+        nextAttrs = { ...node.attrs, id: undefined };
+      } else {
+        usedIds.add(id);
+      }
+    }
+
+    const nextContent = node.content.size > 0
+      ? stripPastedIdCollisions(node.content, usedIds)
+      : node.content;
+    const nextNode = nextAttrs === node.attrs && nextContent.eq(node.content)
+      ? node
+      : node.type.create(nextAttrs, nextContent, node.marks);
+    nodes.push(nextNode);
+  });
+  return Fragment.fromArray(nodes);
+}
+
+function isPlainIdentityTextTransaction(transaction: Transaction): boolean {
+  if (!isPlainParagraphTextTransaction(transaction)) return false;
+  return transaction.steps.every((step) => {
+    const json = step.toJSON() as {
+      stepType?: unknown;
+      slice?: { content?: Array<{ type?: unknown }> };
+    };
+    return json.stepType === 'replace'
+      && (json.slice?.content ?? []).every((node) => node.type === 'text');
+  });
+}
+
+const BlockIdentity = Extension.create({
+  name: 'blockIdentity',
+
+  addGlobalAttributes() {
+    return [
+      {
+        // data-id preserves editor identity without creating an HTML anchor.
+        types: [...OPTIONAL_IDENTITY_NODE_TYPES],
+        attributes: { id: optionalBlockIdAttribute },
+      },
+      {
+        // horizontalRule is a legacy collision reservation, not authored identity.
+        types: ['horizontalRule'],
+        attributes: { id: historicalHorizontalRuleIdAttribute },
+      },
+    ];
+  },
+
+  addProseMirrorPlugins() {
+    return [new Plugin({
+      props: {
+        transformPasted(slice, view) {
+          const usedIds = collectIdentityIds(view.state.doc);
+          const content = stripPastedIdCollisions(slice.content, usedIds);
+          return content.eq(slice.content)
+            ? slice
+            : new Slice(content, slice.openStart, slice.openEnd);
+        },
+      },
+
+      // ProseMirror may copy node attrs while splitting a block. Keep the
+      // first occurrence and clear the copied ID from the new sibling.
+      appendTransaction(transactions, _oldState, newState) {
+        if (!transactions.some((transaction) => transaction.docChanged)) return null;
+        if (transactions.filter((transaction) => transaction.docChanged)
+          .every(isPlainIdentityTextTransaction)) return null;
+
+        const seenIds = new Set<string>();
+        const duplicates: Array<{ node: ProseMirrorNode; pos: number }> = [];
+        newState.doc.descendants((node, pos) => {
+          if (!ID_COLLISION_NODE_TYPES.has(node.type.name)) return;
+          const id = node.attrs.id;
+          if (typeof id !== 'string' || !id) return;
+          if (seenIds.has(id)) duplicates.push({ node, pos });
+          else seenIds.add(id);
+        });
+
+        if (duplicates.length === 0) return null;
+        const transaction = newState.tr;
+        for (const { node, pos } of duplicates) {
+          transaction.setNodeMarkup(pos, undefined, { ...node.attrs, id: undefined });
+        }
+        return transaction;
+      },
+    })];
+  },
+});
 
 /** Assign persistent identities inside the editor transaction, before any host save round-trip. */
 const PersistentNodeIds = Extension.create({
@@ -519,6 +662,7 @@ export function createTiptapExtensions(runtime: EditorExtensionRuntime) {
   }),
   HeadingNumbering,
   DocumentStructureIndexExtension.configure({ runtime }),
+  BlockIdentity,
   PersistentNodeIds,
   Callout.configure({ runtime }),
   CustomCodeBlock.configure({ runtime } as Partial<typeof CustomCodeBlock.options> & {
@@ -594,7 +738,7 @@ export function createTiptapExtensions(runtime: EditorExtensionRuntime) {
                 view.state.doc.descendants((node, pos) => {
                   if (targetPos !== null) return false;
                   // Check persisted id first
-                  if (node.attrs?.id === targetId) {
+                  if (REFERENCEABLE_NODE_TYPES.has(node.type.name) && node.attrs?.id === targetId) {
                     targetPos = pos;
                     return false;
                   }

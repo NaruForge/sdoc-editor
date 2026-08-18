@@ -1,4 +1,5 @@
 import type { TiptapNode } from '../types';
+import { ID_COLLISION_NODE_TYPES } from './nodeIdentity';
 
 export function isPortableAssetPath(value: string): boolean {
   if (!value.startsWith('./') || value.includes('\\')) return false;
@@ -40,6 +41,13 @@ export async function hydrateDocumentAssets(
  */
 export function dehydrateDocumentAssets(node: TiptapNode): TiptapNode {
   const attrs = node.attrs ? { ...node.attrs } : undefined;
+  const removedImplicitId = attrs !== undefined
+    && ID_COLLISION_NODE_TYPES.has(node.type)
+    && Object.prototype.hasOwnProperty.call(attrs, 'id')
+    && attrs.id === undefined;
+  if (removedImplicitId) {
+    delete attrs.id;
+  }
   if (node.type === 'image' && attrs) {
     const relativePath = typeof attrs.relativePath === 'string' ? attrs.relativePath : undefined;
     if (relativePath && isPortableAssetPath(relativePath)) {
@@ -52,9 +60,11 @@ export function dehydrateDocumentAssets(node: TiptapNode): TiptapNode {
     delete attrs.assetUrl;
   }
 
-  return {
+  const dehydrated: TiptapNode = {
     ...node,
-    ...(attrs ? { attrs } : {}),
     ...(node.content ? { content: node.content.map(dehydrateDocumentAssets) } : {}),
   };
+  if (attrs && (Object.keys(attrs).length > 0 || !removedImplicitId)) dehydrated.attrs = attrs;
+  else delete dehydrated.attrs;
+  return dehydrated;
 }
