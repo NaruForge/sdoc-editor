@@ -293,6 +293,39 @@ describe('DocumentSyncCoordinator', () => {
     expect(sent).toHaveLength(1);
   });
 
+  it('advances past an N+1 parse-equal host snapshot without opening a banner', () => {
+    const local = mutation('same body');
+    const sync = new DocumentSyncCoordinator({
+      identity: { sessionId: 'session-a', documentId: 'doc-a', revision: 4 },
+      createEditId: () => 'edit-1',
+      send: () => {},
+    });
+    sync.submit(local);
+
+    expect(sync.acknowledge({
+      sessionId: 'session-a',
+      documentId: 'doc-a',
+      editId: 'edit-1',
+      revision: 5,
+    })).toBe(true);
+    expect(sync.observeExternalChange(6, local)).toBe(false);
+    expect(sync.state.externalChange).toBeNull();
+    expect(sync.state.acknowledgedRevision).toBe(6);
+  });
+
+  it('advances a host-verified representation-only revision without a snapshot conflict', () => {
+    const sync = new DocumentSyncCoordinator({
+      identity: { sessionId: 'session-a', documentId: 'doc-a', revision: 4 },
+      send: () => {},
+    });
+    sync.adoptReplacement(4, mutation('same body'));
+
+    expect(sync.advanceAcknowledgedRevision(5)).toBe(true);
+    expect(sync.advanceAcknowledgedRevision(5)).toBe(false);
+    expect(sync.state.acknowledgedRevision).toBe(5);
+    expect(sync.state.externalChange).toBeNull();
+  });
+
   it('uses a save barrier captured at request time without blocking later typing', async () => {
     let nextId = 0;
     const sent: DocumentMutationRequest[] = [];

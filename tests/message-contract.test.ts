@@ -698,6 +698,9 @@ describe('editor host message boundary', () => {
     expect(isEditorToHostMessage({
       type: 'flushComplete', sessionId: 'session-1', documentId: 'doc-a', requestId: 'flush-1',
     })).toBe(true);
+    expect(isEditorToHostMessage({
+      type: 'externalChangeAdopted', sessionId: 'session-1', documentId: 'doc-a', revision: 6,
+    })).toBe(true);
     expect(isEditorToHostMessage({ type: 'flushComplete' })).toBe(false);
     expect(isHostToEditorMessage({
       type: 'editAcknowledged', sessionId: 'session-1', documentId: 'doc-a', editId: 'edit-1',
@@ -717,6 +720,12 @@ describe('editor host message boundary', () => {
         meta: {},
         documentSettings: null,
       },
+    })).toBe(true);
+    expect(isHostToEditorMessage({
+      type: 'documentRevisionAdvanced',
+      sessionId: 'session-1',
+      documentId: 'doc-a',
+      revision: 7,
     })).toBe(true);
   });
 });

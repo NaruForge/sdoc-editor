@@ -181,6 +181,13 @@ export interface ExternalChangeMessage {
   snapshot: DocumentMutation;
 }
 
+export interface DocumentRevisionAdvancedMessage {
+  type: 'documentRevisionAdvanced';
+  sessionId: string;
+  documentId: string;
+  revision: number;
+}
+
 export interface ReplaceDocumentMessage {
   type: 'replaceDocument';
   sessionId: string;
@@ -413,6 +420,7 @@ export type ExtensionToWebviewMessage =
   | TemplateApplicationFinishedMessage
   | TemplateOperationFinishedMessage
   | ExternalChangeMessage
+  | DocumentRevisionAdvancedMessage
   | ReplaceDocumentMessage
   | EditAcknowledgedMessage
   | DocumentSaveStateMessage
@@ -715,6 +723,13 @@ export interface RecoverInvalidDocumentMessage {
   mutation: DocumentMutation;
 }
 
+export interface ExternalChangeAdoptedMessage {
+  type: 'externalChangeAdopted';
+  sessionId: string;
+  documentId: string;
+  revision: number;
+}
+
 export type WebviewToExtensionMessage =
   | ReadyMessage
   | UiReadyMessage
@@ -755,7 +770,8 @@ export type WebviewToExtensionMessage =
   | FlushFailedMessage
   | SelectCssFileMessage
   | ClearCssFileMessage
-  | RecoverInvalidDocumentMessage;
+  | RecoverInvalidDocumentMessage
+  | ExternalChangeAdoptedMessage;
 
 /** Host-boundary names shared by the VS Code extension and its webview. */
 export type HostToEditorMessage = ExtensionToWebviewMessage;

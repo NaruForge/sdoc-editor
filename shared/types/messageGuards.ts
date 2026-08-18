@@ -514,6 +514,9 @@ export function isEditorToHostMessage(value: unknown): value is EditorToHostMess
       return hasString(value, 'requestId') && hasString(value, 'sessionId')
         && hasString(value, 'documentId') && hasNumber(value, 'baseRevision')
         && isDocumentMutation(value.mutation);
+    case 'externalChangeAdopted':
+      return hasString(value, 'sessionId') && hasString(value, 'documentId')
+        && hasNumber(value, 'revision');
     case 'openDocument':
       return hasString(value, 'path') && (value.anchor === undefined || typeof value.anchor === 'string');
     case 'selectCssFile':
@@ -567,6 +570,9 @@ export function isHostToEditorMessage(value: unknown): value is HostToEditorMess
     case 'externalChange':
       return hasString(value, 'sessionId') && hasString(value, 'documentId')
         && hasNumber(value, 'revision') && isDocumentMutation(value.snapshot);
+    case 'documentRevisionAdvanced':
+      return hasString(value, 'sessionId') && hasString(value, 'documentId')
+        && hasNumber(value, 'revision');
     case 'replaceDocument':
       return hasString(value, 'sessionId') && hasString(value, 'documentId')
         && hasNumber(value, 'revision')

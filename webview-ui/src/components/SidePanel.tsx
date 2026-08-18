@@ -186,32 +186,6 @@ export const SidePanel: React.FC<SidePanelProps> = ({
         )}
         {selection.destination === 'publish' && selection.tab === 'export' && (
           <>
-            <DocumentSettingsPanel
-              exportMode="export"
-              onUpdateSettings={onUpdateDocSettings}
-              onSelectCssFile={onPostMessage
-                ? (target) => onPostMessage({ type: 'selectCssFile', target })
-                : undefined}
-              onClearCssFile={onPostMessage
-                ? (target) => onPostMessage({ type: 'clearCssFile', target })
-                : undefined}
-            />
-            <DiagramRendererSettingsPanel
-              settings={diagramRendererSettings}
-              onChange={onDiagramRendererSettingsChange}
-              onResolveConsent={onResolveDiagramRendererConsent}
-              onTest={onTestDiagramRenderer}
-              showUndecidedConsent={!pendingDiagramExportConsent}
-            />
-            {pendingDiagramExportConsent && (
-              <DiagramRendererConsentPanel
-                settings={diagramRendererSettings}
-                language="PlantUML, D2, Graphviz"
-                onDecision={onDiagramExportConsent}
-                onCancel={onCancelDiagramExportConsent}
-                autoFocus
-              />
-            )}
             <FilesPanel
               exportFormats={EXPORT_FORMATS}
               importFormats={[]}
@@ -223,6 +197,35 @@ export const SidePanel: React.FC<SidePanelProps> = ({
               onResultAction={onFileOperationResultAction}
               onViewJson={onViewJson}
             />
+            {pendingDiagramExportConsent && (
+              <DiagramRendererConsentPanel
+                settings={diagramRendererSettings}
+                language="PlantUML, D2, Graphviz"
+                onDecision={onDiagramExportConsent}
+                onCancel={onCancelDiagramExportConsent}
+                autoFocus
+              />
+            )}
+            <details className="files-panel-advanced">
+              <summary>{t('settings.exportOptions')}</summary>
+              <DocumentSettingsPanel
+                exportMode="export"
+                onUpdateSettings={onUpdateDocSettings}
+                onSelectCssFile={onPostMessage
+                  ? (target) => onPostMessage({ type: 'selectCssFile', target })
+                  : undefined}
+                onClearCssFile={onPostMessage
+                  ? (target) => onPostMessage({ type: 'clearCssFile', target })
+                  : undefined}
+              />
+              <DiagramRendererSettingsPanel
+                settings={diagramRendererSettings}
+                onChange={onDiagramRendererSettingsChange}
+                onResolveConsent={onResolveDiagramRendererConsent}
+                onTest={onTestDiagramRenderer}
+                showUndecidedConsent={!pendingDiagramExportConsent}
+              />
+            </details>
           </>
         )}
         {selection.destination === 'publish' && selection.tab === 'import' && (

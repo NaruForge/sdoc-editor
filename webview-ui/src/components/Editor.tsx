@@ -60,6 +60,11 @@ import {
 } from '@shared/editor/linkEditing';
 import { resolveStructurePosition } from '@shared/editor/structureIndex';
 import { toSettingsSyncState } from '@shared/editor/designSettings';
+import {
+  parseStoredReadingWidth,
+  READING_WIDTH_STORAGE_KEY,
+  type ReadingWidthId,
+} from '@shared/editor/readingWidth';
 import { collectEditorStyleProbe, hasAppliedEditorStyles } from '../styleReadiness';
 
 export function parseStoredZoom(value: string | null): number {
@@ -85,6 +90,9 @@ export const Editor: React.FC = () => {
   const editorAreaRef = useRef<HTMLDivElement | null>(null);
   const [zoom, setZoom] = useState<number>(() => {
     return parseStoredZoom(localStorage.getItem('sdoc-editor-zoom'));
+  });
+  const [readingWidth, setReadingWidth] = useState<ReadingWidthId>(() => {
+    return parseStoredReadingWidth(localStorage.getItem(READING_WIDTH_STORAGE_KEY));
   });
   const [showInvalidRecoveryConfirm, setShowInvalidRecoveryConfirm] = useState(false);
   const invalidRecoveryCancelRef = useRef<HTMLButtonElement>(null);
@@ -387,6 +395,11 @@ export const Editor: React.FC = () => {
     localStorage.setItem('sdoc-editor-zoom', String(clamped));
   }, []);
 
+  const handleReadingWidthChange = useCallback((value: ReadingWidthId) => {
+    setReadingWidth(value);
+    localStorage.setItem(READING_WIDTH_STORAGE_KEY, value);
+  }, []);
+
   const handleUpdateDocSettings = useCallback((settings: Partial<DocumentSettings> | null) => {
     if (!state.documentAccess.capabilities.editDocumentSettings) return;
     if (settings) dispatch({ type: 'SET_SETTINGS', payload: settings });
@@ -680,7 +693,7 @@ export const Editor: React.FC = () => {
 
   if (!editor) {
     return (
-      <div style={{ padding: '20px', textAlign: 'center' }}>
+      <div className="editor-loading" role="status">
         {t('editor.loading')}
       </div>
     );
@@ -895,7 +908,7 @@ export const Editor: React.FC = () => {
           />
         )}
         <div ref={editorAreaRef} className="editor-content-area" tabIndex={-1}>
-          <div className="editor-scroll-area">
+          <div className="editor-scroll-area" data-reading-width={readingWidth}>
             <div style={{ zoom: zoom / 100 }}>
               <div className="editor-title-area">
                 <input
@@ -913,7 +926,12 @@ export const Editor: React.FC = () => {
               />
             </div>
           </div>
-          <ZoomBar zoom={zoom} onZoomChange={handleZoomChange} />
+          <ZoomBar
+            zoom={zoom}
+            onZoomChange={handleZoomChange}
+            readingWidth={readingWidth}
+            onReadingWidthChange={handleReadingWidthChange}
+          />
         </div>
       </div>
       {showInvalidRecoveryConfirm && (

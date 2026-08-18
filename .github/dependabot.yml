@@ -10,6 +10,9 @@ updates:
     groups:
       javascript:
         patterns: ['*']
+        update-types:
+          - minor
+          - patch
     labels: [dependencies, javascript]
   - package-ecosystem: github-actions
     directory: /
@@ -21,4 +24,7 @@ updates:
     groups:
       github-actions:
         patterns: ['*']
+        update-types:
+          - minor
+          - patch
     labels: [dependencies, github-actions]

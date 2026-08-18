@@ -1,4 +1,5 @@
 import type { DocumentSettings, SdocMeta, TiptapNode } from '../types';
+import { areDocumentMutationsSemanticallyEqual } from '../editor/externalChanges/mutationDiff';
 
 export interface DocumentSyncIdentity {
   sessionId: string;
@@ -266,10 +267,40 @@ export class DocumentSyncCoordinator {
 
   public observeExternalChange(revision: number, hostSnapshot: DocumentMutation): boolean {
     if (revision <= this.current.acknowledgedRevision) return false;
+    if (this.current.localMutation
+      && areDocumentMutationsSemanticallyEqual(this.current.localMutation, hostSnapshot)) {
+      const remainingExternalChange = this.current.externalChange
+        && this.current.externalChange.revision > revision
+        ? this.current.externalChange
+        : null;
+      this.publish({
+        ...this.current,
+        acknowledgedRevision: revision,
+        externalChange: remainingExternalChange,
+      });
+      this.dispatchNext();
+      return false;
+    }
     this.publish({
       ...this.current,
       externalChange: { revision, hostSnapshot },
     });
+    return true;
+  }
+
+  /** Advances across a host-verified representation-only document edit. */
+  public advanceAcknowledgedRevision(revision: number): boolean {
+    if (revision <= this.current.acknowledgedRevision) return false;
+    const remainingExternalChange = this.current.externalChange
+      && this.current.externalChange.revision > revision
+      ? this.current.externalChange
+      : null;
+    this.publish({
+      ...this.current,
+      acknowledgedRevision: revision,
+      externalChange: remainingExternalChange,
+    });
+    this.dispatchNext();
     return true;
   }
 

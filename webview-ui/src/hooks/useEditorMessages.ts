@@ -302,6 +302,26 @@ export function useEditorMessages({
     editorRef.current?.setEditable(access.status === 'editable');
   };
 
+  const observeHostSnapshot = (revision: number, snapshot: DocumentMutation): void => {
+    const sync = syncCoordinatorRef.current;
+    if (!sync) return;
+    if (sync.observeExternalChange(revision, snapshot)) {
+      setExternalChange({ revision, snapshot });
+      return;
+    }
+    if (sync.state.acknowledgedRevision >= revision && persistenceSessionRef.current) {
+      persistenceSessionRef.current.revision = Math.max(
+        persistenceSessionRef.current.revision,
+        revision,
+      );
+    }
+    const observed = sync.state.externalChange;
+    setExternalChange(observed
+      ? { revision: observed.revision, snapshot: observed.hostSnapshot }
+      : null);
+    if (!observed) setShowExternalComparison(false);
+  };
+
   const { postMessage } = useVSCodeMessaging((message) => {
     const ed = editorRef.current;
     const flush = flushRef.current;
@@ -501,8 +521,18 @@ export function useEditorMessages({
       case 'externalChange':
         if (persistenceSessionRef.current?.sessionId !== message.sessionId
           || persistenceSessionRef.current.documentId !== message.documentId) break;
-        if (syncCoordinatorRef.current?.observeExternalChange(message.revision, message.snapshot)) {
-          setExternalChange({ revision: message.revision, snapshot: message.snapshot });
+        observeHostSnapshot(message.revision, message.snapshot);
+        break;
+      case 'documentRevisionAdvanced':
+        if (persistenceSessionRef.current?.sessionId !== message.sessionId
+          || persistenceSessionRef.current.documentId !== message.documentId) break;
+        if (syncCoordinatorRef.current?.advanceAcknowledgedRevision(message.revision)) {
+          persistenceSessionRef.current.revision = message.revision;
+          const observed = syncCoordinatorRef.current.state.externalChange;
+          setExternalChange(observed
+            ? { revision: observed.revision, snapshot: observed.hostSnapshot }
+            : null);
+          if (!observed) setShowExternalComparison(false);
         }
         break;
       case 'replaceDocument':
@@ -1206,6 +1236,16 @@ export function useEditorMessages({
       setExternalChange(null);
       publishAccess({ status: 'editable', capabilities: EDITABLE_CAPABILITIES });
       setShowExternalComparison(false);
+      if (session) {
+        void postMessage({
+          type: 'externalChangeAdopted',
+          sessionId: session.sessionId,
+          documentId: session.documentId,
+          revision: externalChange.revision,
+        }).catch((error: unknown) => {
+          console.error('Failed to acknowledge the adopted external document', error);
+        });
+      }
     } catch (error: unknown) {
       console.error('Failed to reload an external document change', error);
       throw error;

@@ -1,5 +1,8 @@
 export { buildExternalDocumentDiff } from './diff';
-export { buildExternalMutationDiff } from './mutationDiff';
+export {
+  areDocumentMutationsSemanticallyEqual,
+  buildExternalMutationDiff,
+} from './mutationDiff';
 export { buildExternalChangeComparison, type ExternalChangeComparisonLabels } from './comparisonModel';
 export { ExternalChangeBanner, type ExternalChangeBannerProps } from './ExternalChangeBanner';
 export {

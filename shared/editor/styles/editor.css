@@ -3,6 +3,11 @@
 @tailwind utilities;
 
 :root {
+  --sdoc-radius-control: 4px;
+  --sdoc-radius-menu: 6px;
+  --sdoc-space-control: 8px;
+  --sdoc-space-panel: 12px;
+  --sdoc-font-ui: var(--vscode-font-size, 13px);
   font-family: var(--sdoc-font-sans);
   font-size: var(--vscode-font-size);
   font-weight: var(--vscode-font-weight);
@@ -54,11 +59,23 @@ samp {
   overflow: hidden;
 }
 
+.editor-loading {
+  display: grid;
+  place-items: center;
+  flex: 1;
+  min-height: 0;
+  padding: var(--sdoc-space-panel);
+  color: var(--vscode-descriptionForeground);
+  text-align: center;
+  font-size: var(--sdoc-font-ui);
+}
+
 .ProseMirror {
   background-color: var(--vscode-editor-background);
   color: var(--vscode-editor-foreground);
   font-family: var(--sdoc-font-sans);
   font-weight: var(--font-weight-body, 400);
+  line-height: 1.6;
   padding: 16px;
   padding-bottom: 40vh; /* 문서 하단 여백: 뷰포트 높이의 40% */
   min-height: 100%;
@@ -113,6 +130,8 @@ samp {
 }
 
 .show-numbering.show-heading-decoration .ProseMirror h1 {
+  display: table;
+  max-width: 100%;
   border-bottom: 2px solid var(--heading-h1-color, #2563EB);
 }
 
@@ -223,6 +242,8 @@ samp {
 }
 
 .hide-numbering.show-heading-decoration .ProseMirror h1 {
+  display: table;
+  max-width: 100%;
   border-bottom: 2px solid var(--heading-h1-color, #2563EB);
 }
 
@@ -258,6 +279,15 @@ samp {
   margin: 0.83em 0;
 }
 
+/* Body paragraph rhythm (Tailwind preflight zeros p margins) */
+.ProseMirror p {
+  margin-top: 0.85em;
+  margin-bottom: 0.85em;
+}
+
+.ProseMirror :is(h1, h2, h3, h4, h5, h6) + p {
+  margin-top: 0;
+}
 
 /* Lists */
 .ProseMirror ul,
@@ -285,6 +315,12 @@ samp {
 
 .ProseMirror li p {
   margin: 0;
+}
+
+.ProseMirror hr {
+  border: none;
+  border-top: 1px solid var(--vscode-panel-border);
+  margin: 1.25em 0;
 }
 
 /* Code blocks */
@@ -361,38 +397,56 @@ samp {
   padding: 0;
 }
 
-/* Syntax Highlighting (lowlight / highlight.js) */
+/* Syntax Highlighting (lowlight / highlight.js) — VS Code theme roles, not Dark+ hex */
 .ProseMirror pre code .hljs-comment,
-.ProseMirror pre code .hljs-quote { color: #6a9955; font-style: italic; }
+.ProseMirror pre code .hljs-quote {
+  color: var(--vscode-descriptionForeground);
+  font-style: italic;
+}
 .ProseMirror pre code .hljs-keyword,
 .ProseMirror pre code .hljs-selector-tag,
-.ProseMirror pre code .hljs-addition { color: #569cd6; }
+.ProseMirror pre code .hljs-addition {
+  color: var(--vscode-charts-blue, var(--vscode-textLink-foreground));
+}
 .ProseMirror pre code .hljs-number,
 .ProseMirror pre code .hljs-string,
 .ProseMirror pre code .hljs-meta .hljs-meta-string,
 .ProseMirror pre code .hljs-literal,
 .ProseMirror pre code .hljs-doctag,
-.ProseMirror pre code .hljs-regexp { color: #ce9178; }
+.ProseMirror pre code .hljs-regexp {
+  color: var(--vscode-charts-orange, var(--vscode-editorWarning-foreground));
+}
 .ProseMirror pre code .hljs-title,
 .ProseMirror pre code .hljs-section,
 .ProseMirror pre code .hljs-name,
 .ProseMirror pre code .hljs-selector-id,
-.ProseMirror pre code .hljs-selector-class { color: #dcdcaa; }
+.ProseMirror pre code .hljs-selector-class {
+  color: var(--vscode-charts-yellow, var(--vscode-textPreformat-foreground, var(--vscode-editor-foreground)));
+}
 .ProseMirror pre code .hljs-attribute,
 .ProseMirror pre code .hljs-attr,
 .ProseMirror pre code .hljs-variable,
 .ProseMirror pre code .hljs-template-variable,
 .ProseMirror pre code .hljs-class .hljs-title,
-.ProseMirror pre code .hljs-type { color: #4ec9b0; }
+.ProseMirror pre code .hljs-type {
+  color: var(--vscode-charts-green, var(--vscode-textLink-foreground));
+}
 .ProseMirror pre code .hljs-symbol,
 .ProseMirror pre code .hljs-bullet,
 .ProseMirror pre code .hljs-subst,
 .ProseMirror pre code .hljs-meta,
 .ProseMirror pre code .hljs-meta .hljs-keyword,
-.ProseMirror pre code .hljs-tag { color: #d4d4d4; }
+.ProseMirror pre code .hljs-tag {
+  color: var(--vscode-textPreformat-foreground, var(--vscode-editor-foreground));
+}
 .ProseMirror pre code .hljs-built_in,
-.ProseMirror pre code .hljs-builtin-name { color: #4ec9b0; }
-.ProseMirror pre code .hljs-deletion { color: #ce9178; text-decoration: line-through; }
+.ProseMirror pre code .hljs-builtin-name {
+  color: var(--vscode-charts-green, var(--vscode-textLink-foreground));
+}
+.ProseMirror pre code .hljs-deletion {
+  color: var(--vscode-errorForeground);
+  text-decoration: line-through;
+}
 .ProseMirror pre code .hljs-emphasis { font-style: italic; }
 .ProseMirror pre code .hljs-strong { font-weight: bold; }
 
@@ -419,7 +473,7 @@ samp {
 .ProseMirror ul[data-type="taskList"] li > label input[type="checkbox"] {
   width: 16px;
   height: 16px;
-  accent-color: #2563EB;
+  accent-color: var(--vscode-focusBorder, var(--vscode-textLink-foreground));
   cursor: pointer;
 }
 
@@ -560,7 +614,7 @@ samp {
   align-items: center;
   justify-content: center;
   gap: 4px;
-  margin-top: 4px;
+  margin-top: var(--sdoc-space-control);
   user-select: none;
 }
 
@@ -635,7 +689,7 @@ samp {
   align-items: center;
   justify-content: center;
   gap: 4px;
-  margin-bottom: 4px;
+  margin-bottom: var(--sdoc-space-control);
   user-select: none;
 }
 
@@ -817,6 +871,11 @@ samp {
   border-radius: 6px;
   background: var(--vscode-menu-background, #252526);
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+}
+
+.toolbar-group:not([hidden]):not(.is-overflow-panel) ~ .toolbar-group:not([hidden]):not(.is-overflow-panel) {
+  border-left: 1px solid var(--vscode-panel-border);
+  padding-left: 4px;
 }
 
 .toolbar-button {
@@ -1781,7 +1840,21 @@ samp {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 1px;
+}
+
+/* Keep the 16px icon optically centered in the 32px toolbar hit target. */
+.toolbar-button.color-picker-btn {
+  position: relative;
+  gap: 0;
+}
+
+.toolbar-button.color-picker-btn .color-indicator {
+  position: absolute;
+  bottom: 4px;
+  left: 50%;
+  transform: translateX(-50%);
 }
 
 /* Browsable target list item (LinkDialog) */
@@ -1810,7 +1883,7 @@ samp {
 /* Link styles */
 .ProseMirror a,
 .ProseMirror .editor-link {
-  color: #2563EB;
+  color: var(--vscode-textLink-foreground);
   text-decoration: underline;
   cursor: pointer;
   transition: color 0.2s;
@@ -1818,7 +1891,7 @@ samp {
 
 .ProseMirror a:hover,
 .ProseMirror .editor-link:hover {
-  color: #2563EB;
+  color: var(--vscode-textLink-activeForeground, var(--vscode-textLink-foreground));
   text-decoration: underline;
 }
 
@@ -1832,7 +1905,7 @@ samp {
 
 /* Editor Title Area */
 .editor-title-area {
-  padding: 24px 24px 16px;
+  padding: 24px var(--editor-document-inset, 24px) 16px;
 }
 
 .editor-title-input {
@@ -2031,7 +2104,7 @@ samp {
   }
 
   .editor-title-area {
-    padding: 16px 16px 12px;
+    padding: 16px var(--editor-document-inset, 16px) 12px;
   }
 
   .editor-title-input {
@@ -2109,7 +2182,7 @@ samp {
 
 /* Internal reference link styling (href starts with #) */
 .ProseMirror a[href^="#"] {
-  color: #2563EB;
+  color: var(--vscode-textLink-foreground);
   text-decoration: none;
   cursor: pointer;
 }
@@ -2270,13 +2343,44 @@ samp {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  --editor-document-inset: 24px;
+  --editor-reading-max: 72rem;
+  padding-bottom: 52px; /* last heading underline clears the floating zoom pill */
+}
+
+.editor-scroll-area[data-reading-width="narrow"] { --editor-reading-max: 44rem; }
+.editor-scroll-area[data-reading-width="comfortable"] { --editor-reading-max: 56rem; }
+.editor-scroll-area[data-reading-width="wide"] { --editor-reading-max: 72rem; }
+.editor-scroll-area[data-reading-width="full"] { --editor-reading-max: 100%; }
+
+/* One reading column: shared inset + host-local measure */
+.editor-scroll-area .editor-title-area,
+.editor-scroll-area .ProseMirror {
+  max-width: min(100%, var(--editor-reading-max));
+  margin-inline: auto;
+}
+
+.editor-scroll-area .ProseMirror {
+  padding-left: var(--editor-document-inset);
+  padding-right: var(--editor-document-inset);
+}
+
+@media (max-width: 640px) {
+  .editor-scroll-area {
+    --editor-document-inset: 16px;
+  }
+}
+
+/* Overlay panel covers the canvas; keep title + body readable to its right. */
+.editor-body-layout:has(.side-panel.is-overlay) .editor-scroll-area {
+  padding-left: min(var(--side-panel-default-width), max(0px, 100% - 12rem));
 }
 
 /* ===== Editor Zoom Bar (floating pill, bottom-right) ===== */
 .editor-zoom-bar {
   position: absolute;
-  bottom: 14px;
-  right: 18px;
+  bottom: 10px;
+  right: 16px;
   z-index: 10;
   display: flex;
   align-items: center;
@@ -2342,6 +2446,32 @@ samp {
 .editor-zoom-bar .zoom-label:hover {
   opacity: 1;
   text-decoration: underline;
+}
+
+.editor-zoom-bar .zoom-reading-width {
+  max-width: 5.25rem;
+  height: 18px;
+  margin: 0;
+  padding: 0 0 0 2px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--vscode-foreground);
+  font-size: 10px;
+  font-family: var(--sdoc-font-sans);
+  opacity: 0.85;
+  cursor: pointer;
+}
+
+.editor-zoom-bar .zoom-reading-width:hover,
+.editor-zoom-bar .zoom-reading-width:focus-visible {
+  opacity: 1;
+  background: var(--vscode-toolbar-hoverBackground, rgba(128,128,128,0.15));
+}
+
+.editor-zoom-bar .zoom-reading-width:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder, #007fd4);
+  outline-offset: 0;
 }
 
 /* ===== Table of Contents Panel ===== */
@@ -2958,7 +3088,7 @@ html.is-resizing-side-panel * {
   --settings-control-radius: 4px;
   --settings-row-gap: 10px;
   --settings-control-gap: 6px;
-  --settings-toggle-size: 24px;
+  --settings-toggle-size: 32px;
 }
 
 .settings-panel {
@@ -2990,7 +3120,7 @@ html.is-resizing-side-panel * {
 }
 
 .design-compact-preview {
-  display: none;
+  display: block;
   margin: 8px 12px 12px;
   padding: 10px;
   border: 1px solid var(--vscode-panel-border);
@@ -3025,8 +3155,7 @@ html.is-resizing-side-panel * {
   font-size: 14px;
 }
 
-.design-compact-preview.has-decoration .design-compact-preview-h1,
-.design-compact-preview.has-decoration .design-compact-preview-h2 {
+.design-compact-preview.has-decoration .design-compact-preview-h1 {
   border-bottom: 2px solid currentColor;
 }
 
@@ -3034,12 +3163,6 @@ html.is-resizing-side-panel * {
   margin-top: 8px;
   color: #4b5563;
   font-size: 11px;
-}
-
-@media (min-width: 800px) and (max-width: 1100px) {
-  .side-panel.is-overlay .design-compact-preview {
-    display: block;
-  }
 }
 
 .settings-sync-state {
@@ -3139,9 +3262,21 @@ html.is-resizing-side-panel * {
 }
 
 .settings-provenance {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 3px;
+  color: var(--vscode-descriptionForeground);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.settings-hint {
+  margin: 0;
+  padding: 4px 12px 8px;
+  color: var(--vscode-descriptionForeground);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.settings-section-body > .settings-hint {
+  padding-inline: 0;
 }
 
 .settings-badge {
@@ -3668,47 +3803,47 @@ html.is-resizing-side-panel * {
 
 /* variant: note */
 .callout-block[data-variant="note"] {
-  background-color: rgba(100, 116, 139, 0.1);
-  border-color: #64748b;
+  background-color: color-mix(in srgb, var(--vscode-descriptionForeground) 12%, transparent);
+  border-color: var(--vscode-descriptionForeground);
 }
 .callout-block[data-variant="note"] .callout-header {
-  color: #64748b;
+  color: var(--vscode-descriptionForeground);
 }
 
 /* variant: info */
 .callout-block[data-variant="info"] {
-  background-color: rgba(14, 165, 233, 0.1);
-  border-color: #0ea5e9;
+  background-color: color-mix(in srgb, var(--vscode-charts-blue, var(--vscode-textLink-foreground)) 12%, transparent);
+  border-color: var(--vscode-charts-blue, var(--vscode-textLink-foreground));
 }
 .callout-block[data-variant="info"] .callout-header {
-  color: #0ea5e9;
+  color: var(--vscode-charts-blue, var(--vscode-textLink-foreground));
 }
 
 /* variant: tip */
 .callout-block[data-variant="tip"] {
-  background-color: rgba(34, 197, 94, 0.1);
-  border-color: #22c55e;
+  background-color: color-mix(in srgb, var(--vscode-charts-green, var(--vscode-textLink-foreground)) 12%, transparent);
+  border-color: var(--vscode-charts-green, var(--vscode-textLink-foreground));
 }
 .callout-block[data-variant="tip"] .callout-header {
-  color: #22c55e;
+  color: var(--vscode-charts-green, var(--vscode-textLink-foreground));
 }
 
 /* variant: warning */
 .callout-block[data-variant="warning"] {
-  background-color: rgba(245, 158, 11, 0.1);
-  border-color: #f59e0b;
+  background-color: color-mix(in srgb, var(--vscode-editorWarning-foreground, var(--vscode-charts-orange)) 12%, transparent);
+  border-color: var(--vscode-editorWarning-foreground, var(--vscode-charts-orange));
 }
 .callout-block[data-variant="warning"] .callout-header {
-  color: #f59e0b;
+  color: var(--vscode-editorWarning-foreground, var(--vscode-charts-orange));
 }
 
 /* variant: danger */
 .callout-block[data-variant="danger"] {
-  background-color: rgba(239, 68, 68, 0.1);
-  border-color: #ef4444;
+  background-color: color-mix(in srgb, var(--vscode-errorForeground) 12%, transparent);
+  border-color: var(--vscode-errorForeground);
 }
 .callout-block[data-variant="danger"] .callout-header {
-  color: #ef4444;
+  color: var(--vscode-errorForeground);
 }
 
 /* Callout variant picker (BubbleMenu + Toolbar) */
@@ -3751,6 +3886,7 @@ html.is-resizing-side-panel * {
 }
 
 .activity-bar-icon {
+  position: relative;
   width: 44px;
   height: auto;
   min-height: 40px;
@@ -3764,15 +3900,18 @@ html.is-resizing-side-panel * {
   color: var(--vscode-foreground);
   opacity: 0.65;
   border-radius: 4px;
-  padding: 5px 0;
+  padding: 8px 0;
   cursor: pointer;
   transition: opacity 0.1s, background 0.1s;
 }
 
 .activity-bar-label {
-  font-size: 9px;
-  line-height: 1;
-  letter-spacing: 0.02em;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
   white-space: nowrap;
 }
 
@@ -3783,8 +3922,29 @@ html.is-resizing-side-panel * {
 
 .activity-bar-icon.is-active {
   opacity: 1;
-  background: var(--vscode-button-background);
-  color: var(--vscode-button-foreground);
+  background: transparent;
+  color: var(--vscode-foreground);
+}
+
+.activity-bar-icon.is-active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--vscode-focusBorder, #007acc);
+}
+
+.activity-bar-icon.is-active:hover {
+  background: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
+}
+
+@media (forced-colors: active) {
+  .activity-bar-icon.is-active::before {
+    background: Highlight;
+  }
 }
 
 /* ===== Side Panel (4-tab) new elements ===== */
@@ -3813,18 +3973,20 @@ html.is-resizing-side-panel * {
 }
 
 .side-panel-control-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(7rem, auto);
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
+  gap: 8px 12px;
   padding: 6px 12px 10px;
 }
 
 .side-panel-control-copy {
-  min-width: 0;
+  flex: 1 1 auto;
+  min-width: min(100%, max-content);
   display: flex;
   flex-direction: column;
   gap: 2px;
+  overflow-wrap: anywhere;
 }
 
 .side-panel-control-description {
@@ -3834,24 +3996,16 @@ html.is-resizing-side-panel * {
 }
 
 .side-panel-select {
+  box-sizing: border-box;
+  flex: 0 0 auto;
   min-width: 0;
-  width: 100%;
-  max-width: 10rem;
+  width: max-content;
+  max-width: 100%;
   padding: 4px 24px 4px 6px;
   border: 1px solid var(--vscode-dropdown-border, var(--vscode-panel-border));
   border-radius: 3px;
   background: var(--vscode-dropdown-background, var(--vscode-input-background));
   color: var(--vscode-dropdown-foreground, var(--vscode-input-foreground));
-}
-
-.side-panel-view-preference {
-  grid-template-columns: minmax(0, 1fr);
-  align-items: stretch;
-}
-
-.side-panel-view-preference .side-panel-select {
-  width: 100%;
-  max-width: none;
 }
 
 .side-panel-select:focus-visible {
@@ -3926,19 +4080,19 @@ html.is-resizing-side-panel * {
   z-index: 1200;
   display: grid;
   place-items: center;
-  padding: 20px;
-  background: color-mix(in srgb, var(--sdoc-bg, #111827) 58%, transparent);
+  padding: var(--sdoc-space-panel);
+  background: color-mix(in srgb, var(--vscode-editor-background) 58%, transparent);
 }
 
 .template-dialog {
   max-height: min(680px, calc(100vh - 40px));
   overflow: auto;
-  padding: 20px;
-  border: 1px solid var(--sdoc-border, #d1d5db);
-  border-radius: 12px;
-  background: var(--sdoc-panel-bg, var(--sdoc-bg, #fff));
-  color: var(--sdoc-fg, inherit);
-  box-shadow: 0 24px 64px rgb(0 0 0 / 35%);
+  padding: var(--sdoc-space-panel);
+  border: 1px solid var(--vscode-editorWidget-border, var(--vscode-panel-border));
+  border-radius: var(--sdoc-radius-menu);
+  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  color: var(--vscode-editorWidget-foreground, var(--vscode-foreground));
+  box-shadow: 0 24px 64px var(--vscode-widget-shadow, rgb(0 0 0 / 35%));
 }
 
 .template-dialog.modal-content--sm {
@@ -3977,24 +4131,43 @@ html.is-resizing-side-panel * {
 
 .template-dialog-error,
 .template-status [role="alert"] {
-  color: var(--sdoc-danger, #dc2626);
+  color: var(--vscode-errorForeground);
 }
 
 .template-dialog-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
+  gap: var(--sdoc-space-control);
   margin-top: 18px;
 }
 
+.template-dialog-actions button {
+  min-height: 28px;
+  padding: 5px 12px;
+  border: 1px solid transparent;
+  border-radius: var(--sdoc-radius-control);
+  color: var(--vscode-button-secondaryForeground);
+  background: var(--vscode-button-secondaryBackground);
+  font-size: var(--sdoc-font-ui);
+  cursor: pointer;
+}
+
+.template-dialog-actions button:hover:not(:disabled) {
+  background: var(--vscode-button-secondaryHoverBackground);
+}
+
 .template-dialog-actions .is-primary {
-  color: var(--sdoc-button-primary-fg, #fff);
-  background: var(--sdoc-accent, #2563eb);
+  color: var(--vscode-button-foreground);
+  background: var(--vscode-button-background);
+}
+
+.template-dialog-actions .is-primary:hover:not(:disabled) {
+  background: var(--vscode-button-hoverBackground);
 }
 
 .template-dialog-actions .is-destructive {
-  color: #fff;
-  background: var(--sdoc-danger, #dc2626);
+  color: var(--vscode-button-foreground);
+  background: var(--vscode-errorForeground);
 }
 
 .template-status:empty {
@@ -4250,6 +4423,10 @@ html.is-resizing-side-panel * {
   color: var(--vscode-foreground);
   font-size: 12px;
   font-weight: 600;
+}
+
+.files-panel-advanced .settings-panel-title {
+  display: none;
 }
 
 .file-operation-list {

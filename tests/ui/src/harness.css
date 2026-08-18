@@ -76,6 +76,13 @@ body {
   --vscode-editorWidget-foreground: #1f2328;
   --vscode-panel-border: #afb8c1;
   --vscode-textLink-foreground: #0969da;
+  --vscode-textLink-activeForeground: #0550ae;
+  --vscode-textPreformat-foreground: #1f2328;
+  --vscode-charts-blue: #0969da;
+  --vscode-charts-green: #1a7f37;
+  --vscode-charts-orange: #bc4c00;
+  --vscode-charts-yellow: #9a6700;
+  --vscode-widget-shadow: rgba(31, 35, 40, 0.15);
   --vscode-button-background: #0969da;
   --vscode-button-foreground: #ffffff;
   min-height: 100vh;
@@ -110,6 +117,13 @@ body {
   --vscode-editorWidget-foreground: #f0f0f0;
   --vscode-panel-border: #616161;
   --vscode-textLink-foreground: #4daafc;
+  --vscode-textLink-activeForeground: #75beff;
+  --vscode-textPreformat-foreground: #d4d4d4;
+  --vscode-charts-blue: #4daafc;
+  --vscode-charts-green: #89d185;
+  --vscode-charts-orange: #d18616;
+  --vscode-charts-yellow: #cca700;
+  --vscode-widget-shadow: rgba(0, 0, 0, 0.36);
   --vscode-button-background: #0e639c;
   --vscode-button-foreground: #ffffff;
 }
@@ -141,6 +155,13 @@ body {
   --vscode-editorWidget-foreground: #ffffff;
   --vscode-panel-border: #ffffff;
   --vscode-textLink-foreground: #00ffff;
+  --vscode-textLink-activeForeground: #ffff00;
+  --vscode-textPreformat-foreground: #ffffff;
+  --vscode-charts-blue: #00ffff;
+  --vscode-charts-green: #00ff00;
+  --vscode-charts-orange: #ff8000;
+  --vscode-charts-yellow: #ffff00;
+  --vscode-widget-shadow: transparent;
   --vscode-button-background: #000000;
   --vscode-button-foreground: #ffffff;
 }
