@@ -130,6 +130,41 @@ describe('HTML export runtime safety', () => {
 });
 
 describe('cross-format numbering', () => {
+  it('exports canonical endnotes in body order and blocks Slides loss', () => {
+    const doc: TiptapNode = { type: 'doc', content: [
+      { type: 'paragraph', content: [
+        { type: 'text', text: 'Alpha' },
+        { type: 'endnote', attrs: { id: 'note-a', body: 'A <special> & note.' } },
+        { type: 'text', text: ' Beta' },
+        { type: 'endnote', attrs: { id: 'note-b', body: 'Second note.' } },
+      ] },
+    ] };
+
+    const html = convertJsonToHtml(doc);
+    expect(html).toContain('id="endnote-ref-note-a" href="#endnote-note-a"');
+    expect(html).toContain('aria-label="Endnote 1">1</a>');
+    expect(html).toContain('id="endnote-note-a"');
+    expect(html).toContain('A &lt;special&gt; &amp; note.');
+    expect(html.indexOf('endnote-note-a')).toBeLessThan(html.indexOf('endnote-note-b'));
+
+    const markdown = convertJsonToMarkdown(doc);
+    expect(markdown).toContain('Alpha[^1] Beta[^2]');
+    expect(markdown).toContain('[^1]: A \\<special\\> & note.');
+    expect(markdown).toContain('[^2]: Second note.');
+
+    const adoc = convertJsonToAdoc(doc);
+    expect(adoc).toContain('[[endnote-ref-note-a]]^<<endnote-note-a,1>>^');
+    expect(adoc).toContain('. [[endnote-note-a]] A &lt;special&gt; &amp; note.');
+    expect(() => convertJsonToSlides(doc)).toThrow(/does not support endnotes/i);
+  });
+
+  it('does not add an empty endnote section to exports', () => {
+    const doc: TiptapNode = { type: 'doc', content: [{ type: 'paragraph' }] };
+    expect(convertJsonToHtml(doc)).not.toContain('class="endnotes"');
+    expect(convertJsonToMarkdown(doc)).not.toContain('[^1]');
+    expect(convertJsonToAdoc(doc)).not.toContain('endnote-');
+  });
+
   it('preserves skipped heading levels in every export format', () => {
     const doc: TiptapNode = { type: 'doc', content: [
       { type: 'heading', attrs: { level: 1, id: 'one' }, content: [{ type: 'text', text: 'One' }] },

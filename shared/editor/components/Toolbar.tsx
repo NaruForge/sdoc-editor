@@ -56,6 +56,7 @@ interface ToolbarProps {
   onInsertMath?: () => void;
   onInsertDiagram?: () => void;
   onInsertCrossRef?: () => void;
+  onInsertEndnote?: () => void;
   disabled?: boolean;
 }
 
@@ -95,6 +96,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onInsertMath,
   onInsertDiagram,
   onInsertCrossRef,
+  onInsertEndnote,
   disabled = false,
 }) => {
   const { t } = useEditorI18n();
@@ -292,6 +294,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     ...(onInsertImage ? [{ label: t('toolbar.image'), keywords: 'image picture 이미지 그림 사진', icon: <ImageIcon size={15} />, run: onInsertImage }] : []),
     ...(onInsertDrawio ? [{ label: t('toolbar.drawio'), keywords: 'drawio diagram 다이어그램 도형', icon: <PenTool size={15} />, run: onInsertDrawio }] : []),
     ...(onInsertMath ? [{ label: t('toolbar.math'), keywords: 'math equation 수식 latex katex', icon: <Sigma size={15} />, run: onInsertMath }] : []),
+    ...(onInsertEndnote ? [{ label: t('toolbar.endnote'), keywords: 'footnote endnote note 각주 미주', icon: <Superscript size={15} />, run: onInsertEndnote }] : []),
     { label: t('toolbar.codeBlock'), keywords: 'code 코드 block program 프로그램', icon: <Code size={15} />, run: () => editor.chain().focus().toggleCodeBlock().run() },
     ...(onInsertDiagram ? [{ label: t('toolbar.diagram'), keywords: 'text mermaid diagram 텍스트 다이어그램 차트', icon: <GitGraph size={15} />, run: onInsertDiagram }] : []),
     { label: t('toolbar.horizontalRule'), keywords: 'hr horizontal rule 수평선 구분선', icon: <span style={{ fontSize: '15px', lineHeight: '15px', width: '15px', textAlign: 'center' }}>—</span>, run: () => editor.chain().focus().setHorizontalRule().run() },
@@ -841,6 +844,11 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             {onInsertMath && (
               <button type="button" role="menuitem" className="insert-menu-item" onClick={() => { closeInsertMenu(); onInsertMath(); }}>
                 <Sigma size={15} /><span>{t('toolbar.math')}</span>
+              </button>
+            )}
+            {onInsertEndnote && (
+              <button type="button" role="menuitem" className="insert-menu-item" onClick={() => { closeInsertMenu(); onInsertEndnote(); }}>
+                <Superscript size={15} /><span>{t('toolbar.endnote')}</span>
               </button>
             )}
             <button type="button" role="menuitem" className="insert-menu-item" onClick={() => { closeInsertMenu(); editor.chain().focus().toggleCodeBlock().run(); }}>

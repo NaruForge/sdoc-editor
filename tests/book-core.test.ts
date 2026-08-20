@@ -265,6 +265,28 @@ describe('sdocbook mutations', () => {
 });
 
 describe('sdocbook composition', () => {
+  it('blocks endnotes until a book placement policy is defined', async () => {
+    const result = await composeBook({
+      sdocBook: '1.0',
+      documents: [{ path: './chapter.sdoc' }],
+    }, memoryLoader({
+      './chapter.sdoc': {
+        sdoc: '1.0',
+        meta: {},
+        doc: { type: 'doc', content: [{ type: 'paragraph', content: [
+          { type: 'text', text: 'Body' },
+          { type: 'endnote', attrs: { id: 'endnote-1', body: 'Note' } },
+        ] }] },
+      },
+    }));
+
+    expect(result.diagnostics).toContainEqual(expect.objectContaining({
+      severity: 'error',
+      code: 'ENDNOTES_UNSUPPORTED',
+      documentPath: './chapter.sdoc',
+    }));
+  });
+
   const book: SdocBook = {
     sdocBook: '1.0',
     title: 'System Guide',

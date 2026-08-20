@@ -4767,6 +4767,115 @@ html.is-resizing-side-panel * {
   to   { transform: rotate(360deg); }
 }
 
+.endnote-marker {
+  vertical-align: super;
+  font-size: 0.72em;
+  line-height: 0;
+}
+
+.endnote-marker__button,
+.endnote-list__number,
+.endnote-list__action {
+  border: 0;
+  padding: 1px 3px;
+  background: transparent;
+  color: var(--vscode-textLink-foreground);
+  cursor: pointer;
+  font: inherit;
+  text-decoration: underline;
+}
+
+.endnote-list__action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.35rem;
+  color: var(--vscode-foreground);
+  text-decoration: none;
+}
+
+.endnote-list__action:hover,
+.endnote-list__number:hover {
+  background: var(--vscode-toolbar-hoverBackground);
+}
+
+.endnote-marker__button:focus-visible,
+.endnote-list__number:focus-visible,
+.endnote-list__action:focus-visible,
+.endnote-list input:focus-visible {
+  outline: 2px solid var(--vscode-focusBorder);
+  outline-offset: 2px;
+}
+
+.endnote-list {
+  margin: 2rem 0 1rem;
+  color: var(--vscode-editor-foreground);
+}
+
+.endnote-list h2 {
+  margin: 0.75rem 0;
+  font-size: 1rem;
+}
+
+.endnote-list ol {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.endnote-list li {
+  display: grid;
+  grid-template-columns: minmax(1.5rem, auto) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.endnote-list__number {
+  justify-self: start;
+  font-variant-numeric: tabular-nums;
+}
+
+.endnote-list__body {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.endnote-list__text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.4;
+}
+
+.endnote-list__text--empty {
+  color: var(--vscode-descriptionForeground);
+  font-style: italic;
+}
+
+.endnote-list input {
+  box-sizing: border-box;
+  flex: 1 1 16rem;
+  min-width: 8rem;
+  min-height: 2rem;
+  border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
+  border-radius: 2px;
+  padding: 0.3rem 0.4rem;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  font: inherit;
+  line-height: 1.4;
+}
+
+.endnote-list__edit-actions,
+.endnote-list__row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -4793,6 +4902,14 @@ html.is-resizing-side-panel * {
   .design-compact-preview {
     background: Canvas;
     color: CanvasText;
+  }
+
+  .endnote-marker__button,
+  .endnote-list__number,
+  .endnote-list__action,
+  .endnote-list input {
+    border: 1px solid ButtonText;
+    forced-color-adjust: auto;
   }
 
   .design-compact-preview-label,

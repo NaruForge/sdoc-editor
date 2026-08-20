@@ -25,7 +25,7 @@ const COMMAND_HELP: Record<CommandName, CommandHelp> = {
     options: [
       ...COMMON_OUTPUT,
       '  --projection <kind>          catalog, target, section, or document',
-      '  --catalog <kind>             blocks (default), outline, references, or referenceables',
+      '  --catalog <kind>             blocks (default), outline, references, referenceables, or endnotes',
       '  --target-id <id>             Select one block or section by persistent ID',
       '  --target-path </1/0>         Select by slash-separated content indexes',
       '  --limit <count>              Positive catalog page entry limit',

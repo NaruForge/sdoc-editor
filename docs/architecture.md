@@ -105,6 +105,10 @@ structured diagnostics. Preview and export consumers use this result rather
 than independently merging files. The VS Code provider supplies open-buffer
 and filesystem access.
 
+Canonical inline `endnote` nodes are intentionally rejected by Book
+composition until chapter-end versus book-end placement is defined. This keeps
+single-document endnote support from silently establishing a Book policy.
+
 Chapter loading is parallel while results and diagnostics remain in manifest
 order. Each valid chapter receives a deterministic invisible export anchor.
 Loaders accept cancellation, and host watchers subscribe only to current
@@ -137,7 +141,7 @@ NodeViews receive `EditorExtensionRuntime` explicitly; they do not communicate
 through `window.__*` globals.
 
 `DocumentStructureIndexExtension` owns one transaction-mapped structural index
-for outline, figures, tables, equations, numbering, and internal references.
+for outline, figures, tables, equations, endnotes, numbering, and internal references.
 Ordinary paragraph edits map positions without rebuilding or notifying semantic
 subscribers; structural edits coalesce into one trailing rebuild.
 

@@ -20,6 +20,7 @@ import { CustomImage } from './CustomImage';
 import { CustomCodeBlock } from './CodeBlockView';
 import { MathInline } from './MathInline';
 import { MathBlock } from './MathBlock';
+import { Endnote } from './Endnote';
 import { DiagramBlock } from './DiagramBlock';
 import { CrossReference } from './CrossReference';
 import { Subscript } from '@tiptap/extension-subscript';
@@ -32,6 +33,7 @@ import {
   isAuthorablePersistentId,
   isHistoricalHorizontalRuleId,
   OPTIONAL_IDENTITY_NODE_TYPES,
+  REQUIRED_IDENTITY_NODE_TYPES,
   REFERENCEABLE_NODE_TYPES,
 } from '../../document/nodeIdentity';
 import { getCaptionPreset } from '../../settingsResolver';
@@ -389,7 +391,8 @@ const PersistentNodeIds = Extension.create({
         const normalized = assignAutoIds(newState.doc.toJSON());
         const ids: string[] = [];
         const collect = (node: ReturnType<typeof newState.doc.toJSON>): void => {
-          if (REFERENCEABLE_NODE_TYPES.has(node.type) && typeof node.attrs?.id === 'string') {
+          if ((REFERENCEABLE_NODE_TYPES.has(node.type) || REQUIRED_IDENTITY_NODE_TYPES.has(node.type))
+            && typeof node.attrs?.id === 'string') {
             ids.push(node.attrs.id);
           }
           node.content?.forEach(collect);
@@ -400,7 +403,8 @@ const PersistentNodeIds = Extension.create({
         let changed = false;
         const transaction = newState.tr;
         newState.doc.descendants((node, pos) => {
-          if (!REFERENCEABLE_NODE_TYPES.has(node.type.name)) return;
+          if (!REFERENCEABLE_NODE_TYPES.has(node.type.name)
+            && !REQUIRED_IDENTITY_NODE_TYPES.has(node.type.name)) return;
           const id = ids[index++];
           if (id && node.attrs.id !== id) {
             transaction.setNodeMarkup(pos, undefined, { ...node.attrs, id });
@@ -678,6 +682,7 @@ export function createTiptapExtensions(runtime: EditorExtensionRuntime) {
   TableHeader,
   TableCell,
   MathInline.configure({ runtime }),
+  Endnote.configure({ runtime }),
   MathBlock.configure({ runtime }),
   DiagramBlock.configure({ runtime }),
   TextStyle,

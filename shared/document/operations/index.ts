@@ -45,7 +45,7 @@ const MIN_SUMMARY_LENGTH = 20;
 const MAX_SUMMARY_LENGTH = 500;
 const RENAMABLE_ID_TYPES = new Set(['heading', 'table']);
 const NON_BLOCK = new Set([
-  'doc', 'text', 'mathInline', 'tableRow',
+  'doc', 'text', 'mathInline', 'endnote', 'tableRow',
 ]);
 const PORTABLE_SETTING_KEYS = new Set<keyof DocumentSettings>([
   'headingNumbering',
@@ -574,7 +574,7 @@ function narrowRequest(value: unknown): SdocOperationRequest | OperationFailure 
 }
 
 const SHA256_PATTERN = /^sha256:[0-9a-f]{64}$/;
-const READ_CATALOG_KINDS = new Set(['blocks', 'outline', 'references', 'referenceables']);
+const READ_CATALOG_KINDS = new Set(['blocks', 'outline', 'references', 'referenceables', 'endnotes']);
 
 const isBoundedInteger = (value: unknown, maximum: number): value is number =>
   Number.isSafeInteger(value) && Number(value) >= 1 && Number(value) <= maximum;
@@ -753,6 +753,7 @@ function catalogItems(
     }
   }
   let seen = 0;
+  let endnoteNumber = 0;
   let exhausted = true;
   const add = (create: () => Record<string, unknown>): boolean => {
     if (seen >= start) items.push(create());
@@ -765,6 +766,7 @@ function catalogItems(
   };
   traversal:
   for (const { node, path } of walkDocument(loaded.envelope.doc)) {
+    if (node.type === 'endnote') endnoteNumber += 1;
     const persistedId = persistedIdFor(node);
     const id = IDENTITY_BEARING_NODE_TYPES.has(node.type) ? persistedId : undefined;
     const provisional = !id && REFERENCEABLE_NODE_TYPES.has(node.type)
@@ -803,6 +805,13 @@ function catalogItems(
         ...(provisional ? { provisionalId: provisional } : {}),
         path: [...path],
       }))) break;
+    } else if (kind === 'endnotes' && node.type === 'endnote' && id) {
+      if (add(() => ({
+        id,
+        number: endnoteNumber,
+        body: typeof node.attrs?.body === 'string' ? node.attrs.body : '',
+        path: [...path],
+      }))) break;
     }
   }
   return { items: items as CatalogReadItem[], seen, exhausted };
@@ -812,7 +821,8 @@ function catalogData(kind: CatalogReadData['kind'], items: CatalogReadItem[]): C
   if (kind === 'blocks') return { kind, items: items as Extract<CatalogReadData, { kind: 'blocks' }>['items'] };
   if (kind === 'outline') return { kind, items: items as Extract<CatalogReadData, { kind: 'outline' }>['items'] };
   if (kind === 'references') return { kind, items: items as Extract<CatalogReadData, { kind: 'references' }>['items'] };
-  return { kind, items: items as Extract<CatalogReadData, { kind: 'referenceables' }>['items'] };
+  if (kind === 'referenceables') return { kind, items: items as Extract<CatalogReadData, { kind: 'referenceables' }>['items'] };
+  return { kind, items: items as Extract<CatalogReadData, { kind: 'endnotes' }>['items'] };
 }
 
 const readQueryDigest = (value: unknown): Sha256Digest =>
@@ -1182,14 +1192,26 @@ export function inspectDocumentBytes(
   const outline: Extract<InspectDocumentResult, { ok: true }>['outline'] = [];
   const references: Extract<InspectDocumentResult, { ok: true }>['references'] = [];
   const referenceables: Extract<InspectDocumentResult, { ok: true }>['referenceables'] = [];
+  const endnotes: Extract<InspectDocumentResult, { ok: true }>['endnotes'] = [];
   const blocks: Extract<InspectDocumentResult, { ok: true }>['blocks'] = [];
   let blockCount = 0;
+  let endnoteNumber = 0;
   const ids = new Set<string>();
   for (const { node } of walkDocument(loaded.envelope.doc)) {
     const id = persistedIdFor(node);
     if (REFERENCEABLE_NODE_TYPES.has(node.type) && id) ids.add(id);
   }
   for (const { node, path } of walkDocument(loaded.envelope.doc)) {
+    if (node.type === 'endnote') {
+      endnoteNumber += 1;
+      const id = persistedIdFor(node);
+      if (id && endnotes.length < maxBlocks) endnotes.push({
+        id,
+        number: endnoteNumber,
+        body: typeof node.attrs?.body === 'string' ? node.attrs.body : '',
+        path: [...path],
+      });
+    }
     const persistedId = persistedIdFor(node);
     const id = IDENTITY_BEARING_NODE_TYPES.has(node.type) ? persistedId : undefined;
     const provisional = !id && REFERENCEABLE_NODE_TYPES.has(node.type)
@@ -1268,6 +1290,7 @@ export function inspectDocumentBytes(
     outline,
     references,
     referenceables,
+    endnotes,
     blocks,
     blockCount,
     blocksTruncated: blocks.length < blockCount,

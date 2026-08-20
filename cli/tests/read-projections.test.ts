@@ -89,6 +89,7 @@ describe('explicit inspect projections', () => {
       outline: expect.any(Array),
       references: expect.any(Array),
       referenceables: expect.any(Array),
+      endnotes: expect.any(Array),
     });
     expect(defaultInspect.json).not.toHaveProperty('projection');
     expect(defaultInspect.json).not.toHaveProperty('readContract');
@@ -101,6 +102,52 @@ describe('explicit inspect projections', () => {
       outline: expect.any(Array),
     });
     expect(targeted.json).not.toHaveProperty('projection');
+  });
+
+  it('inspects and pages the endnotes catalog in body order', async () => {
+    const { documentPath } = await writeDocument([{
+      type: 'paragraph',
+      content: [
+        { type: 'text', text: 'One' },
+        { type: 'endnote', attrs: { id: 'note-a', body: 'First note' } },
+        { type: 'text', text: 'Two' },
+        { type: 'endnote', attrs: { id: 'note-b', body: 'Second note' } },
+      ],
+    }]);
+
+    const inspected = await execute(['inspect', documentPath]);
+    expect(inspected.exitCode).toBe(0);
+    expect(inspected.json?.endnotes).toEqual([
+      { id: 'note-a', number: 1, body: 'First note', path: [0, 1] },
+      { id: 'note-b', number: 2, body: 'Second note', path: [0, 3] },
+    ]);
+
+    const projected = await execute([
+      'inspect', documentPath, '--projection', 'catalog', '--catalog', 'endnotes', '--limit', '1',
+    ]);
+    expect(projected.exitCode).toBe(0);
+    expect(projected.json).toMatchObject({
+      projection: 'catalog',
+      data: { kind: 'endnotes', items: [{ id: 'note-a', number: 1, body: 'First note' }] },
+      page: { returned: 1, complete: false },
+    });
+  });
+
+  it('rejects duplicate canonical endnote ids', async () => {
+    const { documentPath } = await writeDocument([{
+      type: 'paragraph',
+      content: [
+        { type: 'endnote', attrs: { id: 'same-note', body: 'First' } },
+        { type: 'endnote', attrs: { id: 'same-note', body: 'Second' } },
+      ],
+    }]);
+
+    const inspected = await execute(['inspect', documentPath]);
+    expect(inspected.exitCode).not.toBe(0);
+    expect(inspected.json).toMatchObject({
+      ok: false,
+      diagnostics: [expect.objectContaining({ code: 'DUPLICATE_ID' })],
+    });
   });
 
   it('reports an optional paragraph id as an id operation target', async () => {
@@ -192,7 +239,7 @@ describe('explicit inspect projections', () => {
         nodes: { used: 2, max: 10 },
       },
     });
-    for (const absent of ['target', 'blocks', 'outline', 'references', 'referenceables', 'metadata']) {
+    for (const absent of ['target', 'blocks', 'outline', 'references', 'referenceables', 'endnotes', 'metadata']) {
       expect(result.json).not.toHaveProperty(absent);
     }
   });

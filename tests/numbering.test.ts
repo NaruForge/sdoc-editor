@@ -21,6 +21,30 @@ const fixture: TiptapNode = {
 };
 
 describe('shared document numbering', () => {
+  it('numbers endnotes by body appearance independently of stable ids', () => {
+    const first: TiptapNode = { type: 'endnote', attrs: { id: 'endnote-9', body: 'First' } };
+    const second: TiptapNode = { type: 'endnote', attrs: { id: 'endnote-2', body: 'Second' } };
+    const doc: TiptapNode = {
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [
+        { type: 'text', text: 'A' }, first,
+        { type: 'text', text: 'B' }, second,
+      ] }],
+    };
+
+    const index = buildNumberingIndex(doc, {
+      headingNumbering: true,
+      captionNumbering: 'sequential',
+      equationNumbering: 'sequential',
+      captionStyle: 'modern',
+      crossRefIncludeCaption: false,
+    });
+
+    expect(index.byId.get('endnote-9')).toMatchObject({ kind: 'endnote', number: '1', title: 'First' });
+    expect(index.byId.get('endnote-2')).toMatchObject({ kind: 'endnote', number: '2', title: 'Second' });
+    expect(index.byNode.get(first)?.number).toBe('1');
+  });
+
   it('preserves skipped heading levels as zero-valued hierarchy segments', () => {
     const doc: TiptapNode = {
       type: 'doc',

@@ -138,6 +138,7 @@ describe('shared editor core', () => {
     expect(names).toEqual(expect.arrayContaining([
       'image',
       'table',
+      'endnote',
       'mathInline',
       'mathBlock',
       'diagram',
@@ -417,6 +418,30 @@ describe('shared editor core', () => {
 
     const heading = applied.doc.toJSON().content?.find((node) => node.type === 'heading');
     expect(heading?.attrs?.id).toBe('stable-title');
+  });
+
+  it('assigns a stable id to an inserted canonical endnote', () => {
+    const extensions = createTiptapExtensions(createRuntime());
+    const schema = getSchema(extensions);
+    const idExtension = extensions.find((extension) => extension.name === 'persistentNodeIds');
+    const plugins = idExtension?.config.addProseMirrorPlugins?.call(idExtension) ?? [];
+    const initialDoc = schema.nodeFromJSON({ type: 'doc', content: [{ type: 'paragraph' }] });
+    const nextDoc = schema.nodeFromJSON({
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [
+        { type: 'text', text: 'Body' },
+        { type: 'endnote', attrs: { body: 'Note text' } },
+      ] }],
+    });
+    const state = EditorState.create({ schema, doc: initialDoc, plugins });
+    const applied = state.applyTransaction(
+      state.tr.replaceWith(0, state.doc.content.size, nextDoc.content),
+    ).state;
+
+    expect(applied.doc.toJSON().content?.[0].content?.[1]).toMatchObject({
+      type: 'endnote',
+      attrs: { id: 'endnote-1', body: 'Note text' },
+    });
   });
 
   it('keeps inserted cross-reference links inside the persisted document contract', () => {

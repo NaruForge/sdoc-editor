@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-08-21
+
+### Added
+- Added stable inline footnotes with document-order numbering, accessible marker navigation, and a document-end editing list in the VS Code editor
+- Added matching HTML, PDF, Markdown, and AsciiDoc exports plus CLI inspect/read footnote catalogs
+
+### Changed
+- Made footnotes fail explicitly for Slides and `.sdocbook` composition until those formats define a lossless presentation policy
+- Presented document-end footnotes as ordinary text with explicit inline editing, using each footnote number as the backlink to its source marker
+
 ## [0.11.0] - 2026-08-14
 
 ### Added

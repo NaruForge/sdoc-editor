@@ -66,6 +66,8 @@ import {
   type ReadingWidthId,
 } from '@shared/editor/readingWidth';
 import { collectEditorStyleProbe, hasAppliedEditorStyles } from '../styleReadiness';
+import { EndnoteList } from '@shared/editor/components/EndnoteList';
+import { insertEndnoteAndFocus } from '@shared/editor/extensions/Endnote';
 
 export function parseStoredZoom(value: string | null): number {
   if (!value) return 100;
@@ -509,6 +511,11 @@ export const Editor: React.FC = () => {
     dialogDispatch({ type: 'SET_MATH_DIALOG', payload: { latex: '', isBlock: false, pos: null } });
   };
 
+  const handleInsertEndnote = () => {
+    if (!editor) return;
+    if (insertEndnoteAndFocus(editor)) flushUpdate();
+  };
+
   const handleInsertDiagram = () => {
     dialogDispatch({ type: 'SET_DIAGRAM_DIALOG', payload: { code: '', language: 'mermaid', pos: null } });
   };
@@ -785,6 +792,7 @@ export const Editor: React.FC = () => {
         onInsertMath={handleInsertMath}
         onInsertDiagram={handleInsertDiagram}
         onInsertCrossRef={() => dialogDispatch({ type: 'OPEN_CROSSREF_DIALOG' })}
+        onInsertEndnote={handleInsertEndnote}
         onInsertImage={handleInsertImage}
         onInsertDrawio={handleInsertDrawio}
       />
@@ -924,6 +932,7 @@ export const Editor: React.FC = () => {
                 editor={editor}
                 className={`${state.settings.headingNumbering ? 'show-numbering' : 'hide-numbering'} ${state.settings.headingDecoration ? 'show-heading-decoration' : ''} ${state.settings.captionNumbering === 'hierarchical' ? 'hierarchical-numbering' : 'sequential-numbering'}`}
               />
+              {editor && <EndnoteList editor={editor} />}
             </div>
           </div>
           <ZoomBar
