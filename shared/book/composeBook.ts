@@ -55,6 +55,11 @@ function collectIds(node: TiptapNode, ids: string[]): void {
   node.content?.forEach((child) => collectIds(child, ids));
 }
 
+function containsEndnote(node: TiptapNode): boolean {
+  if (node.type === 'endnote') return true;
+  return node.content?.some(containsEndnote) ?? false;
+}
+
 interface TransformContext {
   sourcePath: string;
   includedPaths: Set<string>;
@@ -310,6 +315,14 @@ export async function composeBook(
   for (const document of documents) {
     signal?.throwIfAborted();
     if (!document.doc) continue;
+    if (containsEndnote(document.doc)) {
+      diagnostics.push({
+        severity: 'error',
+        code: 'ENDNOTES_UNSUPPORTED',
+        message: 'Endnotes are not supported in .sdocbook composition until chapter-end versus book-end placement is defined.',
+        documentPath: document.path,
+      });
+    }
     const collectedIds: string[] = [];
     collectIds(document.doc, collectedIds);
     const ids = new Set<string>();

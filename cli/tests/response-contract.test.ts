@@ -258,7 +258,7 @@ describe('sdoc.cli.response/1', () => {
         readMaxNodes: 100_000,
       },
       projections: ['catalog', 'target', 'section', 'document'],
-      catalogKinds: ['blocks', 'outline', 'references', 'referenceables'],
+      catalogKinds: ['blocks', 'outline', 'references', 'referenceables', 'endnotes'],
       builtInTemplateIds: getBuiltInTemplates().map((template) => template.descriptor.id),
     });
   });

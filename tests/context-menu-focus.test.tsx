@@ -125,8 +125,8 @@ describe('context menu focus contract', () => {
     );
 
     expect(markup).toContain('role="menu"');
-    expect(markup.match(/role="menuitem"/g)).toHaveLength(7);
-    expect(markup.match(/tabindex="-1"/g)).toHaveLength(7);
+    expect(markup.match(/role="menuitem"/g)).toHaveLength(8);
+    expect(markup.match(/tabindex="-1"/g)).toHaveLength(8);
     expect(markup.match(/aria-haspopup="menu"/g)).toHaveLength(2);
     expect(markup.match(/aria-expanded="false"/g)).toHaveLength(2);
     expect(markup).toContain('class="editor-context-menu"');

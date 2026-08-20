@@ -95,6 +95,7 @@ export interface InspectResult {
   outline: Array<{ id?: string; provisionalId?: string; level: number; text: string; path: number[] }>;
   references: Array<{ href: string; targetExists: boolean; path: number[] }>;
   referenceables: Array<{ type: string; id?: string; provisionalId?: string; path: number[] }>;
+  endnotes: Array<{ id: string; number: number; body: string; path: number[] }>;
   blocks: InspectBlock[];
   blockCount: number;
   blocksTruncated: boolean;
@@ -162,7 +163,7 @@ export interface InspectOptions {
 }
 
 export type ReadProjection = 'catalog' | 'target' | 'section' | 'document';
-export type ReadCatalogKind = 'blocks' | 'outline' | 'references' | 'referenceables';
+export type ReadCatalogKind = 'blocks' | 'outline' | 'references' | 'referenceables' | 'endnotes';
 export type ReadTruncationReason = 'limit' | 'maxBytes' | 'maxNodes';
 
 export interface ReadRequestBase {
@@ -239,7 +240,8 @@ export type CatalogReadData =
   | { kind: 'blocks'; items: InspectBlock[] }
   | { kind: 'outline'; items: InspectResult['outline'] }
   | { kind: 'references'; items: InspectResult['references'] }
-  | { kind: 'referenceables'; items: InspectResult['referenceables'] };
+  | { kind: 'referenceables'; items: InspectResult['referenceables'] }
+  | { kind: 'endnotes'; items: InspectResult['endnotes'] };
 
 export interface CatalogReadSuccess extends ReadSuccessBase {
   projection: 'catalog';

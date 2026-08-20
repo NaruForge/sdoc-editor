@@ -12,7 +12,7 @@ export type CommandName = typeof COMMAND_NAMES[number];
 export type DocumentCommandName = Exclude<CommandName, 'capabilities'>;
 
 export const READ_PROJECTIONS = ['catalog', 'target', 'section', 'document'] as const;
-export const READ_CATALOG_KINDS = ['blocks', 'outline', 'references', 'referenceables'] as const;
+export const READ_CATALOG_KINDS = ['blocks', 'outline', 'references', 'referenceables', 'endnotes'] as const;
 
 export type ReadProjectionArgument = typeof READ_PROJECTIONS[number];
 export type ReadCatalogArgument = typeof READ_CATALOG_KINDS[number];

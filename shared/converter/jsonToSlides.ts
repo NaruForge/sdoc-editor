@@ -51,6 +51,9 @@ export function convertJsonToSlides(
     }),
     diagramOptions,
   };
+  if (ctx.numbering.entries.some((entry) => entry.kind === 'endnote')) {
+    throw new Error('Slides export does not support endnotes. Export to HTML, PDF, Markdown, or AsciiDoc instead.');
+  }
 
   const slides = splitIntoSlides(json, ctx);
   const slideSections = slides.map(slide => buildSlideSection(slide, ctx)).join('\n\n');

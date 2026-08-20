@@ -92,7 +92,7 @@ npm install --save-dev sdoc-editor-cli@latest
 |---|---|
 | 구조화 편집 | H1–H6, 자동 번호, 섹션 접기, 목차, 그림·표 목록, 문서 메타데이터 |
 | 기술 콘텐츠 | 병합 셀 표, 이미지와 캡션, KaTeX 수식, 코드 블록, Mermaid·PlantUML·D2·Graphviz, Draw.io |
-| 문서 연결 | 제목·그림·표·수식 교차 참조, 안정적인 ID, 참조 번호 자동 동기화 |
+| 문서 연결 | 제목·그림·표·수식 교차 참조, 문서 끝 각주, 안정적인 ID, 참조 번호 자동 동기화 |
 | 편집 경험 | 탐색·디자인·템플릿·파일 허브, 커서 이동 기록, 60–200% 확대/축소, 문서별 테마·폰트·사용자 CSS |
 | 재사용과 출판 | 팀·개인 template, `.sdocbook`, Markdown·HTML import, HTML·PDF·Markdown·AsciiDoc·Slides export |
 | 자동화 | 문서 생성·검사·검증, bounded semantic read, preview-first 의미 연산, versioned JSON response |
@@ -111,6 +111,8 @@ npm install --save-dev sdoc-editor-cli@latest
 `Files / 파일` 패널의 내보내기와 가져오기는 실행 전에 고정된 원본·대상·적용 설정·덮어쓰기 여부를 보여 줍니다. 실행 중에는 진행 단계와 취소 동작을, 완료 후에는 결과 파일 열기·위치 보기·경로 복사·다시 실행을 제공합니다. 가져오기는 문서 본문만 교체하고 메타데이터와 문서 설정을 유지하며, 적용 후 문서를 저장해야 디스크에 기록됩니다.
 
 편집기에서 `@`를 입력하면 제목·그림·표·수식 참조를 삽입할 수 있고, 클립보드 이미지는 붙여 넣은 뒤 캡션과 정렬을 지정할 수 있습니다. Mermaid는 로컬에서 렌더링합니다. PlantUML·D2·Graphviz 온라인 미리보기는 전송할 원문과 endpoint를 알리고 동의를 받은 뒤에만 사용합니다. Draw.io 편집에는 [Draw.io Integration](https://marketplace.visualstudio.com/items?itemName=hediet.vscode-drawio)이 필요합니다.
+
+`Insert / 삽입 → 각주`는 본문에 자동 번호 표시를 넣고 문서 끝에서 한 줄 일반 텍스트로 본문을 편집합니다. 표시와 각주 항목은 클릭과 키보드로 양방향 이동할 수 있고 HTML·PDF·Markdown·AsciiDoc 내보내기에서 문서 끝 목록으로 남습니다. 각주가 있는 문서의 Slides 내보내기와 `.sdocbook` 합성은 배치 정책이 정해질 때까지 명시적으로 차단됩니다.
 
 ## `.sdoc` 형식과 데이터 안전성
 

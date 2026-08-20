@@ -32,7 +32,9 @@ export function convertJsonToAdoc(json: TiptapNode, settings?: ExportSettings, m
   if (meta?.modified) { docAttributes += `:revdate: ${formatDate(meta.modified)}\n`; }
   if (meta?.created) { docAttributes += `:created: ${formatDate(meta.created)}\n`; }
   docAttributes += '\n';
-  return docAttributes + convertNode(json, ctx).trim() + '\n';
+  const body = convertNode(json, ctx).trim();
+  const endnotes = renderEndnotes(ctx);
+  return docAttributes + body + (endnotes ? `\n\n${endnotes}` : '') + '\n';
 }
 
 function convertNode(node: TiptapNode, ctx: ConvertContext): string {
@@ -116,6 +118,12 @@ function convertNode(node: TiptapNode, ctx: ConvertContext): string {
     case 'mathInline':
       return `stem:[${(node.attrs?.latex as string) || ''}]`;
 
+    case 'endnote': {
+      const entry = ctx.numbering.byNode.get(node);
+      const id = typeof node.attrs?.id === 'string' ? node.attrs.id : '';
+      return entry && id ? `[[endnote-ref-${id}]]^<<endnote-${id},${entry.number}>>^` : '';
+    }
+
     case 'mathBlock': {
       const entry = ctx.numbering.byNode.get(node);
       const latex = (node.attrs?.latex as string) || '';
@@ -146,6 +154,21 @@ function convertNode(node: TiptapNode, ctx: ConvertContext): string {
       return node.content ? node.content.map(n => convertNode(n, ctx)).join('') : '';
   }
 }
+
+function renderEndnotes(ctx: ConvertContext): string {
+  const entries = ctx.numbering.entries.filter((entry) => entry.kind === 'endnote' && entry.id);
+  if (entries.length === 0) return '';
+  return entries.map((entry) =>
+    `. [[endnote-${entry.id}]] ${escapePlainAsciiDoc(entry.title ?? '')} <<endnote-ref-${entry.id},↩>>`
+  ).join('\n');
+}
+
+const escapePlainAsciiDoc = (value: string): string => value
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/\[/g, '&#91;')
+  .replace(/\]/g, '&#93;');
 
 function convertInlineContent(content: TiptapNode[], ctx: ConvertContext): string {
   return content.map(n => convertNode(n, ctx)).join('');

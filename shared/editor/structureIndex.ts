@@ -42,6 +42,7 @@ export interface DocumentStructureIndex {
   figures: readonly DocumentStructureEntry[];
   tables: readonly DocumentStructureEntry[];
   equations: readonly DocumentStructureEntry[];
+  endnotes: readonly DocumentStructureEntry[];
   references: readonly DocumentReferenceEntry[];
   byId: ReadonlyMap<string, DocumentStructureEntry>;
 }
@@ -104,7 +105,8 @@ const isNumberedNode = (node: ProseMirrorNode): boolean =>
   node.type.name === 'heading'
   || node.type.name === 'image'
   || node.type.name === 'table'
-  || node.type.name === 'mathBlock';
+  || node.type.name === 'mathBlock'
+  || node.type.name === 'endnote';
 
 /** The only full document serialization/numbering pass used by editor structure consumers. */
 export function buildDocumentStructureIndex(
@@ -145,6 +147,7 @@ export function buildDocumentStructureIndex(
     figures: entries.filter((entry) => entry.kind === 'figure'),
     tables: entries.filter((entry) => entry.kind === 'table'),
     equations: entries.filter((entry) => entry.kind === 'equation'),
+    endnotes: entries.filter((entry) => entry.kind === 'endnote'),
     references,
     byId,
   };
@@ -173,6 +176,7 @@ const mapStructureIndex = (
     figures: entries.filter((entry) => entry.kind === 'figure'),
     tables: entries.filter((entry) => entry.kind === 'table'),
     equations: entries.filter((entry) => entry.kind === 'equation'),
+    endnotes: entries.filter((entry) => entry.kind === 'endnote'),
     references,
     byId,
   };

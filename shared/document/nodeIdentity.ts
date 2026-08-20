@@ -21,9 +21,14 @@ export const OPTIONAL_IDENTITY_NODE_TYPES: ReadonlySet<string> = new Set([
   'diagram',
 ]);
 
+export const REQUIRED_IDENTITY_NODE_TYPES: ReadonlySet<string> = new Set([
+  'endnote',
+]);
+
 export const IDENTITY_BEARING_NODE_TYPES: ReadonlySet<string> = new Set([
   ...REFERENCEABLE_NODE_TYPES,
   ...OPTIONAL_IDENTITY_NODE_TYPES,
+  ...REQUIRED_IDENTITY_NODE_TYPES,
 ]);
 
 // v1.0 historically persisted horizontalRule.attrs.id. It reserves its value

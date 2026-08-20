@@ -12,7 +12,7 @@ export interface NumberingPolicy {
   counterResetPaths?: readonly string[];
 }
 
-export type NumberedKind = 'heading' | 'figure' | 'table' | 'equation';
+export type NumberedKind = 'heading' | 'figure' | 'table' | 'equation' | 'endnote';
 
 export interface NumberedEntry {
   kind: NumberedKind;
@@ -65,6 +65,7 @@ export function buildNumberingIndex(doc: TiptapNode, policy: NumberingPolicy): N
   let localFigure = 0;
   let localTable = 0;
   let localEquation = 0;
+  let globalEndnote = 0;
   const resetPaths = new Set(policy.counterResetPaths ?? []);
 
   const add = (node: TiptapNode, entry: NumberedEntry): void => {
@@ -121,7 +122,19 @@ export function buildNumberingIndex(doc: TiptapNode, policy: NumberingPolicy): N
       continue;
     }
 
-    let kind: Exclude<NumberedKind, 'heading'> | undefined;
+    if (node.type === 'endnote') {
+      globalEndnote += 1;
+      const number = String(globalEndnote);
+      const title = stringAttr(node, 'body') ?? '';
+      add(node, {
+        kind: 'endnote', id: stringAttr(node, 'id'), path, number,
+        baseLabel: number, displayLabel: number, referenceLabel: number,
+        title, numbered: true,
+      });
+      continue;
+    }
+
+    let kind: Exclude<NumberedKind, 'heading' | 'endnote'> | undefined;
     let number = '';
     let prefix = '';
     let title: string | undefined;

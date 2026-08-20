@@ -55,7 +55,7 @@
       "properties": {
         "contract": { "const": "sdoc.read/1" },
         "projection": { "const": "catalog" },
-        "kind": { "enum": ["blocks", "outline", "references", "referenceables"] },
+        "kind": { "enum": ["blocks", "outline", "references", "referenceables", "endnotes"] },
         "limit": { "type": "integer", "minimum": 1, "maximum": 10000 },
         "cursor": { "$ref": "#/definitions/cursor" },
         "maxBytes": { "type": "integer", "minimum": 1, "maximum": 33554432 },

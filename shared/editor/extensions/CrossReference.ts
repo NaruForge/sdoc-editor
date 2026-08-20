@@ -309,7 +309,7 @@ export function slugify(text: string): string {
 export function collectTargets(editor: Editor, settings: ResolvedEditorSettings): RefTarget[] {
   void settings;
   const index = ensureStructureIndexFresh(editor.view);
-  return index.entries.flatMap((entry): RefTarget[] => entry.id ? [{
+  return index.entries.flatMap((entry): RefTarget[] => entry.id && entry.kind !== 'endnote' ? [{
     id: entry.id,
     type: entry.kind,
     label: entry.referenceLabel,

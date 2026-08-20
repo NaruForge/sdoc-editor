@@ -133,6 +133,7 @@
       "oneOf": [
         { "$ref": "#/definitions/textNode" },
         { "$ref": "#/definitions/mathInlineNode" },
+        { "$ref": "#/definitions/endnoteNode" },
         { "$ref": "#/definitions/hardBreakNode" }
       ]
     },
@@ -442,6 +443,28 @@
           "required": ["latex"],
           "properties": {
             "latex": { "type": "string", "description": "LaTeX math expression." }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "endnoteNode": {
+      "type": "object",
+      "required": ["type", "attrs"],
+      "properties": {
+        "type": { "const": "endnote" },
+        "attrs": {
+          "type": "object",
+          "required": ["id", "body"],
+          "properties": {
+            "id": { "$ref": "#/definitions/stableId" },
+            "body": {
+              "type": "string",
+              "pattern": "^[^\\r\\n]*$",
+              "description": "Single-line plain-text endnote body. The document-end list is derived from this canonical value."
+            }
           },
           "additionalProperties": false
         }

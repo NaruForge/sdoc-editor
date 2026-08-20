@@ -130,6 +130,7 @@ export function assignAutoIds(doc: TiptapNode): TiptapNode {
   let imageCounter = 0;
   let tableCounter = 0;
   let equationCounter = 0;
+  let endnoteCounter = 0;
 
   const uniqueGeneratedId = (base: string): string => {
     const boundedBase = truncatePersistentId(base);
@@ -169,6 +170,7 @@ export function assignAutoIds(doc: TiptapNode): TiptapNode {
     if (node.type === 'image') generatedBase = `figure-${++imageCounter}`;
     if (node.type === 'table') generatedBase = `table-${++tableCounter}`;
     if (node.type === 'mathBlock') generatedBase = `eq-${++equationCounter}`;
+    if (node.type === 'endnote') generatedBase = `endnote-${++endnoteCounter}`;
     if (!generatedBase) return node;
 
     const existing = attrString(node, 'id');
@@ -237,6 +239,7 @@ export interface QueryResult {
   figures: Array<{ id: string; caption: string; number: number }>;
   tables: Array<{ id: string; caption: string; number: number }>;
   equations: Array<{ id: string; number: number }>;
+  endnotes: Array<{ id: string; number: number; body: string }>;
   crossReferences: Array<{ href: string; text: string; targetExists: boolean }>;
 }
 
@@ -249,6 +252,7 @@ export function queryDocumentStructure(
     figures: [],
     tables: [],
     equations: [],
+    endnotes: [],
     crossReferences: [],
   };
   if (!doc.content) return result;
@@ -279,6 +283,11 @@ export function queryDocumentStructure(
     if (node.type === 'image') result.figures.push({ id, caption: attrString(node, 'caption'), number: Number(entry?.number) });
     if (node.type === 'table') result.tables.push({ id, caption: attrString(node, 'caption'), number: Number(entry?.number) });
     if (node.type === 'mathBlock') result.equations.push({ id, number: Number(entry?.number) });
+    if (node.type === 'endnote') result.endnotes.push({
+      id,
+      number: Number(entry?.number),
+      body: attrString(node, 'body'),
+    });
   }
 
   for (const { node } of walkDocument(doc)) {

@@ -83,6 +83,7 @@ export type BookDiagnosticCode =
   | 'DOCUMENT_INVALID'
   | 'ASSET_PATH_OUTSIDE_BOOK'
   | 'ID_DUPLICATE'
+  | 'ENDNOTES_UNSUPPORTED'
   | 'REFERENCE_BROKEN';
 
 export interface BookDiagnostic {

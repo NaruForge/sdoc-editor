@@ -1206,13 +1206,13 @@ describe('sdoc.read/1 projections', () => {
     return content;
   };
 
-  it('leaves the legacy inspect result shape and targeted output unchanged', () => {
+  it('adds the endnotes catalog while preserving legacy targeted output', () => {
     const text = source([heading(1, 'intro', 'Intro'), paragraph('Body')]);
     const before = inspectDocumentBytes(text, { targetPath: [1], maxBlocks: 1 });
     expect(before.ok).toBe(true);
     if (!before.ok) return;
     expect(Object.keys(before).sort()).toEqual([
-      'blockCount', 'blocks', 'blocksTruncated', 'documentId', 'legacy', 'metadata',
+      'blockCount', 'blocks', 'blocksTruncated', 'documentId', 'endnotes', 'legacy', 'metadata',
       'needsIdNormalization', 'ok', 'outline', 'referenceables', 'references', 'revision',
       'target', 'warnings',
     ]);

@@ -34,7 +34,9 @@ export function convertJsonToMarkdown(json: TiptapNode, settings?: ExportSetting
     if (meta.modified) { frontMatter += `modified: "${formatDate(meta.modified)}"\n`; }
     frontMatter += '---\n\n';
   }
-  return frontMatter + convertNode(json, ctx).trim() + '\n';
+  const body = convertNode(json, ctx).trim();
+  const endnotes = renderEndnotes(ctx);
+  return frontMatter + body + (endnotes ? `\n\n${endnotes}` : '') + '\n';
 }
 
 function convertNode(node: TiptapNode, ctx: ConvertContext): string {
@@ -97,6 +99,11 @@ function convertNode(node: TiptapNode, ctx: ConvertContext): string {
     case 'mathInline':
       return `$${node.attrs?.latex || ''}$`;
 
+    case 'endnote': {
+      const entry = ctx.numbering.byNode.get(node);
+      return entry ? `[^${entry.number}]` : '';
+    }
+
     case 'mathBlock': {
       const entry = ctx.numbering.byNode.get(node);
       const latex = node.attrs?.latex || '';
@@ -145,6 +152,16 @@ function convertNode(node: TiptapNode, ctx: ConvertContext): string {
       return node.content ? node.content.map(n => convertNode(n, ctx)).join('') : '';
   }
 }
+
+function renderEndnotes(ctx: ConvertContext): string {
+  return ctx.numbering.entries
+    .filter((entry) => entry.kind === 'endnote')
+    .map((entry) => `[^${entry.number}]: ${escapePlainMarkdown(entry.title ?? '')}`)
+    .join('\n');
+}
+
+const escapePlainMarkdown = (value: string): string =>
+  value.replace(/([\\`*_\[\]<>])/g, '\\$1');
 
 function convertInlineContent(content: TiptapNode[], ctx: ConvertContext): string {
   return content.map(n => convertNode(n, ctx)).join('');

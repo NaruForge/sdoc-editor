@@ -6,6 +6,7 @@ import {
 import { Editor as TiptapEditor } from '@tiptap/react';
 import { useEditorI18n, type EditorTranslationKey } from '../i18n';
 import { Menu } from './ui/Menu';
+import { insertEndnoteAndFocus } from '../extensions/Endnote';
 
 type CalloutVariant = 'note' | 'info' | 'tip' | 'warning' | 'danger';
 
@@ -244,6 +245,12 @@ export const EditorContextMenu: React.FC<EditorContextMenuProps> = ({
           icon={<Sigma size={14} />}
           label={t('toolbar.math')}
           onClick={() => handleItem(onInsertEquation)}
+          onMouseEnter={() => setSubMenu(null)}
+        />
+        <Item
+          icon={<span aria-hidden="true">¹</span>}
+          label={t('toolbar.endnote')}
+          onClick={() => handleItem(() => insertEndnoteAndFocus(editor))}
           onMouseEnter={() => setSubMenu(null)}
         />
         <Item

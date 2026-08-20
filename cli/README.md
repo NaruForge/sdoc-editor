@@ -143,7 +143,7 @@ sdoc capabilities --human
   },
   "commands": ["capabilities", "inspect", "validate", "apply", "rename-heading", "set-document-title", "create"],
   "projections": ["catalog", "target", "section", "document"],
-  "catalogKinds": ["blocks", "outline", "references", "referenceables"],
+  "catalogKinds": ["blocks", "outline", "references", "referenceables", "endnotes"],
   "builtInTemplateIds": ["builtin:blank", "builtin:technical-report", "builtin:design-specification", "builtin:verification-report"]
 }
 ```
@@ -236,6 +236,10 @@ projection. Catalog, section, and document results can return
 `page.nextCursor`; pass it back with the same projection/query until
 `page.complete` is true. Cursors bind the exact source bytes and query scope.
 They are opaque integrity tokens, not authentication credentials.
+
+The `endnotes` catalog reports canonical inline notes in body order as
+`id`, `number`, `body`, and `path`. Endnotes are inline content rather than
+operation block targets, and they do not enter the `referenceables` catalog.
 
 ### `validate`
 

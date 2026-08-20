@@ -55,7 +55,7 @@ export function convertJsonToHtml(
     }),
     diagramOptions,
   };
-  const bodyContent = convertNode(json, ctx);
+  const bodyContent = convertNode(json, ctx) + renderEndnotes(ctx);
   return generateHtmlDocument(bodyContent, theme, meta, ctx);
 }
 
@@ -143,6 +143,13 @@ function convertNode(node: TiptapNode, ctx: ConvertContext): string {
     case 'mathInline':
       return `<span class="math-inline" data-latex="${escapeHtml((node.attrs?.latex as string) || '')}">\\(${escapeHtml((node.attrs?.latex as string) || '')}\\)</span>`;
 
+    case 'endnote': {
+      const entry = ctx.numbering.byNode.get(node);
+      const id = typeof node.attrs?.id === 'string' ? node.attrs.id : '';
+      if (!entry || !id) return '';
+      return `<sup class="endnote-marker"><a id="endnote-ref-${escapeHtml(id)}" href="#endnote-${escapeHtml(id)}" aria-label="Endnote ${escapeHtml(entry.number)}">${escapeHtml(entry.number)}</a></sup>`;
+    }
+
     case 'mathBlock': {
       const entry = ctx.numbering.byNode.get(node);
       const latex = (node.attrs?.latex as string) || '';
@@ -188,6 +195,15 @@ function convertNode(node: TiptapNode, ctx: ConvertContext): string {
     default:
       return node.content ? node.content.map(n => convertNode(n, ctx)).join('') : '';
   }
+}
+
+function renderEndnotes(ctx: ConvertContext): string {
+  const entries = ctx.numbering.entries.filter((entry) => entry.kind === 'endnote' && entry.id);
+  if (entries.length === 0) return '';
+  const items = entries.map((entry) =>
+    `  <li id="endnote-${escapeHtml(entry.id!)}"><span>${escapeHtml(entry.title ?? '')}</span> <a class="endnote-backlink" href="#endnote-ref-${escapeHtml(entry.id!)}" aria-label="Return to endnote ${escapeHtml(entry.number)}">↩</a></li>`
+  ).join('\n');
+  return `\n<section class="endnotes" aria-label="Endnotes">\n  <hr>\n  <ol>\n${items}\n  </ol>\n</section>`;
 }
 
 function convertDiagram(node: TiptapNode, ctx: ConvertContext): string {
@@ -889,6 +905,13 @@ function generateHtmlDocument(bodyContent: string, theme?: HtmlTheme, meta?: Sdo
     .callout-warning .callout-header { color: #f59e0b; }
     .callout-danger { background: rgba(239,68,68,.1);   border-color: #ef4444; }
     .callout-danger .callout-header { color: #ef4444; }
+
+    /* Endnotes */
+    .endnote-marker { vertical-align: super; font-size: .72em; line-height: 0; }
+    .endnotes { margin-top: 2.5em; font-size: .92em; }
+    .endnotes ol { padding-left: 1.75em; }
+    .endnotes li { margin: .45em 0; }
+    .endnote-backlink { margin-left: .35em; }
   </style>
   ${generateScriptTags(ctx?.settings || {})}
 </head>

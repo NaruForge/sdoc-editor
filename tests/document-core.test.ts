@@ -70,6 +70,36 @@ const text = (value: string, href?: string): TiptapNode => ({
 });
 
 describe('sdoc envelope', () => {
+  it('accepts canonical single-line endnotes and rejects malformed bodies', () => {
+    const documentWithEndnote = (attrs: Record<string, unknown>): unknown => wrapSdoc({
+      type: 'doc',
+      content: [{
+        type: 'paragraph',
+        content: [{ type: 'text', text: 'Body' }, { type: 'endnote', attrs }],
+      }],
+    }, {});
+
+    expect(() => assertPersistedDocument(documentWithEndnote({ id: 'endnote-1', body: '' }))).not.toThrow();
+    expect(() => assertPersistedDocument(documentWithEndnote({ id: '각주-一', body: 'A note.' }))).not.toThrow();
+    expect(() => assertPersistedDocument(documentWithEndnote({ body: 'Missing id' }))).toThrow();
+    expect(() => assertPersistedDocument(documentWithEndnote({ id: 'endnote-1' }))).toThrow();
+    expect(() => assertPersistedDocument(documentWithEndnote({ id: 'endnote-1', body: 'two\nlines' }))).toThrow();
+  });
+
+  it('assigns and repairs endnote ids without changing note bodies', () => {
+    const normalized = assignAutoIds({
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [
+        { type: 'endnote', attrs: { id: 'endnote-1', body: 'Original' } },
+        { type: 'endnote', attrs: { id: 'endnote-1', body: 'Copied' } },
+        { type: 'endnote', attrs: { body: 'Missing' } },
+      ] }],
+    });
+    const notes = normalized.content?.[0]?.content ?? [];
+    expect(notes.map((node) => node.attrs?.id)).toEqual(['endnote-1', 'endnote-1-2', 'endnote-3']);
+    expect(notes.map((node) => node.attrs?.body)).toEqual(['Original', 'Copied', 'Missing']);
+  });
+
   it('defines optional stable ids as omitted or valid strings, never null', () => {
     const schema = JSON.parse(
       readFileSync(new URL('../sdoc.schema.json', import.meta.url), 'utf8'),

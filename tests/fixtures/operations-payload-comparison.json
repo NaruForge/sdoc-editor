@@ -16,7 +16,7 @@
   "revision": "sha256:09a09c0fac048b10d7024fca14044aabe939f5ef09e7d55270b37cf99cf65d08",
   "measurements": {
     "wholeDocumentInputBytes": 19990,
-    "boundedInspectPayloadBytes": 2924,
+    "boundedInspectPayloadBytes": 2938,
     "operationPayloadBytes": 232,
     "inspectMaxBlocks": 8
   },

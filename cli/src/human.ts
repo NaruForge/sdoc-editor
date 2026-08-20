@@ -203,6 +203,7 @@ export function renderHumanSuccess(value: Record<string, unknown>): string {
           lines.push(`  - H${String(outline.level ?? '?')} ${String(outline.text ?? '')}`);
         }
       }
+      if (Array.isArray(value.endnotes)) lines.push(`Endnotes: ${value.endnotes.length}`);
       if (Array.isArray(value.blocks)) lines.push(`Blocks: ${value.blocks.length}`);
     }
   } else if (command === 'validate') {
