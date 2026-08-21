@@ -237,7 +237,7 @@ export class VsCodeExportService {
     });
     const sourceVersion = document.version;
     const sourceFingerprint = this.readSourceFingerprint(document);
-    const browserPath = format === 'pdf' ? detectBrowser() : undefined;
+    const browserPath = format === 'pdf' ? await detectBrowser() : undefined;
     const pdfFallback = format === 'pdf' && !browserPath;
     const outputFileName = this.exportFileName(
       document,

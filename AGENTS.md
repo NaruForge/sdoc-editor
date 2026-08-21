@@ -1,73 +1,51 @@
 # Structured Doc Editor — Agent Guide
 
-## Product
+## Repository map
 
-Structured Doc Editor edits `.sdoc` and `.tiptap.json` documents through the
-VS Code extension in `src/` with the React webview in `webview-ui/`. The `cli/`
-workspace provides non-visual inspection and semantic document operations.
+Structured Doc Editor supports two delivery surfaces: the VS Code extension
+(`src/` plus `webview-ui/`) and the non-visual CLI (`cli/`). Both consume the
+host-neutral TypeScript code in `shared/`. The retired Windows Desktop source
+exists only in the `v0.7.8` tag and is not a build or verification target.
 
-The Windows desktop app reached end of life with v0.7.8. Its source remains
-available from the `v0.7.8` tag, but it is not present on `main` and is not a
-supported host, build target, or required verification surface from v0.8.0 onward.
+- `sdoc.schema.json` and `shared/types.ts`: persisted document contract
+- `shared/document/`: envelope, validation, migrations, IDs, and operations
+- `shared/converter/`: host-neutral import/export conversion
+- `shared/book/`: host-neutral `.sdocbook` parsing and composition
+- `shared/editor/`: reusable React/Tiptap editor behavior and structure
+- `src/`: VS Code Extension Host integration and host I/O
+- `webview-ui/`: VS Code webview adapters and composition
+- `DESIGN.md`: prose-first UI intent and runtime ownership
+- `docs/architecture.md`: current architecture and dependency direction
+- `docs/adr/`: durable decisions; later ADRs may supersede earlier ones
+- `CONTRIBUTING.md#verification-contract`: authoritative verification commands
 
-The document model, converters, settings, and host-neutral utilities belong in
-`shared/`. VS Code APIs must not enter shared modules.
+## Global invariants
 
-## Source of truth
+1. Preserve unrelated working-tree changes and never edit generated artifacts
+   directly.
+2. Parse external JSON as `unknown` and validate or narrow it at the boundary.
+3. Add behavior tests before changing persisted schema, migrations, IDs,
+   cross-references, or converters; update schema, examples, and converters
+   together when persisted semantics change.
+4. Keep host capabilities behind typed adapters. Host-neutral code must not
+   import VS Code, Node host APIs, or delivery-surface modules; CI enforces
+   those direct import boundaries.
+5. Keep reusable editor behavior and geometry in `shared/editor/`; keep VS Code
+   integration in `src/` or `webview-ui/`. Read `DESIGN.md` before UI changes.
+6. Keep `.sdocbook` file loading behind `BookDocumentLoader`; composition must
+   consume the injected loader.
+7. Use GitHub Issues for planned material work and Git history for completed
+   work. Do not create a repository-local task database.
+8. Never put vulnerabilities, credentials, personal/customer data, or sensitive
+   logs in public issues; use `SECURITY.md`.
 
-- `sdoc.schema.json`: persisted `.sdoc` document contract
-- `shared/types.ts`: TypeScript document and settings types
-- `shared/document/`: document envelope, migrations, IDs, and cross-references
-- `shared/settingsResolver.ts`: defaults and settings resolution
-- `shared/converter/`: all import/export conversion
-- `shared/book/`: `.sdocbook` parsing, validation, and host-neutral composition
-- `shared/editor/`: reusable editor UI and Tiptap code consumed by the VS Code webview
-- `DESIGN.md`: product chrome design intent, runtime ownership, and UI verification contract
-- `docs/architecture.md`: current architecture
-- `docs/adr/`: durable architectural decisions; newer ADRs may supersede older ones
+## Workflow pointers
 
-Do not create a repository-local task database. Use the issue tracker for planned work and Git history for completed work.
-
-## Required commands
-
-Run from the repository root:
-
-```powershell
-npm ci
-npm run check
-npm run build:all
-```
-
-## Change rules
-
-1. Preserve unrelated working-tree changes.
-2. Add behavior tests before changing migration, ID assignment, cross-references, or converters.
-3. Add reusable editor behavior to `shared/editor/`; keep VS Code integration in `src/` or `webview-ui/`.
-4. Keep extension-host and webview differences behind typed adapters or host-level components.
-5. Parse external JSON as `unknown` and validate or narrow it at the boundary.
-6. Do not add new `any`, untyped `window` globals, synchronous extension-host I/O, or copied defaults.
-7. Update schemas, examples, tests, and converters when the persisted document format changes.
-8. Keep user documentation in `README.md`, contributor workflow in `CONTRIBUTING.md`, and implementation detail in `docs/`.
-9. Keep `.sdocbook` loading behind `BookDocumentLoader`; the composition core must not access host filesystems directly.
-10. Before changing UI, read `DESIGN.md`. Keep reusable structure and geometry in `shared/editor/`, and verify affected behavior in VS Code across light, dark, and high-contrast themes, relevant responsive widths, and accessibility states.
-
-## Packaging
-
-- `npm run package` creates the VSIX in `output/`.
-- `npm run package:cli` creates the installable CLI `.tgz` in `output/`.
-- Versions are synchronized by `npm run version:check`.
-- A matching `v*` tag publishes the VS Code extension through
-  `.github/workflows/release-vscode.yml` and attaches the CLI package through
-  `.github/workflows/release-cli.yml`.
-
-## GitHub issue workflow
-
-- GitHub Issues are the public source of truth for bugs, features, UX changes, architectural improvements, and technical debt.
-- Create or identify an issue before starting material implementation work.
-- Record confirmed root causes, considered alternatives, implementation strategy, and important design decisions as issue comments.
-- Link commits and pull requests to the issue. Use `Fixes #<number>` only when the change fully resolves the issue.
-- Before closing an issue, comment with the implemented scope, verification results, and any remaining follow-up work.
-- Do not use private local notes as the sole record of a development decision.
-- Keep the Issue Form's type label and apply `area: cli` and `area: vscode` according to the affected delivery surfaces defined in `.github/AI_ISSUE_REPORTING.md`.
-- Trivial typo fixes, mechanical release or version operations, and routine dependency maintenance may proceed without a dedicated issue when no product decision is involved.
-- Never disclose vulnerabilities, credentials, personal information, customer data, or sensitive logs in public issues. Use GitHub Security Advisories or another appropriate private channel.
+- Run `npm ci` once, use `npm run verify:fast` while iterating, and run
+  `npm run verify:all` before completing a material change. The command contract
+  and targeted variants live in `CONTRIBUTING.md#verification-contract`.
+- For issue creation or mutation, follow `.github/AI_ISSUE_REPORTING.md`; record
+  confirmed causes, alternatives, strategy, decisions, and final verification
+  on the implementation issue.
+- Contributor, packaging, and maintainer release procedures live in
+  `CONTRIBUTING.md` rather than this always-loaded map.

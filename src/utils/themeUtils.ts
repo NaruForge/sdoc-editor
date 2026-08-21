@@ -1,5 +1,10 @@
 import * as vscode from 'vscode';
-import { getCaptionPreset, resolveSettings } from '../../shared/settingsResolver';
+import {
+  getCaptionPreset,
+  HOST_SETTING_DEFAULTS,
+  resolveSettings,
+  SETTINGS_DEFAULTS,
+} from '../../shared/settingsResolver';
 import type { CaptionStyleName } from '../../shared/types';
 import * as path from 'path';
 import { resolveFontWeight } from './fontUtils';
@@ -50,11 +55,11 @@ export interface FontWeights {
 
 export function readFontWeights(config: vscode.WorkspaceConfiguration): FontWeights {
   return {
-    body: resolveFontWeight(config.get<string>('font.body', 'Regular')),
-    bold: resolveFontWeight(config.get<string>('font.bold', 'Bold')),
-    h1: resolveFontWeight(config.get<string>('font.h1', 'Bold')),
-    h2: resolveFontWeight(config.get<string>('font.h2', 'SemiBold')),
-    h3: resolveFontWeight(config.get<string>('font.h3', 'SemiBold')),
+    body: resolveFontWeight(config.get<string>('font.body', HOST_SETTING_DEFAULTS.fontWeightBody)),
+    bold: resolveFontWeight(config.get<string>('font.bold', HOST_SETTING_DEFAULTS.fontWeightBold)),
+    h1: resolveFontWeight(config.get<string>('font.h1', HOST_SETTING_DEFAULTS.fontWeightH1)),
+    h2: resolveFontWeight(config.get<string>('font.h2', HOST_SETTING_DEFAULTS.fontWeightH2)),
+    h3: resolveFontWeight(config.get<string>('font.h3', HOST_SETTING_DEFAULTS.fontWeightH3)),
   };
 }
 
@@ -66,12 +71,11 @@ export function buildHtmlTheme(
 ): Record<string, unknown> {
   return {
     companyLogo,
-    companyName: config.get<string>('theme.companyName') || '',
-    primaryColor: config.get<string>('theme.primaryColor') || '#2563EB',
-    accentColor: config.get<string>('theme.accentColor') || '#6b6b6b',
-    fontFamily: config.get<string>('theme.fontFamily') ||
-      "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-    customStyles: config.get<string>('theme.customStyles') || '',
+    companyName: config.get<string>('theme.companyName') || HOST_SETTING_DEFAULTS.companyName,
+    primaryColor: config.get<string>('theme.primaryColor') || HOST_SETTING_DEFAULTS.primaryColor,
+    accentColor: config.get<string>('theme.accentColor') || HOST_SETTING_DEFAULTS.accentColor,
+    fontFamily: config.get<string>('theme.fontFamily') || HOST_SETTING_DEFAULTS.fontFamily,
+    customStyles: config.get<string>('theme.customStyles') || HOST_SETTING_DEFAULTS.customStyles,
     fontWeights,
     embeddedFonts,
   };
@@ -79,11 +83,15 @@ export function buildHtmlTheme(
 
 export function readExportSettings(config: vscode.WorkspaceConfiguration): Record<string, unknown> {
   const resolved = resolveSettings(undefined, {
-    captionStyle: config.get<CaptionStyleName>('caption.style', 'modern'),
-    headingNumbering: config.get<boolean>('heading.numbering', true),
-    headingStartNumber: config.get<number>('heading.startNumber', 1),
-    captionNumbering: config.get<'sequential' | 'hierarchical'>('caption.numbering', 'sequential'),
-    equationNumbering: config.get<'sequential' | 'hierarchical'>('equation.numbering', 'sequential'),
+    captionStyle: config.get<CaptionStyleName>('caption.style', SETTINGS_DEFAULTS.captionStyle),
+    headingNumbering: config.get<boolean>('heading.numbering', SETTINGS_DEFAULTS.headingNumbering),
+    headingStartNumber: config.get<number>('heading.startNumber', SETTINGS_DEFAULTS.headingStartNumber),
+    captionNumbering: config.get<'sequential' | 'hierarchical'>(
+      'caption.numbering', SETTINGS_DEFAULTS.captionNumbering,
+    ),
+    equationNumbering: config.get<'sequential' | 'hierarchical'>(
+      'equation.numbering', SETTINGS_DEFAULTS.equationNumbering,
+    ),
   });
   const preset = getCaptionPreset(resolved.captionStyle);
   return {
@@ -98,6 +106,8 @@ export function readExportSettings(config: vscode.WorkspaceConfiguration): Recor
     equationParens: preset.equationParens,
     captionNumbering: resolved.captionNumbering,
     equationNumbering: resolved.equationNumbering,
-    exportImagePath: config.get<'relative' | 'absolute'>('export.imagePath', 'relative'),
+    exportImagePath: config.get<'relative' | 'absolute'>(
+      'export.imagePath', HOST_SETTING_DEFAULTS.exportImagePath,
+    ),
   };
 }

@@ -148,6 +148,22 @@ export const SETTINGS_DEFAULTS = Object.freeze(Object.fromEntries(
   DOCUMENT_SETTING_KEYS.map((key) => [key, DOCUMENT_SETTING_REGISTRY[key].defaultValue]),
 )) as Readonly<Required<DocumentSettings>>;
 
+/** Host preference fallbacks shared by VS Code adapters and manifest contract tests. */
+export const HOST_SETTING_DEFAULTS = Object.freeze({
+  defaultImageAlignment: 'center' as const,
+  exportImagePath: 'relative' as const,
+  fontWeightBody: 'Regular',
+  fontWeightBold: 'Bold',
+  fontWeightH1: 'Bold',
+  fontWeightH2: 'SemiBold',
+  fontWeightH3: 'SemiBold',
+  companyName: '',
+  primaryColor: '#2563EB',
+  accentColor: '#6b6b6b',
+  fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+  customStyles: '',
+});
+
 /** Defaults shared by the VS Code extension, webview, converters, and CLI. */
 export const EDITOR_SETTINGS_DEFAULTS: ResolvedEditorSettings = {
   captionStyle: SETTINGS_DEFAULTS.captionStyle,
@@ -169,8 +185,8 @@ export const EDITOR_SETTINGS_DEFAULTS: ResolvedEditorSettings = {
   headingH4Color: SETTINGS_DEFAULTS.headingH4Color,
   headingH5Color: SETTINGS_DEFAULTS.headingH5Color,
   headingH6Color: SETTINGS_DEFAULTS.headingH6Color,
-  defaultImageAlignment: 'center',
-  exportImagePath: 'relative',
+  defaultImageAlignment: HOST_SETTING_DEFAULTS.defaultImageAlignment,
+  exportImagePath: HOST_SETTING_DEFAULTS.exportImagePath,
   pdfScale: SETTINGS_DEFAULTS.pdfScale,
   selfContained: SETTINGS_DEFAULTS.selfContained,
   slideBreakLevel: SETTINGS_DEFAULTS.slideBreakLevel,

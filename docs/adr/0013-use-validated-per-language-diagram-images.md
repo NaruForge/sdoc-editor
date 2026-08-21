@@ -8,7 +8,7 @@ Accepted
 
 ADR 0011 required every external diagram renderer response to be PNG. Kroki's
 D2 renderer supports SVG output rather than PNG, so the shared PNG-only request
-path cannot render valid D2 source. ADR 0012 also requires passive document
+path cannot render valid D2 source. ADR 0020 also requires passive document
 opening to remain network-free while allowing rendering after an explicit user
 edit or preview request.
 
@@ -34,7 +34,7 @@ edit or preview request.
 This supersedes ADR 0011 only where it mandates PNG for every external
 language. Its consent, host ownership, endpoint validation, request limits,
 cancellation, memory-only caching, and source-only fallback decisions remain in
-force. ADR 0012's passive-open and authoritative-consent rules remain in force.
+force. ADR 0020's passive-open and authoritative-consent rules remain in force.
 
 ## Consequences
 

@@ -12,19 +12,34 @@
 
 ## 개발 환경
 
-- Node.js 22.22.2 이상 (`.node-version` 참고)
-- npm 10 이상
-- VS Code 1.85 이상
+- `.node-version`에 선언된 Node.js와 그 배포판의 npm을 사용합니다.
+- 지원하는 VS Code 범위는 `package.json#engines.vscode`가 기준입니다.
 
 처음 한 번만 루트에서 의존성을 설치합니다. 하위 workspace에서 별도로 `npm install`하지 않습니다.
 
 ```bash
 npm ci
-npm run check
-npm run build:all
 ```
 
-`npm run check`는 버전 정합성, 디자인 계약, 생성된 validator, TypeScript, ESLint, 단위 테스트를 순서대로 검사합니다. VS Code 확장만 빌드하려면 `npm run build`, VS Code 확장과 CLI를 모두 빌드하려면 `npm run build:all`을 사용합니다.
+## Verification contract
+
+`package.json`의 `verify:*` script가 로컬과 CI가 공유하는 검증 계약입니다.
+`npm run check`는 기존 자동화 호환성을 위한 `verify:fast` 별칭입니다.
+
+| 명령 | 권위 있는 검증 범위 |
+|---|---|
+| `npm run verify:fast` | 반복 작업용: 버전·repository knowledge/architecture·디자인·생성 validator 계약, TypeScript, ESLint, Vitest |
+| `npm run verify:build` | VS Code extension, webview, CLI build |
+| `npm run verify:ui` | Chromium 준비 후 Playwright의 UI 품질·접근성·visual·responsive/theme 검증 |
+| `npm run verify:vscode` | build 후 실제 VS Code Extension Host 통합 검증 |
+| `npm run verify:package:vscode` | version-checked VSIX 생성 후 필수 extension/webview asset과 canonical CSS 검증 |
+| `npm run verify:package:vscode:host` | 생성된 VSIX를 풀어 실제 Extension Host에서 실행하는 release smoke 검증 |
+| `npm run verify:package:cli` | CLI `.tgz` 생성, contents·설치·UTF-8 smoke 검증; Windows에서는 PowerShell 7·5.1과 `cmd.exe` shim까지 검증 |
+| `npm run verify:all` | material change 완료 전 현재 OS에서 실행 가능한 reusable deterministic surface 전체 |
+
+작업 중에는 `verify:fast`와 영향받은 targeted command를 실행하고, material
+change를 완료하기 전에는 저장소 루트에서 `npm run verify:all`을 실행합니다.
+UI나 파일 I/O처럼 사람의 판단이 필요한 항목은 아래 수동 검증도 추가합니다.
 
 ## 작업 흐름
 
@@ -36,7 +51,7 @@ npm run build:all
 
 관련 없는 포맷 변경이나 생성 파일을 같은 PR에 포함하지 마세요. 저장 형식, migration, ID, 교차 참조, converter를 바꾸는 경우는 `AGENTS.md`의 행동 테스트 우선 규칙을 따릅니다.
 
-## 자주 쓰는 명령
+## 추가 개발 명령
 
 | 명령 | 용도 |
 |---|---|
@@ -44,13 +59,7 @@ npm run build:all
 | `npm run typecheck` | 루트와 모든 workspace 타입 검사 |
 | `npm run lint` | 모든 TypeScript/React 소스 린트 |
 | `npm test` | Vitest 단위 테스트 |
-| `npm run test:ui` | Playwright UI 품질·접근성 테스트 |
-| `npm run test:vscode` | 실제 VS Code Extension Host 통합 smoke test |
-| `npm run build` | Extension host와 VS Code 웹뷰 빌드 |
-| `npm run build:all` | VS Code 확장과 CLI 빌드 |
-| `npm run package` | `output/`에 VSIX 생성 |
 | `npm run build:cli` | Node.js CLI 단일 ESM bundle 빌드 |
-| `npm run package:cli` | 설치 가능한 CLI `.tgz`를 `output/`에 생성 |
 | `npm run licenses:check` | npm 라이선스와 제3자 고지 검증 |
 
 `npm run package`와 `npm run package:cli`는
@@ -67,35 +76,13 @@ npm run build:all
 저장소 루트에서 CLI 빌드와 패키징을 검증합니다.
 
 ```powershell
-npm run build:cli
-npm run package:cli
+npm run verify:package:cli
 ```
 
-`package:cli`는 설치 가능한 `.tgz`를 `output/`에 생성합니다. 소스를 직접
-실행하는 대신 실제 패키지를 별도 임시 프로젝트에 설치해 smoke test합니다.
-
-```powershell
-$version = (Get-Content package.json -Raw | ConvertFrom-Json).version
-$packages = @(Get-ChildItem output -Filter "sdoc-editor-cli-$version.tgz")
-if ($packages.Count -ne 1) {
-  throw "Expected one CLI package for $version, found $($packages.Count)."
-}
-$package = $packages[0].FullName
-$smoke = Join-Path ([IO.Path]::GetTempPath()) "sdoc-cli-$([guid]::NewGuid())"
-New-Item -ItemType Directory -Path $smoke | Out-Null
-Push-Location $smoke
-try {
-  npm init --yes | Out-Null
-  if ($LASTEXITCODE -ne 0) { throw "npm init failed: $LASTEXITCODE" }
-  npm install --save-dev $package
-  if ($LASTEXITCODE -ne 0) { throw "npm install failed: $LASTEXITCODE" }
-  npm exec --no --offline --package=sdoc-editor-cli -- sdoc --version
-  if ($LASTEXITCODE -ne 0) { throw "CLI smoke test failed: $LASTEXITCODE" }
-} finally {
-  Pop-Location
-  Remove-Item -LiteralPath $smoke -Recurse -Force
-}
-```
+이 명령은 설치 가능한 `.tgz`를 `output/`에 만들고 package contents, workspace
+entry point, 별도 prefix 설치, UTF-8 문서 생성을 검증합니다. Windows에서
+실행하면 PowerShell 7, Windows PowerShell 5.1, `cmd.exe` shim도 같은 script가
+검증합니다. CI는 이 command를 Linux와 Windows에서 실행해 OS matrix만 제공합니다.
 
 기능 PR에서 공개 npm registry에 게시하지 마세요. CI는 workflow artifact로
 패키지를 업로드하고, 태그 기반 `.github/workflows/release-cli.yml`은 GitHub
@@ -108,7 +95,11 @@ OIDC로 npm에 패키지를 게시한 뒤 GitHub Release에 같은 패키지를 
 
 릴리스가 승인되면 루트와 npm workspace 버전을 맞추고 `npm run version:check`를 통과시킨 뒤 동일한 `v*` 태그를 사용합니다. `.github/workflows/release-cli.yml`은 CLI `.tgz`를 패키징하고 npm Trusted Publishing의 단기 GitHub OIDC 자격 증명으로 `sdoc-editor-cli`에 게시한 뒤 GitHub Release에 첨부합니다. 워크플로에는 장기 npm 게시 토큰을 저장하지 않으며, 게시 결과는 `npm view sdoc-editor-cli@X.Y.Z version`으로 확인합니다.
 
-같은 태그로 `.github/workflows/release-vscode.yml`도 실행되어 VSIX를 만든 뒤 Visual Studio Marketplace에 게시합니다. 이 워크플로는 GitHub OIDC와 Microsoft Entra 관리 ID를 사용하며 PAT 또는 장기 보관 클라이언트 비밀을 사용하지 않습니다.
+같은 태그로 `.github/workflows/release-vscode.yml`도 실행되어
+`verify:package:vscode`와 `verify:package:vscode:host`로 실제 배포 artifact를
+검증한 뒤 Visual Studio Marketplace에 게시합니다. 이 워크플로는 GitHub
+OIDC와 Microsoft Entra 관리 ID를 사용하며 PAT 또는 장기 보관 클라이언트
+비밀을 사용하지 않습니다.
 
 ## 코드 구조와 경계
 
@@ -122,7 +113,10 @@ OIDC로 npm에 패키지를 게시한 뒤 GitHub Release에 같은 패키지를 
 
 재사용 가능한 에디터 동작은 `shared/editor/`에 두고 VS Code 통합은 `src/` 또는 `webview-ui/`에 둡니다. 호스트 API는 어댑터 뒤에 두고, `shared/`에서는 `vscode`를 import하지 않습니다. `.sdoc` 저장 형식을 바꿀 때는 `shared/types.ts`, `shared/document/sdocUtils.ts`, `sdoc.schema.json`, 변환기, 테스트를 함께 갱신합니다.
 
-공통 에디터는 `EditorHostBridge`와 `EditorExtensionRuntime`만 통해 호스트 기능을 호출합니다. 전역 `window` 속성으로 기능을 노출하거나 메시지 payload에 임의 필드를 추가하지 마세요. VS Code 구현은 `src/`의 서비스와 어댑터 또는 `webview-ui/`의 조합 계층에 둡니다. 공통 레이아웃 CSS는 `shared/editor/styles/`에서 수정하고 웹뷰 통합 파일에는 테마 토큰과 shell 전용 스타일만 둡니다.
+공통 에디터의 host bridge, adapter, CSS ownership 계약은
+`docs/architecture.md#dependency-rules`가 기준입니다. 공통 레이아웃 CSS는
+`shared/editor/styles/`에서 수정하고 웹뷰 통합 파일에는 테마 토큰과 shell
+전용 스타일만 둡니다.
 
 Book 조합 규칙은 `shared/book/`에서만 변경합니다. 코어는 파일 시스템을 직접 읽지 않고 `BookDocumentLoader`를 주입받아야 하며, preview와 export가 서로 다른 병합 결과를 만들지 않도록 같은 `composeBook()` 결과를 사용합니다.
 
@@ -139,7 +133,7 @@ UI 또는 파일 I/O 변경은 자동 검사 외에도 해당 배포면에서 �
 
 - 변경 범위가 한 가지 목적에 집중되어 있는가
 - 새 동작 또는 회귀 위험에 테스트가 있는가
-- `npm run check`와 관련 빌드가 통과하는가
+- `npm run verify:all`과 필요한 수동 검증이 통과하는가
 - 사용자 기능 변경이 `README.md`와 `CHANGELOG.md`에 반영되었는가
 - 구조적 결정이 필요했다면 `docs/adr/`에 짧은 ADR을 남겼는가
 - 생성물, 로컬 설정, 비밀 정보가 커밋에 포함되지 않았는가

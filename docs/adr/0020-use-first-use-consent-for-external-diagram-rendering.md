@@ -1,8 +1,11 @@
-# ADR 0012: Use first-use consent for external diagram rendering
+# ADR 0020: Use first-use consent for external diagram rendering
 
 ## Status
 
 Accepted
+
+Identifier corrected from the duplicate `0012` on 2026-08-21. The decision is
+unchanged.
 
 ## Context
 

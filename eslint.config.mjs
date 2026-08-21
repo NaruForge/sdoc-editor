@@ -5,7 +5,7 @@ import prettier from 'eslint-config-prettier';
 
 const commonRules = {
   ...tseslint.configs.recommended.rules,
-  '@typescript-eslint/no-explicit-any': 'warn',
+  '@typescript-eslint/no-explicit-any': 'error',
   '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
   'no-console': ['warn', { allow: ['warn', 'error'] }],
   'no-empty': ['error', { allowEmptyCatch: false }],
@@ -54,7 +54,7 @@ export default [
       'react-hooks/exhaustive-deps': 'warn',
 
       // These React Compiler-oriented rules are valuable migration signals but
-      // are not correctness gates for this React 18 application yet.
+      // are not correctness gates for this application yet.
       'react-hooks/immutability': 'off',
       'react-hooks/preserve-manual-memoization': 'off',
       'react-hooks/purity': 'off',

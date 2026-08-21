@@ -646,7 +646,7 @@ export class SdocBookProvider implements vscode.CustomTextEditorProvider {
           source.composition.meta,
           { resolveDiagramImage: diagramPreparation.resolveDiagramImage },
         );
-        const pdfBrowserPath = format === 'pdf' ? detectBrowser() : undefined;
+        const pdfBrowserPath = format === 'pdf' ? await detectBrowser() : undefined;
         const pdfFallback = format === 'pdf' && !pdfBrowserPath;
         if (format === 'pdf' && !pdfFallback) {
           htmlContent = htmlContent.replace(

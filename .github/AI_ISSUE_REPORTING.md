@@ -17,9 +17,8 @@ Read the references that apply, in this order:
    - [CLI bug report](ISSUE_TEMPLATE/cli_bug_report.yml)
    - [VS Code bug report](ISSUE_TEMPLATE/bug_report.yml)
    - [Feature request](ISSUE_TEMPLATE/feature_request.yml)
-4. [`AGENTS.md`](../AGENTS.md#github-issue-workflow) when the reporting agent is
-   working in this repository. It defines the issue lifecycle for
-   implementation work.
+4. [`AGENTS.md`](../AGENTS.md#workflow-pointers) when the reporting agent is
+   working in this repository. It links the implementation issue lifecycle.
 
 The Issue Forms are the field-level source of truth. Do not bypass a required
 field because an API or CLI permits an unstructured issue body. If no form fits

@@ -38,7 +38,7 @@ themes, responsive behavior, accessibility, or cross-host parity.
   as [Side Panel sizing](../../shared/editor/sidePanelWidth.ts).
 - VS Code consumes its semantic runtime theme variables. Tauri maps native
   light and dark palettes to the same semantic roles in
-  [its theme stylesheet](../../tauri-app/src/styles/tauri-theme.css).
+  [its theme stylesheet at the final Desktop tag](https://github.com/NaruForge/sdoc-editor/blob/v0.7.8/tauri-app/src/styles/tauri-theme.css).
 - Host CSS may define theme mappings and shell-only behavior. Common component
   structure and geometry belong in `shared/editor/` and must not be independently
   overridden by a host.

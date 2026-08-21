@@ -18,10 +18,9 @@ jobs:
           node-version-file: .node-version
           cache: npm
       - run: npm ci
-      - run: npm run check
-      - run: npm run build:all
-      - run: npm run package
-      - run: npm run package:cli
+      - run: npm run verify:fast
+      - run: npm run verify:build
+      - run: npm run verify:package:vscode
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: vsix
@@ -37,8 +36,7 @@ jobs:
           node-version-file: .node-version
           cache: npm
       - run: npm ci
-      - run: npx playwright install chromium
-      - run: npm run test:ui
+      - run: npm run verify:ui
       - name: Upload UI test evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -58,8 +56,7 @@ jobs:
           node-version-file: .node-version
           cache: npm
       - run: npm ci
-      - run: npm run build
-      - run: npm run test:vscode
+      - run: npm run verify:vscode
 
   cli-package:
     name: CLI package smoke (${{ matrix.os }})
@@ -75,77 +72,7 @@ jobs:
           node-version-file: .node-version
           cache: npm
       - run: npm ci
-      - run: npm run package:cli
-      - name: Verify workspace-linked CLI entry point
-        run: |
-          npm exec --no --offline --package=sdoc-editor-cli -- sdoc --version
-          node node_modules/sdoc-editor-cli/dist/sdoc.js --version
-      - name: Inspect CLI package contents
-        run: npm pack --dry-run ./cli
-      - name: Install package and run sdoc (Linux)
-        if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          package="$(realpath "$(find output -maxdepth 1 -type f -name '*.tgz' -print -quit)")"
-          test -n "$package"
-          prefix="$RUNNER_TEMP/sdoc-cli"
-          npm install --global --prefix "$prefix" "$package"
-          "$prefix/bin/sdoc" --version
-      - name: Install package and run sdoc (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $packages = @(Get-ChildItem output -Filter 'sdoc-editor-cli-*.tgz')
-          if ($packages.Count -ne 1) {
-            throw "Expected exactly one CLI package, found $($packages.Count)."
-          }
-          $prefix = Join-Path $env:RUNNER_TEMP 'sdoc-cli'
-          npm install --global --prefix $prefix $packages[0].FullName
-          $prefix | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          $env:PATH = "$prefix;$env:PATH"
-          sdoc --version
-          sdoc.cmd --version
-      - name: Create Korean document through PowerShell 7 shim
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $expected = '한글 제목'
-          $documentPath = Join-Path $env:RUNNER_TEMP 'sdoc-pwsh-utf8.sdoc'
-          sdoc create $documentPath --title $expected --json
-          if ($LASTEXITCODE -ne 0) {
-            throw "sdoc create failed with exit code $LASTEXITCODE."
-          }
-          $document = Get-Content -Raw -Encoding utf8 $documentPath |
-            ConvertFrom-Json
-          if ($document.meta.title -cne $expected) {
-            throw "PowerShell 7 did not preserve the exact UTF-8 title."
-          }
-      - name: Create Korean document through Windows PowerShell 5.1 shim
-        if: runner.os == 'Windows'
-        shell: powershell
-        run: |
-          $expected = '한글 제목'
-          $documentPath = Join-Path $env:RUNNER_TEMP 'sdoc-windows-powershell-utf8.sdoc'
-          sdoc create $documentPath --title $expected --json
-          if ($LASTEXITCODE -ne 0) {
-            throw "sdoc create failed with exit code $LASTEXITCODE."
-          }
-          $document = Get-Content -Raw -Encoding utf8 $documentPath |
-            ConvertFrom-Json
-          if ($document.meta.title -cne $expected) {
-            throw "Windows PowerShell 5.1 did not preserve the exact UTF-8 title."
-          }
-      - name: Create Korean document through cmd shim
-        if: runner.os == 'Windows'
-        shell: cmd
-        env:
-          SDOC_TEST_TITLE: 한글 제목
-        run: |
-          @echo off
-          set "DOCUMENT_PATH=%RUNNER_TEMP%\sdoc-cmd-utf8.sdoc"
-          call sdoc.cmd create "%DOCUMENT_PATH%" --title "%SDOC_TEST_TITLE%" --json
-          if errorlevel 1 exit /b %errorlevel%
-          node -e "const fs=require('node:fs');const doc=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));const expected=process.env.SDOC_TEST_TITLE;if(doc.meta.title!==expected)throw new Error('cmd.exe did not preserve the exact UTF-8 title.');" "%DOCUMENT_PATH%"
+      - run: npm run verify:package:cli
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: cli-package-${{ matrix.os }}

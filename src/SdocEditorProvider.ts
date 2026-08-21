@@ -18,6 +18,7 @@ import {
 } from '../shared/document/sdocUtils';
 import {
   getCaptionPreset,
+  HOST_SETTING_DEFAULTS,
   resolveDocumentSettingsSnapshot,
   resolveEditorSettings,
 } from '../shared/settingsResolver';
@@ -824,8 +825,12 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       const config = vscode.workspace.getConfiguration('structuredDocEditor');
       const docSettings = readDocSettings();
       const resolved = resolveEditorSettings(docSettings, undefined, {
-        defaultImageAlignment: config.get<'left' | 'center' | 'right'>('image.defaultAlignment', 'center'),
-        exportImagePath: config.get<'relative' | 'absolute'>('export.imagePath', 'relative'),
+        defaultImageAlignment: config.get<'left' | 'center' | 'right'>(
+          'image.defaultAlignment', HOST_SETTING_DEFAULTS.defaultImageAlignment,
+        ),
+        exportImagePath: config.get<'relative' | 'absolute'>(
+          'export.imagePath', HOST_SETTING_DEFAULTS.exportImagePath,
+        ),
       });
       const preset = getCaptionPreset(resolved.captionStyle);
       webviewPanel.webview.postMessage({
@@ -858,11 +863,11 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
           slideTransition: resolved.slideTransition,
           showTitleSlide: resolved.showTitleSlide,
           outputDir: resolved.outputDir,
-          fontWeightBody: config.get<string>('font.body', 'Regular'),
-          fontWeightBold: config.get<string>('font.bold', 'Bold'),
-          fontWeightH1: config.get<string>('font.h1', 'Bold'),
-          fontWeightH2: config.get<string>('font.h2', 'SemiBold'),
-          fontWeightH3: config.get<string>('font.h3', 'SemiBold'),
+          fontWeightBody: config.get<string>('font.body', HOST_SETTING_DEFAULTS.fontWeightBody),
+          fontWeightBold: config.get<string>('font.bold', HOST_SETTING_DEFAULTS.fontWeightBold),
+          fontWeightH1: config.get<string>('font.h1', HOST_SETTING_DEFAULTS.fontWeightH1),
+          fontWeightH2: config.get<string>('font.h2', HOST_SETTING_DEFAULTS.fontWeightH2),
+          fontWeightH3: config.get<string>('font.h3', HOST_SETTING_DEFAULTS.fontWeightH3),
         },
       });
       // Also send raw doc-level settings so the Settings Panel knows what's overridden

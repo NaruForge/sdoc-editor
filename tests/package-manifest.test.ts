@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { HOST_SETTING_DEFAULTS } from '../shared/settingsResolver';
 
 interface PackageManifest {
   scripts?: Record<string, string>;
@@ -53,6 +54,17 @@ describe('VS Code package manifest', () => {
       'structuredDocEditor.ui.language',
     ]);
     expect(properties).not.toHaveProperty('structuredDocEditor.theme.customStyles');
+  });
+
+  it('keeps contributed host defaults synchronized with the settings resolver', () => {
+    const properties = manifest.contributes?.configuration?.properties ?? {};
+
+    expect(properties['structuredDocEditor.image.defaultAlignment']).toEqual(expect.objectContaining({
+      default: HOST_SETTING_DEFAULTS.defaultImageAlignment,
+    }));
+    expect(properties['structuredDocEditor.export.imagePath']).toEqual(expect.objectContaining({
+      default: HOST_SETTING_DEFAULTS.exportImagePath,
+    }));
   });
 
   it('routes the platform bold shortcut to the focused editable sdoc editor', () => {

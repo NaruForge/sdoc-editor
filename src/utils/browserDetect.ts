@@ -1,4 +1,5 @@
-import * as fs from 'fs';
+import { constants } from 'node:fs';
+import { access } from 'node:fs/promises';
 import * as path from 'path';
 import { execFile } from 'child_process';
 
@@ -25,33 +26,39 @@ const MACOS_PATHS = [
   '/Applications/Chromium.app/Contents/MacOS/Chromium',
 ];
 
-function whichSync(name: string): string | undefined {
+async function which(name: string): Promise<string | undefined> {
   const pathEnv = process.env['PATH'] || '';
   const dirs = pathEnv.split(path.delimiter);
   for (const dir of dirs) {
     const full = path.join(dir, name);
     try {
-      fs.accessSync(full, fs.constants.X_OK);
+      await access(full, constants.X_OK);
       return full;
     } catch { /* not found */ }
   }
   return undefined;
 }
 
-export function detectBrowser(): string | undefined {
+export async function detectBrowser(): Promise<string | undefined> {
   const platform = process.platform;
 
   if (platform === 'win32') {
     for (const p of WINDOWS_PATHS) {
-      if (fs.existsSync(p)) return p;
+      try {
+        await access(p, constants.X_OK);
+        return p;
+      } catch { /* not found */ }
     }
   } else if (platform === 'darwin') {
     for (const p of MACOS_PATHS) {
-      if (fs.existsSync(p)) return p;
+      try {
+        await access(p, constants.X_OK);
+        return p;
+      } catch { /* not found */ }
     }
   } else {
     for (const name of LINUX_NAMES) {
-      const found = whichSync(name);
+      const found = await which(name);
       if (found) return found;
     }
   }

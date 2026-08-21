@@ -1,6 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const isCi = Boolean(process.env.CI);
+const port = Number.parseInt(process.env.SDOC_UI_TEST_PORT ?? '4307', 10);
+const baseURL = `http://127.0.0.1:${port}`;
 
 export default defineConfig({
   testDir: './specs',
@@ -25,7 +27,7 @@ export default defineConfig({
   },
   use: {
     ...devices['Desktop Chrome'],
-    baseURL: 'http://127.0.0.1:4174',
+    baseURL,
     colorScheme: 'light',
     locale: 'en-US',
     timezoneId: 'UTC',
@@ -35,7 +37,7 @@ export default defineConfig({
   },
   webServer: {
     command: 'npm exec vite -- --config vite.config.ts',
-    url: 'http://127.0.0.1:4174',
+    url: baseURL,
     reuseExistingServer: !isCi,
     timeout: 120_000,
   },
