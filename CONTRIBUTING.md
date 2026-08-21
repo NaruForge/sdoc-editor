@@ -99,14 +99,14 @@ try {
 
 기능 PR에서 공개 npm registry에 게시하지 마세요. CI는 workflow artifact로
 패키지를 업로드하고, 태그 기반 `.github/workflows/release-cli.yml`은 GitHub
-Release에 패키지를 첨부합니다. 수동 실행은 Release를 변경하지 않고 workflow
-artifact만 생성합니다.
+OIDC로 npm에 패키지를 게시한 뒤 GitHub Release에 같은 패키지를 첨부합니다.
+수동 실행은 npm과 Release를 변경하지 않고 workflow artifact만 생성합니다.
 
 ### 릴리스 (유지보수자 전용)
 
 버전 상승, 태그, npm Registry, Marketplace 및 GitHub Release는 유지보수자가 별도로 승인한 릴리스 작업에서만 변경합니다. 일반 기여 PR에서는 버전을 올리거나 패키지를 게시하거나 태그를 만들지 마세요.
 
-릴리스가 승인되면 루트와 npm workspace 버전을 맞추고 `npm run version:check`를 통과시킨 뒤 동일한 `v*` 태그를 사용합니다. `.github/workflows/release-cli.yml`은 CLI `.tgz`를 패키징해 GitHub Release에 첨부합니다. npm 자동 게시 workflow가 도입되기 전까지는 이 검증된 `.tgz`와 같은 버전만 유지보수자가 `sdoc-editor-cli`에 게시하고 `npm view sdoc-editor-cli@X.Y.Z version`으로 확인합니다.
+릴리스가 승인되면 루트와 npm workspace 버전을 맞추고 `npm run version:check`를 통과시킨 뒤 동일한 `v*` 태그를 사용합니다. `.github/workflows/release-cli.yml`은 CLI `.tgz`를 패키징하고 npm Trusted Publishing의 단기 GitHub OIDC 자격 증명으로 `sdoc-editor-cli`에 게시한 뒤 GitHub Release에 첨부합니다. 워크플로에는 장기 npm 게시 토큰을 저장하지 않으며, 게시 결과는 `npm view sdoc-editor-cli@X.Y.Z version`으로 확인합니다.
 
 같은 태그로 `.github/workflows/release-vscode.yml`도 실행되어 VSIX를 만든 뒤 Visual Studio Marketplace에 게시합니다. 이 워크플로는 GitHub OIDC와 Microsoft Entra 관리 ID를 사용하며 PAT 또는 장기 보관 클라이언트 비밀을 사용하지 않습니다.
 
