@@ -35,6 +35,13 @@ for (const required of requiredEntries) {
   }
 }
 
+const unexpectedWorkspaceImages = entries
+  .filter((entry) => entry.name.startsWith('extension/images/'))
+  .map((entry) => entry.name);
+if (unexpectedWorkspaceImages.length > 0) {
+  throw new Error(`Packaged VSIX contains workspace-local images: ${unexpectedWorkspaceImages.join(', ')}.`);
+}
+
 const stylesheets = entries.filter((entry) => (
   !entry.dir && /^extension\/dist\/webview\/assets\/[^/]+\.css$/.test(entry.name)
 ));

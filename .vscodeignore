@@ -45,6 +45,7 @@ drawio-plugins/**
 
 # Sample files
 sample/**
+images/**
 
 # Build scripts
 scripts/**

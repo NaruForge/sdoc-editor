@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.2] - 2026-08-21
+
+### Changed
+- Upgraded the shared editor and VS Code webview to the exact Tiptap 3.30.2 package set and aligned the grouped JavaScript dependency updates from #212
+- Added a version contract that keeps root build/test ownership synchronized with the webview's runtime Tiptap dependencies
+
+### Fixed
+- Prevented clean workspace installs from hiding shared editor Tiptap types under the webview workspace and breaking TypeScript, UI, and Extension Host verification
+- Excluded workspace-local `images/` files from VSIX releases and made package inspection reject them
+
 ## [0.12.1] - 2026-08-21
 
 ### Changed

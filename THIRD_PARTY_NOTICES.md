@@ -16,7 +16,7 @@ The inventory links each package source. License and notice files found in insta
 
 ## Package dependency inventory
 
-Dependency count: 202
+Dependency count: 203
 
 | Ecosystem | Package | Version | License | Source |
 | --- | --- | --- | --- | --- |
@@ -29,49 +29,49 @@ Dependency count: 202
 | npm | @iconify/types | 2.0.0 | MIT | [source](https://github.com/iconify/iconify) |
 | npm | @iconify/utils | 3.1.0 | MIT | [source](https://github.com/iconify/iconify) |
 | npm | @mermaid-js/parser | 1.2.0 | MIT | [source](https://github.com/mermaid-js/mermaid) |
-| npm | @tiptap/core | 3.28.0 | MIT | [source](https://github.com/ueberdosis/tiptap) |
-| npm | @tiptap/extension-blockquote | 3.28.0 | MIT | [source](https://github.com/ueberdosis/tiptap) |
-| npm | @tiptap/extension-bold | 3.28.0 | MIT | [source](https://github.com/ueberdosis/tiptap) |
-| npm | @tiptap/extension-bubble-menu | 3.28.0 | MIT | [source](https://github.com/ueberdosis/tiptap) |
-| npm | @tiptap/extension-bullet-list | 3.28.0 | MIT | [source](https://github.com/ueberdosis/tiptap) |
-| npm | @tiptap/extension-code-block-lowlight | 3.28.0 | MIT | [source](https://github.com/ueberdosis/tiptap) |
-| npm | @tiptap/extension-code-block | 3.28.0 | MIT | [source](https://github.com/ueberdosis/tiptap) |
-| npm | @tiptap/extension-code | 3.28.0 | MIT | [source](https://github.com/ueberdosis/tiptap) |
-| npm | @tiptap/extension-color | 3.28.0 | MIT | [source](https://github.com/ueberdosis/tiptap) |
-| npm | @tiptap/extension-document | 3.28.0 | MIT | [source](https://github.com/ueberdosis/tiptap) |
-| npm | @tiptap/extension-dropcursor | 3.28.0 | MIT | [source](https://github.com/ueberdosis/tiptap) |
-| npm | @tiptap/extension-floating-menu | 3.28.0 | MIT | [source](https://github.com/ueberdosis/tiptap) |
-| npm | @tiptap/extension-gapcursor | 3.28.0 | MIT | [source](https://github.com/ueberdosis/tiptap) |
-| npm | @tiptap/extension-hard-break | 3.28.0 | MIT | [source](https://github.com/ueberdosis/tiptap) |
-| npm | @tiptap/extension-heading | 3.28.0 | MIT | [source](https://github.com/ueberdosis/tiptap) |
-| npm | @tiptap/extension-highlight | 3.28.0 | MIT | [source](https://github.com/ueberdosis/tiptap) |
-| npm | @tiptap/extension-horizontal-rule | 3.28.0 | MIT | [source](https://github.com/ueberdosis/tiptap) |
-| npm | @tiptap/extension-image | 3.28.0 | MIT | [source](https://github.com/ueberdosis/tiptap) |
-| npm | @tiptap/extension-italic | 3.28.0 | MIT | [source](https://github.com/ueberdosis/tiptap) |
-| npm | @tiptap/extension-link | 3.28.0 | MIT | [source](https://github.com/ueberdosis/tiptap) |
-| npm | @tiptap/extension-list-item | 3.28.0 | MIT | [source](https://github.com/ueberdosis/tiptap) |
-| npm | @tiptap/extension-list-keymap | 3.28.0 | MIT | [source](https://github.com/ueberdosis/tiptap) |
-| npm | @tiptap/extension-list | 3.28.0 | MIT | [source](https://github.com/ueberdosis/tiptap) |
-| npm | @tiptap/extension-ordered-list | 3.28.0 | MIT | [source](https://github.com/ueberdosis/tiptap) |
-| npm | @tiptap/extension-paragraph | 3.28.0 | MIT | [source](https://github.com/ueberdosis/tiptap) |
-| npm | @tiptap/extension-strike | 3.28.0 | MIT | [source](https://github.com/ueberdosis/tiptap) |
-| npm | @tiptap/extension-subscript | 3.28.0 | MIT | [source](https://github.com/ueberdosis/tiptap) |
-| npm | @tiptap/extension-superscript | 3.28.0 | MIT | [source](https://github.com/ueberdosis/tiptap) |
-| npm | @tiptap/extension-table-cell | 3.28.0 | MIT | [source](https://github.com/ueberdosis/tiptap) |
-| npm | @tiptap/extension-table-header | 3.28.0 | MIT | [source](https://github.com/ueberdosis/tiptap) |
-| npm | @tiptap/extension-table-row | 3.28.0 | MIT | [source](https://github.com/ueberdosis/tiptap) |
-| npm | @tiptap/extension-table | 3.28.0 | MIT | [source](https://github.com/ueberdosis/tiptap) |
-| npm | @tiptap/extension-task-item | 3.28.0 | MIT | [source](https://github.com/ueberdosis/tiptap) |
-| npm | @tiptap/extension-task-list | 3.28.0 | MIT | [source](https://github.com/ueberdosis/tiptap) |
-| npm | @tiptap/extension-text-align | 3.28.0 | MIT | [source](https://github.com/ueberdosis/tiptap) |
-| npm | @tiptap/extension-text-style | 3.28.0 | MIT | [source](https://github.com/ueberdosis/tiptap) |
-| npm | @tiptap/extension-text | 3.28.0 | MIT | [source](https://github.com/ueberdosis/tiptap) |
-| npm | @tiptap/extension-underline | 3.28.0 | MIT | [source](https://github.com/ueberdosis/tiptap) |
-| npm | @tiptap/extensions | 3.28.0 | MIT | [source](https://github.com/ueberdosis/tiptap) |
-| npm | @tiptap/pm | 3.28.0 | MIT | [source](https://github.com/ueberdosis/tiptap) |
-| npm | @tiptap/react | 3.28.0 | MIT | [source](https://github.com/ueberdosis/tiptap) |
-| npm | @tiptap/starter-kit | 3.28.0 | MIT | [source](https://github.com/ueberdosis/tiptap) |
-| npm | @tiptap/suggestion | 3.28.0 | MIT | [source](https://github.com/ueberdosis/tiptap) |
+| npm | @tiptap/core | 3.30.2 | MIT | [source](https://github.com/ueberdosis/tiptap) |
+| npm | @tiptap/extension-blockquote | 3.30.2 | MIT | [source](https://github.com/ueberdosis/tiptap) |
+| npm | @tiptap/extension-bold | 3.30.2 | MIT | [source](https://github.com/ueberdosis/tiptap) |
+| npm | @tiptap/extension-bubble-menu | 3.30.2 | MIT | [source](https://github.com/ueberdosis/tiptap) |
+| npm | @tiptap/extension-bullet-list | 3.30.2 | MIT | [source](https://github.com/ueberdosis/tiptap) |
+| npm | @tiptap/extension-code-block-lowlight | 3.30.2 | MIT | [source](https://github.com/ueberdosis/tiptap) |
+| npm | @tiptap/extension-code-block | 3.30.2 | MIT | [source](https://github.com/ueberdosis/tiptap) |
+| npm | @tiptap/extension-code | 3.30.2 | MIT | [source](https://github.com/ueberdosis/tiptap) |
+| npm | @tiptap/extension-color | 3.30.2 | MIT | [source](https://github.com/ueberdosis/tiptap) |
+| npm | @tiptap/extension-document | 3.30.2 | MIT | [source](https://github.com/ueberdosis/tiptap) |
+| npm | @tiptap/extension-dropcursor | 3.30.2 | MIT | [source](https://github.com/ueberdosis/tiptap) |
+| npm | @tiptap/extension-floating-menu | 3.30.2 | MIT | [source](https://github.com/ueberdosis/tiptap) |
+| npm | @tiptap/extension-gapcursor | 3.30.2 | MIT | [source](https://github.com/ueberdosis/tiptap) |
+| npm | @tiptap/extension-hard-break | 3.30.2 | MIT | [source](https://github.com/ueberdosis/tiptap) |
+| npm | @tiptap/extension-heading | 3.30.2 | MIT | [source](https://github.com/ueberdosis/tiptap) |
+| npm | @tiptap/extension-highlight | 3.30.2 | MIT | [source](https://github.com/ueberdosis/tiptap) |
+| npm | @tiptap/extension-horizontal-rule | 3.30.2 | MIT | [source](https://github.com/ueberdosis/tiptap) |
+| npm | @tiptap/extension-image | 3.30.2 | MIT | [source](https://github.com/ueberdosis/tiptap) |
+| npm | @tiptap/extension-italic | 3.30.2 | MIT | [source](https://github.com/ueberdosis/tiptap) |
+| npm | @tiptap/extension-link | 3.30.2 | MIT | [source](https://github.com/ueberdosis/tiptap) |
+| npm | @tiptap/extension-list-item | 3.30.2 | MIT | [source](https://github.com/ueberdosis/tiptap) |
+| npm | @tiptap/extension-list-keymap | 3.30.2 | MIT | [source](https://github.com/ueberdosis/tiptap) |
+| npm | @tiptap/extension-list | 3.30.2 | MIT | [source](https://github.com/ueberdosis/tiptap) |
+| npm | @tiptap/extension-ordered-list | 3.30.2 | MIT | [source](https://github.com/ueberdosis/tiptap) |
+| npm | @tiptap/extension-paragraph | 3.30.2 | MIT | [source](https://github.com/ueberdosis/tiptap) |
+| npm | @tiptap/extension-strike | 3.30.2 | MIT | [source](https://github.com/ueberdosis/tiptap) |
+| npm | @tiptap/extension-subscript | 3.30.2 | MIT | [source](https://github.com/ueberdosis/tiptap) |
+| npm | @tiptap/extension-superscript | 3.30.2 | MIT | [source](https://github.com/ueberdosis/tiptap) |
+| npm | @tiptap/extension-table-cell | 3.30.2 | MIT | [source](https://github.com/ueberdosis/tiptap) |
+| npm | @tiptap/extension-table-header | 3.30.2 | MIT | [source](https://github.com/ueberdosis/tiptap) |
+| npm | @tiptap/extension-table-row | 3.30.2 | MIT | [source](https://github.com/ueberdosis/tiptap) |
+| npm | @tiptap/extension-table | 3.30.2 | MIT | [source](https://github.com/ueberdosis/tiptap) |
+| npm | @tiptap/extension-task-item | 3.30.2 | MIT | [source](https://github.com/ueberdosis/tiptap) |
+| npm | @tiptap/extension-task-list | 3.30.2 | MIT | [source](https://github.com/ueberdosis/tiptap) |
+| npm | @tiptap/extension-text-align | 3.30.2 | MIT | [source](https://github.com/ueberdosis/tiptap) |
+| npm | @tiptap/extension-text-style | 3.30.2 | MIT | [source](https://github.com/ueberdosis/tiptap) |
+| npm | @tiptap/extension-text | 3.30.2 | MIT | [source](https://github.com/ueberdosis/tiptap) |
+| npm | @tiptap/extension-underline | 3.30.2 | MIT | [source](https://github.com/ueberdosis/tiptap) |
+| npm | @tiptap/extensions | 3.30.2 | MIT | [source](https://github.com/ueberdosis/tiptap) |
+| npm | @tiptap/pm | 3.30.2 | MIT | [source](https://github.com/ueberdosis/tiptap) |
+| npm | @tiptap/react | 3.30.2 | MIT | [source](https://github.com/ueberdosis/tiptap) |
+| npm | @tiptap/starter-kit | 3.30.2 | MIT | [source](https://github.com/ueberdosis/tiptap) |
+| npm | @tiptap/suggestion | 3.30.2 | MIT | [source](https://github.com/ueberdosis/tiptap) |
 | npm | @types/d3-array | 3.2.2 | MIT | [source](https://github.com/DefinitelyTyped/DefinitelyTyped) |
 | npm | @types/d3-axis | 3.0.6 | MIT | [source](https://github.com/DefinitelyTyped/DefinitelyTyped) |
 | npm | @types/d3-brush | 3.0.6 | MIT | [source](https://github.com/DefinitelyTyped/DefinitelyTyped) |
@@ -105,8 +105,8 @@ Dependency count: 202
 | npm | @types/d3 | 7.4.3 | MIT | [source](https://github.com/DefinitelyTyped/DefinitelyTyped) |
 | npm | @types/geojson | 7946.0.16 | MIT | [source](https://github.com/DefinitelyTyped/DefinitelyTyped) |
 | npm | @types/hast | 3.0.4 | MIT | [source](https://github.com/DefinitelyTyped/DefinitelyTyped) |
-| npm | @types/react-dom | 19.2.3 | MIT | [source](https://github.com/DefinitelyTyped/DefinitelyTyped) |
-| npm | @types/react | 19.2.17 | MIT | [source](https://github.com/DefinitelyTyped/DefinitelyTyped) |
+| npm | @types/react-dom | 19.2.4 | MIT | [source](https://github.com/DefinitelyTyped/DefinitelyTyped) |
+| npm | @types/react | 19.2.18 | MIT | [source](https://github.com/DefinitelyTyped/DefinitelyTyped) |
 | npm | @types/trusted-types | 2.0.7 | MIT | [source](https://github.com/DefinitelyTyped/DefinitelyTyped) |
 | npm | @types/unist | 3.0.3 | MIT | [source](https://github.com/DefinitelyTyped/DefinitelyTyped) |
 | npm | @types/use-sync-external-store | 0.0.6 | MIT | [source](https://github.com/DefinitelyTyped/DefinitelyTyped) |
@@ -169,20 +169,21 @@ Dependency count: 202
 | npm | fast-equals | 5.4.0 | MIT | [source](https://github.com/planttheidea/fast-equals) |
 | npm | fast-uri | 3.1.5 | BSD-3-Clause | [source](https://github.com/fastify/fast-uri) |
 | npm | hachure-fill | 0.5.2 | MIT | [source](https://github.com/pshihn/hachure-fill) |
-| npm | highlight.js | 11.11.1 | BSD-3-Clause | [source](https://highlightjs.org/) |
+| npm | highlight.js | 11.11.2 | BSD-3-Clause | [source](https://highlightjs.org/) |
+| npm | highlight.js | 11.12.0 | BSD-3-Clause | [source](https://highlightjs.org/) |
 | npm | iconv-lite | 0.6.3 | MIT | [source](https://github.com/ashtuchkin/iconv-lite) |
 | npm | internmap | 1.0.1 | ISC | [source](https://github.com/mbostock/internmap) |
 | npm | internmap | 2.0.3 | ISC | [source](https://github.com/mbostock/internmap) |
 | npm | json-schema-traverse | 1.0.0 | MIT | [source](https://github.com/epoberezkin/json-schema-traverse) |
 | npm | katex | 0.16.47 | MIT | [source](https://github.com/KaTeX/KaTeX) |
-| npm | katex | 0.18.1 | MIT | [source](https://github.com/KaTeX/KaTeX) |
+| npm | katex | 0.18.4 | MIT | [source](https://github.com/KaTeX/KaTeX) |
 | npm | khroma | 2.1.0 | MIT | [source](https://github.com/fabiospampinato/khroma) |
 | npm | layout-base | 1.0.2 | MIT | [source](https://github.com/iVis-at-Bilkent/layout-base) |
 | npm | layout-base | 2.0.1 | MIT | [source](https://github.com/iVis-at-Bilkent/layout-base) |
 | npm | linkifyjs | 4.3.3 | MIT | [source](https://github.com/nfrasser/linkifyjs) |
 | npm | lodash-es | 4.18.1 | MIT | [source](https://lodash.com/custom-builds) |
 | npm | lowlight | 3.3.0 | MIT | [source](https://www.npmjs.com/package/lowlight/v/3.3.0) |
-| npm | lucide-react | 1.25.0 | ISC | [source](https://github.com/lucide-icons/lucide) |
+| npm | lucide-react | 1.31.0 | ISC | [source](https://github.com/lucide-icons/lucide) |
 | npm | marked | 16.4.2 | MIT | [source](https://marked.js.org) |
 | npm | mermaid | 11.16.1 | MIT | [source](https://github.com/mermaid-js/mermaid) |
 | npm | mlly | 1.8.2 | MIT | [source](https://www.npmjs.com/package/mlly/v/1.8.2) |
@@ -206,8 +207,8 @@ Dependency count: 202
 | npm | prosemirror-tables | 1.8.5 | MIT | [source](https://github.com/ProseMirror/prosemirror-tables) |
 | npm | prosemirror-transform | 1.12.0 | MIT | [source](https://www.npmjs.com/package/prosemirror-transform/v/1.12.0) |
 | npm | prosemirror-view | 1.42.1 | MIT | [source](https://code.haverbeke.berlin/prosemirror/prosemirror-view) |
-| npm | react-dom | 19.2.7 | MIT | [source](https://github.com/facebook/react) |
-| npm | react | 19.2.7 | MIT | [source](https://github.com/facebook/react) |
+| npm | react-dom | 19.2.8 | MIT | [source](https://github.com/react/react) |
+| npm | react | 19.2.8 | MIT | [source](https://github.com/react/react) |
 | npm | require-from-string | 2.0.2 | MIT | [source](https://www.npmjs.com/package/require-from-string/v/2.0.2) |
 | npm | robust-predicates | 3.0.3 | Unlicense | [source](https://github.com/mourner/robust-predicates) |
 | npm | rope-sequence | 1.3.4 | MIT | [source](https://github.com/marijnh/rope-sequence) |
@@ -317,7 +318,7 @@ SOFTWARE.
 
 ### Notice group 4 (06728620f4ee)
 
-Packages: `npm:@tiptap/core@3.28.0`, `npm:@tiptap/extension-blockquote@3.28.0`, `npm:@tiptap/extension-bold@3.28.0`, `npm:@tiptap/extension-bubble-menu@3.28.0`, `npm:@tiptap/extension-bullet-list@3.28.0`, `npm:@tiptap/extension-code-block-lowlight@3.28.0`, `npm:@tiptap/extension-code-block@3.28.0`, `npm:@tiptap/extension-code@3.28.0`, `npm:@tiptap/extension-color@3.28.0`, `npm:@tiptap/extension-document@3.28.0`, `npm:@tiptap/extension-dropcursor@3.28.0`, `npm:@tiptap/extension-floating-menu@3.28.0`, `npm:@tiptap/extension-gapcursor@3.28.0`, `npm:@tiptap/extension-hard-break@3.28.0`, `npm:@tiptap/extension-heading@3.28.0`, `npm:@tiptap/extension-highlight@3.28.0`, `npm:@tiptap/extension-horizontal-rule@3.28.0`, `npm:@tiptap/extension-image@3.28.0`, `npm:@tiptap/extension-italic@3.28.0`, `npm:@tiptap/extension-link@3.28.0`, `npm:@tiptap/extension-list-item@3.28.0`, `npm:@tiptap/extension-list-keymap@3.28.0`, `npm:@tiptap/extension-list@3.28.0`, `npm:@tiptap/extension-ordered-list@3.28.0`, `npm:@tiptap/extension-paragraph@3.28.0`, `npm:@tiptap/extension-strike@3.28.0`, `npm:@tiptap/extension-subscript@3.28.0`, `npm:@tiptap/extension-superscript@3.28.0`, `npm:@tiptap/extension-table-cell@3.28.0`, `npm:@tiptap/extension-table-header@3.28.0`, `npm:@tiptap/extension-table-row@3.28.0`, `npm:@tiptap/extension-table@3.28.0`, `npm:@tiptap/extension-task-item@3.28.0`, `npm:@tiptap/extension-task-list@3.28.0`, `npm:@tiptap/extension-text-align@3.28.0`, `npm:@tiptap/extension-text-style@3.28.0`, `npm:@tiptap/extension-text@3.28.0`, `npm:@tiptap/extension-underline@3.28.0`, `npm:@tiptap/extensions@3.28.0`, `npm:@tiptap/pm@3.28.0`, `npm:@tiptap/react@3.28.0`, `npm:@tiptap/starter-kit@3.28.0`, `npm:@tiptap/suggestion@3.28.0`
+Packages: `npm:@tiptap/core@3.30.2`, `npm:@tiptap/extension-blockquote@3.30.2`, `npm:@tiptap/extension-bold@3.30.2`, `npm:@tiptap/extension-bubble-menu@3.30.2`, `npm:@tiptap/extension-bullet-list@3.30.2`, `npm:@tiptap/extension-code-block-lowlight@3.30.2`, `npm:@tiptap/extension-code-block@3.30.2`, `npm:@tiptap/extension-code@3.30.2`, `npm:@tiptap/extension-color@3.30.2`, `npm:@tiptap/extension-document@3.30.2`, `npm:@tiptap/extension-dropcursor@3.30.2`, `npm:@tiptap/extension-floating-menu@3.30.2`, `npm:@tiptap/extension-gapcursor@3.30.2`, `npm:@tiptap/extension-hard-break@3.30.2`, `npm:@tiptap/extension-heading@3.30.2`, `npm:@tiptap/extension-highlight@3.30.2`, `npm:@tiptap/extension-horizontal-rule@3.30.2`, `npm:@tiptap/extension-image@3.30.2`, `npm:@tiptap/extension-italic@3.30.2`, `npm:@tiptap/extension-link@3.30.2`, `npm:@tiptap/extension-list-item@3.30.2`, `npm:@tiptap/extension-list-keymap@3.30.2`, `npm:@tiptap/extension-list@3.30.2`, `npm:@tiptap/extension-ordered-list@3.30.2`, `npm:@tiptap/extension-paragraph@3.30.2`, `npm:@tiptap/extension-strike@3.30.2`, `npm:@tiptap/extension-subscript@3.30.2`, `npm:@tiptap/extension-superscript@3.30.2`, `npm:@tiptap/extension-table-cell@3.30.2`, `npm:@tiptap/extension-table-header@3.30.2`, `npm:@tiptap/extension-table-row@3.30.2`, `npm:@tiptap/extension-table@3.30.2`, `npm:@tiptap/extension-task-item@3.30.2`, `npm:@tiptap/extension-task-list@3.30.2`, `npm:@tiptap/extension-text-align@3.30.2`, `npm:@tiptap/extension-text-style@3.30.2`, `npm:@tiptap/extension-text@3.30.2`, `npm:@tiptap/extension-underline@3.30.2`, `npm:@tiptap/extensions@3.30.2`, `npm:@tiptap/pm@3.30.2`, `npm:@tiptap/react@3.30.2`, `npm:@tiptap/starter-kit@3.30.2`, `npm:@tiptap/suggestion@3.30.2`
 
 Source filenames: `LICENSE`, `LICENSE.md`
 
@@ -2754,7 +2755,7 @@ THE SOFTWARE.
 
 ### Notice group 64 (cf9b17822d1f)
 
-Packages: `npm:react-dom@19.2.7`, `npm:react@19.2.7`, `npm:scheduler@0.27.0`, `npm:use-sync-external-store@1.6.0`
+Packages: `npm:react-dom@19.2.8`, `npm:react@19.2.8`, `npm:scheduler@0.27.0`, `npm:use-sync-external-store@1.6.0`
 
 Source filenames: `LICENSE`
 
@@ -2814,7 +2815,7 @@ THE SOFTWARE.
 
 ### Notice group 66 (d3c8c167dfa0)
 
-Packages: `npm:katex@0.16.47`, `npm:katex@0.18.1`
+Packages: `npm:katex@0.16.47`, `npm:katex@0.18.4`
 
 Source filenames: `LICENSE`
 
@@ -3151,7 +3152,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ### Notice group 74 (eabb8d3cadaf)
 
-Packages: `npm:highlight.js@11.11.1`
+Packages: `npm:highlight.js@11.11.2`, `npm:highlight.js@11.12.0`
 
 Source filenames: `LICENSE`
 
@@ -3217,7 +3218,7 @@ SOFTWARE.
 
 ### Notice group 76 (ee35498e6684)
 
-Packages: `npm:lucide-react@1.25.0`
+Packages: `npm:lucide-react@1.31.0`
 
 Source filenames: `LICENSE`
 
@@ -3373,7 +3374,7 @@ SOFTWARE.
 
 ### Notice group 81 (ff82c90f8494)
 
-Packages: `npm:@types/d3-array@3.2.2`, `npm:@types/d3-axis@3.0.6`, `npm:@types/d3-brush@3.0.6`, `npm:@types/d3-chord@3.0.6`, `npm:@types/d3-color@3.1.3`, `npm:@types/d3-contour@3.0.6`, `npm:@types/d3-delaunay@6.0.4`, `npm:@types/d3-dispatch@3.0.7`, `npm:@types/d3-drag@3.0.7`, `npm:@types/d3-dsv@3.0.7`, `npm:@types/d3-ease@3.0.2`, `npm:@types/d3-fetch@3.0.7`, `npm:@types/d3-force@3.0.10`, `npm:@types/d3-format@3.0.4`, `npm:@types/d3-geo@3.1.0`, `npm:@types/d3-hierarchy@3.1.7`, `npm:@types/d3-interpolate@3.0.4`, `npm:@types/d3-path@3.1.1`, `npm:@types/d3-polygon@3.0.2`, `npm:@types/d3-quadtree@3.0.6`, `npm:@types/d3-random@3.0.3`, `npm:@types/d3-scale-chromatic@3.1.0`, `npm:@types/d3-scale@4.0.9`, `npm:@types/d3-selection@3.0.11`, `npm:@types/d3-shape@3.1.8`, `npm:@types/d3-time-format@4.0.3`, `npm:@types/d3-time@3.0.4`, `npm:@types/d3-timer@3.0.2`, `npm:@types/d3-transition@3.0.9`, `npm:@types/d3-zoom@3.0.8`, `npm:@types/d3@7.4.3`, `npm:@types/geojson@7946.0.16`, `npm:@types/hast@3.0.4`, `npm:@types/react-dom@19.2.3`, `npm:@types/react@19.2.17`, `npm:@types/trusted-types@2.0.7`, `npm:@types/unist@3.0.3`, `npm:@types/use-sync-external-store@0.0.6`
+Packages: `npm:@types/d3-array@3.2.2`, `npm:@types/d3-axis@3.0.6`, `npm:@types/d3-brush@3.0.6`, `npm:@types/d3-chord@3.0.6`, `npm:@types/d3-color@3.1.3`, `npm:@types/d3-contour@3.0.6`, `npm:@types/d3-delaunay@6.0.4`, `npm:@types/d3-dispatch@3.0.7`, `npm:@types/d3-drag@3.0.7`, `npm:@types/d3-dsv@3.0.7`, `npm:@types/d3-ease@3.0.2`, `npm:@types/d3-fetch@3.0.7`, `npm:@types/d3-force@3.0.10`, `npm:@types/d3-format@3.0.4`, `npm:@types/d3-geo@3.1.0`, `npm:@types/d3-hierarchy@3.1.7`, `npm:@types/d3-interpolate@3.0.4`, `npm:@types/d3-path@3.1.1`, `npm:@types/d3-polygon@3.0.2`, `npm:@types/d3-quadtree@3.0.6`, `npm:@types/d3-random@3.0.3`, `npm:@types/d3-scale-chromatic@3.1.0`, `npm:@types/d3-scale@4.0.9`, `npm:@types/d3-selection@3.0.11`, `npm:@types/d3-shape@3.1.8`, `npm:@types/d3-time-format@4.0.3`, `npm:@types/d3-time@3.0.4`, `npm:@types/d3-timer@3.0.2`, `npm:@types/d3-transition@3.0.9`, `npm:@types/d3-zoom@3.0.8`, `npm:@types/d3@7.4.3`, `npm:@types/geojson@7946.0.16`, `npm:@types/hast@3.0.4`, `npm:@types/react-dom@19.2.4`, `npm:@types/react@19.2.18`, `npm:@types/trusted-types@2.0.7`, `npm:@types/unist@3.0.3`, `npm:@types/use-sync-external-store@0.0.6`
 
 Source filenames: `LICENSE`
 

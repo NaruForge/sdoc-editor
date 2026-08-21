@@ -153,6 +153,36 @@ describe('shared editor core', () => {
     expect(runtime.flush).toHaveBeenCalledOnce();
   });
 
+  it('preserves editor Tab semantics across the Tiptap 3.30 list-keymap change', () => {
+    const extension = createTiptapExtensions(createRuntime())
+      .find((candidate) => candidate.name === 'headingKeyboardShortcuts');
+    const shortcuts = extension?.config.addKeyboardShortcuts?.call(extension);
+    expect(shortcuts?.Tab).toEqual(expect.any(Function));
+    if (!shortcuts?.Tab) return;
+
+    const chain = {
+      focus: vi.fn(),
+      toggleHeading: vi.fn(),
+      run: vi.fn(() => true),
+    };
+    chain.focus.mockReturnValue(chain);
+    chain.toggleHeading.mockReturnValue(chain);
+    const paragraphEditor = {
+      isActive: vi.fn((name: string) => name === 'paragraph'),
+      chain: vi.fn(() => chain),
+    };
+
+    expect(shortcuts.Tab({ editor: paragraphEditor } as never)).toBe(true);
+    expect(chain.toggleHeading).toHaveBeenCalledWith({ level: 1 });
+
+    const listEditor = {
+      isActive: vi.fn((name: string) => name === 'listItem'),
+      chain: vi.fn(),
+    };
+    expect(shortcuts.Tab({ editor: listEditor } as never)).toBe(false);
+    expect(listEditor.chain).not.toHaveBeenCalled();
+  });
+
   it('registers persisted ids for every referenceable Tiptap node', () => {
     const schema = getSchema(createTiptapExtensions(createRuntime()));
 
