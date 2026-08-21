@@ -129,12 +129,6 @@ samp {
   counter-increment: h1-counter;
 }
 
-.show-numbering.show-heading-decoration .ProseMirror h1 {
-  display: table;
-  max-width: 100%;
-  border-bottom: 2px solid var(--heading-h1-color, #2563EB);
-}
-
 .show-numbering .ProseMirror h1::before {
   content: attr(data-number-label) ". ";
   color: var(--heading-h1-color, #2563EB);
@@ -241,9 +235,8 @@ samp {
   padding-bottom: 0.3em;
 }
 
-.hide-numbering.show-heading-decoration .ProseMirror h1 {
-  display: table;
-  max-width: 100%;
+/* Section rule across the reading column, not the title text width. */
+.show-heading-decoration .ProseMirror h1 {
   border-bottom: 2px solid var(--heading-h1-color, #2563EB);
 }
 
