@@ -88,7 +88,7 @@ jobs:
           fi
       - name: Publish CLI to npm with OIDC
         if: steps.npm-version.outputs.published != 'true'
-        run: npm publish "output/sdoc-editor-cli-${{ steps.npm-version.outputs.version }}.tgz" --access public
+        run: npm publish "./output/sdoc-editor-cli-${{ steps.npm-version.outputs.version }}.tgz" --access public
 
   release:
     name: Attach CLI to GitHub Release
