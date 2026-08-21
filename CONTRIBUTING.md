@@ -100,7 +100,7 @@ try {
 기능 PR에서 공개 npm registry에 게시하지 마세요. CI는 workflow artifact로
 패키지를 업로드하고, 태그 기반 `.github/workflows/release-cli.yml`은 GitHub
 OIDC로 npm에 패키지를 게시한 뒤 GitHub Release에 같은 패키지를 첨부합니다.
-수동 실행은 npm과 Release를 변경하지 않고 workflow artifact만 생성합니다.
+실패한 태그 릴리스는 수동 실행의 `release_tag`에 기존 태그를 입력해 재시도합니다.
 
 ### 릴리스 (유지보수자 전용)
 
