@@ -1,0 +1,446 @@
+{
+  "sdoc": "1.0",
+  "meta": {
+    "title": "기능 둘러보기",
+    "author": "",
+    "version": "0.1",
+    "created": "2026-01-01T00:00:00.000Z",
+    "modified": "2026-01-01T00:00:00.000Z",
+    "template": {
+      "name": "기능 둘러보기",
+      "description": "현재 편집기에서 바로 확인할 수 있는 문서 기능의 실제 예제입니다. 업무용 양식을 대체하지 않습니다.",
+      "category": "showcase"
+    },
+    "settings": {
+      "headingNumbering": true,
+      "headingStartNumber": 1,
+      "headingDecoration": true,
+      "captionStyle": "korean",
+      "captionNumbering": "hierarchical",
+      "equationNumbering": "hierarchical",
+      "crossRefIncludeCaption": true,
+      "selfContained": "none",
+      "pdfScale": 100,
+      "slideBreakLevel": "h1-only",
+      "showTitleSlide": true
+    }
+  },
+  "doc": {
+    "type": "doc",
+    "content": [
+      {
+        "type": "heading",
+        "attrs": { "level": 1, "id": "how-to-use", "numbered": false },
+        "content": [{ "type": "text", "text": "이 문서를 쓰는 방법" }]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          { "type": "text", "text": "이 문서는 빈 문서나 보고서 양식이 아니라, 설치 후 기능을 한 화면에서 확인하는 둘러보기입니다. 제목 표시줄의 문서 제목을 바꾼 뒤 본문을 편집해 보세요. 현재 문서를 덮어쓰지 말고 " },
+          { "type": "text", "text": "새 문서", "marks": [{ "type": "bold" }] },
+          { "type": "text", "text": "로 생성하세요." }
+        ]
+      },
+      {
+        "type": "callout",
+        "attrs": { "variant": "note" },
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              { "type": "text", "text": "이미지와 Draw.io는 아직 템플릿에 묶지 않습니다. PlantUML·D2·Graphviz는 외부 렌더러 동의가 있어야 그려지므로 이 문서에는 넣지 않았습니다. 각주가 있으면 Slides 내보내기와 Book 합성이 실패하는 것이 현재 계약입니다." }
+            ]
+          }
+        ]
+      },
+      { "type": "horizontalRule" },
+      {
+        "type": "heading",
+        "attrs": { "level": 1, "id": "headings-and-numbers" },
+        "content": [{ "type": "text", "text": "제목과 번호" }]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          { "type": "text", "text": "H1부터 H6까지 계층을 만들 수 있습니다. 위 “이 문서를 쓰는 방법”처럼 " },
+          { "type": "text", "text": "numbered: false", "marks": [{ "type": "code" }] },
+          { "type": "text", "text": "인 제목은 번호에서 빠집니다. 번호와 장식은 문서 설정의 제목 번호·장식을 따릅니다." }
+        ]
+      },
+      {
+        "type": "heading",
+        "attrs": { "level": 2, "id": "heading-h2" },
+        "content": [{ "type": "text", "text": "두번째 수준" }]
+      },
+      {
+        "type": "heading",
+        "attrs": { "level": 3, "id": "heading-h3" },
+        "content": [{ "type": "text", "text": "세번째 수준" }]
+      },
+      {
+        "type": "heading",
+        "attrs": { "level": 4, "id": "heading-h4" },
+        "content": [{ "type": "text", "text": "네번째 수준" }]
+      },
+      {
+        "type": "heading",
+        "attrs": { "level": 5, "id": "heading-h5" },
+        "content": [{ "type": "text", "text": "다섯번째 수준" }]
+      },
+      {
+        "type": "heading",
+        "attrs": { "level": 6, "id": "heading-h6" },
+        "content": [{ "type": "text", "text": "여섯번째 수준" }]
+      },
+      {
+        "type": "heading",
+        "attrs": { "level": 1, "id": "text-formatting" },
+        "content": [{ "type": "text", "text": "본문 서식" }]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          { "type": "text", "text": "같은 문장에서 " },
+          { "type": "text", "text": "굵게", "marks": [{ "type": "bold" }] },
+          { "type": "text", "text": ", " },
+          { "type": "text", "text": "기울임", "marks": [{ "type": "italic" }] },
+          { "type": "text", "text": ", " },
+          { "type": "text", "text": "밑줄", "marks": [{ "type": "underline" }] },
+          { "type": "text", "text": ", " },
+          { "type": "text", "text": "취소선", "marks": [{ "type": "strike" }] },
+          { "type": "text", "text": ", " },
+          { "type": "text", "text": "코드", "marks": [{ "type": "code" }] },
+          { "type": "text", "text": ", " },
+          { "type": "text", "text": "강조", "marks": [{ "type": "highlight", "attrs": { "color": "#fef08a" } }] },
+          { "type": "text", "text": ", 아래 첨자 H" },
+          { "type": "text", "text": "2", "marks": [{ "type": "subscript" }] },
+          { "type": "text", "text": "O, 위 첨자 x" },
+          { "type": "text", "text": "2", "marks": [{ "type": "superscript" }] },
+          { "type": "text", "text": "를 함께 씁니다." }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          { "type": "text", "text": "줄 바꿈은 문단을 나누거나, 같은 문단 안에서" },
+          { "type": "hardBreak" },
+          { "type": "text", "text": "강제 줄바꿈을 넣을 수 있습니다. 다른 절로 이동하려면 " },
+          {
+            "type": "text",
+            "text": "9. 교차 참조",
+            "marks": [{ "type": "link", "attrs": { "href": "#cross-references" } }]
+          },
+          { "type": "text", "text": "를 사용하세요." }
+        ]
+      },
+      {
+        "type": "heading",
+        "attrs": { "level": 1, "id": "lists" },
+        "content": [{ "type": "text", "text": "목록" }]
+      },
+      {
+        "type": "paragraph",
+        "content": [{ "type": "text", "text": "글머리 기호, 번호, 할 일 목록을 본문에 바로 넣습니다." }]
+      },
+      {
+        "type": "bulletList",
+        "content": [
+          {
+            "type": "listItem",
+            "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "구조와 번호를 유지한 채 편집" }] }]
+          },
+          {
+            "type": "listItem",
+            "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "표·수식·다이어그램을 같은 문서에 배치" }] }]
+          }
+        ]
+      },
+      {
+        "type": "orderedList",
+        "content": [
+          {
+            "type": "listItem",
+            "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "새 문서로 이 템플릿을 생성합니다." }] }]
+          },
+          {
+            "type": "listItem",
+            "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "제목을 바꾼 뒤 한 절을 수정합니다." }] }]
+          },
+          {
+            "type": "listItem",
+            "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "HTML 또는 Markdown으로 내보냅니다." }] }]
+          }
+        ]
+      },
+      {
+        "type": "taskList",
+        "content": [
+          {
+            "type": "taskItem",
+            "attrs": { "checked": true },
+            "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "둘러보기 문서를 열었습니다." }] }]
+          },
+          {
+            "type": "taskItem",
+            "attrs": { "checked": false },
+            "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "문서 제목을 바꿔 저장합니다." }] }]
+          },
+          {
+            "type": "taskItem",
+            "attrs": { "checked": false },
+            "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "지원되는 형식으로 내보냅니다." }] }]
+          }
+        ]
+      },
+      {
+        "type": "heading",
+        "attrs": { "level": 1, "id": "tables-and-captions" },
+        "content": [{ "type": "text", "text": "표와 캡션" }]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          { "type": "text", "text": "표는 캡션, 병합 셀, 교차 참조용 ID를 가집니다. 아래 표는 " },
+          {
+            "type": "text",
+            "text": "표 4.1 편집기와 CLI가 같은 문서 원본을 다루는 방식",
+            "marks": [{ "type": "link", "attrs": { "href": "#feature-matrix" } }]
+          },
+          { "type": "text", "text": "로 다시 가리킬 수 있습니다." }
+        ]
+      },
+      {
+        "type": "table",
+        "attrs": {
+          "id": "feature-matrix",
+          "caption": "편집기와 CLI가 같은 문서 원본을 다루는 방식",
+          "align": "center",
+          "width": "100%"
+        },
+        "content": [
+          {
+            "type": "tableRow",
+            "content": [
+              { "type": "tableHeader", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "기능" }] }] },
+              { "type": "tableHeader", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "VS Code" }] }] },
+              { "type": "tableHeader", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "CLI" }] }] }
+            ]
+          },
+          {
+            "type": "tableRow",
+            "content": [
+              {
+                "type": "tableCell",
+                "attrs": { "rowspan": 2 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "표" }] }]
+              },
+              { "type": "tableCell", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "병합 셀 편집" }] }] },
+              { "type": "tableCell", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "구조 유지" }] }] }
+            ]
+          },
+          {
+            "type": "tableRow",
+            "content": [
+              { "type": "tableCell", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "캡션·번호" }] }] },
+              { "type": "tableCell", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "inspect" }] }] }
+            ]
+          },
+          {
+            "type": "tableRow",
+            "content": [
+              { "type": "tableCell", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "각주" }] }] },
+              { "type": "tableCell", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "문서 끝 목록" }] }] },
+              { "type": "tableCell", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "endnotes 카탈로그" }] }] }
+            ]
+          },
+          {
+            "type": "tableRow",
+            "content": [
+              {
+                "type": "tableCell",
+                "attrs": { "colspan": 3 },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "캡션과 번호는 이 문서의 설정(korean, 계층 번호)을 따릅니다." }] }]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "heading",
+        "attrs": { "level": 1, "id": "math" },
+        "content": [{ "type": "text", "text": "수식" }]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          { "type": "text", "text": "문장 안의 인라인 수식은 " },
+          { "type": "mathInline", "attrs": { "latex": "a^2 + b^2 = c^2" } },
+          { "type": "text", "text": "처럼 쓰고, 아래 블록 수식은 번호를 붙여 " },
+          {
+            "type": "text",
+            "text": "식 (5.1)",
+            "marks": [{ "type": "link", "attrs": { "href": "#energy-equation" } }]
+          },
+          { "type": "text", "text": "로 가리킵니다." }
+        ]
+      },
+      {
+        "type": "mathBlock",
+        "attrs": {
+          "latex": "E = mc^{2}",
+          "id": "energy-equation"
+        }
+      },
+      {
+        "type": "heading",
+        "attrs": { "level": 1, "id": "code" },
+        "content": [{ "type": "text", "text": "코드" }]
+      },
+      {
+        "type": "paragraph",
+        "content": [{ "type": "text", "text": "코드 블록은 언어 표시와 함께 저장됩니다. CLI에서도 같은 템플릿으로 문서를 만들 수 있습니다." }]
+      },
+      {
+        "type": "codeBlock",
+        "attrs": { "language": "powershell" },
+        "content": [
+          {
+            "type": "text",
+            "text": "sdoc create demo.sdoc --template builtin:feature-showcase --title \"기능 둘러보기\"\nsdoc validate demo.sdoc --json"
+          }
+        ]
+      },
+      {
+        "type": "heading",
+        "attrs": { "level": 1, "id": "diagrams" },
+        "content": [{ "type": "text", "text": "다이어그램" }]
+      },
+      {
+        "type": "paragraph",
+        "content": [{ "type": "text", "text": "Mermaid는 편집기에서 로컬로 그립니다. 문서를 연 것만으로 외부 네트워크에 다이어그램 원본을 보내지 않습니다." }]
+      },
+      {
+        "type": "diagram",
+        "attrs": {
+          "language": "mermaid",
+          "code": "flowchart LR\n  write[작성] --> review[검토]\n  review --> publish[출판]"
+        }
+      },
+      {
+        "type": "heading",
+        "attrs": { "level": 1, "id": "quotes-and-callouts" },
+        "content": [{ "type": "text", "text": "인용과 강조 상자" }]
+      },
+      {
+        "type": "blockquote",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [{ "type": "text", "text": "원본은 Git으로 검토 가능한 구조화 JSON으로 남습니다." }]
+          }
+        ]
+      },
+      {
+        "type": "callout",
+        "attrs": { "variant": "warning" },
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [{ "type": "text", "text": "템플릿으로 현재 문서를 바꾸면 본문과 문서 설정이 교체됩니다. 둘러보기는 새 파일로 만드세요." }]
+          }
+        ]
+      },
+      {
+        "type": "callout",
+        "attrs": { "variant": "tip" },
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [{ "type": "text", "text": "Navigate에서 제목·표·수식으로 이동하고, 각주 번호는 표식과 문서 끝 목록을 오갑니다." }]
+          }
+        ]
+      },
+      {
+        "type": "heading",
+        "attrs": { "level": 1, "id": "cross-references" },
+        "content": [{ "type": "text", "text": "교차 참조" }]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          { "type": "text", "text": "교차 참조는 대상의 안정 ID를 가리킵니다. " },
+          {
+            "type": "text",
+            "text": "1. 제목과 번호",
+            "marks": [{ "type": "link", "attrs": { "href": "#headings-and-numbers" } }]
+          },
+          { "type": "text", "text": ", " },
+          {
+            "type": "text",
+            "text": "표 4.1 편집기와 CLI가 같은 문서 원본을 다루는 방식",
+            "marks": [{ "type": "link", "attrs": { "href": "#feature-matrix" } }]
+          },
+          { "type": "text", "text": ", " },
+          {
+            "type": "text",
+            "text": "식 (5.1)",
+            "marks": [{ "type": "link", "attrs": { "href": "#energy-equation" } }]
+          },
+          { "type": "text", "text": "은 번호가 바뀌어도 같은 대상을 유지합니다." }
+        ]
+      },
+      {
+        "type": "heading",
+        "attrs": { "level": 1, "id": "footnotes" },
+        "content": [{ "type": "text", "text": "각주" }]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          { "type": "text", "text": "각주 표식을 누르면 문서 끝 목록으로 이동하고, 목록의 번호는 다시 표식으로 돌아갑니다." },
+          {
+            "type": "endnote",
+            "attrs": {
+              "id": "endnote-slides-limit",
+              "body": "Slides 내보내기는 각주 배치 정책이 정해질 때까지 실패합니다. HTML, PDF, Markdown, AsciiDoc은 각주를 지원합니다."
+            }
+          },
+          { "type": "text", "text": " " },
+          {
+            "type": "endnote",
+            "attrs": {
+              "id": "endnote-book-limit",
+              "body": ".sdocbook 합성은 각주가 있으면 ENDNOTES_UNSUPPORTED 진단을 내고 조용히 버리지 않습니다."
+            }
+          }
+        ]
+      },
+      {
+        "type": "heading",
+        "attrs": { "level": 1, "id": "not-included", "numbered": false },
+        "content": [{ "type": "text", "text": "이 문서에 없는 것" }]
+      },
+      {
+        "type": "paragraph",
+        "content": [{ "type": "text", "text": "아래는 현재 제품에 있지만, 이 둘러보기에는 고의로 넣지 않은 기능입니다." }]
+      },
+      {
+        "type": "bulletList",
+        "content": [
+          {
+            "type": "listItem",
+            "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "이미지와 Draw.io 예제 — 템플릿 자산 복사 계약이 필요합니다 (#26)." }] }]
+          },
+          {
+            "type": "listItem",
+            "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "PlantUML, D2, Graphviz — 외부 렌더러 동의 없이 네트워크 전송이 일어나면 안 됩니다." }] }]
+          },
+          {
+            "type": "listItem",
+            "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "원격·조직 템플릿 카탈로그 — 후속 작업입니다 (#27)." }] }]
+          }
+        ]
+      }
+    ]
+  }
+}

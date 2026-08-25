@@ -108,7 +108,7 @@ describe('Explorer-created empty SDOC initialization', () => {
   });
 
   it('preserves document identity metadata while replacing template settings', () => {
-    const template = getBuiltInTemplates()[1];
+    const template = getBuiltInTemplates().find((candidate) => candidate.descriptor.id === 'builtin:technical-report');
     expect(template).toBeDefined();
     if (!template) return;
     template.envelope.meta.settings = { headingNumbering: false };
@@ -150,7 +150,7 @@ describe('Explorer-created empty SDOC initialization', () => {
   });
 
   it('applies a template directly to whitespace without a preliminary blank write', () => {
-    const template = getBuiltInTemplates()[1];
+    const template = getBuiltInTemplates().find((candidate) => candidate.descriptor.id === 'builtin:technical-report');
     expect(template).toBeDefined();
     if (!template) return;
 
@@ -167,7 +167,7 @@ describe('Explorer-created empty SDOC initialization', () => {
   });
 
   it('rejects malformed and future-version documents as replacement targets', () => {
-    const template = getBuiltInTemplates()[1];
+    const template = getBuiltInTemplates().find((candidate) => candidate.descriptor.id === 'builtin:technical-report');
     expect(template).toBeDefined();
     if (!template) return;
     expect(() => prepareCurrentDocumentTemplateApplication({

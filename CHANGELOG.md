@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Added the built-in `builtin:feature-showcase` template so VS Code and CLI can create a self-contained tour of current document features (#139)
+
 ## [0.12.2] - 2026-08-21
 
 ### Changed

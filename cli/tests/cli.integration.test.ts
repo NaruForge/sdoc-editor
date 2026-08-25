@@ -719,6 +719,7 @@ describe('CLI integration', () => {
 
     const templateIds = [
       'builtin:blank',
+      'builtin:feature-showcase',
       'builtin:technical-report',
       'builtin:design-specification',
       'builtin:verification-report',

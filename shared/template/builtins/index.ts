@@ -4,6 +4,7 @@ import type { SdocEnvelope } from '../../types';
 import type { SdocTemplate, TemplateDescriptor } from '../types';
 import blank from './blank.sdoc.json';
 import designSpecification from './design-specification.sdoc.json';
+import featureShowcase from './feature-showcase.sdoc.json';
 import technicalReport from './technical-report.sdoc.json';
 import verificationReport from './verification-report.sdoc.json';
 
@@ -55,6 +56,11 @@ const createBuiltIn = (definition: BuiltInDefinition): SdocTemplate => {
 
 export const BUILTIN_TEMPLATES: readonly SdocTemplate[] = Object.freeze([
   createBuiltIn({ id: 'builtin:blank', sourceLabel: 'Structured Doc Editor', value: blank }),
+  createBuiltIn({
+    id: 'builtin:feature-showcase',
+    sourceLabel: 'Structured Doc Editor',
+    value: featureShowcase,
+  }),
   createBuiltIn({
     id: 'builtin:technical-report',
     sourceLabel: 'Structured Doc Editor',

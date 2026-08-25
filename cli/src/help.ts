@@ -109,6 +109,7 @@ const COMMAND_HELP: Record<CommandName, CommandHelp> = {
     ],
     examples: [
       'sdoc create report.sdoc --title "Quarterly Report"',
+      'sdoc create tour.sdoc --template builtin:feature-showcase --dry-run',
       'sdoc create report.sdoc --template builtin:technical-report --dry-run',
     ],
   },

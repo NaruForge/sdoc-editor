@@ -147,7 +147,7 @@ npm install --save-dev sdoc-editor-cli@latest
   <img src="media/readme/vscode-templates-ko-light.png" alt="VS Code 확장에서 내장 템플릿 목록과 시험·검증 보고서를 함께 연 Structured Doc Editor 밝은 테마 화면" width="1600">
 </p>
 
-- 빈 문서, 기술 보고서, 설계 명세서, 시험·검증 보고서 template을 내장합니다.
+- 빈 문서, 기능 둘러보기, 기술 보고서, 설계 명세서, 시험·검증 보고서 template을 내장합니다.
 - 팀 template은 workspace의 `.sdoc/templates/*.sdoc`에 두고 Git으로 공유합니다.
 - 개인 template은 `~/.sdoc/templates/`에 저장됩니다. Remote·WSL·SSH에서는 원격 사용자 홈에 별도로 저장됩니다.
 - template 적용은 현재 본문과 문서 설정을 교체하기 전에 확인을 받으며, 이미지·Draw.io asset을 포함한 잘못된 경로 연결은 거부합니다.

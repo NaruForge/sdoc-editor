@@ -144,7 +144,7 @@ sdoc capabilities --human
   "commands": ["capabilities", "inspect", "validate", "apply", "rename-heading", "set-document-title", "create"],
   "projections": ["catalog", "target", "section", "document"],
   "catalogKinds": ["blocks", "outline", "references", "referenceables", "endnotes"],
-  "builtInTemplateIds": ["builtin:blank", "builtin:technical-report", "builtin:design-specification", "builtin:verification-report"]
+  "builtInTemplateIds": ["builtin:blank", "builtin:feature-showcase", "builtin:technical-report", "builtin:design-specification", "builtin:verification-report"]
 }
 ```
 
@@ -338,6 +338,7 @@ default template is `builtin:blank`; the default title is the output filename.
 
 ```powershell
 sdoc create report.sdoc --title "Quarterly Report" --json
+sdoc create tour.sdoc --template builtin:feature-showcase --dry-run --json
 sdoc create report.sdoc --template builtin:technical-report --dry-run --json
 sdoc create design.sdoc --template builtin:design-specification --json
 sdoc create verification.sdoc --template builtin:verification-report --json

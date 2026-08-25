@@ -91,9 +91,11 @@ describe('VS Code template discovery', () => {
       workspace(second, 'Second'),
     ]);
 
-    expect(result.catalog.templates.slice(4).map((template) => template.descriptor.name))
+    expect(result.catalog.templates.filter((template) => template.descriptor.source === 'workspace')
+      .map((template) => template.descriptor.name))
       .toEqual(['Alpha', 'Zeta', 'Beta']);
-    expect(result.catalog.templates.slice(4).map((template) => template.descriptor.sourceLabel))
+    expect(result.catalog.templates.filter((template) => template.descriptor.source === 'workspace')
+      .map((template) => template.descriptor.sourceLabel))
       .toEqual([
         'First · .sdoc/templates/alpha.sdoc',
         'First · .sdoc/templates/zeta.sdoc',

@@ -92,15 +92,17 @@ const withPersonalMetadata = (
 };
 
 describe('template catalog', () => {
-  it('provides schema-valid built-ins in stable blank/report/design/verification order', () => {
+  it('provides schema-valid built-ins in stable blank/showcase/report/design/verification order', () => {
     expect(BUILTIN_TEMPLATES.map((template) => template.descriptor.id)).toEqual([
       'builtin:blank',
+      'builtin:feature-showcase',
       'builtin:technical-report',
       'builtin:design-specification',
       'builtin:verification-report',
     ]);
     expect(BUILTIN_TEMPLATES.map((template) => template.descriptor.name)).toEqual([
       '빈 문서',
+      '기능 둘러보기',
       '기술 보고서',
       '설계 명세서',
       '시험·검증 보고서',
