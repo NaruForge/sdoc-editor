@@ -961,9 +961,15 @@ export const Editor: React.FC = () => {
                   onStartEmpty={() => setStartCardDismissed(true)}
                   onCreateFromTemplate={() => {
                     activityTriggerRef.current = document.getElementById('activity-destination-templates');
-                    setActivityState((current) => selectSidePanel(current, {
-                      destination: 'templates',
-                    }));
+                    setActivityState((current) => selectSidePanel(
+                      current,
+                      { destination: 'templates' },
+                      { showTemplates: true },
+                    ));
+                    dispatchTemplateSession({
+                      type: 'selected',
+                      templateId: 'builtin:feature-showcase',
+                    });
                   }}
                   onOpenExisting={handleOpenExistingDocument}
                 />

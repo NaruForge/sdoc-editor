@@ -195,6 +195,15 @@ describe('activity hubs and settings UI', () => {
 
     const unavailable = createActivitySessionState(null);
     expect(transitionActivityDestination(unavailable, 'templates')).toBe(unavailable);
+
+    const startCardState = createActivitySessionState(null, { showTemplates: true });
+    expect(selectSidePanel(startCardState, { destination: 'templates' }).selection)
+      .toBeNull();
+    expect(selectSidePanel(
+      startCardState,
+      { destination: 'templates' },
+      { showTemplates: true },
+    ).selection).toEqual({ destination: 'templates' });
   });
 
   it('renders Templates as an independent shared destination in the required order', () => {
