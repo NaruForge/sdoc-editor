@@ -37,7 +37,7 @@ VS Code 확장과 SDOC CLI는 같은 문서 계약을 사용합니다. VS Code�
 ### VS Code
 
 1. [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=swbaek.structured-doc-editor)에서 확장을 설치합니다.
-2. 명령 팔레트에서 `Structured Doc: New .sdoc Document (Experimental Templates)`를 실행하거나 기존 `.sdoc`/`.tiptap.json`을 엽니다.
+2. 명령 팔레트에서 `Structured Doc: New .sdoc Document`를 실행하고 **기능 둘러보기**를 고르거나, 기존 `.sdoc`/`.tiptap.json`을 엽니다.
 3. 문서를 편집하고 `Ctrl+S`로 저장합니다.
 
 명령줄로 설치하려면 다음을 실행합니다.
@@ -140,8 +140,8 @@ npm install --save-dev sdoc-editor-cli@latest
 
 ## 템플릿과 여러 문서
 
-> [!IMPORTANT]
-> 템플릿은 아직 실험적 기능입니다. 형식과 사용자 흐름이 변경될 수 있으므로 중요한 사용자 템플릿은 Git 등으로 별도 관리하세요.
+> [!NOTE]
+> 내장 템플릿은 이미지나 Draw.io 파일을 묶지 않으며, 원격 카탈로그는 아직 없습니다. 중요한 사용자 템플릿은 Git으로 별도 관리하세요.
 
 <p align="center">
   <img src="media/readme/vscode-templates-ko-light.png" alt="VS Code 확장에서 내장 템플릿 목록과 시험·검증 보고서를 함께 연 Structured Doc Editor 밝은 테마 화면" width="1600">

@@ -421,6 +421,11 @@ export function isEditorToHostMessage(value: unknown): value is EditorToHostMess
         && hasString(value, 'requestId')
         && hasString(value, 'sessionId') && hasString(value, 'documentId')
         && hasNumber(value, 'baseRevision');
+    case 'createDocumentFromTemplate':
+      return typeof value.templateId === 'string' && value.templateId.length > 0
+        && hasString(value, 'requestId');
+    case 'openExistingDocument':
+      return hasString(value, 'requestId');
     case 'savePersonalTemplate':
       return hasTemplateRequestIdentity(value) && isPersonalTemplateMetadataInput(value.metadata);
     case 'updatePersonalTemplate':
@@ -536,6 +541,12 @@ export function isHostToEditorMessage(value: unknown): value is HostToEditorMess
     case 'templateApplicationFinished':
       return hasString(value, 'requestId')
         && ['applied', 'cancelled', 'failed'].includes(String(value.result))
+        && (value.result === 'failed'
+          ? isTemplateOperationError(value.error)
+          : value.error === undefined);
+    case 'templateCreationFinished':
+      return hasString(value, 'requestId')
+        && ['created', 'cancelled', 'failed'].includes(String(value.result))
         && (value.result === 'failed'
           ? isTemplateOperationError(value.error)
           : value.error === undefined);

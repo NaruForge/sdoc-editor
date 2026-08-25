@@ -1189,19 +1189,25 @@ test.describe('template interaction contract', () => {
     });
 
     await page.getByRole('button', { name: /Technical report/ }).click();
-    const apply = page.getByRole('button', { name: 'Apply template' });
-    await apply.click();
+    const createNew = page.getByRole('button', { name: 'Create new document' });
+    await expect(createNew).toBeVisible();
+    await createNew.click();
+    await expect(page.getByRole('alertdialog')).toHaveCount(0);
+    await expect(page.getByText('Template action completed.')).toBeVisible();
+
+    const replace = page.getByRole('button', { name: 'Replace current document' });
+    await replace.click();
     const confirmation = page.getByRole('alertdialog');
     await expect(confirmation).toBeVisible();
     await expect(page.getByRole('button', { name: 'Cancel' })).toBeFocused();
     await page.keyboard.press('Shift+Tab');
-    await expect(page.getByRole('button', { name: 'Apply template' }).last()).toBeFocused();
+    await expect(page.getByRole('button', { name: 'Replace current document' }).last()).toBeFocused();
     await page.keyboard.press('Escape');
     await expect(confirmation).toBeHidden();
-    await expect(apply).toBeFocused();
+    await expect(replace).toBeFocused();
 
-    await apply.click();
-    await page.getByRole('button', { name: 'Apply template' }).last().click();
+    await replace.click();
+    await page.getByRole('button', { name: 'Replace current document' }).last().click();
     await expect(page.getByText('Template action completed.')).toBeVisible();
     await expect(page.locator('.template-panel')).toBeVisible();
 

@@ -96,6 +96,12 @@ const TEMPLATE_FIXTURES: readonly ManagedTemplateDescriptor[] = [
       },
       settingsKeys: ['captionStyle', 'headingNumbering'],
       truncated: false,
+      htmlPreview: '<!DOCTYPE html><html><body><h1>Technical report</h1><p>Findings.</p></body></html>',
+      replacement: {
+        replacesBody: true,
+        settingsKeys: ['captionStyle', 'headingNumbering'],
+        assets: 'none',
+      },
     },
   },
   {
@@ -122,6 +128,8 @@ const TEMPLATE_FIXTURES: readonly ManagedTemplateDescriptor[] = [
       },
       settingsKeys: [],
       truncated: false,
+      htmlPreview: '<!DOCTYPE html><html><body><h1>Product brief</h1></body></html>',
+      replacement: { replacesBody: true, settingsKeys: [], assets: 'none' },
     },
   },
   {
@@ -415,7 +423,7 @@ function SharedPanelScene({
     : scene === 'templates'
       ? { destination: 'templates' as const }
       : { destination: 'publish' as const, tab: publishTab };
-  const finishFixtureAction = (operation: 'apply' | 'save' | 'update' | 'duplicate' | 'delete' | 'open-folder', templateId?: string, visibleIndex?: number) => {
+  const finishFixtureAction = (operation: 'apply' | 'create' | 'save' | 'update' | 'duplicate' | 'delete' | 'open-folder', templateId?: string, visibleIndex?: number) => {
     const requestId = `fixture-${operation}`;
     dispatchTemplateSession({ type: 'action-started', requestId, operation, templateId, visibleIndex });
     queueMicrotask(() => dispatchTemplateSession(
@@ -485,6 +493,7 @@ function SharedPanelScene({
             <TemplatePanel
               session={templateSession}
               dispatch={dispatchTemplateSession}
+              onCreateNew={(templateId) => finishFixtureAction('create', templateId)}
               onApply={(templateId) => finishFixtureAction('apply', templateId)}
               onRefresh={() => {
                 const requestId = 'fixture-refresh';

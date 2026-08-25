@@ -26,6 +26,7 @@ export interface TemplateCapability {
 }
 
 export interface TemplatePanelCapabilities {
+  create?: TemplateCapability;
   apply?: TemplateCapability;
   save?: TemplateCapability;
   update?: TemplateCapability;
@@ -39,6 +40,7 @@ interface TemplatePanelProps {
   dispatch: React.Dispatch<TemplateSessionEvent>;
   capabilities?: TemplatePanelCapabilities;
   onRefresh?: () => void;
+  onCreateNew?: (templateId: string) => void;
   onApply?: (templateId: string) => void;
   onSaveCurrent?: (metadata: PersonalTemplateMetadataInput) => void;
   onEdit?: (template: ManagedTemplateDescriptor, metadata: PersonalTemplateMetadataInput) => void;
@@ -127,6 +129,7 @@ export const TemplatePanel: React.FC<TemplatePanelProps> = ({
   dispatch,
   capabilities = {},
   onRefresh,
+  onCreateNew,
   onApply,
   onSaveCurrent,
   onEdit,
@@ -158,6 +161,7 @@ export const TemplatePanel: React.FC<TemplatePanelProps> = ({
   const isLoading = session.catalog.phase === 'loading';
   const isRunning = session.action.phase === 'running';
   const isApplying = session.action.phase === 'running' && session.action.operation === 'apply';
+  const isCreating = session.action.phase === 'running' && session.action.operation === 'create';
   const hasRetryableDiagnostic = session.diagnostics.some((item) => item.recovery === 'retry');
   const capability = (
     key: keyof TemplatePanelCapabilities,
@@ -166,6 +170,7 @@ export const TemplatePanel: React.FC<TemplatePanelProps> = ({
     available: typeof callback === 'function',
     reason: t('template.capabilityUnavailable'),
   };
+  const createCapability = capability('create', onCreateNew);
   const applyCapability = capability('apply', onApply);
   const saveCapability = capability('save', onSaveCurrent);
   const updateCapability = capability('update', onEdit);
@@ -298,8 +303,33 @@ export const TemplatePanel: React.FC<TemplatePanelProps> = ({
       {visibleTemplates.length === 0 ? (
         <PanelEmptyState
           icon={<LayoutTemplate size={22} />}
-          title={isLoading ? t('template.loading') : t('template.empty')}
-          message={t('template.emptyMessage')}
+          title={isLoading
+            ? t('template.loading')
+            : session.templates.length === 0
+              ? t('template.emptyCatalog')
+              : t('template.empty')}
+          message={isLoading
+            ? t('template.dialogLoading')
+            : session.templates.length === 0
+              ? t('template.emptyCatalogMessage')
+              : t('template.emptyMessage')}
+          actions={!isLoading && (
+            <>
+              {session.templates.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    dispatch({ type: 'query-changed', query: '' });
+                    dispatch({ type: 'source-changed', source: 'all' });
+                    dispatch({ type: 'category-changed', category: 'all' });
+                  }}
+                >{t('template.clearFilters')}</button>
+              )}
+              <button type="button" onClick={onRefresh} disabled={isRunning || !onRefresh}>
+                {t('common.retry')}
+              </button>
+            </>
+          )}
         />
       ) : (
         <ul className="template-list" aria-label={t('template.resultsLabel')}>
@@ -335,6 +365,16 @@ export const TemplatePanel: React.FC<TemplatePanelProps> = ({
           <div id="template-selected-preview-title" className="template-card-heading">
             <strong>{selectedTemplate.name}</strong><span>{t('common.preview')}</span>
           </div>
+          {selectedTemplate.preview?.htmlPreview ? (
+            <iframe
+              className="template-render-frame"
+              title={t('template.renderPreview')}
+              sandbox=""
+              srcDoc={selectedTemplate.preview.htmlPreview}
+            />
+          ) : (
+            <p>{t('template.noRenderPreview')}</p>
+          )}
           {selectedTemplate.preview && (
             <div className="template-structural-preview">
               <strong>{t('template.structurePreview')}</strong>
@@ -355,25 +395,45 @@ export const TemplatePanel: React.FC<TemplatePanelProps> = ({
                   ? selectedTemplate.preview.settingsKeys.join(', ')
                   : t('template.defaults'),
               })}</p>
+              <p>{selectedTemplate.preview.replacement.assets === 'unsupported'
+                ? t('template.replaceScopeAssetsUnsupported')
+                : t('template.replaceScopeAssetsNone')}</p>
             </div>
           )}
         </section>
       )}
 
-      <button
-        type="button"
-        className="template-apply-primary"
-        disabled={!selectedTemplate || isRunning}
-        aria-disabled={!applyCapability.available || undefined}
-        aria-describedby={!applyCapability.available ? `${capabilityReasonId}-apply` : undefined}
-        title={!applyCapability.available ? applyCapability.reason : undefined}
-        onClick={(event) => invokeCapability(applyCapability, () => dispatch({
-          type: 'action-confirming', operation: 'apply', templateId: selectedTemplate?.id,
-        }), event.currentTarget)}
-      >
-        {isApplying ? t('template.applying') : t('template.apply')}
-      </button>
+      <div className="template-primary-actions">
+        <button
+          type="button"
+          className="template-apply-primary"
+          disabled={!selectedTemplate || isRunning}
+          aria-disabled={!createCapability.available || undefined}
+          aria-describedby={!createCapability.available ? `${capabilityReasonId}-create` : undefined}
+          title={!createCapability.available ? createCapability.reason : undefined}
+          onClick={(event) => invokeCapability(createCapability, () => {
+            if (selectedTemplate) onCreateNew?.(selectedTemplate.id);
+          }, event.currentTarget)}
+        >
+          {isCreating ? t('template.creating') : t('template.createNew')}
+        </button>
+        <button
+          type="button"
+          className="template-replace-secondary"
+          disabled={!selectedTemplate || isRunning}
+          aria-disabled={!applyCapability.available || undefined}
+          aria-describedby={!applyCapability.available ? `${capabilityReasonId}-apply` : undefined}
+          title={!applyCapability.available ? applyCapability.reason : undefined}
+          onClick={(event) => invokeCapability(applyCapability, () => dispatch({
+            type: 'action-confirming', operation: 'apply', templateId: selectedTemplate?.id,
+          }), event.currentTarget)}
+        >
+          {isApplying ? t('template.applying') : t('template.apply')}
+        </button>
+      </div>
+      {!createCapability.available && <p id={`${capabilityReasonId}-create`} className="template-capability-reason">{createCapability.reason}</p>}
       {!applyCapability.available && <p id={`${capabilityReasonId}-apply`} className="template-capability-reason">{applyCapability.reason}</p>}
+      <p className="template-limits-notice">{t('template.limitsNotice')}</p>
 
       <details className="template-personal-management">
         <summary>{t('template.sourceUser')}</summary>
@@ -423,12 +483,24 @@ export const TemplatePanel: React.FC<TemplatePanelProps> = ({
       {session.action.phase === 'confirming' && session.action.operation === 'apply' && dialogTemplate && (
         <TemplateConfirmDialog
           title={t('template.applyDialogTitle')}
-          description={t('template.applyConfirm')}
+          description={t('template.replaceConfirm')}
           confirmLabel={t('template.apply')}
           cancelLabel={t('common.cancel')}
           onCancel={cancelDialog}
           onConfirm={() => onApply?.(dialogTemplate.id)}
-        />
+        >
+          <ul className="template-replace-scope">
+            <li>{t('template.replaceScopeBody')}</li>
+            <li>{t('template.replaceScopeSettings', {
+              settings: dialogTemplate.preview?.replacement.settingsKeys.length
+                ? dialogTemplate.preview.replacement.settingsKeys.join(', ')
+                : t('template.defaults'),
+            })}</li>
+            <li>{dialogTemplate.preview?.replacement.assets === 'unsupported'
+              ? t('template.replaceScopeAssetsUnsupported')
+              : t('template.replaceScopeAssetsNone')}</li>
+          </ul>
+        </TemplateConfirmDialog>
       )}
       {session.action.phase === 'confirming' && session.action.operation === 'delete' && dialogTemplate && (
         <TemplateConfirmDialog

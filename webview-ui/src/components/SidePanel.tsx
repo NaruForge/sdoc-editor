@@ -65,6 +65,7 @@ interface SidePanelProps {
   templateSession: TemplateSessionState;
   dispatchTemplateSession: React.Dispatch<TemplateSessionEvent>;
   onRefreshTemplates?: () => void;
+  onCreateFromTemplate?: (templateId: string) => void;
   onApplyTemplate?: (templateId: string) => void;
   onSavePersonalTemplate?: (metadata: PersonalTemplateMetadataInput) => void;
   onUpdatePersonalTemplate?: (template: ManagedTemplateDescriptor, metadata: PersonalTemplateMetadataInput) => void;
@@ -116,6 +117,7 @@ export const SidePanel: React.FC<SidePanelProps> = ({
   templateSession,
   dispatchTemplateSession,
   onRefreshTemplates,
+  onCreateFromTemplate,
   onApplyTemplate,
   onSavePersonalTemplate,
   onUpdatePersonalTemplate,
@@ -246,6 +248,7 @@ export const SidePanel: React.FC<SidePanelProps> = ({
             session={templateSession}
             dispatch={dispatchTemplateSession}
             onRefresh={onRefreshTemplates}
+            onCreateNew={onCreateFromTemplate}
             onApply={onApplyTemplate}
             onSaveCurrent={onSavePersonalTemplate}
             onEdit={onUpdatePersonalTemplate}

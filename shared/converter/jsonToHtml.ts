@@ -34,15 +34,13 @@ export interface HtmlDiagramConversionOptions {
 /**
  * Converts Tiptap JSON to HTML format
  */
-export function convertJsonToHtml(
+function createConvertContext(
   json: TiptapNode,
-  theme?: HtmlTheme,
   settings?: ExportSettings,
-  meta?: SdocMeta,
   diagramOptions?: HtmlDiagramConversionOptions,
-): string {
+): ConvertContext {
   const resolved = settings || {};
-  const ctx: ConvertContext = {
+  return {
     settings: resolved,
     numbering: buildNumberingIndex(json, {
       headingNumbering: resolved.headingNumbering ?? true,
@@ -55,8 +53,31 @@ export function convertJsonToHtml(
     }),
     diagramOptions,
   };
+}
+
+export function convertJsonToHtml(
+  json: TiptapNode,
+  theme?: HtmlTheme,
+  settings?: ExportSettings,
+  meta?: SdocMeta,
+  diagramOptions?: HtmlDiagramConversionOptions,
+): string {
+  const ctx = createConvertContext(json, settings, diagramOptions);
   const bodyContent = convertNode(json, ctx) + renderEndnotes(ctx);
   return generateHtmlDocument(bodyContent, theme, meta, ctx);
+}
+
+/** Script-free HTML body for in-app previews. Does not include CDN assets. */
+export function convertJsonToHtmlFragment(
+  json: TiptapNode,
+  settings?: ExportSettings,
+  meta?: SdocMeta,
+): string {
+  const ctx = createConvertContext(json, settings);
+  const title = meta?.title
+    ? `<h1 class="document-title">${escapeHtml(meta.title)}</h1>`
+    : '';
+  return title + convertNode(json, ctx) + renderEndnotes(ctx);
 }
 
 function convertNode(node: TiptapNode, ctx: ConvertContext): string {

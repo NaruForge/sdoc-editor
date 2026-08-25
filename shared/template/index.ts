@@ -31,6 +31,8 @@ export type {
   TemplateDiagnosticCode,
   TemplateOutlinePreviewItem,
   TemplateSource,
+  TemplatePreviewAssetScope,
+  TemplateReplacementScope,
   TemplateStructuralCounts,
   TemplateStructuralPreview,
   UpdatePersonalTemplateMetadataPatch,

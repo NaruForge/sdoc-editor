@@ -536,6 +536,14 @@ describe('template structural preview', () => {
     });
     expect(preview.settingsKeys).toEqual(['captionStyle']);
     expect(preview.truncated).toBe(true);
+    expect(preview.htmlPreview).toContain('<h1 class="document-title">');
+    expect(preview.htmlPreview).not.toContain('<script');
+    expect(preview.htmlPreview).not.toContain('cdn.jsdelivr.net');
+    expect(preview.replacement).toEqual({
+      replacesBody: true,
+      settingsKeys: ['captionStyle'],
+      assets: 'none',
+    });
     expect(preview).not.toHaveProperty('document');
     expect(preview).not.toHaveProperty('envelope');
   });

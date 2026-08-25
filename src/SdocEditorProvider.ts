@@ -71,6 +71,8 @@ import {
   isUninitializedSdocText,
   isWorkspaceTemplatePath,
   prepareCurrentDocumentTemplateApplication,
+  suggestSdocFileName,
+  validateDocumentTitle,
   VsCodeTemplateService,
   type CurrentDocumentIdentity,
   type WorkspaceTemplateRoot,
@@ -1312,6 +1314,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         'fileOperationPrepare', 'fileOperationExecute', 'fileOperationCancel',
         'fileOperationRetry', 'fileOperationResultAction',
         'requestTemplateCatalog',
+        'createDocumentFromTemplate', 'openExistingDocument',
         'savePersonalTemplate', 'updatePersonalTemplate', 'duplicatePersonalTemplate',
         'deletePersonalTemplate', 'openPersonalTemplateFolder',
         'renderDiagram', 'cancelDiagramRender', 'updateDiagramRendererSettings',
@@ -2067,6 +2070,91 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
           case 'requestTemplateCatalog':
             await sendTemplateCatalog(message.requestId);
             break;
+          case 'createDocumentFromTemplate': {
+            let creationResult: 'created' | 'cancelled' | 'failed' = 'failed';
+            let creationError: TemplateOperationError | undefined;
+            try {
+              const template = availableTemplates.get(message.templateId);
+              if (!template) {
+                creationError = {
+                  code: 'template-unavailable',
+                  message: 'The selected template is no longer available.',
+                };
+              } else {
+                const title = await vscode.window.showInputBox({
+                  title: 'Create Structured Doc',
+                  prompt: 'Enter the document title',
+                  placeHolder: 'Document title',
+                  value: template.descriptor.name,
+                  validateInput: validateDocumentTitle,
+                });
+                if (title === undefined) {
+                  creationResult = 'cancelled';
+                } else {
+                  const defaultWorkspace = vscode.workspace.workspaceFolders
+                    ?.find((folder) => isFilesystemBackedScheme(folder.uri.scheme));
+                  const defaultUri = defaultWorkspace
+                    ? vscode.Uri.joinPath(defaultWorkspace.uri, suggestSdocFileName(title))
+                    : vscode.Uri.file(path.resolve(suggestSdocFileName(title)));
+                  const targetUri = await vscode.window.showSaveDialog({
+                    defaultUri,
+                    filters: { 'Structured Doc': ['sdoc'] },
+                    saveLabel: 'Create .sdoc Document',
+                    title: 'Create .sdoc Document',
+                  });
+                  if (!targetUri) {
+                    creationResult = 'cancelled';
+                  } else if (!isFilesystemBackedScheme(targetUri.scheme)) {
+                    throw new Error('New documents require a filesystem-backed destination.');
+                  } else {
+                    await templateService.createExclusive(
+                      template,
+                      title,
+                      targetUri.fsPath,
+                      workspaceTemplateRoots(),
+                    );
+                    await vscode.commands.executeCommand(
+                      'vscode.openWith',
+                      targetUri,
+                      'structuredDocEditor.sdoc',
+                      { preview: false },
+                    );
+                    creationResult = 'created';
+                  }
+                }
+              }
+            } catch (error) {
+              console.error('Structured Doc template document creation failed', error);
+              creationError = {
+                code: 'operation-failed',
+                message: 'The template could not be used to create a document.',
+              };
+            }
+            webviewPanel.webview.postMessage({
+              type: 'templateCreationFinished',
+              requestId: message.requestId,
+              result: creationResult,
+              ...(creationError ? { error: creationError } : {}),
+            });
+            break;
+          }
+          case 'openExistingDocument': {
+            const uris = await vscode.window.showOpenDialog({
+              canSelectMany: false,
+              filters: { 'Structured Doc': ['sdoc', 'tiptap.json'] },
+              title: 'Open existing document',
+            });
+            const target = uris?.[0];
+            if (target) {
+              await vscode.commands.executeCommand(
+                'vscode.openWith',
+                target,
+                'structuredDocEditor.sdoc',
+                { preview: false },
+              );
+            }
+            break;
+          }
           case 'applyTemplate': {
             let applied = false;
             let applicationError: TemplateOperationError | undefined;

@@ -51,6 +51,12 @@ const templates: ManagedTemplateDescriptor[] = [
       },
       settingsKeys: ['captionStyle'],
       truncated: false,
+      htmlPreview: '<!DOCTYPE html><html><body><p>Overview</p></body></html>',
+      replacement: {
+        replacesBody: true,
+        settingsKeys: ['captionStyle'],
+        assets: 'none',
+      },
     },
   },
 ];
@@ -63,6 +69,7 @@ const renderPanel = (
     <TemplatePanel
       session={{ ...createTemplateSessionState(), templates, diagnostics, catalog: { phase: 'ready', requestId: 'catalog' } }}
       dispatch={vi.fn()}
+      onCreateNew={vi.fn()}
       onApply={vi.fn()}
       onRefresh={vi.fn()}
       onSaveCurrent={vi.fn()}
@@ -79,8 +86,9 @@ describe('template side panel UI', () => {
     const markup = renderPanel();
 
     expect(markup.indexOf('Search templates')).toBeLessThan(markup.indexOf('Template results'));
-    expect(markup.indexOf('Template results')).toBeLessThan(markup.indexOf('Apply template'));
-    expect(markup.indexOf('Apply template')).toBeLessThan(
+    expect(markup.indexOf('Template results')).toBeLessThan(markup.indexOf('Create new document'));
+    expect(markup.indexOf('Create new document')).toBeLessThan(markup.indexOf('Replace current document'));
+    expect(markup.indexOf('Replace current document')).toBeLessThan(
       markup.indexOf('Save current document as my template'),
     );
     expect(markup).toContain('<details class="template-personal-management">');
@@ -121,6 +129,7 @@ describe('template side panel UI', () => {
         <TemplatePanel
           session={{ ...createTemplateSessionState(), templates, personalRootScope: 'remote', catalog: { phase: 'ready', requestId: 'catalog' } }}
           dispatch={vi.fn()}
+          onCreateNew={vi.fn()}
           onApply={onApply}
           onRefresh={vi.fn()}
           onSaveCurrent={vi.fn()}
@@ -136,9 +145,8 @@ describe('template side panel UI', () => {
     expect(markup).toContain(
       '<button type="button" class="template-select-row" aria-pressed="false">',
     );
-    expect(markup).toContain(
-      '<button type="button" class="template-apply-primary" disabled="">Apply template</button>',
-    );
+    expect(markup).toContain('class="template-apply-primary" disabled="">Create new document');
+    expect(markup).toContain('Replace current document');
     expect(markup).toContain('Remote Extension Host storage · ~/.sdoc/templates');
     expect(onApply).not.toHaveBeenCalled();
   });
@@ -210,7 +218,8 @@ describe('template side panel UI', () => {
     );
 
     expect(markup).toContain('Template results');
-    expect(markup).toContain('Apply template');
+    expect(markup).toContain('Create new document');
+    expect(markup).toContain('Replace current document');
     expect(markup).toContain('aria-disabled="true" aria-describedby=');
     expect(markup).toContain('Saving is managed by this host.');
     expect(markup).toContain('Folder access is unavailable.');

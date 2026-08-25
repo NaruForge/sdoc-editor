@@ -166,6 +166,15 @@ describe('editor host message boundary', () => {
       requestId: 'catalog-1',
     })).toBe(true);
     expect(isEditorToHostMessage({
+      type: 'createDocumentFromTemplate',
+      requestId: 'create-1',
+      templateId: 'builtin:feature-showcase',
+    })).toBe(true);
+    expect(isEditorToHostMessage({
+      type: 'openExistingDocument',
+      requestId: 'open-1',
+    })).toBe(true);
+    expect(isEditorToHostMessage({
       type: 'export',
       requestId: 'file-1',
       sessionId: 'session-1',
@@ -259,6 +268,16 @@ describe('editor host message boundary', () => {
       requestId: 'apply-1',
       result: 'cancelled',
     })).toBe(true);
+    expect(isHostToEditorMessage({
+      type: 'templateCreationFinished',
+      requestId: 'create-1',
+      result: 'created',
+    })).toBe(true);
+    expect(isHostToEditorMessage({
+      type: 'templateCreationFinished',
+      requestId: 'create-1',
+      result: 'failed',
+    })).toBe(false);
     expect(isHostToEditorMessage({
       type: 'templateCatalogFailed',
       requestId: 'catalog-2',

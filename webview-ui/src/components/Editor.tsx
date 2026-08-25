@@ -21,6 +21,7 @@ import { CrossReferenceDialog } from '@shared/editor/components/CrossReferenceDi
 import { DiagramDialog } from '@shared/editor/components/DiagramDialog';
 import { ModalDialog } from '@shared/editor/components/ModalDialog';
 import { InvalidDocumentNotice } from '@shared/editor/components/InvalidDocumentNotice';
+import { DocumentStartCard } from '@shared/editor/components/DocumentStartCard';
 import { ActivityBar } from '@shared/editor/components/ActivityBar';
 import {
   createActivitySessionState,
@@ -69,6 +70,16 @@ import { collectEditorStyleProbe, hasAppliedEditorStyles } from '../styleReadine
 import { EndnoteList } from '@shared/editor/components/EndnoteList';
 import { insertEndnoteAndFocus } from '@shared/editor/extensions/Endnote';
 
+function isBlankEditorDocument(doc: JSONContent): boolean {
+  const content = doc.content ?? [];
+  if (content.length === 0) return true;
+  return content.every((node) => {
+    if (node.type !== 'paragraph') return false;
+    const text = (node.content ?? []).map((child) => child.text ?? '').join('');
+    return text.trim().length === 0;
+  });
+}
+
 export function parseStoredZoom(value: string | null): number {
   if (!value) return 100;
   const parsed = Number.parseInt(value, 10);
@@ -97,6 +108,8 @@ export const Editor: React.FC = () => {
     return parseStoredReadingWidth(localStorage.getItem(READING_WIDTH_STORAGE_KEY));
   });
   const [showInvalidRecoveryConfirm, setShowInvalidRecoveryConfirm] = useState(false);
+  const [startCardDismissed, setStartCardDismissed] = useState(false);
+  const [isBlankStartDocument, setIsBlankStartDocument] = useState(false);
   const invalidRecoveryCancelRef = useRef<HTMLButtonElement>(null);
   const importCancelRef = useRef<HTMLButtonElement>(null);
   const [meta, setMeta] = useState<MetaState>({ title: '', author: '', version: '', created: '', modified: '' });
@@ -181,6 +194,16 @@ export const Editor: React.FC = () => {
   });
   flushUpdateRef.current = flushUpdate;
 
+  useEffect(() => {
+    if (!editor) return undefined;
+    const syncBlank = () => setIsBlankStartDocument(isBlankEditorDocument(editor.getJSON()));
+    syncBlank();
+    editor.on('update', syncBlank);
+    return () => {
+      editor.off('update', syncBlank);
+    };
+  }, [editor]);
+
   // Trigger CrossRef label re-sync when caption settings change
   const prevPrefixRef = useRef<{
     style: string;
@@ -237,6 +260,8 @@ export const Editor: React.FC = () => {
     handleTestDiagramRenderer,
     handleMetaChange,
     handleRequestTemplateCatalog,
+    handleCreateFromTemplate,
+    handleOpenExistingDocument,
     handleApplyTemplate,
     handleSavePersonalTemplate,
     handleUpdatePersonalTemplate,
@@ -907,6 +932,7 @@ export const Editor: React.FC = () => {
             templateSession={templateSession}
             dispatchTemplateSession={dispatchTemplateSession}
             onRefreshTemplates={handleRequestTemplateCatalog}
+            onCreateFromTemplate={handleCreateFromTemplate}
             onApplyTemplate={handleApplyTemplate}
             onSavePersonalTemplate={handleSavePersonalTemplate}
             onUpdatePersonalTemplate={handleUpdatePersonalTemplate}
@@ -928,6 +954,20 @@ export const Editor: React.FC = () => {
                   disabled={!state.documentAccess.capabilities.editMetadata}
                 />
               </div>
+              {!startCardDismissed
+                && isBlankStartDocument
+                && state.documentAccess.capabilities.editContent && (
+                <DocumentStartCard
+                  onStartEmpty={() => setStartCardDismissed(true)}
+                  onCreateFromTemplate={() => {
+                    activityTriggerRef.current = document.getElementById('activity-destination-templates');
+                    setActivityState((current) => selectSidePanel(current, {
+                      destination: 'templates',
+                    }));
+                  }}
+                  onOpenExisting={handleOpenExistingDocument}
+                />
+              )}
               <EditorContent
                 editor={editor}
                 className={`${state.settings.headingNumbering ? 'show-numbering' : 'hide-numbering'} ${state.settings.headingDecoration ? 'show-heading-decoration' : ''} ${state.settings.captionNumbering === 'hierarchical' ? 'hierarchical-numbering' : 'sequential-numbering'}`}

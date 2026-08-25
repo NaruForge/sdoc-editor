@@ -173,6 +173,13 @@ export interface TemplateApplicationFinishedMessage {
   error?: TemplateOperationError;
 }
 
+export interface TemplateCreationFinishedMessage {
+  type: 'templateCreationFinished';
+  requestId: string;
+  result: 'created' | 'cancelled' | 'failed';
+  error?: TemplateOperationError;
+}
+
 export interface ExternalChangeMessage {
   type: 'externalChange';
   sessionId: string;
@@ -418,6 +425,7 @@ export type ExtensionToWebviewMessage =
   | TemplateCatalogMessage
   | TemplateCatalogFailedMessage
   | TemplateApplicationFinishedMessage
+  | TemplateCreationFinishedMessage
   | TemplateOperationFinishedMessage
   | ExternalChangeMessage
   | DocumentRevisionAdvancedMessage
@@ -486,6 +494,17 @@ export interface ApplyTemplateMessage {
   sessionId: string;
   documentId: string;
   baseRevision: number;
+}
+
+export interface CreateDocumentFromTemplateMessage {
+  type: 'createDocumentFromTemplate';
+  requestId: string;
+  templateId: string;
+}
+
+export interface OpenExistingDocumentMessage {
+  type: 'openExistingDocument';
+  requestId: string;
 }
 
 export interface PersonalTemplateMetadataInput {
@@ -737,6 +756,8 @@ export type WebviewToExtensionMessage =
   | UpdateUiLanguageMessage
   | RequestTemplateCatalogMessage
   | ApplyTemplateMessage
+  | CreateDocumentFromTemplateMessage
+  | OpenExistingDocumentMessage
   | SavePersonalTemplateMessage
   | UpdatePersonalTemplateMessage
   | DuplicatePersonalTemplateMessage

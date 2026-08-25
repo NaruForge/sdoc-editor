@@ -461,6 +461,18 @@ export function useEditorMessages({
         }
         ed?.setEditable(accessRef.current.status === 'editable');
         break;
+      case 'templateCreationFinished':
+        if (message.result === 'created') {
+          dispatchTemplateSession({ type: 'action-completed', requestId: message.requestId });
+        } else if (message.result === 'cancelled') {
+          dispatchTemplateSession({ type: 'action-cancelled', requestId: message.requestId });
+        } else {
+          dispatchTemplateSession({
+            type: 'action-failed', requestId: message.requestId,
+            error: message.error ?? { code: 'operation-failed', message: 'The template could not be used to create a document.' },
+          });
+        }
+        break;
       case 'externalInvalidDocument':
         if (persistenceSessionRef.current?.sessionId !== message.sessionId
           || persistenceSessionRef.current.documentId !== message.documentId) break;
@@ -1014,6 +1026,31 @@ export function useEditorMessages({
     handleRequestTemplateCatalog();
   }, [handleRequestTemplateCatalog]);
 
+  const handleCreateFromTemplate = (templateId: string) => {
+    if (templateSession.action.phase === 'running') return;
+    const requestId = crypto.randomUUID();
+    dispatchTemplateSession({ type: 'action-started', requestId, operation: 'create', templateId });
+    void postMessage({
+      type: 'createDocumentFromTemplate',
+      requestId,
+      templateId,
+    }).catch(() => {
+      dispatchTemplateSession({
+        type: 'action-failed', requestId,
+        error: { code: 'operation-failed', message: 'The template could not be used to create a document.' },
+      });
+    });
+  };
+
+  const handleOpenExistingDocument = () => {
+    void postMessage({
+      type: 'openExistingDocument',
+      requestId: crypto.randomUUID(),
+    }).catch((error: unknown) => {
+      console.error('Failed to open an existing document', error);
+    });
+  };
+
   const handleApplyTemplate = (templateId: string) => {
     if (templateSession.action.phase === 'running') return;
     flushPendingRef.current();
@@ -1350,6 +1387,8 @@ export function useEditorMessages({
     handleTestDiagramRenderer,
     handleMetaChange,
     handleRequestTemplateCatalog,
+    handleCreateFromTemplate,
+    handleOpenExistingDocument,
     handleApplyTemplate,
     handleSavePersonalTemplate,
     handleUpdatePersonalTemplate,

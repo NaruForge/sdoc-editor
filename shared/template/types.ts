@@ -99,10 +99,20 @@ export interface TemplateStructuralCounts {
   codeBlocks: number;
 }
 
+export type TemplatePreviewAssetScope = 'none' | 'unsupported';
+
+export interface TemplateReplacementScope {
+  replacesBody: boolean;
+  settingsKeys: string[];
+  assets: TemplatePreviewAssetScope;
+}
+
 export interface TemplateStructuralPreview {
   templateId: string;
   outline: TemplateOutlinePreviewItem[];
   counts: TemplateStructuralCounts;
   settingsKeys: string[];
   truncated: boolean;
+  htmlPreview: string;
+  replacement: TemplateReplacementScope;
 }

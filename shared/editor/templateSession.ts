@@ -6,7 +6,7 @@ import type {
 } from '../types/messages';
 
 export type TemplateSourceFilter = 'all' | 'builtin' | 'workspace' | 'user';
-export type TemplateActionOperation = 'apply' | PersonalTemplateOperation;
+export type TemplateActionOperation = 'apply' | 'create' | PersonalTemplateOperation;
 
 export type TemplateCatalogState =
   | { phase: 'idle' }

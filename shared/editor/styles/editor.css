@@ -4403,6 +4403,101 @@ html.is-resizing-side-panel * {
   cursor: pointer;
 }
 
+.template-primary-actions {
+  display: grid;
+  gap: 6px;
+  margin: 0 10px 8px;
+}
+
+.template-primary-actions .template-apply-primary,
+.template-primary-actions .template-replace-secondary {
+  margin: 0;
+}
+
+.template-replace-secondary {
+  padding: 8px 12px;
+  border: 1px solid var(--vscode-button-border, var(--vscode-panel-border));
+  border-radius: 4px;
+  background: var(--vscode-button-secondaryBackground, transparent);
+  color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+  cursor: pointer;
+}
+
+.template-replace-secondary:focus-visible {
+  outline: 2px solid var(--vscode-focusBorder, #007acc);
+  outline-offset: 2px;
+}
+
+.template-render-frame {
+  display: block;
+  width: 100%;
+  height: 180px;
+  margin: 8px 0;
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 4px;
+  background: #fff;
+}
+
+.template-limits-notice,
+.template-replace-scope {
+  margin: 0 10px 10px;
+  color: var(--vscode-descriptionForeground);
+  font-size: 11px;
+}
+
+.template-replace-scope {
+  margin: 8px 0 12px;
+  padding-left: 18px;
+}
+
+.document-start-card {
+  margin: 16px 8px 20px;
+  padding: 16px;
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 6px;
+  background: var(--vscode-sideBar-background, var(--vscode-editor-background));
+}
+
+.document-start-card h2 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+
+.document-start-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.document-start-actions button {
+  border: 1px solid var(--vscode-button-border, var(--vscode-panel-border));
+  border-radius: 4px;
+  padding: 8px 12px;
+  background: var(--vscode-button-secondaryBackground, transparent);
+  color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+  cursor: pointer;
+}
+
+.document-start-actions .is-primary {
+  border: 0;
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+}
+
+.document-start-limits {
+  margin: 0;
+  color: var(--vscode-descriptionForeground);
+  font-size: 12px;
+}
+
+.panel-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
 .template-personal-management,
 .files-panel-advanced {
   margin: 10px;

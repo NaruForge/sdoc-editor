@@ -26,6 +26,7 @@ body {
   --vscode-badge-background: var(--vscode-button-background);
   --vscode-badge-foreground: var(--vscode-button-foreground);
   --vscode-button-hoverBackground: var(--vscode-toolbar-activeBackground);
+  --vscode-button-border: var(--vscode-widget-border);
   --vscode-button-secondaryBackground: var(--vscode-toolbar-hoverBackground);
   --vscode-button-secondaryBorder: var(--vscode-widget-border);
   --vscode-button-secondaryForeground: var(--vscode-editor-foreground);

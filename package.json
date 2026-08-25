@@ -62,7 +62,7 @@
     "commands": [
       {
         "command": "structuredDocEditor.newSdoc",
-        "title": "New .sdoc Document (Experimental Templates)",
+        "title": "New .sdoc Document",
         "category": "Structured Doc"
       },
       {
@@ -99,6 +99,45 @@
         "command": "structuredDocEditor.cleanUpLegacySettings",
         "title": "Clean Up Legacy Settings",
         "category": "Structured Doc Editor"
+      }
+    ],
+    "walkthroughs": [
+      {
+        "id": "structuredDocEditor.getStarted",
+        "title": "Structured Doc Editor",
+        "description": "Create a sample .sdoc, edit the title and body, and keep Git-reviewable structure.",
+        "steps": [
+          {
+            "id": "create-sample",
+            "title": "Create a sample document",
+            "description": "Run **Structured Doc: New .sdoc Document** and choose **기능 둘러보기** (Feature showcase), or open Templates in an editor and select **Create new document**.\n[Create a document](command:structuredDocEditor.newSdoc)",
+            "media": {
+              "image": "media/sdoc-editor-icon.png",
+              "altText": "Structured Doc Editor icon"
+            },
+            "completionEvents": [
+              "onCommand:structuredDocEditor.newSdoc"
+            ]
+          },
+          {
+            "id": "edit-title-body",
+            "title": "Edit the title and body",
+            "description": "Change the document title, then type in the body. Headings, tables, math, and diagrams stay structured JSON on disk.",
+            "media": {
+              "image": "media/sdoc-editor-icon.png",
+              "altText": "Structured Doc Editor icon"
+            }
+          },
+          {
+            "id": "open-existing",
+            "title": "Open an existing document",
+            "description": "Open a `.sdoc` or `.tiptap.json` file from the Explorer, or use **Open existing document** on an empty editor.",
+            "media": {
+              "image": "media/sdoc-editor-icon.png",
+              "altText": "Structured Doc Editor icon"
+            }
+          }
+        ]
       }
     ],
     "keybindings": [

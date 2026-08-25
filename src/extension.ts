@@ -239,8 +239,8 @@ async function createNewSdoc(outputChannel: vscode.OutputChannel): Promise<void>
             template,
           })),
           {
-            title: 'Create Structured Doc — Experimental Templates',
-            placeHolder: 'Select an experimental document template',
+            title: 'Create Structured Doc',
+            placeHolder: 'Select a document template',
             matchOnDescription: true,
             matchOnDetail: true,
           },
@@ -248,7 +248,7 @@ async function createNewSdoc(outputChannel: vscode.OutputChannel): Promise<void>
         return selected?.template;
       },
       requestTitle: async () => vscode.window.showInputBox({
-        title: 'Create Structured Doc — Experimental Templates',
+        title: 'Create Structured Doc',
         prompt: 'Enter the document title',
         placeHolder: 'Document title',
         validateInput: validateDocumentTitle,

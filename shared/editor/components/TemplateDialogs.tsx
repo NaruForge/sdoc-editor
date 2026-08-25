@@ -8,6 +8,7 @@ interface TemplateConfirmDialogProps {
   confirmLabel: string;
   cancelLabel: string;
   destructive?: boolean;
+  children?: React.ReactNode;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -18,6 +19,7 @@ export const TemplateConfirmDialog: React.FC<TemplateConfirmDialogProps> = ({
   confirmLabel,
   cancelLabel,
   destructive = false,
+  children,
   onConfirm,
   onCancel,
 }) => {
@@ -37,6 +39,7 @@ export const TemplateConfirmDialog: React.FC<TemplateConfirmDialogProps> = ({
     >
       <h2 id={titleId}>{title}</h2>
       <p id={descriptionId}>{description}</p>
+      {children}
       <div className="template-dialog-actions">
         <button ref={cancelRef} type="button" onClick={onCancel}>{cancelLabel}</button>
         <button

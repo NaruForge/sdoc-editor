@@ -1,4 +1,4 @@
-export { convertJsonToHtml } from './jsonToHtml';
+export { convertJsonToHtml, convertJsonToHtmlFragment } from './jsonToHtml';
 export { convertJsonToMarkdown } from './jsonToMarkdown';
 export { convertJsonToAdoc } from './jsonToAdoc';
 export { convertJsonToSlides } from './jsonToSlides';
