@@ -79,6 +79,29 @@ describe('expected VS Code document changes', () => {
     expect(changes.consume(uri, persisted)).toBe(false);
   });
 
+  it('exposes an unconsumed expected snapshot for apply postcondition cleanup', () => {
+    const changes = new ExpectedDocumentChanges();
+    const uri = 'file:///document.sdoc';
+    const persisted = '{"title":"Mine"}';
+    const expected = changes.expect(uri, persisted, '\n');
+
+    expect(changes.has(uri, expected)).toBe(true);
+    expect(changes.consume(uri, persisted, 8)).toBe(true);
+    expect(expected.consumedRevision).toBe(8);
+    expect(changes.has(uri, expected)).toBe(false);
+  });
+
+  it('removes an expected snapshot when apply has no matching content event', () => {
+    const changes = new ExpectedDocumentChanges();
+    const uri = 'file:///document.sdoc';
+    const expected = changes.expect(uri, '{"title":"Mine"}', '\n');
+
+    changes.remove(uri, expected);
+
+    expect(changes.has(uri, expected)).toBe(false);
+    expect(changes.consume(uri, expected.text)).toBe(false);
+  });
+
   it('normalizes mixed input endings to the target document ending', () => {
     expect(normalizeDocumentEndOfLines('a\r\nb\nc\rd', '\r\n'))
       .toBe('a\r\nb\r\nc\r\nd');

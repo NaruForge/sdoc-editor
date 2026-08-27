@@ -9,6 +9,14 @@ import {
   normalizeDocumentEndOfLines,
   shouldReportExternalDocumentChange,
 } from './utils/expectedDocumentChanges';
+import {
+  createFullDocumentTextEdit,
+  isDocumentTextEditApplicationConfirmed,
+  isDocumentTextEditSourceCurrent,
+  measureDocumentTextEdits,
+  planSdocDocumentTextEdits,
+  type DocumentTextEditSource,
+} from './utils/documentTextEdit';
 import { convertMarkdownToJson } from '../shared/converter';
 import { generateFontFaceCSS } from './utils/fontUtils';
 import { convertImagePathsToWebviewUris, convertWebviewUrisToRelativePaths } from './utils/imageUtils';
@@ -188,6 +196,13 @@ function summarizeImportedHtml(html: string): {
   return { outline, topLevelBlockCount, warnings };
 }
 
+class DocumentEditConflictError extends Error {
+  public constructor(message: string) {
+    super(message);
+    this.name = 'DocumentEditConflictError';
+  }
+}
+
 export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
   private static readonly SDOC_VERSION = '1.0';
   private static readonly EDITOR_TEXT_FOCUS_CONTEXT = 'structuredDocEditor.editorTextFocus';
@@ -270,6 +285,21 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
               nodeVersion: process.versions.node,
               platform: process.platform,
               architecture: process.arch,
+            });
+          },
+        ),
+        vscode.commands.registerCommand(
+          'structuredDocEditor.test.applyActiveLocalizedMutation',
+          (blockIndex: number) => {
+            if (!Number.isSafeInteger(blockIndex) || blockIndex < 0) {
+              throw new Error('The localized test block index is invalid.');
+            }
+            const session = provider.getActiveTestSession();
+            return session.panel.webview.postMessage({
+              type: 'testApplyLocalizedMutation',
+              sessionId: session.sessionId,
+              documentId: session.document.uri.toString(),
+              blockIndex,
             });
           },
         ),
@@ -1154,7 +1184,10 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
             new vscode.Range(document.positionAt(0), document.positionAt(document.getText().length)),
             text,
           );
-          await this.applyExpectedEdit(document, edit, text);
+          await this.applyExpectedEdit(document, edit, text, {
+            version: expected.revision,
+            text: baselineText,
+          });
         },
       });
       if (!committed) {
@@ -2270,7 +2303,9 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
                 documentId,
                 editId: message.editId,
                 revision: document.version,
-                code: 'WRITE_FAILED',
+                code: error instanceof DocumentEditConflictError
+                  ? 'STALE_REVISION'
+                  : 'WRITE_FAILED',
                 message: error instanceof Error ? error.message : String(error),
                 ...(hostSnapshot ? { hostSnapshot } : {}),
               });
@@ -2449,8 +2484,14 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
           this.expectedDocumentChanges,
           document.uri.toString(),
           document.getText(),
+          document.version,
         )) {
           if (hasTextDocumentContentChanges(e.contentChanges)) {
+            this.performanceProbe.record(
+              'workspace-edit-content-change-count',
+              0,
+              e.contentChanges.length,
+            );
             const snapshot = tryReadCurrentMutation();
             if (snapshot) lastLocalMutation = snapshot;
           }
@@ -2564,11 +2605,10 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     document: vscode.TextDocument,
     mutation: DocumentMutation,
   ): Promise<string> {
-    const edit = new vscode.WorkspaceEdit();
-    const fullRange = new vscode.Range(
-      document.positionAt(0),
-      document.positionAt(document.getText().length)
-    );
+    const source: DocumentTextEditSource = {
+      version: document.version,
+      text: document.getText(),
+    };
 
     // Convert webview URIs back to relative paths before saving
     const convertedContent = this.performanceProbe.measure(
@@ -2580,7 +2620,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     );
 
     // Read existing file to preserve metadata
-    const existingText = document.getText();
+    const existingText = source.text;
     const existingMeta = this.performanceProbe.measure('parse-existing-envelope', () => {
       try {
         return sharedUnwrapSdoc(existingText.trim() ? JSON.parse(existingText) : {}).meta;
@@ -2648,11 +2688,75 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       ),
       synced.content?.length ?? 0,
     );
-    edit.replace(document.uri, fullRange, json);
+    let documentTextEditPlan = this.performanceProbe.measure(
+      'plan-minimal-document-edit',
+      () => planSdocDocumentTextEdits(source.text, json),
+      source.text.length + json.length,
+    );
+    if (!isDocumentTextEditSourceCurrent(source, document.version, document.getText())) {
+      throw new DocumentEditConflictError(
+        'The document changed before the editor mutation could be applied.',
+      );
+    }
+    let ranges = documentTextEditPlan.edits.map((documentTextEdit) => {
+      const start = document.positionAt(documentTextEdit.startOffset);
+      const end = document.positionAt(documentTextEdit.endOffset);
+      return { documentTextEdit, start, end };
+    });
+    if (ranges.some(({ documentTextEdit, start, end }) =>
+      document.offsetAt(start) !== documentTextEdit.startOffset
+      || document.offsetAt(end) !== documentTextEdit.endOffset)) {
+      const documentTextEdit = createFullDocumentTextEdit(source.text, json);
+      documentTextEditPlan = { kind: 'single-span', edits: [documentTextEdit] };
+      ranges = [{
+        documentTextEdit,
+        start: document.positionAt(0),
+        end: document.positionAt(source.text.length),
+      }];
+    }
+    const editMetrics = measureDocumentTextEdits(
+      source.text,
+      json,
+      documentTextEditPlan.edits,
+    );
+    this.performanceProbe.record(
+      'workspace-edit-source-range-code-units',
+      0,
+      editMetrics.sourceRangeCodeUnits,
+    );
+    this.performanceProbe.record(
+      'workspace-edit-inserted-code-units',
+      0,
+      editMetrics.insertedCodeUnits,
+    );
+    this.performanceProbe.record(
+      'workspace-edit-source-code-units',
+      0,
+      editMetrics.sourceCodeUnits,
+    );
+    this.performanceProbe.record(
+      'workspace-edit-target-code-units',
+      0,
+      editMetrics.targetCodeUnits,
+    );
+    this.performanceProbe.record(
+      'workspace-edit-replacement-ratio-ppm',
+      0,
+      editMetrics.replacementRatioPpm,
+    );
+    this.performanceProbe.record(
+      'workspace-edit-range-count',
+      0,
+      documentTextEditPlan.edits.length,
+    );
+    const edit = new vscode.WorkspaceEdit();
+    for (const { documentTextEdit, start, end } of ranges) {
+      edit.replace(document.uri, new vscode.Range(start, end), documentTextEdit.text);
+    }
 
     await this.performanceProbe.measureAsync(
       'workspace-apply-edit',
-      () => this.applyExpectedEdit(document, edit, json),
+      () => this.applyExpectedEdit(document, edit, json, source),
       json.length,
     );
     return modified;
@@ -2662,9 +2766,15 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     document: vscode.TextDocument,
     edit: vscode.WorkspaceEdit,
     expectedText: string,
+    source: DocumentTextEditSource,
   ): Promise<void> {
+    if (!isDocumentTextEditSourceCurrent(source, document.version, document.getText())) {
+      throw new DocumentEditConflictError(
+        'The document changed before the WorkspaceEdit could be applied.',
+      );
+    }
     const uri = document.uri.toString();
-    const expectedAppliedText = this.expectedDocumentChanges.expect(
+    const expectedChange = this.expectedDocumentChanges.expect(
       uri,
       expectedText,
       document.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n',
@@ -2673,12 +2783,34 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     try {
       applied = await vscode.workspace.applyEdit(edit);
     } catch (error) {
-      this.expectedDocumentChanges.remove(uri, expectedAppliedText);
+      this.expectedDocumentChanges.remove(uri, expectedChange);
+      if (!isDocumentTextEditSourceCurrent(source, document.version, document.getText())) {
+        throw new DocumentEditConflictError(
+          'The document changed while VS Code was applying the WorkspaceEdit.',
+        );
+      }
       throw error;
     }
     if (!applied) {
-      this.expectedDocumentChanges.remove(uri, expectedAppliedText);
+      this.expectedDocumentChanges.remove(uri, expectedChange);
+      if (!isDocumentTextEditSourceCurrent(source, document.version, document.getText())) {
+        throw new DocumentEditConflictError(
+          'The document changed while VS Code rejected the WorkspaceEdit.',
+        );
+      }
       throw new Error('VS Code rejected the document edit.');
+    }
+    if (!isDocumentTextEditApplicationConfirmed(
+      source,
+      document.version,
+      expectedChange.text,
+      document.getText(),
+      expectedChange.consumedRevision,
+    )) {
+      this.expectedDocumentChanges.remove(uri, expectedChange);
+      throw new DocumentEditConflictError(
+        'The document changed while the WorkspaceEdit was being applied.',
+      );
     }
   }
 

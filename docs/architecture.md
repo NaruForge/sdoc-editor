@@ -177,6 +177,25 @@ exactly once and submits a new content revision before waiting at the barrier.
 Initial hydration, confirmed host template replacement, and external reload
 instead adopt a host baseline and do not submit a local mutation.
 
+For an acknowledged standalone mutation, the VS Code host still validates and
+pretty-serializes the complete canonical SDOC envelope. It identifies the
+single lexical `$.meta.modified` JSON string token and, only when its old/new
+offsets and lengths are stable, separates that token from one remaining
+common-prefix/suffix UTF-16 range. The resulting `WorkspaceEdit` therefore has
+at most two sorted, non-overlapping ranges. Reverse application must reconstruct
+the exact serialized envelope, and boundaries never split a CRLF sequence or
+surrogate pair. Ambiguous JSON, duplicate or non-string `modified`, shifted
+tokens, overlap, invalid ranges, or calculation failure falls back to the
+general single-span plan, whose own unsafe result falls back to the previous
+full-document replacement.
+
+The host captures source text and version before serialization, rechecks both
+immediately before applying, and correlates its expected full snapshot with
+the exact consumed `source revision + 1` document-change event. A source race,
+an unexpected extra revision, or a mismatching final snapshot is rejected as a
+stale conflict rather than a retryable write failure; it never silently retries
+over the newer host state.
+
 The editor starts read-only and crosses
 `shared/editor/documentReplacement.ts` exactly once for initial hydration.
 Strict source parsing must succeed before the host grants an editable

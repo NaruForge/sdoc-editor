@@ -713,6 +713,31 @@ describe('DocumentSyncCoordinator', () => {
     expect(sent).toHaveLength(1);
   });
 
+  it('does not retry a stale revision through an ordinary save action', async () => {
+    const sent: DocumentMutationRequest[] = [];
+    const sync = new DocumentSyncCoordinator({
+      identity: { sessionId: 'session-a', documentId: 'doc-a', revision: 1 },
+      createEditId: () => 'stale-edit',
+      send: (request) => { sent.push(request); },
+    });
+    sync.submit(mutation('mine'));
+    sync.reject({
+      sessionId: 'session-a',
+      documentId: 'doc-a',
+      editId: 'stale-edit',
+      revision: 2,
+      code: 'STALE_REVISION',
+      message: 'document changed during write',
+      hostSnapshot: mutation('theirs'),
+    });
+
+    await expect(new SaveCoordinator(sync).afterAcknowledged(async () => {}))
+      .rejects.toThrow('document changed during write');
+    expect(sent).toHaveLength(1);
+    expect(sync.state.error?.code).toBe('STALE_REVISION');
+    expect(sync.state.externalChange?.hostSnapshot).toEqual(mutation('theirs'));
+  });
+
   it('omits an unreadable host snapshot instead of stranding a rejection', () => {
     expect(readDocumentMutationBestEffort(() => {
       throw new SyntaxError('incomplete external JSON');

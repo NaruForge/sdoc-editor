@@ -10,6 +10,27 @@ import {
 } from '../shared/editor/fileOperations';
 
 describe('editor host message boundary', () => {
+  it('narrows the test-only localized transaction message', () => {
+    expect(isHostToEditorMessage({
+      type: 'testApplyLocalizedMutation',
+      sessionId: 'session-1',
+      documentId: 'doc-a',
+      blockIndex: 2_500,
+    })).toBe(true);
+    expect(isHostToEditorMessage({
+      type: 'testApplyLocalizedMutation',
+      sessionId: 'session-1',
+      documentId: 'doc-a',
+      blockIndex: -1,
+    })).toBe(false);
+    expect(isHostToEditorMessage({
+      type: 'testApplyLocalizedMutation',
+      sessionId: 'session-1',
+      documentId: 'doc-a',
+      blockIndex: 2.5,
+    })).toBe(false);
+  });
+
   it('narrows the test-only webview performance round-trip without accepting unsafe values', () => {
     expect(isEditorToHostMessage({
       type: 'webviewPerformanceMeasurement',

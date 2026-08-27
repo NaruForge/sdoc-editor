@@ -131,6 +131,16 @@ validation·pretty serialization·`WorkspaceEdit`, 그리고 `onWillSave`의 flu
 `onDidSave`까지를 기록합니다. 결과는 stdout과 Git에서 제외된
 `tests/vscode/artifacts/performance/vscode.json`에 기록됩니다.
 
+Extension Host 보고서는 canonical 5k 문서를 먼저 clean baseline으로 채택한 뒤
+중간 paragraph 하나를 실제 webview transaction으로 변경하고 ACK와 save까지
+기다립니다. `workspace-edit-source-code-units`, `target-code-units`,
+`source-range-code-units`, `inserted-code-units`, `range-count`,
+`content-change-count`, `replacement-ratio-ppm`은 내용이나 경로를 포함하지 않는
+가산 schema-v1 measurement입니다. ppm은
+`(source range + inserted) / (source + target) * 1,000,000`을 반올림한 정수이므로
+나머지 네 code-unit counter에서 독립적으로 재계산할 수 있습니다. 기존
+`workspace-apply-edit`의 operation count는 계속 전체 target code units입니다.
+
 세 보고서는 모두 `shared/performance/instrumentation.ts`의 schema version 1,
 monotonic millisecond 형식을 사용합니다. 문서 내용, URI, 사용자 경로와 wall-clock
 timestamp는 넣지 않습니다. 일반 CI는 동일한 실제 operation이 완료되고 결과와

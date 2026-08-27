@@ -568,6 +568,9 @@ export function isHostToEditorMessage(value: unknown): value is HostToEditorMess
     case 'requestFlush':
       return hasString(value, 'sessionId') && hasString(value, 'documentId')
         && hasString(value, 'requestId');
+    case 'testApplyLocalizedMutation':
+      return hasString(value, 'sessionId') && hasString(value, 'documentId')
+        && isNonNegativeInteger(value.blockIndex);
     case 'init':
       return hasString(value, 'sessionId') && hasString(value, 'documentId')
         && hasNumber(value, 'revision')

@@ -616,6 +616,22 @@ export function useEditorMessages({
           });
         });
         break;
+      case 'testApplyLocalizedMutation': {
+        const session = persistenceSessionRef.current;
+        if (!performanceEnabledRef.current || !ed || !session
+          || message.sessionId !== session.sessionId
+          || message.documentId !== session.documentId
+          || message.blockIndex >= ed.state.doc.childCount) break;
+        let blockStart = 0;
+        for (let index = 0; index < message.blockIndex; index += 1) {
+          blockStart += ed.state.doc.child(index).nodeSize;
+        }
+        const block = ed.state.doc.child(message.blockIndex);
+        if (!block.isTextblock) break;
+        const insertAt = blockStart + 1 + block.content.size;
+        ed.view.dispatch(ed.state.tr.insertText(' [localized-vscode-perf]', insertAt));
+        break;
+      }
       case 'editAcknowledged':
         if (syncCoordinatorRef.current?.acknowledge(message)) {
           const started = editPerformanceStartsRef.current.get(message.editId);

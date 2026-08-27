@@ -344,6 +344,14 @@ export interface RequestFlushMessage {
   requestId: string;
 }
 
+/** Extension-host test seam; ignored unless the webview was initialized in test mode. */
+export interface TestApplyLocalizedMutationMessage {
+  type: 'testApplyLocalizedMutation';
+  sessionId: string;
+  documentId: string;
+  blockIndex: number;
+}
+
 export interface FileOperationPreflightMessage {
   type: 'fileOperationPreflight';
   requestId: FileOperationRequestId;
@@ -448,6 +456,7 @@ export type ExtensionToWebviewMessage =
   | ImageReplacedMessage
   | DrawioFileUpdatedMessage
   | RequestFlushMessage
+  | TestApplyLocalizedMutationMessage
   | FileOperationPreflightMessage
   | FileOperationStatusMessage
   | FileOperationResultActionStatusMessage
