@@ -13,12 +13,31 @@ export interface DocumentMutation {
   documentSettings: Partial<DocumentSettings> | null;
 }
 
+export interface DocumentComponentRevisions {
+  content: number;
+  metadata: number;
+  settings: number;
+}
+
+export interface DocumentSyncOperationCounts {
+  contentSubmissions: number;
+  metadataSubmissions: number;
+  settingsSubmissions: number;
+  contentSnapshotsCreated: number;
+  contentSnapshotsReused: number;
+  mutationSnapshotsCreated: number;
+  flushBarriers: number;
+  /** Local no-op detection must never serialize the complete mutation. */
+  localStringifyComparisons: 0;
+}
+
 export interface DocumentMutationRequest {
   sessionId: string;
   documentId: string;
   editId: string;
   baseRevision: number;
   localGeneration: number;
+  componentRevisions: DocumentComponentRevisions;
   mutation: DocumentMutation;
 }
 
@@ -66,9 +85,14 @@ export interface DocumentSyncState {
   acknowledgedModified?: string;
   localGeneration: number;
   acknowledgedGeneration: number;
+  componentRevisions: DocumentComponentRevisions;
   localMutation: DocumentMutation | null;
   inFlight: DocumentMutationRequest | null;
-  pending: { localGeneration: number; mutation: DocumentMutation } | null;
+  pending: {
+    localGeneration: number;
+    componentRevisions: DocumentComponentRevisions;
+    mutation: DocumentMutation;
+  } | null;
   error: DocumentSyncError | null;
   conflict: DocumentSyncConflict | null;
   externalChange: { revision: number; hostSnapshot: DocumentMutation } | null;
@@ -86,18 +110,68 @@ export interface DocumentSyncCoordinatorOptions {
   createEditId?: () => string;
 }
 
-const mutationsEqual = (left: DocumentMutation | null, right: DocumentMutation): boolean =>
-  left !== null && JSON.stringify(left) === JSON.stringify(right);
+const EMPTY_COMPONENT_REVISIONS: DocumentComponentRevisions = Object.freeze({
+  content: 0,
+  metadata: 0,
+  settings: 0,
+});
+
+const EMPTY_OPERATION_COUNTS: DocumentSyncOperationCounts = Object.freeze({
+  contentSubmissions: 0,
+  metadataSubmissions: 0,
+  settingsSubmissions: 0,
+  contentSnapshotsCreated: 0,
+  contentSnapshotsReused: 0,
+  mutationSnapshotsCreated: 0,
+  flushBarriers: 0,
+  localStringifyComparisons: 0,
+});
+
+const ownedImmutableSnapshots = new WeakSet<object>();
+
+const immutableSnapshot = <T>(value: T, visited = new WeakSet<object>()): T => {
+  if (value === null || typeof value !== 'object'
+    || ownedImmutableSnapshots.has(value) || visited.has(value)) return value;
+  visited.add(value);
+  for (const child of Object.values(value)) immutableSnapshot(child, visited);
+  Object.freeze(value);
+  ownedImmutableSnapshots.add(value);
+  return value;
+};
+
+const componentValuesEqual = (left: unknown, right: unknown): boolean => {
+  if (Object.is(left, right)) return true;
+  if (left === null || right === null || typeof left !== 'object' || typeof right !== 'object') {
+    return false;
+  }
+  if (Array.isArray(left) || Array.isArray(right)) {
+    if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) return false;
+    return left.every((entry, index) => componentValuesEqual(entry, right[index]));
+  }
+  const leftRecord = left as Record<string, unknown>;
+  const rightRecord = right as Record<string, unknown>;
+  const leftKeys = Object.keys(leftRecord).filter((key) => leftRecord[key] !== undefined);
+  const rightKeys = Object.keys(rightRecord).filter((key) => rightRecord[key] !== undefined);
+  return leftKeys.length === rightKeys.length
+    && leftKeys.every((key) => Object.prototype.hasOwnProperty.call(rightRecord, key)
+      && componentValuesEqual(leftRecord[key], rightRecord[key]));
+};
+
+const createMutationSnapshot = (mutation: DocumentMutation): DocumentMutation => immutableSnapshot({
+  content: immutableSnapshot(mutation.content),
+  meta: immutableSnapshot(mutation.meta),
+  documentSettings: immutableSnapshot(mutation.documentSettings),
+});
 
 const reconcileMutationModified = (
   mutation: DocumentMutation,
   modified: string | undefined,
 ): DocumentMutation => {
   if (!modified || mutation.meta.modified === modified) return mutation;
-  return {
+  return Object.freeze({
     ...mutation,
-    meta: { ...mutation.meta, modified },
-  };
+    meta: immutableSnapshot({ ...mutation.meta, modified }),
+  });
 };
 
 export function readDocumentMutationBestEffort(
@@ -121,6 +195,7 @@ export class DocumentSyncCoordinator {
   private readonly createEditId: () => string;
   private readonly flushWaiters = new Set<FlushWaiter>();
   private readonly listeners = new Set<() => void>();
+  private counts: DocumentSyncOperationCounts = EMPTY_OPERATION_COUNTS;
   private current: DocumentSyncState;
 
   public constructor(options: DocumentSyncCoordinatorOptions) {
@@ -132,6 +207,7 @@ export class DocumentSyncCoordinator {
       acknowledgedRevision: options.identity.revision,
       localGeneration: 0,
       acknowledgedGeneration: 0,
+      componentRevisions: EMPTY_COMPONENT_REVISIONS,
       localMutation: null,
       inFlight: null,
       pending: null,
@@ -147,6 +223,10 @@ export class DocumentSyncCoordinator {
 
   public getSnapshot = (): Readonly<DocumentSyncState> => this.current;
 
+  public get operationCounts(): Readonly<DocumentSyncOperationCounts> {
+    return Object.freeze({ ...this.counts });
+  }
+
   public subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener);
     return () => { this.listeners.delete(listener); };
@@ -157,17 +237,102 @@ export class DocumentSyncCoordinator {
     this.listeners.forEach((listener) => listener());
   }
 
+  /**
+   * Compatibility entry point for replacement/rollback callers. Interactive
+   * editor paths should use the component-specific methods below so a metadata
+   * or settings change cannot accidentally recapture the document content.
+   */
   public submit(mutation: DocumentMutation): number {
-    if (mutationsEqual(this.current.localMutation, mutation)) {
+    const current = this.current.localMutation;
+    const normalized = this.withAcknowledgedModified(mutation);
+    const contentChanged = current?.content !== normalized.content;
+    const metadataChanged = !current || !componentValuesEqual(current.meta, normalized.meta);
+    const settingsChanged = !current
+      || !componentValuesEqual(current.documentSettings, normalized.documentSettings);
+    return this.submitComponents(normalized, { contentChanged, metadataChanged, settingsChanged });
+  }
+
+  public submitContent(
+    content: TiptapNode,
+    meta = this.current.localMutation?.meta,
+    documentSettings = this.current.localMutation?.documentSettings,
+  ): number {
+    if (!meta || documentSettings === undefined) return this.current.localGeneration;
+    const current = this.current.localMutation;
+    const normalized = this.withAcknowledgedModified({ content, meta, documentSettings });
+    return this.submitComponents(normalized, {
+      contentChanged: current?.content !== content,
+      metadataChanged: !current || !componentValuesEqual(current.meta, normalized.meta),
+      settingsChanged: !current
+        || !componentValuesEqual(current.documentSettings, normalized.documentSettings),
+    }, 'content');
+  }
+
+  public submitMetadata(meta: Partial<SdocMeta>): number {
+    const current = this.current.localMutation;
+    if (!current) return this.current.localGeneration;
+    const normalized = this.withAcknowledgedModified({ ...current, meta });
+    return this.submitComponents(normalized, {
+      contentChanged: false,
+      metadataChanged: !componentValuesEqual(current.meta, normalized.meta),
+      settingsChanged: false,
+    }, 'metadata');
+  }
+
+  public submitDocumentSettings(documentSettings: Partial<DocumentSettings> | null): number {
+    const current = this.current.localMutation;
+    if (!current) return this.current.localGeneration;
+    return this.submitComponents({ ...current, documentSettings }, {
+      contentChanged: false,
+      metadataChanged: false,
+      settingsChanged: !componentValuesEqual(current.documentSettings, documentSettings),
+    }, 'settings');
+  }
+
+  private withAcknowledgedModified(mutation: DocumentMutation): DocumentMutation {
+    if (!this.current.acknowledgedModified) return mutation;
+    return reconcileMutationModified(mutation, this.current.acknowledgedModified);
+  }
+
+  private submitComponents(
+    mutation: DocumentMutation,
+    changed: { contentChanged: boolean; metadataChanged: boolean; settingsChanged: boolean },
+    source?: 'content' | 'metadata' | 'settings',
+  ): number {
+    if (!changed.contentChanged && !changed.metadataChanged && !changed.settingsChanged) {
       return this.current.localGeneration;
     }
-
+    const current = this.current.localMutation;
+    const snapshot = createMutationSnapshot({
+      content: changed.contentChanged || !current ? mutation.content : current.content,
+      meta: changed.metadataChanged || !current ? mutation.meta : current.meta,
+      documentSettings: changed.settingsChanged || !current
+        ? mutation.documentSettings
+        : current.documentSettings,
+    });
+    const componentRevisions = Object.freeze({
+      content: this.current.componentRevisions.content + Number(changed.contentChanged),
+      metadata: this.current.componentRevisions.metadata + Number(changed.metadataChanged),
+      settings: this.current.componentRevisions.settings + Number(changed.settingsChanged),
+    });
     const localGeneration = this.current.localGeneration + 1;
+    this.counts = Object.freeze({
+      ...this.counts,
+      contentSubmissions: this.counts.contentSubmissions + Number(source === 'content'),
+      metadataSubmissions: this.counts.metadataSubmissions + Number(source === 'metadata'),
+      settingsSubmissions: this.counts.settingsSubmissions + Number(source === 'settings'),
+      contentSnapshotsCreated: this.counts.contentSnapshotsCreated
+        + Number(changed.contentChanged),
+      contentSnapshotsReused: this.counts.contentSnapshotsReused
+        + Number(!changed.contentChanged),
+      mutationSnapshotsCreated: this.counts.mutationSnapshotsCreated + 1,
+    });
     this.publish({
       ...this.current,
       localGeneration,
-      localMutation: mutation,
-      pending: { localGeneration, mutation },
+      componentRevisions,
+      localMutation: snapshot,
+      pending: { localGeneration, componentRevisions, mutation: snapshot },
     });
     this.dispatchNext();
     return localGeneration;
@@ -225,7 +390,11 @@ export class DocumentSyncCoordinator {
     };
     const latest = this.current.pending
       ?? (this.current.localMutation
-        ? { localGeneration: this.current.localGeneration, mutation: this.current.localMutation }
+        ? {
+            localGeneration: this.current.localGeneration,
+            componentRevisions: this.current.componentRevisions,
+            mutation: this.current.localMutation,
+          }
         : null);
     const isConflict = Boolean(
       message.hostSnapshot
@@ -316,7 +485,7 @@ export class DocumentSyncCoordinator {
       localGeneration,
       inFlight: null,
       pending: latest
-        ? { localGeneration, mutation: latest }
+        ? { localGeneration, componentRevisions: this.current.componentRevisions, mutation: latest }
         : null,
       error: null,
       conflict: null,
@@ -328,14 +497,27 @@ export class DocumentSyncCoordinator {
 
   /** User chose reload/template; reset persistence state to that explicit snapshot. */
   public adoptReplacement(revision: number, mutation: DocumentMutation): void {
+    const snapshot = createMutationSnapshot(mutation);
+    const previous = this.current.localMutation;
+    const componentRevisions = previous
+      ? Object.freeze({
+          content: this.current.componentRevisions.content
+            + Number(previous.content !== snapshot.content),
+          metadata: this.current.componentRevisions.metadata
+            + Number(!componentValuesEqual(previous.meta, snapshot.meta)),
+          settings: this.current.componentRevisions.settings
+            + Number(!componentValuesEqual(previous.documentSettings, snapshot.documentSettings)),
+        })
+      : EMPTY_COMPONENT_REVISIONS;
     this.publish({
       ...this.current,
       acknowledgedRevision: revision,
-      acknowledgedModified: typeof mutation.meta.modified === 'string'
-        ? mutation.meta.modified
+      acknowledgedModified: typeof snapshot.meta.modified === 'string'
+        ? snapshot.meta.modified
         : this.current.acknowledgedModified,
       acknowledgedGeneration: this.current.localGeneration,
-      localMutation: mutation,
+      componentRevisions,
+      localMutation: snapshot,
       inFlight: null,
       pending: null,
       error: null,
@@ -346,6 +528,10 @@ export class DocumentSyncCoordinator {
   }
 
   public flushThrough(generation = this.current.localGeneration): Promise<void> {
+    this.counts = Object.freeze({
+      ...this.counts,
+      flushBarriers: this.counts.flushBarriers + 1,
+    });
     if (generation <= this.current.acknowledgedGeneration) return Promise.resolve();
     if (this.current.error) return Promise.reject(new Error(this.current.error.message));
 
@@ -379,6 +565,7 @@ export class DocumentSyncCoordinator {
       editId: this.createEditId(),
       baseRevision: this.current.acknowledgedRevision,
       localGeneration: this.current.pending.localGeneration,
+      componentRevisions: this.current.pending.componentRevisions,
       mutation: this.current.pending.mutation,
     };
     this.publish({ ...this.current, inFlight: request, pending: null });

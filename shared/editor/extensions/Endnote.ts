@@ -2,6 +2,7 @@ import { Node, mergeAttributes, type Editor } from '@tiptap/core';
 import { Plugin } from '@tiptap/pm/state';
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
 import {
+  ensureStructureIndexFresh,
   getDocumentStructureIndexState,
   subscribeToDocumentStructureIndex,
   type DocumentStructureIndex,
@@ -66,7 +67,12 @@ export function beginEndnoteBodyEdit(id: string): void {
 export function insertEndnoteAndFocus(editor: Editor): boolean {
   const id = nextEndnoteId(editor.state.doc);
   const inserted = editor.chain().focus().insertEndnote({ id, body: '' }).run();
-  if (inserted) beginEndnoteBodyEdit(id);
+  if (inserted) {
+    // The shared structure index is trailing-debounced for ordinary editor
+    // work, but this command immediately focuses the newly projected list row.
+    ensureStructureIndexFresh(editor.view);
+    beginEndnoteBodyEdit(id);
+  }
   return inserted;
 }
 

@@ -172,6 +172,13 @@ body {
   border: 1px solid var(--vscode-panel-border);
 }
 
+.browser-performance-harness {
+  width: min(100%, 72rem);
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: 24px;
+}
+
 .host-badge {
   position: fixed;
   right: 8px;

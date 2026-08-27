@@ -14,6 +14,8 @@ import {
 import { applyEditorSettingsCss } from '../shared/editor/applyEditorSettingsCss';
 import { resolveEditorSettings } from '../shared/settingsResolver';
 import { isUpdatedDrawioAsset } from '../shared/editor/drawioUpdates';
+import { Endnote } from '../shared/editor/extensions/Endnote';
+import { buildEndnoteViewItems } from '../shared/editor/components/EndnoteList';
 
 describe('large document structure lookup', () => {
   it('maps 100 ordinary paragraph transactions without rebuilding or publishing semantics', () => {
@@ -23,10 +25,13 @@ describe('large document structure lookup', () => {
         return [{ types: ['heading'], attributes: { id: { default: null } } }];
       },
     });
-    const schema = getSchema([StarterKit, stableHeadingIds]);
+    const schema = getSchema([StarterKit, stableHeadingIds, Endnote]);
     const settings = resolveEditorSettings();
     const plugin = createDocumentStructureIndexPlugin({ getSettings: () => settings });
     const blocks = Array.from({ length: 10_000 }, () => schema.node('paragraph'));
+    blocks[1] = schema.node('paragraph', null, [
+      schema.node('endnote', { id: 'stable-endnote', body: 'Stable note' }),
+    ]);
     blocks.push(schema.node('heading', {
       level: 1,
       id: 'stable-heading',
@@ -39,6 +44,7 @@ describe('large document structure lookup', () => {
     });
     const initial = getDocumentStructureIndexState(state);
     const initialPosition = resolveStructurePosition(state, 'stable-heading');
+    const initialEndnotePosition = resolveStructurePosition(state, 'stable-endnote');
     let pluginView: PluginView | undefined;
     const view = {
       get state() { return state; },
@@ -48,7 +54,11 @@ describe('large document structure lookup', () => {
       },
     } as unknown as EditorView;
     pluginView = plugin.spec.view?.(view);
-    const semanticUpdates = vi.fn();
+    const endnoteProjection = vi.fn(buildEndnoteViewItems);
+    endnoteProjection(initial.endnotes);
+    const semanticUpdates = vi.fn((index: typeof initial) => {
+      endnoteProjection(index.endnotes);
+    });
     const unsubscribe = subscribeToDocumentStructureIndex(view, semanticUpdates);
 
     for (let index = 0; index < 100; index += 1) {
@@ -59,7 +69,9 @@ describe('large document structure lookup', () => {
     expect(current.rebuildCount).toBe(initial.rebuildCount);
     expect(current.semanticRevision).toBe(initial.semanticRevision);
     expect(semanticUpdates).not.toHaveBeenCalled();
+    expect(endnoteProjection).toHaveBeenCalledOnce();
     expect(resolveStructurePosition(state, 'stable-heading')).toBe(initialPosition! + 100);
+    expect(resolveStructurePosition(state, 'stable-endnote')).toBe(initialEndnotePosition! + 100);
 
     unsubscribe();
     pluginView?.destroy?.();

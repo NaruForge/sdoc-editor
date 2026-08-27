@@ -69,16 +69,7 @@ import {
 import { collectEditorStyleProbe, hasAppliedEditorStyles } from '../styleReadiness';
 import { EndnoteList } from '@shared/editor/components/EndnoteList';
 import { insertEndnoteAndFocus } from '@shared/editor/extensions/Endnote';
-
-function isBlankEditorDocument(doc: JSONContent): boolean {
-  const content = doc.content ?? [];
-  if (content.length === 0) return true;
-  return content.every((node) => {
-    if (node.type !== 'paragraph') return false;
-    const text = (node.content ?? []).map((child) => child.text ?? '').join('');
-    return text.trim().length === 0;
-  });
-}
+import { subscribeToBlankEditorDocument } from '@shared/editor/blankDocument';
 
 export function parseStoredZoom(value: string | null): number {
   if (!value) return 100;
@@ -180,11 +171,11 @@ export const Editor: React.FC = () => {
 
   const { editor, replaceEditorDocument, flushUpdate, flushPendingUpdate } = useTiptapEditor({
     onUpdate: (content) => {
-      syncCoordinatorRef.current?.submit({
-        content: content as TiptapNode,
-        meta: metaRef.current,
-        documentSettings: docSettingsRef.current,
-      });
+      syncCoordinatorRef.current?.submitContent(
+        content as TiptapNode,
+        metaRef.current,
+        docSettingsRef.current,
+      );
     },
     runtime: extensionRuntime,
     // VS Code owns Ctrl+S. Its onWillSave participant requests exactly one flush.
@@ -196,12 +187,7 @@ export const Editor: React.FC = () => {
 
   useEffect(() => {
     if (!editor) return undefined;
-    const syncBlank = () => setIsBlankStartDocument(isBlankEditorDocument(editor.getJSON()));
-    syncBlank();
-    editor.on('update', syncBlank);
-    return () => {
-      editor.off('update', syncBlank);
-    };
+    return subscribeToBlankEditorDocument(editor, setIsBlankStartDocument);
   }, [editor]);
 
   // Trigger CrossRef label re-sync when caption settings change
@@ -431,13 +417,8 @@ export const Editor: React.FC = () => {
     if (!state.documentAccess.capabilities.editDocumentSettings) return;
     if (settings) dispatch({ type: 'SET_SETTINGS', payload: settings });
     dispatch({ type: 'SET_DOC_SETTINGS', payload: settings });
-    if (!editor) return;
-    syncCoordinatorRef.current?.submit({
-      content: editor.getJSON() as TiptapNode,
-      meta: metaRef.current,
-      documentSettings: settings,
-    });
-  }, [dispatch, editor, state.documentAccess.capabilities.editDocumentSettings]);
+    syncCoordinatorRef.current?.submitDocumentSettings(settings);
+  }, [dispatch, state.documentAccess.capabilities.editDocumentSettings]);
 
   const handlePaste = useCallback(async (event: ClipboardEvent) => {
     if (!state.documentAccess.capabilities.manageAssets) return;
@@ -705,7 +686,7 @@ export const Editor: React.FC = () => {
         replaceEditorDocument('initial-load', state.doc);
         initDoneRef.current = true;
         dispatch({ type: 'SET_READY', payload: true });
-        editor.setEditable(state.documentAccess.status === 'editable');
+        editor.setEditable(state.documentAccess.status === 'editable', false);
       }
     }
   }, [editor, replaceEditorDocument, state.doc, state.documentAccess.status, dispatch]);
@@ -978,7 +959,7 @@ export const Editor: React.FC = () => {
                 editor={editor}
                 className={`${state.settings.headingNumbering ? 'show-numbering' : 'hide-numbering'} ${state.settings.headingDecoration ? 'show-heading-decoration' : ''} ${state.settings.captionNumbering === 'hierarchical' ? 'hierarchical-numbering' : 'sequential-numbering'}`}
               />
-              {editor && <EndnoteList editor={editor} />}
+              {editor && <EndnoteList editor={editor} settings={settings} />}
             </div>
           </div>
           <ZoomBar

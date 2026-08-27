@@ -1,12 +1,23 @@
 import React from 'react';
+import { getSchema, type Editor } from '@tiptap/core';
+import { EditorState, type Transaction } from '@tiptap/pm/state';
+import type { EditorView } from '@tiptap/pm/view';
+import { StarterKit } from '@tiptap/starter-kit';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import {
   activateEndnoteReturn,
+  buildEndnoteViewItems,
   EndnoteListItem,
   normalizeEndnoteDraft,
 } from '../shared/editor/components/EndnoteList';
 import { EditorI18nProvider } from '../shared/editor/i18n';
+import { Endnote, insertEndnoteAndFocus } from '../shared/editor/extensions/Endnote';
+import {
+  createDocumentStructureIndexPlugin,
+  getDocumentStructureIndexState,
+} from '../shared/editor/structureIndex';
+import { resolveEditorSettings } from '../shared/settingsResolver';
 
 const note = {
   id: 'endnote-1',
@@ -35,6 +46,67 @@ const renderItem = (overrides: Partial<React.ComponentProps<typeof EndnoteListIt
   );
 
 describe('endnote list presentation', () => {
+  it('projects list rows from the canonical structure index', () => {
+    expect(buildEndnoteViewItems([{
+      kind: 'endnote',
+      id: 'endnote-7',
+      pos: 42,
+      number: '3',
+      displayLabel: '3',
+      baseLabel: '3',
+      referenceLabel: '3',
+      title: 'Indexed body',
+      numbered: true,
+    }])).toEqual([{ id: 'endnote-7', body: 'Indexed body', number: 3 }]);
+  });
+
+  it('makes an inserted endnote available before scheduling focus', () => {
+    const schema = getSchema([StarterKit, Endnote]);
+    const structurePlugin = createDocumentStructureIndexPlugin({
+      getSettings: () => resolveEditorSettings(),
+    });
+    let state = EditorState.create({
+      schema,
+      plugins: [structurePlugin],
+      doc: schema.node('doc', null, [schema.node('paragraph')]),
+    });
+    const view = {
+      get state() { return state; },
+      dispatch(transaction: Transaction) { state = state.apply(transaction); },
+    } as unknown as EditorView;
+    let insertedAttributes: { id?: string; body?: string } | undefined;
+    const chain = {
+      focus: () => chain,
+      insertEndnote: (attributes: { id?: string; body?: string }) => {
+        insertedAttributes = attributes;
+        return chain;
+      },
+      run: () => {
+        view.dispatch(state.tr.insert(1, schema.node('endnote', insertedAttributes)));
+        return true;
+      },
+    };
+    const editor = {
+      get state() { return state; },
+      view,
+      chain: () => chain,
+    } as unknown as Editor;
+    const requestAnimationFrame = vi.fn();
+    vi.stubGlobal('requestAnimationFrame', requestAnimationFrame);
+
+    expect(insertEndnoteAndFocus(editor)).toBe(true);
+
+    const index = getDocumentStructureIndexState(state);
+    expect(index.dirty).toBe(false);
+    expect(index.endnotes).toMatchObject([{
+      id: 'endnote-1',
+      title: '',
+      number: '1',
+    }]);
+    expect(requestAnimationFrame).toHaveBeenCalledOnce();
+    vi.unstubAllGlobals();
+  });
+
   it('renders a populated endnote as ordinary text with an explicit edit action', () => {
     const markup = renderItem();
 

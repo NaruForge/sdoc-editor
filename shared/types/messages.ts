@@ -99,6 +99,7 @@ export interface InitMessage {
   documentId: string;
   revision: number;
   isDirty: boolean;
+  performanceEnabled?: boolean;
   documentState: EditorDocumentState;
 }
 
@@ -477,6 +478,15 @@ export interface EditorTextFocusChangedMessage {
   focused: boolean;
 }
 
+export interface WebviewPerformanceMeasurementMessage {
+  type: 'webviewPerformanceMeasurement';
+  sessionId: string;
+  documentId: string;
+  name: 'webview-checkpoint-to-ack-received';
+  durationMs: number;
+  operationCount: number;
+}
+
 export interface UpdateUiLanguageMessage {
   type: 'updateUiLanguage';
   preference: UiLanguagePreference;
@@ -753,6 +763,7 @@ export type WebviewToExtensionMessage =
   | ReadyMessage
   | UiReadyMessage
   | EditorTextFocusChangedMessage
+  | WebviewPerformanceMeasurementMessage
   | UpdateUiLanguageMessage
   | RequestTemplateCatalogMessage
   | ApplyTemplateMessage

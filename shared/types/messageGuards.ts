@@ -399,6 +399,13 @@ export function isEditorToHostMessage(value: unknown): value is EditorToHostMess
       return hasString(value, 'sessionId')
         && hasString(value, 'documentId')
         && typeof value.focused === 'boolean';
+    case 'webviewPerformanceMeasurement':
+      return hasString(value, 'sessionId')
+        && hasString(value, 'documentId')
+        && value.name === 'webview-checkpoint-to-ack-received'
+        && hasNumber(value, 'durationMs') && Number(value.durationMs) >= 0
+        && hasNumber(value, 'operationCount')
+        && Number.isSafeInteger(value.operationCount) && Number(value.operationCount) >= 0;
     case 'requestTemplateCatalog':
       return hasString(value, 'requestId');
     case 'flushComplete':
@@ -565,6 +572,8 @@ export function isHostToEditorMessage(value: unknown): value is HostToEditorMess
       return hasString(value, 'sessionId') && hasString(value, 'documentId')
         && hasNumber(value, 'revision')
         && typeof value.isDirty === 'boolean'
+        && (value.performanceEnabled === undefined
+          || typeof value.performanceEnabled === 'boolean')
         && (value.locale === 'en' || value.locale === 'ko')
         && isEditorDocumentState(value.documentState);
     case 'externalInvalidDocument':

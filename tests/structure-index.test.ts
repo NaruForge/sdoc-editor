@@ -235,6 +235,7 @@ describe('document structure index', () => {
       setAttribute: (name: string, value: string) => attributes.set(name, value),
       classList: { contains: (name: string) => name === 'fold-toggle' },
       parentElement: { tagName: 'H1' },
+      focus: vi.fn(),
     };
     vi.stubGlobal('document', { createElement: () => control });
     const toDOM = (widget?.type as unknown as { toDOM?: () => unknown }).toDOM;

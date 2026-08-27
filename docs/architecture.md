@@ -159,6 +159,24 @@ Only the matching acknowledgement advances the confirmed revision. Rejects,
 stale responses, and external-change notices preserve the local editor draft
 and never apply a host snapshot.
 
+The coordinator owns one immutable content snapshot and independent content,
+metadata, and document-settings revisions. Metadata-only and settings-only
+submissions reuse that exact content graph; local no-op detection uses the
+component revisions and owned snapshot identity without serializing or hashing
+the complete mutation. Before creating editor JSON, the webview also compares
+the current immutable ProseMirror document with the last submitted or adopted
+document through `Node.eq()`. Thus an edit or formatting change fully reverted
+inside the debounce window creates no mutation. Parse-equal external
+representations remain a separate host-boundary comparison and continue to use
+the full semantic diff. A flush
+captures the already-submitted local generation and waits for its matching
+acknowledgement instead of recapturing editor JSON.
+An import is the exception to that reused-generation rule: after its silent
+ProseMirror replacement, the webview captures the normalized editor content
+exactly once and submits a new content revision before waiting at the barrier.
+Initial hydration, confirmed host template replacement, and external reload
+instead adopt a host baseline and do not submit a local mutation.
+
 The editor starts read-only and crosses
 `shared/editor/documentReplacement.ts` exactly once for initial hydration.
 Strict source parsing must succeed before the host grants an editable

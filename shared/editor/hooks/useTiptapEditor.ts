@@ -46,8 +46,72 @@ export class PendingEditorUpdateGate {
 
 export type EditorFlushMode = 'barrier' | 'pending-only';
 
-export function shouldEmitEditorFlush(mode: EditorFlushMode, hadPendingUpdate: boolean): boolean {
-  return mode === 'barrier' || hadPendingUpdate;
+export interface EditorSnapshotOperationCounts {
+  getJsonCalls: number;
+  flushesReusingSubmittedGeneration: number;
+  structurallyEquivalentUpdatesSkipped: number;
+}
+
+export class EditorSnapshotOperationCounter {
+  private getJsonCalls = 0;
+  private flushesReusingSubmittedGeneration = 0;
+  private structurallyEquivalentUpdatesSkipped = 0;
+
+  public capture(editor: Pick<Editor, 'getJSON'>): JSONContent {
+    this.getJsonCalls += 1;
+    return editor.getJSON();
+  }
+
+  public recordReusedGenerationFlush(): void {
+    this.flushesReusingSubmittedGeneration += 1;
+  }
+
+  public recordStructurallyEquivalentUpdate(): void {
+    this.structurallyEquivalentUpdatesSkipped += 1;
+  }
+
+  public get snapshot(): Readonly<EditorSnapshotOperationCounts> {
+    return Object.freeze({
+      getJsonCalls: this.getJsonCalls,
+      flushesReusingSubmittedGeneration: this.flushesReusingSubmittedGeneration,
+      structurallyEquivalentUpdatesSkipped: this.structurallyEquivalentUpdatesSkipped,
+    });
+  }
+}
+
+/**
+ * Owns the last ProseMirror document that was either adopted as a host baseline
+ * or submitted as a local content generation. ProseMirror nodes are immutable,
+ * and `eq` exploits their structural sharing without allocating JSON or hashes.
+ */
+export class EditorDocumentSubmissionTracker<
+  TDocument extends { eq(other: TDocument): boolean },
+> {
+  private lastSubmittedOrAdopted: TDocument | null = null;
+
+  public adopt(document: TDocument): void {
+    this.lastSubmittedOrAdopted = document;
+  }
+
+  public captureIfChanged(
+    document: TDocument,
+    capture: () => JSONContent,
+    submit: (content: JSONContent) => void,
+    onEquivalent?: () => void,
+  ): boolean {
+    if (this.lastSubmittedOrAdopted?.eq(document)) {
+      onEquivalent?.();
+      return false;
+    }
+    const content = capture();
+    submit(content);
+    this.lastSubmittedOrAdopted = document;
+    return true;
+  }
+}
+
+export function shouldEmitEditorFlush(_mode: EditorFlushMode, hadPendingUpdate: boolean): boolean {
+  return hadPendingUpdate;
 }
 
 export function shouldFlushOnSaveShortcut(
@@ -72,6 +136,8 @@ export const useTiptapEditor = ({
 }: UseTiptapEditorOptions) => {
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const updateGateRef = useRef(new PendingEditorUpdateGate());
+  const snapshotOperationsRef = useRef(new EditorSnapshotOperationCounter());
+  const submissionTrackerRef = useRef(new EditorDocumentSubmissionTracker());
   const replacementBoundaryRef = useRef(new EditorDocumentReplacementBoundary<JSONContent>());
   const onUpdateRef = useRef(onUpdate);
   useEffect(() => { onUpdateRef.current = onUpdate; }, [onUpdate]);
@@ -104,8 +170,12 @@ export const useTiptapEditor = ({
       debounceTimerRef.current = setTimeout(() => {
         debounceTimerRef.current = null;
         updateGateRef.current.clear();
-        const json = editor.getJSON();
-        onUpdateRef.current(json);
+        submissionTrackerRef.current.captureIfChanged(
+          editor.state.doc,
+          () => snapshotOperationsRef.current.capture(editor),
+          (json) => onUpdateRef.current(json),
+          () => snapshotOperationsRef.current.recordStructurallyEquivalentUpdate(),
+        );
       }, 300);
     },
   });
@@ -129,26 +199,41 @@ export const useTiptapEditor = ({
       updateGateRef.current.clear();
 
       editor.commands.setContent(nextContent, { emitUpdate: false });
+      submissionTrackerRef.current.adopt(editor.state.doc);
     });
   }, [editor]);
 
   const emitUpdate = useCallback((mode: EditorFlushMode) => {
     const hadPendingUpdate = updateGateRef.current.consume();
-    if (!editor || !shouldEmitEditorFlush(mode, hadPendingUpdate)) return false;
+    if (!editor) return false;
+    if (!shouldEmitEditorFlush(mode, hadPendingUpdate)) {
+      if (mode === 'barrier') snapshotOperationsRef.current.recordReusedGenerationFlush();
+      return false;
+    }
 
     // Clear any pending debounce
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
       debounceTimerRef.current = null;
     }
-    // Immediately send current state
-    const json = editor.getJSON();
-    onUpdateRef.current(json);
-    return true;
+    // Immediately send current state only when it differs from the last
+    // submitted or host-adopted immutable ProseMirror document.
+    const submitted = submissionTrackerRef.current.captureIfChanged(
+      editor.state.doc,
+      () => snapshotOperationsRef.current.capture(editor),
+      (json) => onUpdateRef.current(json),
+      () => snapshotOperationsRef.current.recordStructurallyEquivalentUpdate(),
+    );
+    if (!submitted && mode === 'barrier') {
+      snapshotOperationsRef.current.recordReusedGenerationFlush();
+    }
+    return submitted;
   }, [editor]);
 
-  // Save/close callers require an acknowledgement barrier even when the debounce
-  // already emitted an edit that may still be waiting in the host queue.
+  // Save/close callers create their acknowledgement barrier from the sync
+  // coordinator's current generation. If debounce already submitted that
+  // generation, recapturing the complete editor JSON here is both redundant and
+  // capable of creating a second mutation for the same editor state.
   const flushUpdate = useCallback(() => emitUpdate('barrier'), [emitUpdate]);
   // Template confirmation must not dirty an untouched document when cancelled.
   const flushPendingUpdate = useCallback(() => emitUpdate('pending-only'), [emitUpdate]);

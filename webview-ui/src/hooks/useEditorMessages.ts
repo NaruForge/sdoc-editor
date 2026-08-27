@@ -150,7 +150,7 @@ export interface ApplyImportedContentWithRollbackOptions {
   content: JSONContent;
   checkpoint: JSONContent;
   replace(content: JSONContent): boolean;
-  flush(): void;
+  submitReplacement(): void;
   afterAcknowledged(): Promise<void>;
   restoreSyncCheckpoint(): void;
   reportApplied(applied: boolean): Promise<unknown>;
@@ -165,7 +165,7 @@ export async function applyImportedContentWithRollback(
     return false;
   }
   try {
-    options.flush();
+    options.submitReplacement();
     await options.afterAcknowledged();
   } catch {
     options.replace(options.checkpoint);
@@ -275,6 +275,11 @@ export function useEditorMessages({
   const [invalidRecoveryPending, setInvalidRecoveryPending] = useState(false);
   const [invalidRecoveryError, setInvalidRecoveryError] = useState<string | null>(null);
   const [syncState, setSyncState] = useState<Readonly<DocumentSyncState> | null>(null);
+  const performanceEnabledRef = useRef(false);
+  const editPerformanceStartsRef = useRef(new Map<string, {
+    startedAt: number;
+    operationCount: number;
+  }>());
   const [hostSaveState, setHostSaveState] = useState<HostDocumentSaveState | null>(null);
   const [pendingImport, setPendingImport] = useState<PendingImportMessage | null>(null);
   const unsubscribeSyncRef = useRef<(() => void) | null>(null);
@@ -299,7 +304,7 @@ export function useEditorMessages({
   const publishAccess = (access: EditorDocumentAccess): void => {
     accessRef.current = access;
     dispatch({ type: 'SET_DOCUMENT_ACCESS', payload: access });
-    editorRef.current?.setEditable(access.status === 'editable');
+    editorRef.current?.setEditable(access.status === 'editable', false);
   };
 
   const observeHostSnapshot = (revision: number, snapshot: DocumentMutation): void => {
@@ -345,7 +350,11 @@ export function useEditorMessages({
         content,
         checkpoint: checkpoint.content,
         replace: (next) => replaceEditorDocumentRef.current?.('user-import', next) ?? false,
-        flush: () => { flush(); },
+        submitReplacement: () => {
+          const importedContent = editorRef.current?.getJSON();
+          if (!importedContent) throw new Error('The imported editor content is unavailable.');
+          sync.submitContent(importedContent as TiptapNode);
+        },
         afterAcknowledged: () => new SaveCoordinator(sync).afterAcknowledged(() => undefined),
         restoreSyncCheckpoint: () => { sync.submit(checkpoint); },
         reportApplied: (applied) => postMessage({
@@ -367,6 +376,8 @@ export function useEditorMessages({
           documentId: message.documentId,
           revision: message.revision,
         };
+        performanceEnabledRef.current = message.performanceEnabled === true;
+        editPerformanceStartsRef.current.clear();
         updateFileController(() => createFileOperationControllerState(message.sessionId));
         if (message.documentState.status === 'invalid') {
           attachSyncCoordinator(null);
@@ -397,7 +408,15 @@ export function useEditorMessages({
             documentId: message.documentId,
             revision: message.revision,
           },
-          send: (request) => postMessage({ type: 'edit', ...request }),
+          send: ({ componentRevisions: _componentRevisions, ...request }) => {
+            if (performanceEnabledRef.current) {
+              editPerformanceStartsRef.current.set(request.editId, {
+                startedAt: performance.now(),
+                operationCount: request.mutation.content.content?.length ?? 0,
+              });
+            }
+            return postMessage({ type: 'edit', ...request });
+          },
         });
         attachSyncCoordinator(coordinator);
         coordinator.adoptReplacement(message.revision, snapshot);
@@ -459,7 +478,7 @@ export function useEditorMessages({
             error: message.error ?? { code: 'operation-failed', message: 'The template could not be applied.' },
           });
         }
-        ed?.setEditable(accessRef.current.status === 'editable');
+        ed?.setEditable(accessRef.current.status === 'editable', false);
         break;
       case 'templateCreationFinished':
         if (message.result === 'created') {
@@ -599,6 +618,18 @@ export function useEditorMessages({
         break;
       case 'editAcknowledged':
         if (syncCoordinatorRef.current?.acknowledge(message)) {
+          const started = editPerformanceStartsRef.current.get(message.editId);
+          editPerformanceStartsRef.current.delete(message.editId);
+          if (started && performanceEnabledRef.current) {
+            void postMessage({
+              type: 'webviewPerformanceMeasurement',
+              sessionId: message.sessionId,
+              documentId: message.documentId,
+              name: 'webview-checkpoint-to-ack-received',
+              durationMs: performance.now() - started.startedAt,
+              operationCount: started.operationCount,
+            });
+          }
           if (persistenceSessionRef.current) {
             persistenceSessionRef.current.revision = message.revision;
           }
@@ -619,6 +650,7 @@ export function useEditorMessages({
           : current);
         break;
       case 'editRejected':
+        editPerformanceStartsRef.current.delete(message.editId);
         if (syncCoordinatorRef.current?.reject(message)) {
           const observed = syncCoordinatorRef.current.state.externalChange;
           if (observed) {
@@ -640,7 +672,7 @@ export function useEditorMessages({
         dispatch({ type: 'SET_DOC_SETTINGS', payload: message.docSettings ?? null });
         break;
       case 'documentSettingSelected': {
-        const current = getCurrentMutation();
+        const current = syncCoordinatorRef.current?.state.localMutation;
         if (!current) break;
         const nextSettings = { ...(current.documentSettings ?? {}) };
         if (message.value === null) delete nextSettings[message.key];
@@ -650,7 +682,7 @@ export function useEditorMessages({
         if (message.value !== null) {
           dispatch({ type: 'SET_SETTINGS', payload: { [message.key]: message.value } });
         }
-        syncCoordinatorRef.current?.submit({ ...current, documentSettings });
+        syncCoordinatorRef.current?.submitDocumentSettings(documentSettings);
         break;
       }
       case 'metaUpdate':
@@ -998,12 +1030,9 @@ export function useEditorMessages({
 
   const handleMetaChange = (field: string, value: string) => {
     setMeta(prev => ({ ...prev, [field]: value }));
-    const current = getCurrentMutation();
+    const current = syncCoordinatorRef.current?.state.localMutation;
     if (current) {
-      syncCoordinatorRef.current?.submit({
-        ...current,
-        meta: { ...current.meta, [field]: value },
-      });
+      syncCoordinatorRef.current?.submitMetadata({ ...current.meta, [field]: value });
     }
   };
 
@@ -1059,7 +1088,7 @@ export function useEditorMessages({
     if (!session || !sync) return;
     const requestId = crypto.randomUUID();
     dispatchTemplateSession({ type: 'action-started', requestId, operation: 'apply', templateId });
-    editorRef.current?.setEditable(false);
+    editorRef.current?.setEditable(false, false);
     void new SaveCoordinator(sync).afterAcknowledged(() => {
       postMessage({
         type: 'applyTemplate',
@@ -1074,7 +1103,7 @@ export function useEditorMessages({
         type: 'action-failed', requestId,
         error: { code: 'operation-failed', message: 'The template could not be applied.' },
       });
-      editorRef.current?.setEditable(true);
+      editorRef.current?.setEditable(true, false);
     });
   };
 
@@ -1338,7 +1367,11 @@ export function useEditorMessages({
           content,
           checkpoint: checkpoint.content,
           replace: (next) => replaceEditorDocumentRef.current?.('user-import', next) ?? false,
-          flush: () => { flushRef.current(); },
+          submitReplacement: () => {
+            const importedContent = editorRef.current?.getJSON();
+            if (!importedContent) throw new Error('The imported editor content is unavailable.');
+            sync.submitContent(importedContent as TiptapNode);
+          },
           afterAcknowledged: () => new SaveCoordinator(sync).afterAcknowledged(() => undefined),
           restoreSyncCheckpoint: () => { sync.submit(checkpoint); },
           reportApplied,

@@ -1,4 +1,6 @@
 const assert = require('node:assert/strict');
+const fs = require('node:fs/promises');
+const path = require('node:path');
 const vscode = require('vscode');
 
 async function waitFor(predicate, message, timeoutMs = 10_000) {
@@ -100,6 +102,8 @@ async function run() {
       'structuredDocEditor.test.prepareActiveImport',
       'structuredDocEditor.test.confirmActiveFileOperation',
       'structuredDocEditor.test.runActiveResultAction',
+      'structuredDocEditor.test.resetActivePerformanceReport',
+      'structuredDocEditor.test.getActivePerformanceReport',
       'structuredDocEditor.test.getActiveBookFileOperation',
       'structuredDocEditor.test.prepareActiveBookExport',
       'structuredDocEditor.test.confirmActiveBookFileOperation',
@@ -107,6 +111,65 @@ async function run() {
       'structuredDocEditor.test.openActiveBookSource',
     ]) {
       assert.ok(commands.includes(command), `Expected registered command: ${command}`);
+    }
+  });
+
+  await scenario('keeps valid documents stable on open without a false external change on save', async () => {
+    const showcaseSource = vscode.Uri.file(path.join(
+      extension.extensionPath,
+      'shared',
+      'template',
+      'builtins',
+      'feature-showcase.sdoc.json',
+    ));
+    const copiedShowcase = vscode.Uri.joinPath(workspace.uri, 'copied-feature-showcase.sdoc');
+    await vscode.workspace.fs.writeFile(copiedShowcase, await readBytes(showcaseSource));
+
+    for (const fileName of ['valid.sdoc', 'copied-feature-showcase.sdoc']) {
+      const uri = vscode.Uri.joinPath(workspace.uri, fileName);
+      const before = await readBytes(uri);
+      const beforeText = Buffer.from(before).toString('utf8');
+      const beforeModified = JSON.parse(beforeText).meta.modified;
+
+      await openCustomEditor(workspace, fileName, 'structuredDocEditor.sdoc', true);
+      const document = vscode.workspace.textDocuments.find(
+        (candidate) => candidate.uri.toString() === uri.toString(),
+      );
+      assert.ok(document, `Expected the ${fileName} text document behind the custom editor.`);
+
+      // Cover Tiptap's debounced update window. State-only editor setup must not
+      // synthesize a document mutation after initial hydration.
+      await new Promise((resolve) => setTimeout(resolve, 750));
+      assert.equal(document.isDirty, false, `${fileName} must remain clean after open.`);
+      assert.equal(document.getText(), beforeText, `${fileName} buffer bytes must remain unchanged.`);
+      assert.equal(
+        JSON.parse(document.getText()).meta.modified,
+        beforeModified,
+        `${fileName} meta.modified must remain unchanged on open.`,
+      );
+      assert.deepEqual(await readBytes(uri), before, `${fileName} disk bytes must remain unchanged.`);
+
+      const openedState = await vscode.commands.executeCommand(
+        'structuredDocEditor.test.getActivePersistenceState',
+      );
+      assert.equal(openedState.externalChangeCount, 0);
+      await vscode.commands.executeCommand('workbench.action.files.save');
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      const savedState = await vscode.commands.executeCommand(
+        'structuredDocEditor.test.getActivePersistenceState',
+      );
+      assert.equal(document.isDirty, false, `${fileName} must remain clean after save.`);
+      assert.equal(
+        savedState.externalChangeCount,
+        0,
+        `${fileName} clean save must not be reported as an external change.`,
+      );
+      assert.equal(
+        Buffer.from(await readBytes(uri)).toString('utf8'),
+        document.getText(),
+        `${fileName} clean save must leave matching disk and editor snapshots.`,
+      );
+      await closeActiveEditor();
     }
   });
 
@@ -303,6 +366,112 @@ async function run() {
     );
     assert.equal(repeatedSaveState.phase, 'saved');
     assert.equal(repeatedSaveState.externalChangeCount, 0);
+    await closeActiveEditor();
+  });
+
+  await scenario('reports real mutation, ACK, and save phases without absolute-time gates', async () => {
+    const fixtureUri = vscode.Uri.joinPath(workspace.uri, 'valid.sdoc');
+    const sourceUri = vscode.Uri.joinPath(workspace.uri, 'performance-save.sdoc');
+    await vscode.workspace.fs.writeFile(sourceUri, await readBytes(fixtureUri));
+    await openCustomEditor(workspace, 'performance-save.sdoc', 'structuredDocEditor.sdoc', true);
+    const importUri = vscode.Uri.joinPath(workspace.uri, 'performance-import.md');
+    const importedTopLevelBlocks = 5_001;
+    const importText = [
+      '# Performance import',
+      ...Array.from(
+        { length: importedTopLevelBlocks - 1 },
+        (_, index) => `Deterministic performance paragraph ${index.toString(36)}.`,
+      ),
+    ].join('\n\n');
+    await vscode.workspace.fs.writeFile(importUri, Buffer.from(`${importText}\n`, 'utf8'));
+    const document = vscode.workspace.textDocuments.find(
+      (candidate) => candidate.uri.toString() === sourceUri.toString(),
+    );
+    assert.ok(document, 'Expected the performance text document behind the custom editor.');
+
+    await vscode.commands.executeCommand('structuredDocEditor.test.resetActivePerformanceReport');
+    await vscode.commands.executeCommand(
+      'structuredDocEditor.test.prepareActiveImport', importUri.toString(), 'markdown',
+    );
+    await vscode.commands.executeCommand('structuredDocEditor.test.confirmActiveFileOperation');
+    await waitFor(
+      () => document.getText().includes('Performance import'),
+      'The measured webview mutation did not reach the VS Code text document.',
+    );
+    await waitFor(() => document.isDirty, 'The measured mutation did not make the document dirty.');
+
+    await vscode.commands.executeCommand('workbench.action.files.save');
+    await waitFor(() => !document.isDirty, 'The measured save did not clear the dirty state.');
+    await waitFor(async () => {
+      const state = await vscode.commands.executeCommand(
+        'structuredDocEditor.test.getActivePersistenceState',
+      );
+      return state.phase === 'saved';
+    }, 'The measured save did not reach the host-confirmed Saved state.');
+
+    const report = await vscode.commands.executeCommand(
+      'structuredDocEditor.test.getActivePerformanceReport',
+    );
+    assert.deepEqual(
+      { schemaVersion: report.schemaVersion, clock: report.clock, unit: report.unit },
+      {
+        schemaVersion: 1,
+        clock: 'monotonic',
+        unit: 'milliseconds',
+      },
+    );
+    assert.deepEqual(
+      Object.keys(report.context).sort(),
+      ['architecture', 'nodeVersion', 'platform', 'surface', 'vscodeVersion'],
+      'The performance context must not expose a URI, path, or document content.',
+    );
+    assert.equal(report.context.surface, 'vscode-extension-host');
+    assert.equal(report.context.vscodeVersion, vscode.version);
+    assert.equal(report.context.nodeVersion, process.versions.node);
+    assert.equal(report.context.platform, process.platform);
+    assert.equal(report.context.architecture, process.arch);
+    const names = new Set(report.measurements.map((measurement) => measurement.name));
+    for (const name of [
+      'webview-checkpoint-to-ack-received',
+      'host-edit-received-to-ack-post',
+      'update-document-total',
+      'dehydrate-document-assets',
+      'parse-existing-envelope',
+      'resolve-document-settings',
+      'normalize-document',
+      'validate-persisted-document',
+      'serialize-pretty-document',
+      'workspace-apply-edit',
+      'save-flush-barrier',
+      'save-lifecycle-to-did-save',
+    ]) {
+      assert.ok(names.has(name), `Expected measured Extension Host phase: ${name}`);
+    }
+    const updateDocument = report.measurements.find(
+      (measurement) => measurement.name === 'update-document-total',
+    );
+    assert.equal(
+      updateDocument.operationCount,
+      importedTopLevelBlocks,
+      'The Extension Host report must cover the complete deterministic 5k-block mutation.',
+    );
+    for (const measurement of report.measurements) {
+      assert.equal(Number.isFinite(measurement.durationMs), true);
+      assert.ok(measurement.durationMs >= 0);
+      assert.ok(Number.isSafeInteger(measurement.operationCount));
+      assert.ok(measurement.operationCount >= 0);
+      assert.equal(measurement.outcome, 'ok');
+    }
+    assert.doesNotThrow(
+      () => JSON.stringify(report),
+      'The portable Extension Host report must be JSON serializable.',
+    );
+
+    const reportPath = process.env.SDOC_VSCODE_PERF_REPORT;
+    if (reportPath) {
+      await fs.mkdir(path.dirname(reportPath), { recursive: true });
+      await fs.writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
+    }
     await closeActiveEditor();
   });
 

@@ -59,6 +59,11 @@ UI나 파일 I/O처럼 사람의 판단이 필요한 항목은 아래 수동 검
 | `npm run typecheck` | 루트와 모든 workspace 타입 검사 |
 | `npm run lint` | 모든 TypeScript/React 소스 린트 |
 | `npm test` | Vitest 단위 테스트 |
+| `npm run perf:baseline:quick` | 고정 seed의 소형 성능 baseline smoke 측정 |
+| `npm run perf:baseline` | 5k/10k/25k 및 구조·리치 corpus의 전체 성능 baseline 측정 |
+| `npm run perf:baseline:json` | 동등한 하드웨어에서 비교할 원시 sample·요약 JSON 출력 |
+| `npm run perf:browser` | 실제 Chromium 공유 편집기의 open·입력·paint·scroll/navigation·DOM·heap 보고서 |
+| `npm run perf:vscode` | build와 실제 Extension Host mutation/ACK·저장 lifecycle 보고서 |
 | `npm run build:cli` | Node.js CLI 단일 ESM bundle 빌드 |
 | `npm run licenses:check` | npm 라이선스와 제3자 고지 검증 |
 
@@ -66,6 +71,73 @@ UI나 파일 I/O처럼 사람의 판단이 필요한 항목은 아래 수동 검
 `SDOC_OUTPUT_DIR` 환경 변수나 Git에서 제외되는 루트 `.sdoc-output-dir`
 파일이 지정되어 있으면 생성한 배포 패키지를 해당 폴더에도 복사합니다.
 환경 변수가 로컬 파일보다 우선합니다.
+
+### 성능 baseline
+
+성능 baseline은 `verify:fast`의 합격 시간 기준이 아닙니다. 머신·전원 상태에
+따른 편차 때문에 시간 임계값으로 일반 검증을 실패시키지 않고, 고정 seed와
+고정 반복 횟수로 생성한 같은 입력을 동등한 하드웨어에서 비교합니다. 일반
+baseline은 persisted contract의 32 MiB와 100,000 node 제한 안에 있는
+`text-5k`, `text-10k`, `text-25k`, `structure-10k`, `rich-2k` corpus를 사용합니다.
+제한 초과와 malformed rejection fixture는 정확성 테스트에서 별도로 검증합니다.
+
+전체 baseline은 JSON parse, contract validation, normalization, pretty
+serialization과 지원 가능한 corpus의 일반 텍스트 editor transaction을
+측정합니다. 빠른 확인은 다음 명령을 사용합니다.
+
+```powershell
+npm run perf:baseline:quick
+npm run perf:baseline:json -- --corpus=text-10k --samples=7 --warmup=2
+```
+
+JSON에는 환경 정보, fixture seed, corpus byte/node 수, 원시 sample과
+min/median/p95/max/mean이 포함됩니다. 전후 결과를 비교할 때는 Node 버전,
+운영체제, CPU와 전원 설정을 같게 유지하고 원시 sample도 함께 기록합니다.
+editor transaction 수치는 DOM이 없는 ProseMirror state와 공용 structure
+index plugin만 측정하며 warmup과 각 sample의 `EditorState`를 같은 fixture에서
+측정 밖에서 새로 만듭니다. 브라우저 layout/paint, React NodeView, webview-host
+메시지와 실제 VS Code 저장 수치는 포함하지 않습니다.
+
+실제 사용자 경로는 다음 명령으로 별도 측정합니다.
+
+```powershell
+npm run perf:browser
+npm run perf:browser -- --corpus=text-10k
+npm run perf:vscode
+```
+
+`perf:browser`는 Playwright의 실제 Chromium에서 제품과 같은
+`useTiptapEditor` 및 공용 extension set을 실행합니다. 고정 corpus를 초기
+hydration하여 editable 다음 paint, 실제 키보드 event 다음 paint, scroll과
+문서 위치 이동 다음 paint, Long Task, ProseMirror DOM node 수와 Chromium CDP의
+JS heap을 기록합니다. 기본 corpus는 `text-5k`이며 `text-10k`와
+`structure-10k`도 선택할 수 있습니다. 결과는 stdout과 Git에서 제외된
+`tests/ui/artifacts/performance/browser.json`에 기록됩니다. 기본 포트가 충돌하면
+`SDOC_BROWSER_PERF_PORT`로 전용 포트를 지정합니다.
+
+키 입력 측정은 capture phase에서 시작하므로 ProseMirror transaction, plugin과
+DOM 갱신을 포함합니다. 300ms debounce가 끝날 때까지의 `debounced-update-wait`와
+실제 `getJSON`·immutable mutation snapshot·submit callback 한 회의 CPU 작업인
+`sync-checkpoint-cpu`는 별도 항목입니다. 이 추가 항목은 schema version 1의
+기존 additive measurement이므로 기존 JSON reader와 호환되지만, 측정 이름 배열을
+엄격히 비교하는 소비자는 새 항목을 허용해야 합니다.
+
+`perf:vscode`는 먼저 extension과 webview를 build한 뒤 실제 VS Code Extension
+Host suite를 실행합니다. 테스트 모드에서만 활성화되는 monotonic probe가
+webview checkpoint 송신부터 ACK 수신까지의 왕복과 host edit 수신부터 ACK
+게시까지, `updateDocument`의
+asset dehydration·기존 envelope parse·settings resolution·normalization·contract
+validation·pretty serialization·`WorkspaceEdit`, 그리고 `onWillSave`의 flush부터
+`onDidSave`까지를 기록합니다. 결과는 stdout과 Git에서 제외된
+`tests/vscode/artifacts/performance/vscode.json`에 기록됩니다.
+
+세 보고서는 모두 `shared/performance/instrumentation.ts`의 schema version 1,
+monotonic millisecond 형식을 사용합니다. 문서 내용, URI, 사용자 경로와 wall-clock
+timestamp는 넣지 않습니다. 일반 CI는 동일한 실제 operation이 완료되고 결과와
+보고서 schema가 올바른지만 검증하며, 머신 편차가 큰 절대 시간·heap 임계값으로
+실패시키지 않습니다. 수치 비교는 Node host-neutral, Chromium, Extension Host를
+서로 다른 surface로 취급하고 같은 surface·corpus·Node/VS Code/Chromium 버전과
+동등한 CPU·전원 상태에서 수행합니다.
 
 ### CLI 빌드와 패키징
 

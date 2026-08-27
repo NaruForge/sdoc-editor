@@ -16,7 +16,7 @@ The inventory links each package source. License and notice files found in insta
 
 ## Package dependency inventory
 
-Dependency count: 203
+Dependency count: 202
 
 | Ecosystem | Package | Version | License | Source |
 | --- | --- | --- | --- | --- |
@@ -34,7 +34,6 @@ Dependency count: 203
 | npm | @tiptap/extension-bold | 3.30.2 | MIT | [source](https://github.com/ueberdosis/tiptap) |
 | npm | @tiptap/extension-bubble-menu | 3.30.2 | MIT | [source](https://github.com/ueberdosis/tiptap) |
 | npm | @tiptap/extension-bullet-list | 3.30.2 | MIT | [source](https://github.com/ueberdosis/tiptap) |
-| npm | @tiptap/extension-code-block-lowlight | 3.30.2 | MIT | [source](https://github.com/ueberdosis/tiptap) |
 | npm | @tiptap/extension-code-block | 3.30.2 | MIT | [source](https://github.com/ueberdosis/tiptap) |
 | npm | @tiptap/extension-code | 3.30.2 | MIT | [source](https://github.com/ueberdosis/tiptap) |
 | npm | @tiptap/extension-color | 3.30.2 | MIT | [source](https://github.com/ueberdosis/tiptap) |
@@ -318,7 +317,7 @@ SOFTWARE.
 
 ### Notice group 4 (06728620f4ee)
 
-Packages: `npm:@tiptap/core@3.30.2`, `npm:@tiptap/extension-blockquote@3.30.2`, `npm:@tiptap/extension-bold@3.30.2`, `npm:@tiptap/extension-bubble-menu@3.30.2`, `npm:@tiptap/extension-bullet-list@3.30.2`, `npm:@tiptap/extension-code-block-lowlight@3.30.2`, `npm:@tiptap/extension-code-block@3.30.2`, `npm:@tiptap/extension-code@3.30.2`, `npm:@tiptap/extension-color@3.30.2`, `npm:@tiptap/extension-document@3.30.2`, `npm:@tiptap/extension-dropcursor@3.30.2`, `npm:@tiptap/extension-floating-menu@3.30.2`, `npm:@tiptap/extension-gapcursor@3.30.2`, `npm:@tiptap/extension-hard-break@3.30.2`, `npm:@tiptap/extension-heading@3.30.2`, `npm:@tiptap/extension-highlight@3.30.2`, `npm:@tiptap/extension-horizontal-rule@3.30.2`, `npm:@tiptap/extension-image@3.30.2`, `npm:@tiptap/extension-italic@3.30.2`, `npm:@tiptap/extension-link@3.30.2`, `npm:@tiptap/extension-list-item@3.30.2`, `npm:@tiptap/extension-list-keymap@3.30.2`, `npm:@tiptap/extension-list@3.30.2`, `npm:@tiptap/extension-ordered-list@3.30.2`, `npm:@tiptap/extension-paragraph@3.30.2`, `npm:@tiptap/extension-strike@3.30.2`, `npm:@tiptap/extension-subscript@3.30.2`, `npm:@tiptap/extension-superscript@3.30.2`, `npm:@tiptap/extension-table-cell@3.30.2`, `npm:@tiptap/extension-table-header@3.30.2`, `npm:@tiptap/extension-table-row@3.30.2`, `npm:@tiptap/extension-table@3.30.2`, `npm:@tiptap/extension-task-item@3.30.2`, `npm:@tiptap/extension-task-list@3.30.2`, `npm:@tiptap/extension-text-align@3.30.2`, `npm:@tiptap/extension-text-style@3.30.2`, `npm:@tiptap/extension-text@3.30.2`, `npm:@tiptap/extension-underline@3.30.2`, `npm:@tiptap/extensions@3.30.2`, `npm:@tiptap/pm@3.30.2`, `npm:@tiptap/react@3.30.2`, `npm:@tiptap/starter-kit@3.30.2`, `npm:@tiptap/suggestion@3.30.2`
+Packages: `npm:@tiptap/core@3.30.2`, `npm:@tiptap/extension-blockquote@3.30.2`, `npm:@tiptap/extension-bold@3.30.2`, `npm:@tiptap/extension-bubble-menu@3.30.2`, `npm:@tiptap/extension-bullet-list@3.30.2`, `npm:@tiptap/extension-code-block@3.30.2`, `npm:@tiptap/extension-code@3.30.2`, `npm:@tiptap/extension-color@3.30.2`, `npm:@tiptap/extension-document@3.30.2`, `npm:@tiptap/extension-dropcursor@3.30.2`, `npm:@tiptap/extension-floating-menu@3.30.2`, `npm:@tiptap/extension-gapcursor@3.30.2`, `npm:@tiptap/extension-hard-break@3.30.2`, `npm:@tiptap/extension-heading@3.30.2`, `npm:@tiptap/extension-highlight@3.30.2`, `npm:@tiptap/extension-horizontal-rule@3.30.2`, `npm:@tiptap/extension-image@3.30.2`, `npm:@tiptap/extension-italic@3.30.2`, `npm:@tiptap/extension-link@3.30.2`, `npm:@tiptap/extension-list-item@3.30.2`, `npm:@tiptap/extension-list-keymap@3.30.2`, `npm:@tiptap/extension-list@3.30.2`, `npm:@tiptap/extension-ordered-list@3.30.2`, `npm:@tiptap/extension-paragraph@3.30.2`, `npm:@tiptap/extension-strike@3.30.2`, `npm:@tiptap/extension-subscript@3.30.2`, `npm:@tiptap/extension-superscript@3.30.2`, `npm:@tiptap/extension-table-cell@3.30.2`, `npm:@tiptap/extension-table-header@3.30.2`, `npm:@tiptap/extension-table-row@3.30.2`, `npm:@tiptap/extension-table@3.30.2`, `npm:@tiptap/extension-task-item@3.30.2`, `npm:@tiptap/extension-task-list@3.30.2`, `npm:@tiptap/extension-text-align@3.30.2`, `npm:@tiptap/extension-text-style@3.30.2`, `npm:@tiptap/extension-text@3.30.2`, `npm:@tiptap/extension-underline@3.30.2`, `npm:@tiptap/extensions@3.30.2`, `npm:@tiptap/pm@3.30.2`, `npm:@tiptap/react@3.30.2`, `npm:@tiptap/starter-kit@3.30.2`, `npm:@tiptap/suggestion@3.30.2`
 
 Source filenames: `LICENSE`, `LICENSE.md`
 

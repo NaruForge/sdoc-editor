@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { isEditorToHostMessage, isHostToEditorMessage } from '../shared/types/messageGuards';
 import {
   applyImportedContentWithRollback,
@@ -10,6 +10,33 @@ import {
 } from '../shared/editor/fileOperations';
 
 describe('editor host message boundary', () => {
+  it('narrows the test-only webview performance round-trip without accepting unsafe values', () => {
+    expect(isEditorToHostMessage({
+      type: 'webviewPerformanceMeasurement',
+      sessionId: 'session-1',
+      documentId: 'doc-a',
+      name: 'webview-checkpoint-to-ack-received',
+      durationMs: 12.5,
+      operationCount: 5_001,
+    })).toBe(true);
+    expect(isEditorToHostMessage({
+      type: 'webviewPerformanceMeasurement',
+      sessionId: 'session-1',
+      documentId: 'doc-a',
+      name: 'webview-checkpoint-to-ack-received',
+      durationMs: Number.POSITIVE_INFINITY,
+      operationCount: 5_001,
+    })).toBe(false);
+    expect(isEditorToHostMessage({
+      type: 'webviewPerformanceMeasurement',
+      sessionId: 'session-1',
+      documentId: 'doc-a',
+      name: 'arbitrary-phase',
+      durationMs: 1,
+      operationCount: 1,
+    })).toBe(false);
+  });
+
   it('adopts a host-initiated Palette preflight from idle through confirmation', () => {
     const identity = {
       sessionId: 'session-1',
@@ -73,7 +100,7 @@ describe('editor host message boundary', () => {
       content: imported,
       checkpoint: before,
       replace: (content) => { replacements.push(content); return true; },
-      flush: () => { order.push('flush'); },
+      submitReplacement: () => { order.push('submit-replacement'); },
       afterAcknowledged: async () => { throw new Error('write rejected'); },
       restoreSyncCheckpoint: () => { order.push('restore-sync'); },
       reportApplied: async (value) => { order.push(`report:${String(value)}`); },
@@ -81,7 +108,28 @@ describe('editor host message boundary', () => {
 
     expect(applied).toBe(false);
     expect(replacements).toEqual([imported, before]);
-    expect(order).toEqual(['flush', 'restore-sync', 'report:false']);
+    expect(order).toEqual(['submit-replacement', 'restore-sync', 'report:false']);
+  });
+
+  it('submits an imported replacement exactly once before awaiting its acknowledgement', async () => {
+    const before = { type: 'doc' as const, content: [{ type: 'paragraph' as const }] };
+    const imported = { type: 'doc' as const, content: [{ type: 'heading' as const }] };
+    const order: string[] = [];
+    const submitReplacement = vi.fn(() => { order.push('submit'); });
+
+    const applied = await applyImportedContentWithRollback({
+      content: imported,
+      checkpoint: before,
+      replace: () => { order.push('replace'); return true; },
+      submitReplacement,
+      afterAcknowledged: async () => { order.push('ack'); },
+      restoreSyncCheckpoint: () => { order.push('restore-sync'); },
+      reportApplied: async (value) => { order.push(`report:${String(value)}`); },
+    });
+
+    expect(applied).toBe(true);
+    expect(submitReplacement).toHaveBeenCalledOnce();
+    expect(order).toEqual(['replace', 'submit', 'ack', 'report:true']);
   });
 
   it('does not ask for a second import confirmation after common preflight', () => {

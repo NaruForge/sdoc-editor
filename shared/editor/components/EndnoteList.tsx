@@ -1,10 +1,18 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, Pencil, X } from 'lucide-react';
 import { type Editor, useEditorState } from '@tiptap/react';
 import { useEditorI18n } from '../i18n';
+import { useDocumentStructureIndex } from '../hooks/useDocumentStructureIndex';
+import type { ResolvedEditorSettings } from '../../types';
+import {
+  ensureStructureIndexFresh,
+  resolveStructurePosition,
+  type DocumentStructureEntry,
+} from '../structureIndex';
 
 interface EndnoteListProps {
   editor: Editor;
+  settings: ResolvedEditorSettings;
 }
 
 export interface EndnoteViewItem {
@@ -12,6 +20,18 @@ export interface EndnoteViewItem {
   body: string;
   number: number;
 }
+
+export const buildEndnoteViewItems = (
+  entries: readonly DocumentStructureEntry[],
+): EndnoteViewItem[] => entries.flatMap((entry, index) => {
+  if (!entry.id) return [];
+  const number = Number.parseInt(entry.number, 10);
+  return [{
+    id: entry.id,
+    body: entry.title ?? '',
+    number: Number.isFinite(number) ? number : index + 1,
+  }];
+});
 
 interface EndnoteListItemProps {
   note: EndnoteViewItem;
@@ -143,26 +163,19 @@ export const EndnoteListItem: React.FC<EndnoteListItemProps> = ({
   );
 };
 
-export const EndnoteList: React.FC<EndnoteListProps> = ({ editor }) => {
+export const EndnoteList: React.FC<EndnoteListProps> = ({ editor, settings }) => {
   const { t } = useEditorI18n();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
-  const viewState = useEditorState({
+  const structureIndex = useDocumentStructureIndex(editor, settings);
+  const editable = useEditorState({
     editor,
-    selector: ({ editor: currentEditor }): { items: EndnoteViewItem[]; editable: boolean } => {
-      const items: EndnoteViewItem[] = [];
-      currentEditor.state.doc.descendants((node) => {
-        if (node.type.name !== 'endnote' || typeof node.attrs.id !== 'string') return;
-        items.push({
-          id: node.attrs.id,
-          body: typeof node.attrs.body === 'string' ? node.attrs.body : '',
-          number: items.length + 1,
-        });
-      });
-      return { items, editable: currentEditor.isEditable };
-    },
+    selector: ({ editor: currentEditor }): boolean => currentEditor.isEditable,
   });
-  const endnotes = viewState.items;
+  const endnotes = useMemo(
+    () => buildEndnoteViewItems(structureIndex?.endnotes ?? []),
+    [structureIndex],
+  );
 
   useEffect(() => {
     if (editingId && !endnotes.some((note) => note.id === editingId)) setEditingId(null);
@@ -171,15 +184,18 @@ export const EndnoteList: React.FC<EndnoteListProps> = ({ editor }) => {
   if (endnotes.length === 0) return null;
 
   const updateBody = (id: string, body: string) => {
-    const transaction = editor.state.tr;
-    let changed = false;
-    editor.state.doc.descendants((node, pos) => {
-      if (node.type.name !== 'endnote' || node.attrs.id !== id) return;
-      transaction.setNodeMarkup(pos, undefined, { ...node.attrs, body: normalizeEndnoteDraft(body) });
-      changed = true;
-      return false;
-    });
-    if (changed) editor.view.dispatch(transaction);
+    const position = resolveStructurePosition(editor.state, id);
+    if (position === undefined) return;
+    const node = editor.state.doc.nodeAt(position);
+    if (node?.type.name !== 'endnote' || node.attrs.id !== id) return;
+    editor.view.dispatch(editor.state.tr.setNodeMarkup(
+      position,
+      undefined,
+      { ...node.attrs, body: normalizeEndnoteDraft(body) },
+    ));
+    // An explicit edit should update the list immediately; ordinary typing
+    // continues to use the trailing shared-index rebuild.
+    ensureStructureIndexFresh(editor.view);
   };
 
   const restoreEditFocus = (id: string) => {
@@ -212,7 +228,7 @@ export const EndnoteList: React.FC<EndnoteListProps> = ({ editor }) => {
           <EndnoteListItem
             key={note.id}
             note={note}
-            editable={viewState.editable}
+            editable={editable}
             editing={editingId === note.id}
             draft={editingId === note.id ? draft : note.body}
             onBeginEdit={() => {

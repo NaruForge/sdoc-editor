@@ -19,6 +19,167 @@ const mutation = (text: string): DocumentMutation => ({
 });
 
 describe('DocumentSyncCoordinator', () => {
+  it('tracks content, metadata, and settings revisions independently without local stringify comparisons', () => {
+    const sent: DocumentMutationRequest[] = [];
+    const sync = new DocumentSyncCoordinator({
+      identity: { sessionId: 'session-a', documentId: 'doc-a', revision: 4 },
+      createEditId: (() => {
+        let id = 0;
+        return () => `edit-${++id}`;
+      })(),
+      send: (request) => { sent.push(request); },
+    });
+    const initial = mutation('initial');
+    sync.adoptReplacement(4, initial);
+
+    const stringify = vi.spyOn(JSON, 'stringify');
+    const metadataGeneration = sync.submitMetadata({ title: 'renamed' });
+    const settingsGeneration = sync.submitDocumentSettings({ pdfScale: 80 });
+    const nextContent = content('edited');
+    const contentGeneration = sync.submitContent(nextContent);
+    expect(stringify).not.toHaveBeenCalled();
+    stringify.mockRestore();
+
+    expect([metadataGeneration, settingsGeneration, contentGeneration]).toEqual([1, 2, 3]);
+    expect(sync.state.componentRevisions).toEqual({ content: 1, metadata: 1, settings: 1 });
+    expect(sync.state.localMutation?.content).toBe(nextContent);
+    expect(sync.state.localMutation?.meta).toEqual({ title: 'renamed' });
+    expect(sync.state.localMutation?.documentSettings).toEqual({ pdfScale: 80 });
+    expect(sync.operationCounts).toEqual({
+      contentSubmissions: 1,
+      metadataSubmissions: 1,
+      settingsSubmissions: 1,
+      contentSnapshotsCreated: 1,
+      contentSnapshotsReused: 2,
+      mutationSnapshotsCreated: 3,
+      flushBarriers: 0,
+      localStringifyComparisons: 0,
+    });
+    expect(sent).toHaveLength(1);
+  });
+
+  it('reuses the exact immutable content graph for metadata-only and settings-only submissions', () => {
+    const sync = new DocumentSyncCoordinator({
+      identity: { sessionId: 'session-a', documentId: 'doc-a', revision: 1 },
+      send: () => {},
+    });
+    const initial = mutation('immutable body');
+    sync.adoptReplacement(1, initial);
+    const adoptedContent = sync.state.localMutation?.content;
+
+    sync.submitMetadata({ title: 'new title' });
+    expect(sync.state.localMutation?.content).toBe(adoptedContent);
+    sync.submitDocumentSettings({ pdfScale: 90 });
+    expect(sync.state.localMutation?.content).toBe(adoptedContent);
+    expect(Object.isFrozen(adoptedContent)).toBe(true);
+    expect(Object.isFrozen(adoptedContent?.content?.[0])).toBe(true);
+    expect(() => {
+      if (adoptedContent?.content?.[0]) adoptedContent.content[0].type = 'heading';
+    }).toThrow(TypeError);
+  });
+
+  it('does not traverse the owned content graph for metadata or settings snapshots', () => {
+    let nestedContentReads = 0;
+    const paragraph = { type: 'paragraph' } as Record<string, unknown>;
+    Object.defineProperty(paragraph, 'content', {
+      enumerable: true,
+      get: () => {
+        nestedContentReads += 1;
+        return [{ type: 'text', text: 'large cached graph sentinel' }];
+      },
+    });
+    const sync = new DocumentSyncCoordinator({
+      identity: { sessionId: 'session-a', documentId: 'doc-a', revision: 1 },
+      send: () => {},
+    });
+    sync.adoptReplacement(1, {
+      content: { type: 'doc', content: [paragraph] } as DocumentMutation['content'],
+      meta: { title: 'initial' },
+      documentSettings: null,
+    });
+    nestedContentReads = 0;
+
+    sync.submitMetadata({ title: 'renamed' });
+    sync.submitDocumentSettings({ pdfScale: 75 });
+
+    expect(nestedContentReads).toBe(0);
+    expect(sync.operationCounts.contentSnapshotsCreated).toBe(0);
+    expect(sync.operationCounts.contentSnapshotsReused).toBe(2);
+  });
+
+  it('waits for an already-submitted generation without creating another mutation snapshot', async () => {
+    const sent: DocumentMutationRequest[] = [];
+    const sync = new DocumentSyncCoordinator({
+      identity: { sessionId: 'session-a', documentId: 'doc-a', revision: 2 },
+      createEditId: () => 'edit-1',
+      send: (request) => { sent.push(request); },
+    });
+    sync.adoptReplacement(2, mutation('initial'));
+    const generation = sync.submitContent(content('pending save'));
+    const countsBeforeBarrier = sync.operationCounts;
+    const barrier = sync.flushThrough(generation);
+
+    expect(sync.operationCounts).toEqual({
+      ...countsBeforeBarrier,
+      flushBarriers: countsBeforeBarrier.flushBarriers + 1,
+    });
+    expect(sent).toHaveLength(1);
+    expect(sync.state.localGeneration).toBe(generation);
+    sync.acknowledge({
+      sessionId: 'session-a', documentId: 'doc-a', editId: 'edit-1', revision: 3,
+    });
+    await barrier;
+    expect(sent).toHaveLength(1);
+    expect(sync.operationCounts.mutationSnapshotsCreated)
+      .toBe(countsBeforeBarrier.mutationSnapshotsCreated);
+  });
+
+  it('coalesces component revisions with the latest snapshot while preserving the in-flight snapshot', () => {
+    const sent: DocumentMutationRequest[] = [];
+    let edit = 0;
+    const sync = new DocumentSyncCoordinator({
+      identity: { sessionId: 'session-a', documentId: 'doc-a', revision: 7 },
+      createEditId: () => `edit-${++edit}`,
+      send: (request) => { sent.push(request); },
+    });
+    sync.adoptReplacement(7, mutation('initial'));
+
+    sync.submitContent(content('typed'));
+    const firstContent = sent[0].mutation.content;
+    expect(sync.state.inFlight?.mutation).toBe(sync.state.localMutation);
+    sync.submitMetadata({ title: 'renamed' });
+    sync.submitDocumentSettings({ pdfScale: 85 });
+
+    expect(sent[0].componentRevisions).toEqual({ content: 1, metadata: 0, settings: 0 });
+    expect(sent[0].mutation.content).toBe(firstContent);
+    expect(sync.state.pending?.componentRevisions)
+      .toEqual({ content: 1, metadata: 1, settings: 1 });
+    expect(sync.state.pending?.mutation.content).toBe(firstContent);
+    expect(sync.state.pending?.mutation).toBe(sync.state.localMutation);
+
+    sync.acknowledge({
+      sessionId: 'session-a', documentId: 'doc-a', editId: 'edit-1', revision: 8,
+    });
+    expect(sent).toHaveLength(2);
+    expect(sent[1].componentRevisions).toEqual({ content: 1, metadata: 1, settings: 1 });
+    expect(sent[1].mutation.content).toBe(firstContent);
+  });
+
+  it('retains semantic comparison only for parse-equal external representations', () => {
+    const sync = new DocumentSyncCoordinator({
+      identity: { sessionId: 'session-a', documentId: 'doc-a', revision: 3 },
+      send: () => {},
+    });
+    sync.adoptReplacement(3, mutation('same'));
+    const external = mutation('same');
+    const stringify = vi.spyOn(JSON, 'stringify');
+
+    expect(sync.observeExternalChange(4, external)).toBe(false);
+    expect(stringify).toHaveBeenCalled();
+    stringify.mockRestore();
+    expect(sync.operationCounts.localStringifyComparisons).toBe(0);
+  });
+
   it('reconciles the host-owned modified time without creating a no-op save mutation', () => {
     const sent: DocumentMutationRequest[] = [];
     const sync = new DocumentSyncCoordinator({

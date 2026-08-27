@@ -1,7 +1,7 @@
 import { StarterKit } from '@tiptap/starter-kit';
 import { Extension } from '@tiptap/core';
 import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
-import type { Transaction } from '@tiptap/pm/state';
+import type { EditorState, Transaction } from '@tiptap/pm/state';
 import { Fragment, Slice } from '@tiptap/pm/model';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import type { EditorView } from '@tiptap/pm/view';
@@ -55,7 +55,273 @@ import {
 } from '../structureIndex';
 
 /* ===== Section Fold (Collapse) ===== */
-const sectionFoldKey = new PluginKey<Set<number>>('sectionFold');
+export interface SectionFoldState {
+  collapsed: ReadonlySet<string>;
+  decorations: DecorationSet;
+  anonymousHeadingPositions: ReadonlySet<number>;
+  rebuildCount: number;
+}
+
+const sectionFoldKey = new PluginKey<SectionFoldState>('sectionFold');
+
+const foldTargetForHeading = (node: ProseMirrorNode, pos: number): string => {
+  const id = node.attrs.id;
+  return typeof id === 'string' && id.length > 0 ? `id:${id}` : `pos:${pos}`;
+};
+
+const mapCollapsedFoldTargets = (
+  collapsed: ReadonlySet<string>,
+  transaction: Transaction,
+): Set<string> => {
+  if (!transaction.docChanged) return new Set(collapsed);
+  const mapped = new Set<string>();
+  for (const target of collapsed) {
+    if (!target.startsWith('pos:')) {
+      mapped.add(target);
+      continue;
+    }
+    const pos = Number(target.slice(4));
+    if (!Number.isInteger(pos)) continue;
+    const result = transaction.mapping.mapResult(pos, 1);
+    if (result.deleted) continue;
+    const node = transaction.doc.nodeAt(result.pos);
+    if (node?.type.name === 'heading') mapped.add(`pos:${result.pos}`);
+  }
+  return mapped;
+};
+
+const normalizeCollapsedFoldTargets = (
+  doc: ProseMirrorNode,
+  candidates: ReadonlySet<string>,
+): Pick<SectionFoldState, 'collapsed' | 'anonymousHeadingPositions'> => {
+  const normalized = new Set<string>();
+  const anonymousHeadingPositions = new Set<number>();
+  doc.forEach((node, offset) => {
+    if (node.type.name !== 'heading') return;
+    const stableTarget = foldTargetForHeading(node, offset);
+    if (stableTarget.startsWith('pos:')) anonymousHeadingPositions.add(offset);
+    if (candidates.has(stableTarget) || candidates.has(`pos:${offset}`)) {
+      normalized.add(stableTarget);
+    }
+  });
+  return { collapsed: normalized, anonymousHeadingPositions };
+};
+
+const anonymousHeadingPositionChanged = (
+  positions: ReadonlySet<number>,
+  transaction: Transaction,
+): boolean => {
+  for (const pos of positions) {
+    const mapped = transaction.mapping.mapResult(pos, 1);
+    if (mapped.deleted || mapped.pos !== pos) return true;
+    if (transaction.doc.nodeAt(mapped.pos)?.type.name !== 'heading') return true;
+  }
+  return false;
+};
+
+const updateSectionFoldControl = (
+  control: HTMLElement,
+  isCollapsed: boolean,
+  runtime: EditorExtensionRuntime,
+): void => {
+  control.className = 'fold-toggle';
+  control.textContent = isCollapsed ? '▸' : '▾';
+  control.setAttribute('contenteditable', 'false');
+  control.setAttribute('role', 'button');
+  control.setAttribute('tabindex', '0');
+  control.setAttribute('aria-expanded', String(!isCollapsed));
+  control.setAttribute(
+    'aria-label',
+    runtime.translate(isCollapsed ? 'toc.expand' : 'toc.collapse'),
+  );
+};
+
+const sectionFoldControlTranslationSignature = (
+  runtime: EditorExtensionRuntime,
+): readonly [expand: string, collapse: string] => [
+  runtime.translate('toc.expand'),
+  runtime.translate('toc.collapse'),
+];
+
+export const buildSectionFoldDecorations = (
+  doc: ProseMirrorNode,
+  collapsed: ReadonlySet<string>,
+  runtime: EditorExtensionRuntime,
+  controls?: Map<string, HTMLElement>,
+): DecorationSet => {
+  const decorations: Decoration[] = [];
+
+  doc.forEach((node, offset) => {
+    if (node.type.name !== 'heading' || (node.attrs.level as number) > 6) return;
+    const foldTarget = foldTargetForHeading(node, offset);
+    const isCollapsed = collapsed.has(foldTarget);
+    decorations.push(Decoration.widget(
+      offset + 1,
+      () => {
+        const cachedControl = controls?.get(foldTarget);
+        if (cachedControl) {
+          updateSectionFoldControl(cachedControl, isCollapsed, runtime);
+          return cachedControl;
+        }
+        const span = document.createElement('span');
+        updateSectionFoldControl(span, isCollapsed, runtime);
+        controls?.set(foldTarget, span);
+        return span;
+      },
+      {
+        side: -1,
+        key: `fold-${foldTarget}`,
+        destroy: (node) => {
+          if (controls?.get(foldTarget) === node) controls.delete(foldTarget);
+        },
+      },
+    ));
+
+    if (!isCollapsed) return;
+    const headingLevel = node.attrs.level as number;
+    let nextOffset = offset + node.nodeSize;
+    while (nextOffset < doc.content.size) {
+      const nextNode = doc.nodeAt(nextOffset);
+      if (!nextNode) break;
+      if (nextNode.type.name === 'heading' && (nextNode.attrs.level as number) <= headingLevel) break;
+      decorations.push(
+        Decoration.node(nextOffset, nextOffset + nextNode.nodeSize, {
+          class: 'section-collapsed',
+        }),
+      );
+      nextOffset += nextNode.nodeSize;
+    }
+  });
+
+  return DecorationSet.create(doc, decorations);
+};
+
+const rebuildSectionFoldState = (
+  doc: ProseMirrorNode,
+  candidates: ReadonlySet<string>,
+  runtime: EditorExtensionRuntime,
+  rebuildCount: number,
+  controls?: Map<string, HTMLElement>,
+): SectionFoldState => {
+  const { collapsed, anonymousHeadingPositions } = normalizeCollapsedFoldTargets(doc, candidates);
+  return {
+    collapsed,
+    decorations: buildSectionFoldDecorations(doc, collapsed, runtime, controls),
+    anonymousHeadingPositions,
+    rebuildCount,
+  };
+};
+
+export const createSectionFoldPlugin = (runtime: EditorExtensionRuntime): Plugin<SectionFoldState> => {
+  const controls = new Map<string, HTMLElement>();
+  const syncControls = (state: EditorState): void => {
+    const collapsed = sectionFoldKey.getState(state)?.collapsed ?? new Set<string>();
+    for (const [foldTarget, control] of controls) {
+      updateSectionFoldControl(control, collapsed.has(foldTarget), runtime);
+    }
+  };
+  const toggleFromControl = (view: EditorView, target: HTMLElement): boolean => {
+    if (!target.classList.contains('fold-toggle')) return false;
+    const heading = target.parentElement;
+    if (!heading || !/^H[1-6]$/i.test(heading.tagName)) return false;
+
+    const pos = view.posAtDOM(heading, 0);
+    const resolved = view.state.doc.resolve(pos);
+    const headingPos = resolved.before(resolved.depth);
+    view.dispatch(view.state.tr.setMeta(sectionFoldKey, headingPos));
+    target.focus({ preventScroll: true });
+    return true;
+  };
+
+  return new Plugin({
+    key: sectionFoldKey,
+    view(view) {
+      let syncedRebuildCount = sectionFoldKey.getState(view.state)?.rebuildCount ?? -1;
+      let syncedTranslationSignature = sectionFoldControlTranslationSignature(runtime);
+      syncControls(view.state);
+      return {
+        update(updatedView) {
+          const rebuildCount = sectionFoldKey.getState(updatedView.state)?.rebuildCount ?? -1;
+          const translationSignature = sectionFoldControlTranslationSignature(runtime);
+          if (rebuildCount === syncedRebuildCount
+            && translationSignature[0] === syncedTranslationSignature[0]
+            && translationSignature[1] === syncedTranslationSignature[1]) return;
+          syncedRebuildCount = rebuildCount;
+          syncedTranslationSignature = translationSignature;
+          syncControls(updatedView.state);
+        },
+        destroy() {
+          controls.clear();
+        },
+      };
+    },
+    state: {
+      init(_, state): SectionFoldState {
+        return rebuildSectionFoldState(state.doc, new Set(), runtime, 1, controls);
+      },
+      apply(tr, previous): SectionFoldState {
+        const mappedCollapsed = mapCollapsedFoldTargets(previous.collapsed, tr);
+        const meta = tr.getMeta(sectionFoldKey) as unknown;
+        if (typeof meta === 'number') {
+          const heading = tr.doc.nodeAt(meta);
+          if (heading?.type.name === 'heading') {
+            const target = foldTargetForHeading(heading, meta);
+            if (mappedCollapsed.has(target)) mappedCollapsed.delete(target);
+            else mappedCollapsed.add(target);
+            return rebuildSectionFoldState(
+              tr.doc,
+              mappedCollapsed,
+              runtime,
+              previous.rebuildCount + 1,
+              controls,
+            );
+          }
+        }
+        if (!tr.docChanged) return previous;
+        if (isPlainParagraphTextTransaction(tr)
+          && !anonymousHeadingPositionChanged(previous.anonymousHeadingPositions, tr)) {
+          return {
+            collapsed: mappedCollapsed,
+            decorations: previous.decorations.map(tr.mapping, tr.doc),
+            anonymousHeadingPositions: previous.anonymousHeadingPositions,
+            rebuildCount: previous.rebuildCount,
+          };
+        }
+        return rebuildSectionFoldState(
+          tr.doc,
+          mappedCollapsed,
+          runtime,
+          previous.rebuildCount + 1,
+          controls,
+        );
+      },
+    },
+    props: {
+      decorations(state) {
+        return sectionFoldKey.getState(state)?.decorations ?? null;
+      },
+      handleDOMEvents: {
+        mousedown(view, event) {
+          const target = event.target as HTMLElement;
+          if (!target.classList.contains('fold-toggle')) return false;
+
+          event.preventDefault();
+          event.stopPropagation();
+          return toggleFromControl(view, target);
+        },
+        keydown(view, event) {
+          if (event.key !== 'Enter' && event.key !== ' ') return false;
+          const target = event.target as HTMLElement;
+          if (!target.classList.contains('fold-toggle')) return false;
+
+          event.preventDefault();
+          event.stopPropagation();
+          return toggleFromControl(view, target);
+        },
+      },
+    },
+  });
+};
 
 const SectionFold = Extension.create<EditorExtensionOptions>({
   name: 'sectionFold',
@@ -65,122 +331,7 @@ const SectionFold = Extension.create<EditorExtensionOptions>({
   },
 
   addProseMirrorPlugins() {
-    const runtime = this.options.runtime;
-    const toggleFromControl = (view: EditorView, target: HTMLElement): boolean => {
-      if (!target.classList.contains('fold-toggle')) return false;
-      const heading = target.parentElement;
-      if (!heading || !/^H[1-6]$/i.test(heading.tagName)) return false;
-
-      const pos = view.posAtDOM(heading, 0);
-      const resolved = view.state.doc.resolve(pos);
-      const headingPos = resolved.before(resolved.depth);
-      view.dispatch(view.state.tr.setMeta(sectionFoldKey, headingPos));
-      return true;
-    };
-
-    return [
-      new Plugin({
-        key: sectionFoldKey,
-        state: {
-          init(): Set<number> {
-            return new Set();
-          },
-          apply(tr, oldSet: Set<number>): Set<number> {
-            const meta = tr.getMeta(sectionFoldKey);
-            if (meta !== undefined) {
-              const next = new Set(oldSet);
-              if (next.has(meta)) {
-                next.delete(meta);
-              } else {
-                next.add(meta);
-              }
-              return next;
-            }
-            if (tr.docChanged) {
-              const next = new Set<number>();
-              oldSet.forEach((pos) => {
-                const mapped = tr.mapping.map(pos, 1);
-                const node = tr.doc.nodeAt(mapped);
-                if (node && node.type.name === 'heading') {
-                  next.add(mapped);
-                }
-              });
-              return next;
-            }
-            return oldSet;
-          },
-        },
-        props: {
-          decorations(state) {
-            const collapsed = sectionFoldKey.getState(state)!;
-            const decorations: Decoration[] = [];
-
-            state.doc.forEach((node, offset) => {
-              if (node.type.name === 'heading' && (node.attrs.level as number) <= 6) {
-                const isCollapsed = collapsed.has(offset);
-
-                const widget = Decoration.widget(
-                  offset + 1,
-                  () => {
-                    const span = document.createElement('span');
-                    span.className = 'fold-toggle';
-                    span.textContent = isCollapsed ? '▸' : '▾';
-                    span.setAttribute('contenteditable', 'false');
-                    span.setAttribute('role', 'button');
-                    span.setAttribute('tabindex', '0');
-                    span.setAttribute('aria-expanded', String(!isCollapsed));
-                    span.setAttribute(
-                      'aria-label',
-                      runtime.translate(isCollapsed ? 'toc.expand' : 'toc.collapse'),
-                    );
-                    return span;
-                  },
-                  { side: -1, key: `fold-${offset}-${isCollapsed ? 'c' : 'o'}` },
-                );
-                decorations.push(widget);
-
-                if (isCollapsed) {
-                  const headingLevel = node.attrs.level as number;
-                  let nextOffset = offset + node.nodeSize;
-                  while (nextOffset < state.doc.content.size) {
-                    const nextNode = state.doc.nodeAt(nextOffset);
-                    if (!nextNode) break;
-                    if (nextNode.type.name === 'heading' && (nextNode.attrs.level as number) <= headingLevel) break;
-                    decorations.push(
-                      Decoration.node(nextOffset, nextOffset + nextNode.nodeSize, {
-                        class: 'section-collapsed',
-                      }),
-                    );
-                    nextOffset += nextNode.nodeSize;
-                  }
-                }
-              }
-            });
-
-            return DecorationSet.create(state.doc, decorations);
-          },
-          handleDOMEvents: {
-            mousedown(view, event) {
-              const target = event.target as HTMLElement;
-              if (!target.classList.contains('fold-toggle')) return false;
-
-              event.preventDefault();
-              event.stopPropagation();
-              return toggleFromControl(view, target);
-            },
-            keydown(view, event) {
-              if (event.key !== 'Enter' && event.key !== ' ') return false;
-              const target = event.target as HTMLElement;
-              if (!target.classList.contains('fold-toggle')) return false;
-
-              event.preventDefault();
-              event.stopPropagation();
-              return toggleFromControl(view, target);
-            },
-          },
-        },
-      }),
-    ];
+    return [createSectionFoldPlugin(this.options.runtime)];
   },
 });
 

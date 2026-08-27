@@ -102,6 +102,7 @@ import {
   type DiagramRendererConsent,
   type DiagramRendererSettings,
 } from '../shared/diagramRenderer';
+import { ExtensionHostPerformanceProbe } from './performance/ExtensionHostPerformanceProbe';
 import {
   DIAGRAM_RENDERER_CONSENT_STATE_KEY,
   KrokiDiagramService,
@@ -195,6 +196,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
   private static instance: SdocEditorProvider | undefined;
   private readonly assetService = new VsCodeAssetService();
   private readonly exportService: VsCodeExportService;
+  private readonly performanceProbe: ExtensionHostPerformanceProbe;
   private readonly fileOperations = new FileOperationPlanRegistry<
     HostFileOperationPayload,
     HostFileOperationArtifact
@@ -251,6 +253,25 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
           'structuredDocEditor.test.runActiveResultAction',
           (action: FileOperationResultAction, artifactId?: string) =>
             provider.getActiveTestSession().runResultAction(action, artifactId),
+        ),
+        vscode.commands.registerCommand(
+          'structuredDocEditor.test.resetActivePerformanceReport',
+          () => {
+            provider.getActiveTestSession();
+            provider.performanceProbe.reset();
+          },
+        ),
+        vscode.commands.registerCommand(
+          'structuredDocEditor.test.getActivePerformanceReport',
+          () => {
+            provider.getActiveTestSession();
+            return provider.performanceProbe.report({
+              vscodeVersion: vscode.version,
+              nodeVersion: process.versions.node,
+              platform: process.platform,
+              architecture: process.arch,
+            });
+          },
         ),
       ]
       : [];
@@ -332,6 +353,9 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
 
   constructor(private readonly context: vscode.ExtensionContext) {
     this.exportService = new VsCodeExportService(context);
+    this.performanceProbe = new ExtensionHostPerformanceProbe(
+      context.extensionMode === vscode.ExtensionMode.Test,
+    );
     this.setEditorTextFocusContext(false);
   }
 
@@ -922,6 +946,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
           documentId,
           revision: document.version,
           isDirty: document.isDirty,
+          performanceEnabled: this.context.extensionMode === vscode.ExtensionMode.Test,
           documentState: {
             status: 'invalid',
             reason: contract.kind,
@@ -940,6 +965,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
           documentId,
           revision: document.version,
           isDirty: document.isDirty,
+          performanceEnabled: this.context.extensionMode === vscode.ExtensionMode.Test,
           documentState: { status: 'ready', snapshot },
         });
       }
@@ -1971,6 +1997,16 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
             }
             break;
           }
+          case 'webviewPerformanceMeasurement': {
+            if (message.sessionId === sessionId && message.documentId === documentId) {
+              this.performanceProbe.record(
+                message.name,
+                message.durationMs,
+                message.operationCount,
+              );
+            }
+            break;
+          }
           case 'recoverInvalidDocument': {
             const rejectRecovery = async (detail: string): Promise<void> => {
               await webviewPanel.webview.postMessage({
@@ -2208,6 +2244,9 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
               }
               break;
             }
+            const checkpointToAckSpan = this.performanceProbe.start(
+              'host-edit-received-to-ack-post',
+            );
             try {
               const modified = await this.updateDocument(document, message.mutation);
               latestSavePhase = 'dirty';
@@ -2220,8 +2259,10 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
                 revision: document.version,
                 modified,
               });
+              this.performanceProbe.finish(checkpointToAckSpan);
               if (message.flushRequestId) this.resolveFlush(message.flushRequestId, sessionId);
             } catch (error) {
+              this.performanceProbe.finish(checkpointToAckSpan, 'error');
               const hostSnapshot = tryReadCurrentMutation();
               webviewPanel.webview.postMessage({
                 type: 'editRejected',
@@ -2346,6 +2387,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     const willSaveSubscription = vscode.workspace.onWillSaveTextDocument((e) => {
       if (e.document.uri.toString() !== document.uri.toString()) return;
       const generation = ++saveGeneration;
+      this.performanceProbe.beginSave(generation);
       latestSavePhase = 'saving';
       latestSaveRevision = document.version;
       void webviewPanel.webview.postMessage({
@@ -2356,8 +2398,12 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         revision: document.version,
         phase: 'saving',
       });
-      e.waitUntil(this.flushEditor(webviewPanel.webview, sessionId, documentId, 1000)
+      e.waitUntil(this.performanceProbe.measureAsync(
+        'save-flush-barrier',
+        () => this.flushEditor(webviewPanel.webview, sessionId, documentId, 1000),
+      )
         .catch(async (error: unknown) => {
+          this.performanceProbe.finishSave(generation, 'error');
           const message = error instanceof Error ? error.message : String(error);
           latestSavePhase = 'failed';
           latestSaveRevision = document.version;
@@ -2376,6 +2422,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     const didSaveSubscription = vscode.workspace.onDidSaveTextDocument((savedDocument) => {
       if (savedDocument.uri.toString() !== document.uri.toString()) return;
       const generation = saveGeneration === 0 ? ++saveGeneration : saveGeneration;
+      this.performanceProbe.finishSave(generation);
       const snapshot = tryReadCurrentMutation();
       latestSavePhase = 'saved';
       latestSaveRevision = savedDocument.version;
@@ -2506,6 +2553,17 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     document: vscode.TextDocument,
     mutation: DocumentMutation,
   ): Promise<string> {
+    return this.performanceProbe.measureAsync(
+      'update-document-total',
+      () => this.updateDocumentCore(document, mutation),
+      mutation.content.content?.length ?? 0,
+    );
+  }
+
+  private async updateDocumentCore(
+    document: vscode.TextDocument,
+    mutation: DocumentMutation,
+  ): Promise<string> {
     const edit = new vscode.WorkspaceEdit();
     const fullRange = new vscode.Range(
       document.positionAt(0),
@@ -2513,18 +2571,24 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     );
 
     // Convert webview URIs back to relative paths before saving
-    const convertedContent = dehydrateDocumentAssets(
-      convertWebviewUrisToRelativePaths(mutation.content),
+    const convertedContent = this.performanceProbe.measure(
+      'dehydrate-document-assets',
+      () => dehydrateDocumentAssets(
+        convertWebviewUrisToRelativePaths(mutation.content),
+      ),
+      mutation.content.content?.length ?? 0,
     );
 
     // Read existing file to preserve metadata
     const existingText = document.getText();
-    let existingMeta: SdocMeta = {};
-    try {
-      existingMeta = sharedUnwrapSdoc(existingText.trim() ? JSON.parse(existingText) : {}).meta;
-    } catch {
-      // intentionally ignored: parse errors during editing
-    }
+    const existingMeta = this.performanceProbe.measure('parse-existing-envelope', () => {
+      try {
+        return sharedUnwrapSdoc(existingText.trim() ? JSON.parse(existingText) : {}).meta;
+      } catch {
+        // intentionally ignored: parse errors during editing
+        return {} satisfies SdocMeta;
+      }
+    }, existingText.length);
 
     const nextMeta: SdocMeta = { ...existingMeta, ...mutation.meta };
     if (mutation.documentSettings && Object.keys(mutation.documentSettings).length > 0) {
@@ -2534,19 +2598,23 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     }
 
     // Persisted normalization is portable: document settings over versioned built-ins.
-    const resolved = resolveDocumentSettingsSnapshot({
-      context: 'standalone',
-      documentSettings: nextMeta.settings,
-    }).values;
+    const resolved = this.performanceProbe.measure(
+      'resolve-document-settings',
+      () => resolveDocumentSettingsSnapshot({
+        context: 'standalone',
+        documentSettings: nextMeta.settings,
+      }).values,
+    );
 
-    const synced = normalizeDocument(convertedContent, {
-      equationNumbering: resolved.equationNumbering,
-      captionStyle: resolved.captionStyle,
-      crossRefIncludeCaption: resolved.crossRefIncludeCaption,
-      captionNumbering: resolved.captionNumbering,
-      headingNumbering: resolved.headingNumbering,
-      headingStartNumber: resolved.headingStartNumber,
-    });
+    const synced = this.performanceProbe.measure('normalize-document', () =>
+      normalizeDocument(convertedContent, {
+        equationNumbering: resolved.equationNumbering,
+        captionStyle: resolved.captionStyle,
+        crossRefIncludeCaption: resolved.crossRefIncludeCaption,
+        captionNumbering: resolved.captionNumbering,
+        headingNumbering: resolved.headingNumbering,
+        headingStartNumber: resolved.headingStartNumber,
+      }), mutation.content.content?.length ?? 0);
 
     // Wrap in sdoc envelope, preserving settings
     const modified = new Date().toISOString();
@@ -2565,16 +2633,28 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       },
       doc: synced,
     };
-    assertPersistedDocument(sdocFile);
+    this.performanceProbe.measure(
+      'validate-persisted-document',
+      () => assertPersistedDocument(sdocFile),
+      synced.content?.length ?? 0,
+    );
 
     // Pretty-print JSON for better git diffs
-    const json = normalizeDocumentEndOfLines(
-      `${JSON.stringify(sdocFile, null, 2)}\n`,
-      document.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n',
+    const json = this.performanceProbe.measure(
+      'serialize-pretty-document',
+      () => normalizeDocumentEndOfLines(
+        `${JSON.stringify(sdocFile, null, 2)}\n`,
+        document.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n',
+      ),
+      synced.content?.length ?? 0,
     );
     edit.replace(document.uri, fullRange, json);
 
-    await this.applyExpectedEdit(document, edit, json);
+    await this.performanceProbe.measureAsync(
+      'workspace-apply-edit',
+      () => this.applyExpectedEdit(document, edit, json),
+      json.length,
+    );
     return modified;
   }
 
