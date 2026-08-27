@@ -11,6 +11,35 @@ export type DocumentTextEdit = DocumentTextEditCandidate & Readonly<{
 export type SdocDocumentTextEditPlan = Readonly<{
   kind: 'single-span' | 'modified-and-content';
   edits: readonly DocumentTextEdit[];
+  tokenOffsetSource: 'trusted' | 'lexical';
+}>;
+
+export type SdocModifiedStringToken = Readonly<{
+  startOffset: number;
+  endOffset: number;
+  encodedToken: string;
+}>;
+
+export type SdocSerializedText = Readonly<{
+  text: string;
+  modifiedToken?: SdocModifiedStringToken;
+}>;
+
+export type SdocDocumentTextEditHints = Readonly<{
+  currentModifiedToken: SdocModifiedStringToken;
+  nextModifiedToken: SdocModifiedStringToken;
+}>;
+
+export type SdocModifiedTokenCacheAuthority = Readonly<{
+  sessionId: string;
+  documentId: string;
+  documentIdentity: object;
+}>;
+
+export type SdocModifiedTokenCacheSource = Readonly<{
+  revision: number;
+  endOfLine: '\n' | '\r\n';
+  sourceLength: number;
 }>;
 
 export type DocumentTextEditCandidateFactory = (
@@ -49,6 +78,120 @@ const isUnsafeBoundary = (text: string, offset: number): boolean => {
   return (before === 0x0d && after === 0x0a)
     || (isHighSurrogate(before) && isLowSurrogate(after));
 };
+
+const MAX_CACHED_MODIFIED_TOKEN_CODE_UNITS = 256;
+const MODIFIED_TOKEN_ANCHOR_CODE_UNITS = 32;
+
+const readTrustedStringTokenValue = (
+  text: string,
+  token: SdocModifiedStringToken,
+): string | undefined => {
+  if (!Number.isSafeInteger(token.startOffset)
+    || !Number.isSafeInteger(token.endOffset)
+    || token.startOffset < 0
+    || token.endOffset <= token.startOffset
+    || token.endOffset > text.length
+    || token.encodedToken.length > MAX_CACHED_MODIFIED_TOKEN_CODE_UNITS
+    || token.endOffset - token.startOffset !== token.encodedToken.length
+    || text.slice(token.startOffset, token.endOffset) !== token.encodedToken
+    || isUnsafeBoundary(text, token.startOffset)
+    || isUnsafeBoundary(text, token.endOffset)) {
+    return undefined;
+  }
+  try {
+    const value: unknown = JSON.parse(token.encodedToken);
+    return typeof value === 'string' ? value : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+type CachedModifiedTokenEntry = Readonly<{
+  sessionId: string;
+  documentId: string;
+  documentIdentity: object;
+  revision: number;
+  endOfLine: '\n' | '\r\n';
+  sourceLength: number;
+  token: SdocModifiedStringToken;
+  leftAnchor: string;
+  rightAnchor: string;
+}>;
+
+/**
+ * Holds only bounded lexical authority for one live TextDocument session. The
+ * complete text and a complete-text hash deliberately never enter the cache.
+ */
+export class RevisionBoundSdocModifiedTokenCache {
+  private entry: CachedModifiedTokenEntry | undefined;
+
+  public get hasEntry(): boolean {
+    return this.entry !== undefined;
+  }
+
+  public adopt(
+    authority: SdocModifiedTokenCacheAuthority,
+    source: SdocModifiedTokenCacheSource,
+    text: string,
+    token: SdocModifiedStringToken,
+  ): boolean {
+    this.invalidate();
+    if (!authority.sessionId || !authority.documentId
+      || !Number.isSafeInteger(source.revision)
+      || source.revision < 0
+      || source.sourceLength !== text.length
+      || readTrustedStringTokenValue(text, token) === undefined) {
+      return false;
+    }
+    this.entry = {
+      ...authority,
+      ...source,
+      token: { ...token },
+      leftAnchor: text.slice(
+        Math.max(0, token.startOffset - MODIFIED_TOKEN_ANCHOR_CODE_UNITS),
+        token.startOffset,
+      ),
+      rightAnchor: text.slice(
+        token.endOffset,
+        Math.min(text.length, token.endOffset + MODIFIED_TOKEN_ANCHOR_CODE_UNITS),
+      ),
+    };
+    return true;
+  }
+
+  public resolve(
+    authority: SdocModifiedTokenCacheAuthority,
+    source: SdocModifiedTokenCacheSource,
+    text: string,
+  ): SdocModifiedStringToken | undefined {
+    const entry = this.entry;
+    if (!entry
+      || entry.sessionId !== authority.sessionId
+      || entry.documentId !== authority.documentId
+      || entry.documentIdentity !== authority.documentIdentity
+      || entry.revision !== source.revision
+      || entry.endOfLine !== source.endOfLine
+      || entry.sourceLength !== source.sourceLength
+      || source.sourceLength !== text.length
+      || readTrustedStringTokenValue(text, entry.token) === undefined
+      || text.slice(
+        Math.max(0, entry.token.startOffset - MODIFIED_TOKEN_ANCHOR_CODE_UNITS),
+        entry.token.startOffset,
+      ) !== entry.leftAnchor
+      || text.slice(
+        entry.token.endOffset,
+        Math.min(text.length, entry.token.endOffset + MODIFIED_TOKEN_ANCHOR_CODE_UNITS),
+      ) !== entry.rightAnchor) {
+      this.invalidate();
+      return undefined;
+    }
+    return { ...entry.token };
+  }
+
+  public invalidate(): void {
+    this.entry = undefined;
+  }
+}
 
 export const computeMinimalDocumentTextEdit: DocumentTextEditCandidateFactory = (
   currentText,
@@ -293,6 +436,94 @@ const readJsonObjectProperties = (
   return properties;
 };
 
+const findStringPropertyToken = (
+  text: string,
+  objectOffset: number,
+  propertyName: string,
+): JsonStringToken => {
+  const properties = readJsonObjectProperties(text, objectOffset)
+    .filter((property) => property.key === propertyName);
+  if (properties.length !== 1) throw new Error(`expected one ${propertyName} property`);
+  const property = properties[0];
+  if (text[property.valueStartOffset] !== '"') {
+    throw new Error(`expected ${propertyName} string`);
+  }
+  const token = readJsonStringToken(text, property.valueStartOffset);
+  if (token.endOffset !== property.valueEndOffset) {
+    throw new Error(`invalid ${propertyName} token`);
+  }
+  return token;
+};
+
+const countLineFeedsBefore = (text: string, offset: number): number => {
+  let count = 0;
+  for (let cursor = 0; cursor < offset; cursor += 1) {
+    if (text.charCodeAt(cursor) === 0x0a) count += 1;
+  }
+  return count;
+};
+
+/**
+ * Preserves JSON.stringify's exact persisted bytes while deriving the next
+ * canonical modified-token offset from the small serialized meta object. It
+ * never scans or parses the complete serialized document to find the token.
+ */
+export const serializePrettySdocWithModifiedToken = (
+  envelope: Readonly<{
+    sdoc: unknown;
+    meta: Readonly<{ modified?: unknown }>;
+    doc: unknown;
+  }>,
+  endOfLine: '\n' | '\r\n',
+): SdocSerializedText => {
+  const serializedLf = `${JSON.stringify(envelope, null, 2)}\n`;
+  const text = endOfLine === '\n'
+    ? serializedLf
+    : serializedLf.replace(/\n/g, '\r\n');
+  if (typeof envelope.meta.modified !== 'string') return { text };
+  try {
+    const serializedSdoc = JSON.stringify(envelope.sdoc);
+    const serializedMeta = JSON.stringify(envelope.meta, null, 2);
+    if (typeof serializedSdoc !== 'string' || typeof serializedMeta !== 'string') {
+      return { text };
+    }
+    const metaToken = findStringPropertyToken(serializedMeta, 0, 'modified');
+    if (metaToken.value !== envelope.meta.modified) return { text };
+    const rootPrefix = `{\n  "sdoc": ${serializedSdoc},\n  "meta": `;
+    if (!serializedLf.startsWith(rootPrefix)) return { text };
+    const nestedIndentBeforeStart = countLineFeedsBefore(
+      serializedMeta,
+      metaToken.startOffset,
+    ) * 2;
+    const nestedIndentBeforeEnd = countLineFeedsBefore(
+      serializedMeta,
+      metaToken.endOffset,
+    ) * 2;
+    const lfStartOffset = rootPrefix.length
+      + metaToken.startOffset
+      + nestedIndentBeforeStart;
+    const lfEndOffset = rootPrefix.length
+      + metaToken.endOffset
+      + nestedIndentBeforeEnd;
+    const eolStartAdjustment = endOfLine === '\r\n'
+      ? countLineFeedsBefore(serializedLf, lfStartOffset)
+      : 0;
+    const eolEndAdjustment = endOfLine === '\r\n'
+      ? countLineFeedsBefore(serializedLf, lfEndOffset)
+      : 0;
+    const startOffset = lfStartOffset + eolStartAdjustment;
+    const endOffset = lfEndOffset + eolEndAdjustment;
+    const encodedToken = text.slice(startOffset, endOffset);
+    const modifiedToken = { startOffset, endOffset, encodedToken };
+    if (readTrustedStringTokenValue(text, modifiedToken) !== envelope.meta.modified) {
+      return { text };
+    }
+    return { text, modifiedToken };
+  } catch {
+    return { text };
+  }
+};
+
 const findModifiedStringToken = (text: string): JsonStringToken => {
   const parsed: unknown = JSON.parse(text);
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
@@ -304,14 +535,7 @@ const findModifiedStringToken = (text: string): JsonStringToken => {
   if (metaProperties.length !== 1) throw new Error('expected one meta property');
   const meta = metaProperties[0];
   if (text[meta.valueStartOffset] !== '{') throw new Error('expected meta object');
-  const modifiedProperties = readJsonObjectProperties(text, meta.valueStartOffset)
-    .filter((property) => property.key === 'modified');
-  if (modifiedProperties.length !== 1) throw new Error('expected one modified property');
-  const modified = modifiedProperties[0];
-  if (text[modified.valueStartOffset] !== '"') throw new Error('expected modified string');
-  const token = readJsonStringToken(text, modified.valueStartOffset);
-  if (token.endOffset !== modified.valueEndOffset) throw new Error('invalid modified token');
-  return token;
+  return findStringPropertyToken(text, meta.valueStartOffset, 'modified');
 };
 
 const singleSpanPlan = (
@@ -320,14 +544,157 @@ const singleSpanPlan = (
 ): SdocDocumentTextEditPlan => ({
   kind: 'single-span',
   edits: [planDocumentTextEdit(currentText, nextText)],
+  tokenOffsetSource: 'lexical',
 });
 
-/**
- * Splits only the canonical $.meta.modified token from one remaining span.
- * Any lexical ambiguity, offset shift, overlap, or reconstruction mismatch
- * falls back to the general single-span plan.
- */
-export const planSdocDocumentTextEdits = (
+const segmentsEqual = (
+  left: string,
+  leftStart: number,
+  leftEnd: number,
+  right: string,
+  rightStart: number,
+): boolean => {
+  const length = leftEnd - leftStart;
+  if (rightStart + length > right.length) return false;
+  for (let offset = 0; offset < length; offset += 1) {
+    if (left.charCodeAt(leftStart + offset) !== right.charCodeAt(rightStart + offset)) {
+      return false;
+    }
+  }
+  return true;
+};
+
+const editsReconstructExactly = (
+  currentText: string,
+  nextText: string,
+  edits: readonly DocumentTextEditCandidate[],
+): boolean => {
+  const sorted = [...edits].sort((left, right) => left.startOffset - right.startOffset);
+  let sourceOffset = 0;
+  let targetOffset = 0;
+  for (const edit of sorted) {
+    if (edit.startOffset < sourceOffset
+      || edit.endOffset < edit.startOffset
+      || edit.endOffset > currentText.length
+      || !segmentsEqual(
+        currentText,
+        sourceOffset,
+        edit.startOffset,
+        nextText,
+        targetOffset,
+      )) {
+      return false;
+    }
+    targetOffset += edit.startOffset - sourceOffset;
+    if (!segmentsEqual(edit.text, 0, edit.text.length, nextText, targetOffset)) {
+      return false;
+    }
+    targetOffset += edit.text.length;
+    sourceOffset = edit.endOffset;
+  }
+  return segmentsEqual(
+    currentText,
+    sourceOffset,
+    currentText.length,
+    nextText,
+    targetOffset,
+  ) && targetOffset + currentText.length - sourceOffset === nextText.length;
+};
+
+const computeContentEditIgnoringModifiedToken = (
+  currentText: string,
+  nextText: string,
+  modifiedToken: SdocModifiedStringToken,
+): DocumentTextEdit | undefined => {
+  const sharedLimit = Math.min(currentText.length, nextText.length);
+  let startOffset = 0;
+  while (startOffset < sharedLimit) {
+    if (startOffset === modifiedToken.startOffset
+      && modifiedToken.endOffset <= sharedLimit) {
+      startOffset = modifiedToken.endOffset;
+      continue;
+    }
+    if (currentText.charCodeAt(startOffset) !== nextText.charCodeAt(startOffset)) break;
+    startOffset += 1;
+  }
+  if (startOffset === currentText.length && startOffset === nextText.length) return undefined;
+  while (startOffset > 0
+    && (isUnsafeBoundary(currentText, startOffset)
+      || isUnsafeBoundary(nextText, startOffset))) {
+    startOffset -= 1;
+  }
+
+  let currentEndOffset = currentText.length;
+  let nextEndOffset = nextText.length;
+  while (currentEndOffset > startOffset && nextEndOffset > startOffset) {
+    if (currentEndOffset === modifiedToken.endOffset
+      && nextEndOffset === modifiedToken.endOffset
+      && modifiedToken.startOffset >= startOffset) {
+      currentEndOffset = modifiedToken.startOffset;
+      nextEndOffset = modifiedToken.startOffset;
+      continue;
+    }
+    if (currentText.charCodeAt(currentEndOffset - 1)
+      !== nextText.charCodeAt(nextEndOffset - 1)) break;
+    currentEndOffset -= 1;
+    nextEndOffset -= 1;
+  }
+  while ((isUnsafeBoundary(currentText, currentEndOffset)
+    || isUnsafeBoundary(nextText, nextEndOffset))
+    && currentEndOffset < currentText.length
+    && nextEndOffset < nextText.length) {
+    currentEndOffset += 1;
+    nextEndOffset += 1;
+  }
+  return {
+    kind: startOffset === 0 && currentEndOffset === currentText.length ? 'full' : 'minimal',
+    startOffset,
+    endOffset: currentEndOffset,
+    text: nextText.slice(startOffset, nextEndOffset),
+  };
+};
+
+const planWithTrustedModifiedTokens = (
+  currentText: string,
+  nextText: string,
+  hints: SdocDocumentTextEditHints,
+): SdocDocumentTextEditPlan | undefined => {
+  const currentValue = readTrustedStringTokenValue(currentText, hints.currentModifiedToken);
+  const nextValue = readTrustedStringTokenValue(nextText, hints.nextModifiedToken);
+  if (currentValue === undefined || nextValue === undefined || currentValue === nextValue
+    || hints.currentModifiedToken.startOffset !== hints.nextModifiedToken.startOffset
+    || hints.currentModifiedToken.endOffset !== hints.nextModifiedToken.endOffset
+    || hints.currentModifiedToken.encodedToken.length
+      !== hints.nextModifiedToken.encodedToken.length) {
+    return undefined;
+  }
+  const modifiedEdit: DocumentTextEdit = {
+    kind: 'minimal',
+    startOffset: hints.currentModifiedToken.startOffset,
+    endOffset: hints.currentModifiedToken.endOffset,
+    text: hints.nextModifiedToken.encodedToken,
+  };
+  const contentEdit = computeContentEditIgnoringModifiedToken(
+    currentText,
+    nextText,
+    hints.currentModifiedToken,
+  );
+  const edits = contentEdit
+    ? [modifiedEdit, contentEdit].sort((left, right) => left.startOffset - right.startOffset)
+    : [modifiedEdit];
+  if (edits.length > 2
+    || (edits.length === 2 && edits[0].endOffset > edits[1].startOffset)
+    || !editsReconstructExactly(currentText, nextText, edits)) {
+    return undefined;
+  }
+  return {
+    kind: edits.length === 2 ? 'modified-and-content' : 'single-span',
+    edits,
+    tokenOffsetSource: 'trusted',
+  };
+};
+
+const planWithLexicalModifiedTokens = (
   currentText: string,
   nextText: string,
 ): SdocDocumentTextEditPlan => {
@@ -355,7 +722,7 @@ export const planSdocDocumentTextEdits = (
     };
     const virtualCurrent = applyDocumentTextEdit(currentText, modifiedEdit);
     if (virtualCurrent === nextText) {
-      return { kind: 'single-span', edits: [modifiedEdit] };
+      return { kind: 'single-span', edits: [modifiedEdit], tokenOffsetSource: 'lexical' };
     }
     const contentEdit = planDocumentTextEdit(virtualCurrent, nextText);
     const edits = [modifiedEdit, contentEdit]
@@ -364,10 +731,27 @@ export const planSdocDocumentTextEdits = (
       || applyDocumentTextEdits(currentText, edits) !== nextText) {
       return singleSpanPlan(currentText, nextText);
     }
-    return { kind: 'modified-and-content', edits };
+    return { kind: 'modified-and-content', edits, tokenOffsetSource: 'lexical' };
   } catch {
     return singleSpanPlan(currentText, nextText);
   }
+};
+
+/**
+ * Splits only the canonical $.meta.modified token from one remaining span.
+ * Any lexical ambiguity, offset shift, overlap, or reconstruction mismatch
+ * falls back to the general single-span plan.
+ */
+export const planSdocDocumentTextEdits = (
+  currentText: string,
+  nextText: string,
+  hints?: SdocDocumentTextEditHints,
+): SdocDocumentTextEditPlan => {
+  if (hints) {
+    const trustedPlan = planWithTrustedModifiedTokens(currentText, nextText, hints);
+    if (trustedPlan) return trustedPlan;
+  }
+  return planWithLexicalModifiedTokens(currentText, nextText);
 };
 
 export const isDocumentTextEditSourceCurrent = (

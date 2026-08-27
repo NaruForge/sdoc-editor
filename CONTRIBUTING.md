@@ -132,14 +132,22 @@ validation·pretty serialization·`WorkspaceEdit`, 그리고 `onWillSave`의 flu
 `tests/vscode/artifacts/performance/vscode.json`에 기록됩니다.
 
 Extension Host 보고서는 canonical 5k 문서를 먼저 clean baseline으로 채택한 뒤
-중간 paragraph 하나를 실제 webview transaction으로 변경하고 ACK와 save까지
-기다립니다. `workspace-edit-source-code-units`, `target-code-units`,
+중간 paragraph 하나를 실제 webview transaction으로 8회 변경합니다. 첫 mutation의
+lexical cold plan과, 성공한 own revision에서 채택한 bounded token offset을 사용하는
+후속 7회의 warm plan을 같은 세션에서 측정한 뒤 ACK와 save까지 기다립니다.
+`workspace-edit-modified-token-cache-hit`과
+`workspace-edit-modified-token-fallback`은 각 plan이 trusted offset 또는 fail-closed
+lexical scanner를 사용했는지를 0/1 operation count로 기록합니다.
+`workspace-edit-source-code-units`, `target-code-units`,
 `source-range-code-units`, `inserted-code-units`, `range-count`,
 `content-change-count`, `replacement-ratio-ppm`은 내용이나 경로를 포함하지 않는
 가산 schema-v1 measurement입니다. ppm은
 `(source range + inserted) / (source + target) * 1,000,000`을 반올림한 정수이므로
 나머지 네 code-unit counter에서 독립적으로 재계산할 수 있습니다. 기존
-`workspace-apply-edit`의 operation count는 계속 전체 target code units입니다.
+`workspace-apply-edit`의 operation count는 계속 전체 target code units입니다. 실제
+Host 검증은 cold 1회와 warm 7회의 counter 분포, 매 mutation의 exact revision과
+2-range reconstruction, one-step Undo/Redo를 확인하고, 같은 프로세스의 warm planner
+median이 cold sample보다 50% 이상 낮은지도 확인합니다.
 
 세 보고서는 모두 `shared/performance/instrumentation.ts`의 schema version 1,
 monotonic millisecond 형식을 사용합니다. 문서 내용, URI, 사용자 경로와 wall-clock

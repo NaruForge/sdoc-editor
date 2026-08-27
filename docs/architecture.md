@@ -189,6 +189,19 @@ tokens, overlap, invalid ranges, or calculation failure falls back to the
 general single-span plan, whose own unsafe result falls back to the previous
 full-document replacement.
 
+Canonical serialization also derives the next `meta.modified` token offset
+from the small serialized metadata object. After an exact own apply is
+correlated with its `source revision + 1` event and final snapshot, the editor
+keeps only that encoded token, bounded adjacent anchors, source length, EOL,
+exact revision, and live document/session identity. It never caches the full
+text or a full-text hash. A following revision may use those trusted old and
+new offsets to avoid reparsing and rescanning the complete JSON envelope; the
+same maximum-two-range, non-overlap, boundary, position-roundtrip, and reverse
+reconstruction checks still apply. Any stale authority, unexpected content
+event, external adoption or reload, import, Undo/Redo, EOL or formatting
+change, conflict, failed apply, or disposal clears the hint immediately. A
+missing or invalid hint uses the lexical scanner fail-closed.
+
 The host captures source text and version before serialization, rechecks both
 immediately before applying, and correlates its expected full snapshot with
 the exact consumed `source revision + 1` document-change event. A source race,

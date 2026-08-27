@@ -87,6 +87,12 @@ function applyObservedTextChanges(currentText, changes) {
     );
 }
 
+function median(samples) {
+  assert.ok(samples.length > 0, 'Median requires at least one sample.');
+  const sorted = [...samples].sort((left, right) => left - right);
+  return sorted[Math.floor(sorted.length / 2)];
+}
+
 async function openCustomEditor(workspace, fileName, viewType, expectStandaloneUi = false) {
   const documentUri = vscode.Uri.joinPath(workspace.uri, fileName);
   await vscode.commands.executeCommand(
@@ -567,6 +573,8 @@ async function run() {
       'workspace-edit-replacement-ratio-ppm',
       'workspace-edit-range-count',
       'workspace-edit-content-change-count',
+      'workspace-edit-modified-token-cache-hit',
+      'workspace-edit-modified-token-fallback',
       'workspace-apply-edit',
       'save-flush-barrier',
       'save-lifecycle-to-did-save',
@@ -605,6 +613,12 @@ async function run() {
     const contentChangeCount = report.measurements.find(
       (measurement) => measurement.name === 'workspace-edit-content-change-count',
     );
+    const modifiedTokenCacheHit = report.measurements.find(
+      (measurement) => measurement.name === 'workspace-edit-modified-token-cache-hit',
+    );
+    const modifiedTokenFallback = report.measurements.find(
+      (measurement) => measurement.name === 'workspace-edit-modified-token-fallback',
+    );
     assert.equal(planEdit.operationCount, beforeMutationText.length + document.getText().length);
     assert.ok(sourceRange.operationCount < beforeMutationText.length);
     assert.ok(insertedRange.operationCount < document.getText().length);
@@ -618,6 +632,8 @@ async function run() {
       ),
     );
     assert.equal(contentChangeCount.operationCount, 1);
+    assert.equal(modifiedTokenCacheHit.operationCount, 0);
+    assert.equal(modifiedTokenFallback.operationCount, 1);
     assert.equal(
       applyEdit.operationCount,
       document.getText().length,
@@ -642,6 +658,7 @@ async function run() {
     const sourceUri = vscode.Uri.joinPath(workspace.uri, 'performance-localized-5k.sdoc');
     const blockCount = 5_000;
     const blockIndex = 2_500;
+    const mutationCount = 8;
     const localizedMarker = ' [localized-vscode-perf]';
     const envelope = {
       sdoc: '1.0',
@@ -680,50 +697,73 @@ async function run() {
     assert.equal(document.getText(), sourceText, '5k hydration must adopt the exact baseline.');
     assert.equal(document.isDirty, false, '5k hydration must remain clean before the transaction.');
     const baselineRevision = document.version;
-    const observedChanges = [];
+    const observedChangeSets = [];
     const changeSubscription = vscode.workspace.onDidChangeTextDocument((event) => {
       if (event.document.uri.toString() !== sourceUri.toString()) return;
-      observedChanges.push(...event.contentChanges.map((change) => ({
-        rangeOffset: change.rangeOffset,
-        rangeLength: change.rangeLength,
-        text: change.text,
-      })));
+      if (event.contentChanges.length > 0) {
+        observedChangeSets.push({
+          revision: event.document.version,
+          changes: event.contentChanges.map((change) => ({
+            rangeOffset: change.rangeOffset,
+            rangeLength: change.rangeLength,
+            text: change.text,
+          })),
+        });
+      }
     });
 
     await vscode.commands.executeCommand('structuredDocEditor.test.resetActivePerformanceReport');
+    const documentSnapshots = [sourceText];
     try {
-      assert.equal(
-        await vscode.commands.executeCommand(
-          'structuredDocEditor.test.applyActiveLocalizedMutation',
-          blockIndex,
-        ),
-        true,
-        'The test-only webview transaction must be delivered.',
-      );
-      await waitFor(
-        () => document.getText().includes(localizedMarker),
-        'The localized webview transaction did not reach the host text model.',
-      );
-      await waitFor(async () => {
-        const state = await vscode.commands.executeCommand(
-          'structuredDocEditor.test.getActivePersistenceState',
+      for (let mutationIndex = 0; mutationIndex < mutationCount; mutationIndex += 1) {
+        const beforeText = document.getText();
+        const beforeRevision = document.version;
+        assert.equal(
+          await vscode.commands.executeCommand(
+            'structuredDocEditor.test.applyActiveLocalizedMutation',
+            blockIndex,
+          ),
+          true,
+          'The test-only webview transaction must be delivered.',
         );
-        return state.phase === 'dirty' && state.revision > baselineRevision;
-      }, 'The localized transaction did not complete its host ACK path.');
+        await waitFor(
+          () => document.version === beforeRevision + 1,
+          `Localized mutation ${mutationIndex + 1} did not create exactly one revision.`,
+        );
+        await waitFor(async () => {
+          const state = await vscode.commands.executeCommand(
+            'structuredDocEditor.test.getActivePersistenceState',
+          );
+          return state.phase === 'dirty' && state.revision === document.version;
+        }, `Localized mutation ${mutationIndex + 1} did not complete its host ACK path.`);
+        assert.equal(
+          observedChangeSets.length,
+          mutationIndex + 1,
+          `Localized mutation ${mutationIndex + 1} must emit one content event.`,
+        );
+        const observed = observedChangeSets[mutationIndex];
+        assert.equal(observed.revision, beforeRevision + 1);
+        assert.equal(
+          observed.changes.length,
+          2,
+          'Each warm or cold product mutation must separate modified and body ranges.',
+        );
+        assert.equal(
+          applyObservedTextChanges(beforeText, observed.changes),
+          document.getText(),
+          'Each two-range event must reconstruct the exact product serialization.',
+        );
+        documentSnapshots.push(document.getText());
+      }
     } finally {
       changeSubscription.dispose();
     }
 
     const targetText = document.getText();
     assert.equal(
-      observedChanges.length,
-      2,
-      'The localized product mutation must separate meta.modified and body changes.',
-    );
-    assert.equal(
-      applyObservedTextChanges(sourceText, observedChanges),
-      targetText,
-      'The two original-offset changes must reconstruct the exact product serialization.',
+      observedChangeSets.length,
+      mutationCount,
+      'The localized run must observe one exact content event per mutation.',
     );
     const sourceEnvelope = JSON.parse(sourceText);
     const targetEnvelope = JSON.parse(targetText);
@@ -734,13 +774,13 @@ async function run() {
     );
     assert.equal(
       targetEnvelope.doc.content[blockIndex].content[0].text,
-      `${envelope.doc.content[blockIndex].content[0].text}${localizedMarker}`,
+      `${envelope.doc.content[blockIndex].content[0].text}${localizedMarker.repeat(mutationCount)}`,
       'Only the selected middle paragraph must receive the localized editor transaction.',
     );
     assert.equal(
       document.version,
-      baselineRevision + 1,
-      'Both ranges must commit as one exact VS Code document revision.',
+      baselineRevision + mutationCount,
+      'Every pair of ranges must commit as one exact VS Code document revision.',
     );
 
     await vscode.commands.executeCommand('workbench.action.files.save');
@@ -748,61 +788,79 @@ async function run() {
     const report = await vscode.commands.executeCommand(
       'structuredDocEditor.test.getActivePerformanceReport',
     );
-    const oneMeasurement = (name) => {
+    const mutationMeasurements = (name) => {
       const matches = report.measurements.filter((measurement) => measurement.name === name);
-      assert.equal(matches.length, 1, `Expected one localized performance counter: ${name}`);
-      return matches[0];
+      assert.equal(
+        matches.length,
+        mutationCount,
+        `Expected one ${name} sample per localized mutation.`,
+      );
+      return matches;
     };
-    const sourceCodeUnits = oneMeasurement('workspace-edit-source-code-units').operationCount;
-    const targetCodeUnits = oneMeasurement('workspace-edit-target-code-units').operationCount;
-    const sourceRangeCodeUnits = oneMeasurement(
-      'workspace-edit-source-range-code-units',
-    ).operationCount;
-    const insertedCodeUnits = oneMeasurement(
-      'workspace-edit-inserted-code-units',
-    ).operationCount;
-    const replacementRatioPpm = oneMeasurement(
-      'workspace-edit-replacement-ratio-ppm',
-    ).operationCount;
-    assert.equal(sourceCodeUnits, sourceText.length);
-    assert.equal(targetCodeUnits, targetText.length);
-    assert.equal(
-      sourceRangeCodeUnits,
-      observedChanges.reduce((total, change) => total + change.rangeLength, 0),
+    const sourceCodeUnits = mutationMeasurements('workspace-edit-source-code-units');
+    const targetCodeUnits = mutationMeasurements('workspace-edit-target-code-units');
+    const sourceRangeCodeUnits = mutationMeasurements('workspace-edit-source-range-code-units');
+    const insertedCodeUnits = mutationMeasurements('workspace-edit-inserted-code-units');
+    const replacementRatios = mutationMeasurements('workspace-edit-replacement-ratio-ppm');
+    const rangeCounts = mutationMeasurements('workspace-edit-range-count');
+    const contentChangeCounts = mutationMeasurements('workspace-edit-content-change-count');
+    const updateDocuments = mutationMeasurements('update-document-total');
+    const applyEdits = mutationMeasurements('workspace-apply-edit');
+    const cacheHits = mutationMeasurements('workspace-edit-modified-token-cache-hit');
+    const fallbacks = mutationMeasurements('workspace-edit-modified-token-fallback');
+    const plannerSamples = mutationMeasurements('plan-minimal-document-edit');
+    for (let index = 0; index < mutationCount; index += 1) {
+      const observedChanges = observedChangeSets[index].changes;
+      assert.equal(sourceCodeUnits[index].operationCount, documentSnapshots[index].length);
+      assert.equal(targetCodeUnits[index].operationCount, documentSnapshots[index + 1].length);
+      assert.equal(
+        sourceRangeCodeUnits[index].operationCount,
+        observedChanges.reduce((total, change) => total + change.rangeLength, 0),
+      );
+      assert.equal(
+        insertedCodeUnits[index].operationCount,
+        observedChanges.reduce((total, change) => total + change.text.length, 0),
+      );
+      assert.equal(rangeCounts[index].operationCount, 2);
+      assert.equal(contentChangeCounts[index].operationCount, 2);
+      assert.equal(
+        replacementRatios[index].operationCount,
+        Math.round(
+          ((sourceRangeCodeUnits[index].operationCount + insertedCodeUnits[index].operationCount)
+            / (sourceCodeUnits[index].operationCount + targetCodeUnits[index].operationCount))
+              * 1_000_000,
+        ),
+        'Every artifact ratio must be independently derivable from portable counters.',
+      );
+      assert.ok(
+        replacementRatios[index].operationCount < 10_000,
+        `Localized edit ${index + 1} exceeds 1%: ${replacementRatios[index].operationCount} ppm.`,
+      );
+      assert.equal(updateDocuments[index].operationCount, blockCount);
+      assert.equal(applyEdits[index].operationCount, documentSnapshots[index + 1].length);
+    }
+    assert.deepEqual(
+      cacheHits.map((measurement) => measurement.operationCount),
+      [0, ...Array(mutationCount - 1).fill(1)],
+      'The actual Host must record one cold plan followed by revision-bound warm hits.',
     );
-    assert.equal(
-      insertedCodeUnits,
-      observedChanges.reduce((total, change) => total + change.text.length, 0),
+    assert.deepEqual(
+      fallbacks.map((measurement) => measurement.operationCount),
+      [1, ...Array(mutationCount - 1).fill(0)],
+      'Only the first actual Host plan may use the lexical fallback.',
     );
-    assert.equal(oneMeasurement('workspace-edit-range-count').operationCount, 2);
-    assert.equal(oneMeasurement('workspace-edit-content-change-count').operationCount, 2);
-    assert.equal(
-      replacementRatioPpm,
-      Math.round(
-        ((sourceRangeCodeUnits + insertedCodeUnits) / (sourceCodeUnits + targetCodeUnits))
-          * 1_000_000,
-      ),
-      'The artifact ratio must be independently derivable from portable code-unit counters.',
+    const warmPlannerMedian = median(
+      plannerSamples.slice(1).map((measurement) => measurement.durationMs),
     );
     assert.ok(
-      replacementRatioPpm < 10_000,
-      `The middle-block product edit must remain below full replacement: ${replacementRatioPpm} ppm.`,
-    );
-    assert.equal(
-      oneMeasurement('update-document-total').operationCount,
-      blockCount,
-      'The localized report must still cover the complete 5k-block canonical mutation.',
-    );
-    assert.equal(
-      oneMeasurement('workspace-apply-edit').operationCount,
-      targetText.length,
-      'The existing apply-edit operationCount meaning must remain unchanged.',
+      warmPlannerMedian < plannerSamples[0].durationMs * 0.5,
+      `Warm Host planner median ${warmPlannerMedian}ms must beat cold ${plannerSamples[0].durationMs}ms by 50%.`,
     );
 
     await vscode.commands.executeCommand('undo');
     await waitFor(
-      () => document.getText() === sourceText && document.isDirty,
-      'One native Undo must restore the complete 5k baseline as a single undo step.',
+      () => document.getText() === documentSnapshots[mutationCount - 1] && document.isDirty,
+      'One native Undo must restore exactly the preceding 5k mutation.',
     );
     await vscode.commands.executeCommand('redo');
     await waitFor(
@@ -926,6 +984,9 @@ async function run() {
 
       // A freshly preflighted semantic edit proves the parse-equal revision was
       // acknowledged rather than silently leaving the webview on a stale base.
+      // It must also cold-plan because the formatting event revoked the prior
+      // exact-revision token authority and import is an explicit replacement.
+      await vscode.commands.executeCommand('structuredDocEditor.test.resetActivePerformanceReport');
       const secondImportUri = vscode.Uri.joinPath(workspace.uri, 'import-after-format.md');
       await vscode.workspace.fs.writeFile(
         secondImportUri,
@@ -942,6 +1003,23 @@ async function run() {
       );
       assert.equal(document.getText().endsWith(lineEnding), true);
       assert.doesNotThrow(() => JSON.parse(document.getText()));
+      const postFormatReport = await vscode.commands.executeCommand(
+        'structuredDocEditor.test.getActivePerformanceReport',
+      );
+      assert.deepEqual(
+        postFormatReport.measurements
+          .filter((measurement) => measurement.name === 'workspace-edit-modified-token-cache-hit')
+          .map((measurement) => measurement.operationCount),
+        [0],
+        'Formatting/import must not reuse the preceding revision token authority.',
+      );
+      assert.deepEqual(
+        postFormatReport.measurements
+          .filter((measurement) => measurement.name === 'workspace-edit-modified-token-fallback')
+          .map((measurement) => measurement.operationCount),
+        [1],
+        'The post-format import must use one fail-closed lexical plan.',
+      );
       await vscode.commands.executeCommand('workbench.action.files.save');
       await waitFor(
         () => !document.isDirty,

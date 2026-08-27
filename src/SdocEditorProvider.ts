@@ -6,7 +6,6 @@ import { getNonce, getWebviewUri } from './utils/webviewHelper';
 import {
   ExpectedDocumentChanges,
   hasTextDocumentContentChanges,
-  normalizeDocumentEndOfLines,
   shouldReportExternalDocumentChange,
 } from './utils/expectedDocumentChanges';
 import {
@@ -15,7 +14,10 @@ import {
   isDocumentTextEditSourceCurrent,
   measureDocumentTextEdits,
   planSdocDocumentTextEdits,
+  RevisionBoundSdocModifiedTokenCache,
+  serializePrettySdocWithModifiedToken,
   type DocumentTextEditSource,
+  type SdocModifiedTokenCacheAuthority,
 } from './utils/documentTextEdit';
 import { convertMarkdownToJson } from '../shared/converter';
 import { generateFontFaceCSS } from './utils/fontUtils';
@@ -525,6 +527,12 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     const sessionId = randomUUID();
     const documentId = document.uri.toString();
     const editorIdentity = { sessionId, documentId };
+    const modifiedTokenCache = new RevisionBoundSdocModifiedTokenCache();
+    const modifiedTokenAuthority: SdocModifiedTokenCacheAuthority = {
+      sessionId,
+      documentId,
+      documentIdentity: document,
+    };
     let latestFileOperationState: FileOperationState = { phase: 'idle' };
     let latestFileOperationPlan: FileOperationPlanView | undefined;
     const unavailableTestSeam = (): never => {
@@ -960,6 +968,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
 
     // Send initial document content with image paths converted
     const sendUpdate = () => {
+      modifiedTokenCache.invalidate();
       const contract = parseDocumentTextContract(document.getText());
       if (!contract.ok) {
         writeBlockedReason = contractFailureDetail(contract);
@@ -1013,6 +1022,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       readDocumentMutationBestEffort(readCurrentMutation);
 
     const postExternalChange = (): void => {
+      modifiedTokenCache.invalidate();
       const contract = parseDocumentTextContract(document.getText());
       if (!contract.ok) {
         if (!hasLoadedValidDocument) {
@@ -1058,6 +1068,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     const postExplicitReplacement = (
       reason: 'user-reload' | 'confirmed-template',
     ): void => {
+      modifiedTokenCache.invalidate();
       const snapshot = readCurrentMutation();
       lastLocalMutation = snapshot;
       webviewPanel.webview.postMessage({
@@ -1485,6 +1496,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
                 if (registered.payload.kind === 'import') {
                   signal.throwIfAborted();
                   report('Applying imported body…');
+                  modifiedTokenCache.invalidate();
                   this.fileOperations.markCommitStarted(
                     sessionId, message.requestId, message.planId,
                   );
@@ -1761,6 +1773,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
                   stage: 'Restoring previous body…',
                 };
                 const applied = waitForImportApplied(message.actionRequestId);
+                modifiedTokenCache.invalidate();
                 const delivered = await webviewPanel.webview.postMessage({
                   type: 'importContent', requestId: message.actionRequestId, sessionId, documentId,
                   confirmation: 'preflight-confirmed', content: artifact.mutation.content,
@@ -2016,6 +2029,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
           case 'externalChangeAdopted': {
             if (message.sessionId !== sessionId || message.documentId !== documentId
               || message.revision !== document.version) break;
+            modifiedTokenCache.invalidate();
             const snapshot = tryReadCurrentMutation();
             if (snapshot) lastLocalMutation = snapshot;
             break;
@@ -2063,7 +2077,13 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
               break;
             }
             try {
-              const modified = await this.updateDocument(document, message.mutation);
+              modifiedTokenCache.invalidate();
+              const modified = await this.updateDocument(
+                document,
+                message.mutation,
+                modifiedTokenCache,
+                modifiedTokenAuthority,
+              );
               writeBlockedReason = undefined;
               readOnlyWarningShown = false;
               hasLoadedValidDocument = true;
@@ -2261,6 +2281,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
           case 'edit':
             if (message.sessionId !== sessionId || message.documentId !== documentId
               || message.baseRevision !== document.version) {
+              modifiedTokenCache.invalidate();
               const hostSnapshot = tryReadCurrentMutation();
               webviewPanel.webview.postMessage({
                 type: 'editRejected',
@@ -2281,7 +2302,12 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
               'host-edit-received-to-ack-post',
             );
             try {
-              const modified = await this.updateDocument(document, message.mutation);
+              const modified = await this.updateDocument(
+                document,
+                message.mutation,
+                modifiedTokenCache,
+                modifiedTokenAuthority,
+              );
               latestSavePhase = 'dirty';
               latestSaveRevision = document.version;
               webviewPanel.webview.postMessage({
@@ -2477,6 +2503,9 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     // Handle external document changes
     const changeDocumentSubscription = vscode.workspace.onDidChangeTextDocument((e) => {
       if (e.document.uri.toString() === document.uri.toString()) {
+        if (hasTextDocumentContentChanges(e.contentChanges)) {
+          modifiedTokenCache.invalidate();
+        }
         // VS Code emits this event for dirty-state transitions during save too.
         // Only content changes can represent an editor or external mutation.
         if (!shouldReportExternalDocumentChange(
@@ -2581,6 +2610,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       editorMessageSubscription.dispose();
       viewStateSubscription.dispose();
       this.expectedDocumentChanges.clear(document.uri.toString());
+      modifiedTokenCache.invalidate();
       for (const [requestId, pending] of this.pendingFlushResolvers) {
         if (pending.sessionId !== sessionId) continue;
         clearTimeout(pending.timer);
@@ -2593,17 +2623,31 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
   private async updateDocument(
     document: vscode.TextDocument,
     mutation: DocumentMutation,
+    modifiedTokenCache: RevisionBoundSdocModifiedTokenCache,
+    modifiedTokenAuthority: SdocModifiedTokenCacheAuthority,
   ): Promise<string> {
-    return this.performanceProbe.measureAsync(
-      'update-document-total',
-      () => this.updateDocumentCore(document, mutation),
-      mutation.content.content?.length ?? 0,
-    );
+    try {
+      return await this.performanceProbe.measureAsync(
+        'update-document-total',
+        () => this.updateDocumentCore(
+          document,
+          mutation,
+          modifiedTokenCache,
+          modifiedTokenAuthority,
+        ),
+        mutation.content.content?.length ?? 0,
+      );
+    } catch (error) {
+      modifiedTokenCache.invalidate();
+      throw error;
+    }
   }
 
   private async updateDocumentCore(
     document: vscode.TextDocument,
     mutation: DocumentMutation,
+    modifiedTokenCache: RevisionBoundSdocModifiedTokenCache,
+    modifiedTokenAuthority: SdocModifiedTokenCacheAuthority,
   ): Promise<string> {
     const source: DocumentTextEditSource = {
       version: document.version,
@@ -2680,18 +2724,54 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     );
 
     // Pretty-print JSON for better git diffs
-    const json = this.performanceProbe.measure(
+    const endOfLine = document.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n';
+    const serialized = this.performanceProbe.measure(
       'serialize-pretty-document',
-      () => normalizeDocumentEndOfLines(
-        `${JSON.stringify(sdocFile, null, 2)}\n`,
-        document.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n',
+      () => serializePrettySdocWithModifiedToken(
+        sdocFile as {
+          sdoc: unknown;
+          meta: { modified?: unknown };
+          doc: unknown;
+        },
+        endOfLine,
       ),
       synced.content?.length ?? 0,
     );
+    const json = serialized.text;
     let documentTextEditPlan = this.performanceProbe.measure(
       'plan-minimal-document-edit',
-      () => planSdocDocumentTextEdits(source.text, json),
+      () => {
+        const currentModifiedToken = modifiedTokenCache.resolve(
+          modifiedTokenAuthority,
+          {
+            revision: source.version,
+            endOfLine,
+            sourceLength: source.text.length,
+          },
+          source.text,
+        );
+        return planSdocDocumentTextEdits(
+          source.text,
+          json,
+          currentModifiedToken && serialized.modifiedToken
+            ? {
+              currentModifiedToken,
+              nextModifiedToken: serialized.modifiedToken,
+            }
+            : undefined,
+        );
+      },
       source.text.length + json.length,
+    );
+    this.performanceProbe.record(
+      'workspace-edit-modified-token-cache-hit',
+      0,
+      documentTextEditPlan.tokenOffsetSource === 'trusted' ? 1 : 0,
+    );
+    this.performanceProbe.record(
+      'workspace-edit-modified-token-fallback',
+      0,
+      documentTextEditPlan.tokenOffsetSource === 'lexical' ? 1 : 0,
     );
     if (!isDocumentTextEditSourceCurrent(source, document.version, document.getText())) {
       throw new DocumentEditConflictError(
@@ -2707,7 +2787,11 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       document.offsetAt(start) !== documentTextEdit.startOffset
       || document.offsetAt(end) !== documentTextEdit.endOffset)) {
       const documentTextEdit = createFullDocumentTextEdit(source.text, json);
-      documentTextEditPlan = { kind: 'single-span', edits: [documentTextEdit] };
+      documentTextEditPlan = {
+        kind: 'single-span',
+        edits: [documentTextEdit],
+        tokenOffsetSource: 'lexical',
+      };
       ranges = [{
         documentTextEdit,
         start: document.positionAt(0),
@@ -2759,6 +2843,19 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       () => this.applyExpectedEdit(document, edit, json, source),
       json.length,
     );
+    const appliedText = document.getText();
+    if (!serialized.modifiedToken || !modifiedTokenCache.adopt(
+      modifiedTokenAuthority,
+      {
+        revision: document.version,
+        endOfLine,
+        sourceLength: appliedText.length,
+      },
+      appliedText,
+      serialized.modifiedToken,
+    )) {
+      modifiedTokenCache.invalidate();
+    }
     return modified;
   }
 

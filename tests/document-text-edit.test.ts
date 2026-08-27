@@ -8,7 +8,10 @@ import {
   measureDocumentTextEdits,
   planDocumentTextEdit,
   planSdocDocumentTextEdits,
+  RevisionBoundSdocModifiedTokenCache,
+  serializePrettySdocWithModifiedToken,
   type DocumentTextEditCandidate,
+  type SdocModifiedTokenCacheAuthority,
 } from '../src/utils/documentTextEdit';
 import { createAcceptedPerformanceCorpus } from './performance/fixtures';
 
@@ -18,6 +21,26 @@ const isUnsafeBoundary = (text: string, offset: number): boolean => {
   const after = text.charCodeAt(offset);
   return (before === 0x0d && after === 0x0a)
     || (before >= 0xd800 && before <= 0xdbff && after >= 0xdc00 && after <= 0xdfff);
+};
+
+const median = (samples: readonly number[]): number => {
+  const sorted = [...samples].sort((left, right) => left - right);
+  return sorted[Math.floor(sorted.length / 2)];
+};
+
+const createCanonicalSdocPlanFixture = () => {
+  const corpus = createAcceptedPerformanceCorpus('text-5k');
+  const currentEnvelope = structuredClone(corpus.envelope);
+  const nextEnvelope = structuredClone(corpus.envelope);
+  currentEnvelope.meta.modified = '2026-01-01T00:00:00.000Z';
+  nextEnvelope.meta.modified = '2026-02-02T00:00:00.000Z';
+  nextEnvelope.doc.content![2_500].content![0].text = 'Localized replacement';
+  const current = serializePrettySdocWithModifiedToken(currentEnvelope, '\n');
+  const next = serializePrettySdocWithModifiedToken(nextEnvelope, '\n');
+  if (!current.modifiedToken || !next.modifiedToken) {
+    throw new Error('canonical performance fixture must expose modified offsets');
+  }
+  return { current, next };
 };
 
 describe('VS Code document text edit planning', () => {
@@ -198,6 +221,250 @@ describe('VS Code document text edit planning', () => {
     expect(plan.edits[0].startOffset).toBeGreaterThan(0);
     expect(plan.edits[0].endOffset - plan.edits[0].startOffset).toBe(26);
     expect(applyDocumentTextEdits(current, plan.edits)).toBe(next);
+  });
+
+  it('serializes the exact previous pretty JSON while providing LF and CRLF token offsets', () => {
+    const envelope = {
+      sdoc: '1.0',
+      meta: {
+        title: 'Offset "probe"',
+        modified: '2026-01-01T00:00:00.000Z',
+        settings: { headingNumbering: true },
+      },
+      doc: { type: 'doc', content: [{ type: 'paragraph' }] },
+    };
+
+    for (const endOfLine of ['\n', '\r\n'] as const) {
+      const serialized = serializePrettySdocWithModifiedToken(envelope, endOfLine);
+      const expected = `${JSON.stringify(envelope, null, 2)}\n`
+        .replace(/\n/g, endOfLine);
+
+      expect(serialized.text).toBe(expected);
+      expect(serialized.modifiedToken).toBeDefined();
+      expect(serialized.text.slice(
+        serialized.modifiedToken!.startOffset,
+        serialized.modifiedToken!.endOffset,
+      )).toBe('"2026-01-01T00:00:00.000Z"');
+    }
+  });
+
+  it('omits a serializer hint for a non-string modified value without changing bytes', () => {
+    const envelope = {
+      sdoc: '1.0',
+      meta: { modified: 7 },
+      doc: { type: 'doc' },
+    };
+
+    const serialized = serializePrettySdocWithModifiedToken(envelope, '\n');
+
+    expect(serialized.text).toBe(`${JSON.stringify(envelope, null, 2)}\n`);
+    expect(serialized.modifiedToken).toBeUndefined();
+  });
+
+  it('keeps exact bytes but withholds authority when canonical root order is unavailable', () => {
+    const reorderedEnvelope = {
+      doc: { type: 'doc' },
+      meta: { modified: '2026-01-01T00:00:00.000Z' },
+      sdoc: '1.0',
+    };
+
+    const serialized = serializePrettySdocWithModifiedToken(reorderedEnvelope, '\n');
+
+    expect(serialized.text).toBe(`${JSON.stringify(reorderedEnvelope, null, 2)}\n`);
+    expect(serialized.modifiedToken).toBeUndefined();
+  });
+
+  it('preserves and bounds escaped modified tokens before granting cache authority', () => {
+    const envelope = {
+      sdoc: '1.0',
+      meta: { modified: 'quoted "value"\\line\nend' },
+      doc: { type: 'doc' },
+    };
+    const serialized = serializePrettySdocWithModifiedToken(envelope, '\n');
+    const cache = new RevisionBoundSdocModifiedTokenCache();
+    const authority: SdocModifiedTokenCacheAuthority = {
+      sessionId: 'escaped-session', documentId: 'escaped-doc', documentIdentity: {},
+    };
+
+    expect(serialized.modifiedToken).toBeDefined();
+    expect(JSON.parse(serialized.modifiedToken!.encodedToken)).toBe(envelope.meta.modified);
+    expect(cache.adopt(authority, {
+      revision: 1,
+      endOfLine: '\n',
+      sourceLength: serialized.text.length,
+    }, serialized.text, serialized.modifiedToken!)).toBe(true);
+
+    const oversizedEnvelope = {
+      ...envelope,
+      meta: { modified: 'x'.repeat(300) },
+    };
+    const oversized = serializePrettySdocWithModifiedToken(oversizedEnvelope, '\n');
+    expect(oversized.modifiedToken).toBeUndefined();
+    cache.invalidate();
+    expect(cache.hasEntry).toBe(false);
+  });
+
+  it('reuses only a live session and revision-bound bounded token authority', () => {
+    const { current } = createCanonicalSdocPlanFixture();
+    const cache = new RevisionBoundSdocModifiedTokenCache();
+    const liveDocument = {};
+    const authority: SdocModifiedTokenCacheAuthority = {
+      sessionId: 'session-a',
+      documentId: 'file:///document.sdoc',
+      documentIdentity: liveDocument,
+    };
+    const source = {
+      revision: 7,
+      endOfLine: '\n' as const,
+      sourceLength: current.text.length,
+    };
+
+    expect(cache.adopt(authority, source, current.text, current.modifiedToken!)).toBe(true);
+    expect(cache.resolve(authority, source, current.text)).toEqual(current.modifiedToken);
+    expect(JSON.stringify(cache).length).toBeLessThan(1_024);
+    expect(JSON.stringify(cache)).not.toContain(current.text);
+
+    const reopenedAuthority = { ...authority, documentIdentity: {} };
+    expect(cache.resolve(reopenedAuthority, source, current.text)).toBeUndefined();
+    expect(cache.hasEntry).toBe(false);
+  });
+
+  it.each([
+    ['version', { revision: 8, endOfLine: '\n' as const }],
+    ['EOL', { revision: 7, endOfLine: '\r\n' as const }],
+  ])('invalidates the trusted offset immediately on %s mismatch', (_reason, mismatch) => {
+    const { current } = createCanonicalSdocPlanFixture();
+    const cache = new RevisionBoundSdocModifiedTokenCache();
+    const authority: SdocModifiedTokenCacheAuthority = {
+      sessionId: 'session-a', documentId: 'doc-a', documentIdentity: {},
+    };
+    const source = {
+      revision: 7,
+      endOfLine: '\n' as const,
+      sourceLength: current.text.length,
+    };
+    cache.adopt(authority, source, current.text, current.modifiedToken!);
+
+    expect(cache.resolve(authority, { ...source, ...mismatch }, current.text)).toBeUndefined();
+    expect(cache.hasEntry).toBe(false);
+  });
+
+  it('invalidates authority on a source-length mismatch even when identity and revision match', () => {
+    const { current } = createCanonicalSdocPlanFixture();
+    const cache = new RevisionBoundSdocModifiedTokenCache();
+    const authority: SdocModifiedTokenCacheAuthority = {
+      sessionId: 'session-a', documentId: 'doc-a', documentIdentity: {},
+    };
+    const source = {
+      revision: 7,
+      endOfLine: '\n' as const,
+      sourceLength: current.text.length,
+    };
+    cache.adopt(authority, source, current.text, current.modifiedToken!);
+
+    expect(cache.resolve(
+      authority,
+      { ...source, sourceLength: source.sourceLength + 1 },
+      current.text,
+    )).toBeUndefined();
+    expect(cache.hasEntry).toBe(false);
+  });
+
+  it('rejects a same-length adversarial stale offset and explicit lifecycle invalidation', () => {
+    const { current } = createCanonicalSdocPlanFixture();
+    const cache = new RevisionBoundSdocModifiedTokenCache();
+    const authority: SdocModifiedTokenCacheAuthority = {
+      sessionId: 'session-a', documentId: 'doc-a', documentIdentity: {},
+    };
+    const source = {
+      revision: 7,
+      endOfLine: '\n' as const,
+      sourceLength: current.text.length,
+    };
+    cache.adopt(authority, source, current.text, current.modifiedToken!);
+    const anchorOffset = current.modifiedToken!.startOffset - 1;
+    const adversarial = current.text.slice(0, anchorOffset)
+      + (current.text[anchorOffset] === ' ' ? '\t' : ' ')
+      + current.text.slice(anchorOffset + 1);
+
+    expect(adversarial.length).toBe(current.text.length);
+    expect(cache.resolve(authority, source, adversarial)).toBeUndefined();
+    expect(cache.hasEntry).toBe(false);
+
+    cache.adopt(authority, source, current.text, current.modifiedToken!);
+    cache.invalidate();
+    expect(cache.hasEntry).toBe(false);
+    expect(cache.resolve(authority, source, current.text)).toBeUndefined();
+  });
+
+  it('uses trusted old/new offsets without weakening two-range reconstruction', () => {
+    const { current, next } = createCanonicalSdocPlanFixture();
+    const cache = new RevisionBoundSdocModifiedTokenCache();
+    const authority: SdocModifiedTokenCacheAuthority = {
+      sessionId: 'session-a', documentId: 'doc-a', documentIdentity: {},
+    };
+    const source = {
+      revision: 7,
+      endOfLine: '\n' as const,
+      sourceLength: current.text.length,
+    };
+    cache.adopt(authority, source, current.text, current.modifiedToken!);
+    const trustedCurrent = cache.resolve(authority, source, current.text);
+
+    const plan = planSdocDocumentTextEdits(current.text, next.text, {
+      currentModifiedToken: trustedCurrent!,
+      nextModifiedToken: next.modifiedToken!,
+    });
+
+    expect(plan.tokenOffsetSource).toBe('trusted');
+    expect(plan.kind).toBe('modified-and-content');
+    expect(plan.edits).toHaveLength(2);
+    expect(plan.edits[0].endOffset).toBeLessThanOrEqual(plan.edits[1].startOffset);
+    expect(applyDocumentTextEdits(current.text, plan.edits)).toBe(next.text);
+    expect(measureDocumentTextEdits(current.text, next.text, plan.edits)
+      .replacementRatioPpm).toBeLessThan(10_000);
+  });
+
+  it('falls back to the lexical scanner when either trusted hint is stale', () => {
+    const { current, next } = createCanonicalSdocPlanFixture();
+    const staleCurrent = {
+      ...current.modifiedToken!,
+      startOffset: current.modifiedToken!.startOffset + 1,
+      endOffset: current.modifiedToken!.endOffset + 1,
+    };
+
+    const plan = planSdocDocumentTextEdits(current.text, next.text, {
+      currentModifiedToken: staleCurrent,
+      nextModifiedToken: next.modifiedToken!,
+    });
+
+    expect(plan.tokenOffsetSource).toBe('lexical');
+    expect(plan.kind).toBe('modified-and-content');
+    expect(applyDocumentTextEdits(current.text, plan.edits)).toBe(next.text);
+  });
+
+  it('cuts the pure 5k planner median by at least half on the trusted warm path', () => {
+    const { current, next } = createCanonicalSdocPlanFixture();
+    const hints = {
+      currentModifiedToken: current.modifiedToken!,
+      nextModifiedToken: next.modifiedToken!,
+    };
+    for (let warmup = 0; warmup < 2; warmup += 1) {
+      planSdocDocumentTextEdits(current.text, next.text);
+      planSdocDocumentTextEdits(current.text, next.text, hints);
+    }
+    const coldSamples: number[] = [];
+    const warmSamples: number[] = [];
+    for (let sample = 0; sample < 9; sample += 1) {
+      let startedAt = performance.now();
+      planSdocDocumentTextEdits(current.text, next.text);
+      coldSamples.push(performance.now() - startedAt);
+      startedAt = performance.now();
+      planSdocDocumentTextEdits(current.text, next.text, hints);
+      warmSamples.push(performance.now() - startedAt);
+    }
+
+    expect(median(warmSamples)).toBeLessThan(median(coldSamples) * 0.5);
   });
 
   it.each([
