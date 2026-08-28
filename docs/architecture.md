@@ -146,8 +146,9 @@ Ordinary paragraph edits map positions without rebuilding or notifying semantic
 subscribers; structural edits coalesce into one trailing rebuild.
 
 Large rich documents keep authored editor semantics while avoiding passive DOM
-work. An inactive code-block language selector owns only its selected option;
-the complete language list is materialized on focus and collapsed on blur.
+work. Every code block owns a lightweight language button and permanent
+`pre > code` content DOM; one editor-scoped native listbox popup materializes
+the complete language list only on explicit activation.
 Math, image, table, and diagram NodeViews skip their DOM update when node
 attributes are shallow-equal, while KaTeX rendering uses a bounded cache keyed
 by source and display mode with trust disabled. Block math alone may defer
@@ -159,10 +160,11 @@ browser-native lazy loading and asynchronous decoding without changing export
 or persisted data.
 
 The Chromium release harness fixes the exact `rich-mixed-5k` composition and
-measures three opens plus repeated paragraph input, bidirectional scrolling,
+measures three opens plus 30 fixed ordinary-paragraph inputs (top, middle, and
+bottom, ten each), bidirectional scrolling,
 and navigation, including phase Long Tasks, DOM breakdown, and retained heap.
 It also exercises code contentDOM editing, composition, language selection,
-Undo/Redo, read-only behavior, focus-driven option materialization, and block
+Undo/Redo, read-only behavior, explicit listbox activation, and block
 math focus materialization. Current DOM and heap budgets pass, but open and
 interaction latency budgets do not; virtualization and Worker ownership remain
 outside this phase and require the later architecture gate rather than a

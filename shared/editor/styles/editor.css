@@ -322,7 +322,7 @@ samp {
   margin: 0.5em 0;
 }
 
-.code-block select {
+.code-block-language-trigger {
   position: absolute;
   top: 6px;
   right: 8px;
@@ -338,8 +338,36 @@ samp {
   z-index: 1;
 }
 
-.code-block select:focus {
+.code-block-language-trigger:focus-visible {
   border-color: var(--vscode-focusBorder);
+}
+
+.code-block-language-trigger[aria-disabled='true'] {
+  color: var(--vscode-disabledForeground, var(--vscode-descriptionForeground));
+  cursor: default;
+}
+
+.code-block-language-popup {
+  box-sizing: border-box;
+  padding: 4px;
+  background: var(--vscode-dropdown-background, var(--vscode-input-background));
+  border: 1px solid var(--vscode-dropdown-border, var(--vscode-panel-border));
+  border-radius: 3px;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 24%);
+}
+
+.code-block-language-popup[hidden] {
+  display: none;
+}
+
+.code-block-language-popup select {
+  display: block;
+  box-sizing: border-box;
+  font-family: var(--sdoc-font-sans);
+  background: var(--vscode-dropdown-background, var(--vscode-input-background));
+  color: var(--vscode-dropdown-foreground, var(--vscode-input-foreground));
+  border: 0;
+  outline: none;
 }
 
 .code-block pre {
@@ -2796,6 +2824,13 @@ samp {
 .math-block-rendered-row > :first-child {
   flex: 1;
   text-align: center;
+}
+
+@media print {
+  .code-block-language-trigger,
+  .code-block-language-popup {
+    display: none !important;
+  }
 }
 
 .math-block-render-placeholder {

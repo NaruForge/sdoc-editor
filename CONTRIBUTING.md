@@ -118,8 +118,9 @@ JS heap을 기록합니다. 기본 corpus는 `text-5k`이며 `text-10k`와
 `rich-mixed-5k`는 release corpus입니다. top-level block은 paragraph 3,500,
 heading 500, code 250, block math 200, image 150, table 100, diagram 100,
 callout 150, blockquote 50의 정확한 5,000개이며, paragraph 안에 inline math
-300개와 endnote 200개를 결정적으로 포함합니다. 3회 open과 각 5회의 실제
-input·scroll·navigation을 반복하고 phase별 Long Task, DOM breakdown, GC 뒤
+300개와 endnote 200개를 결정적으로 포함합니다. 3회 open, top/middle/bottom
+ordinary paragraph 각 10회씩 총 30회 input, run당 5회의 scroll/navigation을
+측정하고 phase별 Long Task, DOM breakdown, GC 뒤
 retained heap을 기록합니다. release budget은 editable p95 2,000 ms, input p95
 50 ms/max 100 ms 미만, scroll p95 50 ms, navigation p95 100 ms, DOM 50,000개,
 retained heap 128 MiB입니다. `rich-balanced-5k`는 각 rich 유형을 500개 규모로
@@ -127,8 +128,9 @@ retained heap 128 MiB입니다. `rich-balanced-5k`는 각 rich 유형을 500개 
 192 MiB의 capacity budget을 사용합니다. corpus 개수와 seed 재현성은 일반
 테스트에서도 고정합니다.
 
-한 Windows x64 / Chromium 151의 `rich-mixed-5k` run에서 inactive code language
-option materialization, attrs-equal rich NodeView no-op, bounded KaTeX cache,
+한 Windows x64 / Chromium 151의 `rich-mixed-5k` historical-before run에서
+inactive code language option
+materialization, attrs-equal rich NodeView no-op, bounded KaTeX cache,
 block-math-only viewport materialization, image browser lazy loading을 적용한 뒤
 open p95 2,189.8 ms, input p95/max 134.5 ms, scroll p95 52.5 ms, navigation p95
 131.4 ms, DOM 40,697개, retained heap 55.55 MB였습니다. DOM과 heap은 통과했지만
@@ -142,7 +144,8 @@ Phase 3의 typed browser probe는 key dispatch를 `editor-state-apply-plugins-cp
 fold, numbering, Lowlight, ID scan, NodeView update counter를 additive schema-v1
 measurement로 기록합니다. strict ordinary paragraph projection 적용 전 dispatch
 median/p95는 30.1/55.9 ms였고 매 sample의 full structure build가 11.3/17.6 ms로
-가장 컸습니다. 적용 후 15회 입력의 full build는 0회, classifier는 transaction당
+가장 컸습니다. 현재 release 측정은 top/middle/bottom ordinary paragraph를 각각
+10회씩 총 30회 측정합니다. 적용 후 입력의 full build는 0회, classifier는 transaction당
 1회가 되었으며 dispatch median/p95는 11.7/18.4 ms로 20 ms 목표를 통과했습니다.
 key-to-next-paint는 median/p95/max 44.7/59.8/59.8 ms여서 max 100 ms 미만은
 통과했지만 p95 50 ms는 여전히 미달합니다. 같은 run의 open p95는 2,329.1 ms,

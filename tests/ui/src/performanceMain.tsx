@@ -5,6 +5,10 @@ import type { PerformanceMeasurement, PerformanceReport } from '@shared/performa
 import { NOOP_EDITOR_EXTENSION_RUNTIME } from '@shared/editor/extensionRuntime';
 import { useTiptapEditor } from '@shared/editor/hooks/useTiptapEditor';
 import { installTestOnlyEditorPerformanceProbe } from '@shared/editor/performanceInstrumentation';
+import {
+  readCodeBlockLanguageUiCounters,
+  resetCodeBlockLanguageOperationCounters,
+} from '@shared/editor/extensions/CodeBlockView';
 import { DocumentSyncCoordinator } from '@shared/persistence/DocumentSyncCoordinator';
 import {
   createAcceptedPerformanceCorpus,
@@ -34,7 +38,8 @@ interface BrowserPerformanceHarness {
   armKeyToNextPaint(): void;
   readKeyToNextPaint(): Promise<void>;
   readDebouncedUpdate(): Promise<void>;
-  focusInputTarget(): string;
+  focusInputTarget(target?: 'top' | 'middle' | 'bottom'): string;
+  resetCodeBlockLanguageOperations(): void;
   measureSyncCheckpoint(): void;
   measureScroll(edge: 'start' | 'end'): Promise<void>;
   measureNavigation(edge: 'start' | 'end'): Promise<void>;
@@ -43,6 +48,19 @@ interface BrowserPerformanceHarness {
   setEditable(editable: boolean): void;
   undo(): boolean;
   redo(): boolean;
+  deleteCodeBlock(index: number): boolean;
+  replaceCodeBlockText(index: number): boolean;
+  transactionCount(): number;
+  transactionProbe(): readonly {
+    readonly sequence: number;
+    readonly docChanged: boolean;
+    readonly stepCount: number;
+    readonly selectionSet: boolean;
+    readonly addToHistory: boolean | null;
+    readonly uiEvent: boolean;
+    readonly pointer: boolean;
+    readonly composition: boolean;
+  }[];
   report(jsHeapUsedBytes?: number): PerformanceReport;
 }
 
@@ -138,18 +156,28 @@ function PerformanceEditor() {
       throw new Error('browser performance fixture could not cross the initial replacement boundary');
     }
     editor.setEditable(true, false);
+    const ordinaryParagraphPositions: number[] = [];
     let inputTargetPosition = 1;
     let inputTargetNodeType = 'unknown';
-    const midpoint = editor.state.doc.content.size / 2;
     editor.state.doc.forEach((node, offset) => {
-      if (inputTargetPosition !== 1 || offset < midpoint || node.type.name !== 'paragraph') return;
+      if (node.type.name !== 'paragraph') return;
       if (!node.content.content.every((child) => child.isText)) return;
-      inputTargetPosition = offset + 1;
-      inputTargetNodeType = node.type.name;
+      ordinaryParagraphPositions.push(offset + 1);
     });
+    const inputTargets: Record<'top' | 'middle' | 'bottom', number> = {
+      top: ordinaryParagraphPositions[Math.floor(ordinaryParagraphPositions.length * 0.1)] ?? 1,
+      middle: ordinaryParagraphPositions[Math.floor(ordinaryParagraphPositions.length * 0.5)] ?? 1,
+      bottom: ordinaryParagraphPositions[Math.floor(ordinaryParagraphPositions.length * 0.9)] ?? 1,
+    };
+    inputTargetPosition = inputTargets.middle;
+    inputTargetNodeType = 'paragraph';
+    let inputTargetLabel: keyof typeof inputTargets = 'middle';
+    let inputTargetAdjustmentPending = false;
     const originalDispatch = editor.view.dispatch;
     const originalUpdateState = editor.view.updateState;
     let collectPluginSamples = false;
+    let dispatchedTransactions = 0;
+    const transactionProbe: Array<ReturnType<BrowserPerformanceHarness['transactionProbe']>[number]> = [];
     let updateStateStartedAt: number | null = null;
     let updateStateFinishedAt: number | null = null;
     const uninstallEditorProbe = installTestOnlyEditorPerformanceProbe((sample) => {
@@ -175,6 +203,19 @@ function PerformanceEditor() {
       }
     };
     editor.view.dispatch = (transaction) => {
+      dispatchedTransactions += 1;
+      transactionProbe.push({
+        sequence: dispatchedTransactions,
+        docChanged: transaction.docChanged,
+        stepCount: transaction.steps.length,
+        selectionSet: transaction.selectionSet,
+        addToHistory: typeof transaction.getMeta('addToHistory') === 'boolean'
+          ? transaction.getMeta('addToHistory') as boolean
+          : null,
+        uiEvent: transaction.getMeta('uiEvent') !== undefined,
+        pointer: transaction.getMeta('pointer') !== undefined,
+        composition: transaction.getMeta('composition') !== undefined,
+      });
       if (!keyDispatchArmed.current || !transaction.docChanged) {
         originalDispatch.call(editor.view, transaction);
         return;
@@ -258,6 +299,7 @@ function PerformanceEditor() {
       armKeyToNextPaint(): void {
         if (keyProbe.current) throw new Error('a key probe is already pending');
         debounceProbe.current = new Promise<void>((resolve) => { resolveDebounceProbe.current = resolve; });
+        inputTargetAdjustmentPending = true;
         keyProbe.current = new Promise<void>((resolve) => {
           keyDispatchArmed.current = true;
           editor.view.dom.addEventListener('keydown', (event) => {
@@ -268,6 +310,12 @@ function PerformanceEditor() {
               const finishedAt = performance.now();
               measurements.current.push(durationBetweenMeasurement(
                 'key-to-next-paint',
+                startedAt,
+                finishedAt,
+                1,
+              ));
+              measurements.current.push(durationBetweenMeasurement(
+                `key-to-next-paint-${inputTargetLabel}`,
                 startedAt,
                 finishedAt,
                 1,
@@ -287,10 +335,21 @@ function PerformanceEditor() {
         if (!debounceProbe.current) throw new Error('the debounce probe was not armed');
         await debounceProbe.current;
         debounceProbe.current = null;
+        if (inputTargetAdjustmentPending) {
+          inputTargetAdjustmentPending = false;
+          for (const label of ['top', 'middle', 'bottom'] as const) {
+            if (inputTargets[label] > inputTargetPosition) inputTargets[label] += 1;
+          }
+        }
       },
-      focusInputTarget(): string {
+      focusInputTarget(target = 'middle'): string {
+        inputTargetLabel = target;
+        inputTargetPosition = inputTargets[target];
         editor.chain().setTextSelection(inputTargetPosition).focus().run();
         return editor.state.selection.$from.parent.type.name;
+      },
+      resetCodeBlockLanguageOperations(): void {
+        resetCodeBlockLanguageOperationCounters();
       },
       measureSyncCheckpoint(): void {
         const callbacksBefore = syncSubmitCallbacks.current;
@@ -347,6 +406,50 @@ function PerformanceEditor() {
       redo(): boolean {
         return editor.commands.redo();
       },
+      deleteCodeBlock(index): boolean {
+        let seen = 0;
+        let position: number | undefined;
+        let size = 0;
+        editor.state.doc.forEach((node, offset) => {
+          if (position !== undefined || node.type.name !== 'codeBlock') return;
+          if (seen === index) {
+            position = offset;
+            size = node.nodeSize;
+            return;
+          }
+          seen += 1;
+        });
+        if (position === undefined) return false;
+        editor.view.dispatch(editor.state.tr.delete(position, position + size));
+        return true;
+      },
+      replaceCodeBlockText(index): boolean {
+        let position: number | undefined;
+        let size = 0;
+        let seen = 0;
+        editor.state.doc.forEach((node, offset) => {
+          if (node.type.name !== 'codeBlock' || position !== undefined) return;
+          if (seen === index) {
+            position = offset;
+            size = node.nodeSize;
+            return;
+          }
+          seen += 1;
+        });
+        if (position === undefined) return false;
+        editor.view.dispatch(editor.state.tr.insertText(
+          'replacement code text',
+          position + 1,
+          position + size - 1,
+        ));
+        return true;
+      },
+      transactionCount(): number {
+        return dispatchedTransactions;
+      },
+      transactionProbe() {
+        return transactionProbe.map((entry) => ({ ...entry }));
+      },
       report(jsHeapUsedBytes?: number): PerformanceReport {
         const domNodeCount = editor.view.dom.querySelectorAll('*').length + 1;
         const images = [...editor.view.dom.querySelectorAll<HTMLImageElement>(
@@ -357,6 +460,7 @@ function PerformanceEditor() {
         const longTaskDurationMs = longTasks.reduce((total, entry) => total + entry.duration, 0);
         const browserVersion = navigator.userAgent.match(/(?:Chrome|Chromium)\/([^ ]+)/)?.[1]
           ?? 'unknown';
+        const codeBlockLanguage = readCodeBlockLanguageUiCounters();
         return {
           schemaVersion: 1,
           clock: 'monotonic',
@@ -374,6 +478,24 @@ function PerformanceEditor() {
             domParagraphCount: editor.view.dom.querySelectorAll('p').length,
             domCodeBlockCount: editor.view.dom.querySelectorAll('.code-block').length,
             domCodeLanguageOptionCount: editor.view.dom.querySelectorAll('.code-block select option').length,
+            codeBlockReactRootsCurrent: 0,
+            codeBlockLanguageTriggersCreated: codeBlockLanguage.triggersCreated,
+            codeBlockLanguageTriggersCurrent: codeBlockLanguage.triggersCurrent,
+            codeBlockLanguageTriggersMaximum: codeBlockLanguage.triggersMaximum,
+            codeBlockLanguageTriggersDestroyed: codeBlockLanguage.triggersDestroyed,
+            codeBlockLanguageControllersCreated: codeBlockLanguage.controllersCreated,
+            codeBlockLanguageControllersCurrent: codeBlockLanguage.controllersCurrent,
+            codeBlockLanguageControllersMaximum: codeBlockLanguage.controllersMaximum,
+            codeBlockLanguageControllersDestroyed: codeBlockLanguage.controllersDestroyed,
+            codeBlockLanguagePopupsCreated: codeBlockLanguage.popupsCreated,
+            codeBlockLanguagePopupsCurrent: codeBlockLanguage.popupsCurrent,
+            codeBlockLanguagePopupsMaximum: codeBlockLanguage.popupsMaximum,
+        codeBlockLanguagePopupsDestroyed: codeBlockLanguage.popupsDestroyed,
+        codeBlockLanguageResolverOperations: codeBlockLanguage.resolverOperations,
+        codeBlockLanguageOptionMaterializationOperations:
+          codeBlockLanguage.optionMaterializationOperations,
+        codeBlockLanguageGeometryOperations: codeBlockLanguage.geometryOperations,
+        codeBlockLanguageOwnerScanOperations: codeBlockLanguage.ownerScanOperations,
             domMathCount: editor.view.dom.querySelectorAll('.math-inline, .math-block').length,
             domDeferredMathBlockCount: editor.view.dom.querySelectorAll('.math-block-render-placeholder').length,
             domImageCount: editor.view.dom.querySelectorAll('.image-node-wrapper').length,

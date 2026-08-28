@@ -2,11 +2,49 @@ import { describe, expect, it, vi } from 'vitest';
 import { BoundedKatexRenderCache } from '../shared/editor/extensions/katexRenderCache';
 import { areNodeViewAttributesEqual } from '../shared/editor/extensions/nodeViewUpdate';
 import {
+  createCodeBlockLanguageChoices,
+  EditorScopedControllerRegistry,
+} from '../shared/editor/extensions/CodeBlockLanguageController';
+import {
   attachMaterializationTriggers,
   createViewportMaterializer,
 } from '../shared/editor/extensions/viewportMaterializer';
 
 describe('rich NodeView no-op boundaries', () => {
+  it('keeps auto distinct from empty, Unicode, custom, and literal null languages', () => {
+    const supported = ['typescript', 'null'];
+    expect(createCodeBlockLanguageChoices(null, supported).map(({ value }) => value))
+      .toEqual([null, 'typescript', 'null']);
+    expect(createCodeBlockLanguageChoices('', supported).map(({ value }) => value))
+      .toEqual([null, '', 'typescript', 'null']);
+    expect(createCodeBlockLanguageChoices('custom:언어', supported).map(({ value }) => value))
+      .toEqual([null, 'custom:언어', 'typescript', 'null']);
+    expect(createCodeBlockLanguageChoices('null', supported).map(({ value }) => value))
+      .toEqual([null, 'typescript', 'null']);
+  });
+
+  it('isolates singleton controllers per editor and destroys each after its last release', () => {
+    const registry = new EditorScopedControllerRegistry<object, { destroy(): void }>();
+    const firstEditor = {};
+    const secondEditor = {};
+    const firstController = { destroy: vi.fn() };
+    const secondController = { destroy: vi.fn() };
+    const first = registry.acquire(firstEditor, () => firstController);
+    const firstAgain = registry.acquire(firstEditor, () => ({ destroy: vi.fn() }));
+    const second = registry.acquire(secondEditor, () => secondController);
+
+    expect(first.controller).toBe(firstAgain.controller);
+    expect(second.controller).not.toBe(first.controller);
+    first.release();
+    first.release();
+    expect(firstController.destroy).not.toHaveBeenCalled();
+    firstAgain.release();
+    expect(firstController.destroy).toHaveBeenCalledOnce();
+    expect(secondController.destroy).not.toHaveBeenCalled();
+    second.release();
+    expect(secondController.destroy).toHaveBeenCalledOnce();
+  });
+
   it('recognizes equivalent scalar attrs without trusting key order', () => {
     expect(areNodeViewAttributesEqual(
       { id: 'figure-1', caption: 'Overview', align: 'center' },

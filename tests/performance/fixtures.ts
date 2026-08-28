@@ -226,9 +226,16 @@ const createMixedRichBlock = (next: () => number, index: number): TiptapNode => 
     };
   }
   if (slot < 85) {
+    const language = index === 80
+      ? 'null'
+      : index === 81
+        ? 'custom:언어'
+        : index === 82
+          ? ''
+          : 'typescript';
     return {
       type: 'codeBlock',
-      attrs: { language: 'typescript', id: `mixed-code-${index}` },
+      attrs: { language, id: `mixed-code-${index}` },
       content: [{ type: 'text', text: `export const mixed${index} = ${next() % 10_000};` }],
     };
   }
