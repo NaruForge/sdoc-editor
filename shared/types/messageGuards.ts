@@ -245,6 +245,15 @@ const isDocumentMutation = (value: unknown): boolean =>
   && isRecord(value.meta)
   && (value.documentSettings === null || isRecord(value.documentSettings));
 
+const isDocumentComponentRevisions = (value: unknown): boolean =>
+  isRecord(value)
+  && ['content', 'metadata', 'settings'].every((key) => {
+    const revision = value[key];
+    return typeof revision === 'number'
+      && Number.isSafeInteger(revision)
+      && revision >= 0;
+  });
+
 const isContractDiagnostics = (value: unknown): boolean =>
   Array.isArray(value)
   && value.length > 0
@@ -421,6 +430,7 @@ export function isEditorToHostMessage(value: unknown): value is EditorToHostMess
         && hasString(value, 'editId')
         && hasNumber(value, 'baseRevision')
         && hasNumber(value, 'localGeneration')
+        && isDocumentComponentRevisions(value.componentRevisions)
         && isDocumentMutation(value.mutation)
         && (value.flushRequestId === undefined || hasString(value, 'flushRequestId'));
     case 'applyTemplate':
@@ -571,6 +581,9 @@ export function isHostToEditorMessage(value: unknown): value is HostToEditorMess
     case 'testApplyLocalizedMutation':
       return hasString(value, 'sessionId') && hasString(value, 'documentId')
         && isNonNegativeInteger(value.blockIndex);
+    case 'testApplyMetadataMutation':
+      return hasString(value, 'sessionId') && hasString(value, 'documentId')
+        && hasString(value, 'title') && String(value.title).length <= 200;
     case 'init':
       return hasString(value, 'sessionId') && hasString(value, 'documentId')
         && hasNumber(value, 'revision')

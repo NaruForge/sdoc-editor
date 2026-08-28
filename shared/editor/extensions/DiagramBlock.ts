@@ -7,6 +7,7 @@ import {
   type DiagramRenderState,
 } from '../diagram';
 import { NOOP_EDITOR_EXTENSION_RUNTIME, type EditorExtensionOptions } from '../extensionRuntime';
+import { areNodeViewAttributesEqual } from './nodeViewUpdate';
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
@@ -208,6 +209,10 @@ export const DiagramBlock = Node.create<EditorExtensionOptions, DiagramBlockStor
         dom,
         update(updatedNode) {
           if (updatedNode.type.name !== 'diagram') return false;
+          if (areNodeViewAttributesEqual(node.attrs, updatedNode.attrs)) {
+            node = updatedNode;
+            return true;
+          }
           node = updatedNode;
           badge.textContent = resolveDiagramLanguage(updatedNode.attrs.language);
           coordinator.setInput(updatedNode.attrs.language, updatedNode.attrs.code);

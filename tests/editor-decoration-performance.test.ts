@@ -9,6 +9,7 @@ import { NOOP_EDITOR_EXTENSION_RUNTIME } from '../shared/editor/extensionRuntime
 import {
   buildSectionFoldDecorations,
   createSectionFoldPlugin,
+  createTiptapExtensions,
   type SectionFoldState,
 } from '../shared/editor/extensions/tiptapExtensions';
 import {
@@ -16,6 +17,12 @@ import {
   type LowlightLike,
   type OptimizedLowlightState,
 } from '../shared/editor/extensions/optimizedLowlightPlugin';
+import { createDocumentStructureIndexPlugin } from '../shared/editor/structureIndex';
+import { resolveEditorSettings } from '../shared/settingsResolver';
+import {
+  installTestOnlyEditorPerformanceProbe,
+  measureEditorPerformanceProbe,
+} from '../shared/editor/performanceInstrumentation';
 
 const stableHeadingIds = Extension.create({
   name: 'stableHeadingIds',
@@ -34,6 +41,14 @@ const decorationSignature = (decorations: DecorationSet): unknown[] => decoratio
   };
 });
 
+const numberingDecorationSignature = (decorations: DecorationSet): unknown[] =>
+  decorations.find().map((decoration) => ({
+    from: decoration.from,
+    to: decoration.to,
+    label: (decoration.type as unknown as { attrs?: Record<string, string> })
+      .attrs?.['data-number-label'],
+  }));
+
 const findTopLevelPosition = (
   doc: ProseMirrorNode,
   predicate: (node: ProseMirrorNode) => boolean,
@@ -45,6 +60,36 @@ const findTopLevelPosition = (
   if (match < 0) throw new Error('Expected top-level node was not found');
   return match;
 };
+
+describe('editor performance probe costs', () => {
+  it('evaluates lazy decoration counts only while the test probe is enabled', () => {
+    const decorations = {
+      find: vi.fn(() => [{}, {}, {}] as Decoration[]),
+    } satisfies Pick<DecorationSet, 'find'>;
+    const operation = vi.fn(() => 'mapped');
+
+    expect(measureEditorPerformanceProbe(
+      'section-fold-decoration-map',
+      () => decorations.find().length,
+      operation,
+    )).toBe('mapped');
+    expect(decorations.find).not.toHaveBeenCalled();
+
+    const samples: Array<{ operationCount: number }> = [];
+    const uninstall = installTestOnlyEditorPerformanceProbe((sample) => samples.push(sample));
+    try {
+      expect(measureEditorPerformanceProbe(
+        'section-fold-decoration-map',
+        () => decorations.find().length,
+        operation,
+      )).toBe('mapped');
+      expect(decorations.find).toHaveBeenCalledOnce();
+      expect(samples).toEqual([expect.objectContaining({ operationCount: 3 })]);
+    } finally {
+      uninstall();
+    }
+  });
+});
 
 describe('section-fold decorations', () => {
   it('gives anonymous heading widgets distinct fallback identities', () => {
@@ -412,6 +457,81 @@ describe('section-fold decorations', () => {
     expect(redo(state, (transaction) => { state = state.apply(transaction); })).toBe(true);
     current = plugin.getState(state)!;
     expect(current.collapsed.has(`pos:${shiftedHeadingPos}`)).toBe(true);
+  });
+});
+
+describe('semantic numbering projection mapping', () => {
+  const createNumberingState = (headingId: string | null) => {
+    const settings = resolveEditorSettings();
+    const runtime = { ...NOOP_EDITOR_EXTENSION_RUNTIME, getSettings: () => settings };
+    const extensions = createTiptapExtensions(runtime);
+    const schema = getSchema(extensions);
+    const semanticExtension = extensions.find((extension) => extension.name === 'semanticNumbering');
+    const semanticPlugin = semanticExtension?.config.addProseMirrorPlugins
+      ?.call(semanticExtension)?.[0];
+    if (!semanticPlugin) throw new Error('semantic numbering plugin was not created');
+    const structurePlugin = createDocumentStructureIndexPlugin({ getSettings: () => settings });
+    const doc = schema.nodeFromJSON({
+      type: 'doc',
+      content: [
+        { type: 'paragraph', content: [{ type: 'text', text: 'Body' }] },
+        {
+          type: 'heading',
+          attrs: { level: 1, id: headingId },
+          content: [{ type: 'text', text: 'First' }],
+        },
+        {
+          type: 'heading',
+          attrs: { level: 2, id: headingId ? `${headingId}-child` : null },
+          content: [{ type: 'text', text: 'Second' }],
+        },
+      ],
+    });
+    return {
+      schema,
+      settings,
+      semanticPlugin,
+      state: EditorState.create({ schema, doc, plugins: [structurePlugin, semanticPlugin] }),
+    };
+  };
+
+  it('maps stable heading positions exactly like a fresh full-build oracle', () => {
+    const fixture = createNumberingState('stable-heading');
+    const samples: string[] = [];
+    const uninstall = installTestOnlyEditorPerformanceProbe((sample) => samples.push(sample.name));
+    const state = fixture.state.apply(fixture.state.tr.insertText('x', 2));
+    uninstall();
+
+    const current = fixture.semanticPlugin.getState(state) as { decorations: DecorationSet };
+    const oracleState = EditorState.create({
+      schema: fixture.schema,
+      doc: state.doc,
+      plugins: [fixture.semanticPlugin],
+    });
+    const oracle = fixture.semanticPlugin.getState(oracleState) as { decorations: DecorationSet };
+
+    expect(numberingDecorationSignature(current.decorations))
+      .toEqual(numberingDecorationSignature(oracle.decorations));
+    expect(samples.filter((name) => name === 'structure-index-build')).toHaveLength(0);
+  });
+
+  it('keeps anonymous heading decorations exact through the generic map path', () => {
+    const fixture = createNumberingState(null);
+    const samples: string[] = [];
+    const uninstall = installTestOnlyEditorPerformanceProbe((sample) => samples.push(sample.name));
+    const state = fixture.state.apply(fixture.state.tr.insertText('x', 2));
+    uninstall();
+
+    const current = fixture.semanticPlugin.getState(state) as { decorations: DecorationSet };
+    const oracleState = EditorState.create({
+      schema: fixture.schema,
+      doc: state.doc,
+      plugins: [fixture.semanticPlugin],
+    });
+    const oracle = fixture.semanticPlugin.getState(oracleState) as { decorations: DecorationSet };
+    expect(numberingDecorationSignature(current.decorations))
+      .toEqual(numberingDecorationSignature(oracle.decorations));
+    expect(samples.filter((name) => name === 'structure-index-build')).toHaveLength(0);
   });
 });
 

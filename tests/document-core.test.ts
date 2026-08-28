@@ -12,6 +12,8 @@ import {
 import type { TiptapNode } from '../shared/types';
 import {
   assertPersistedDocument,
+  assertPersistedDocumentComponents,
+  assertPersistedDocumentMetadata,
   parseDocumentContract,
   parseDocumentTextContract,
   validateDocumentSettings,
@@ -70,6 +72,63 @@ const text = (value: string, href?: string): TiptapNode => ({
 });
 
 describe('sdoc envelope', () => {
+  it('keeps compositional metadata/doc validation bidirectionally equivalent to full validation', () => {
+    const metadataCandidates: unknown[] = [
+      {},
+      {
+        title: 'Canonical', author: '', version: '0.1',
+        created: '2026-01-01T00:00:00.000Z', modified: '2026-01-02T00:00:00.000Z',
+      },
+      { title: 'Portable', custom: { nested: ['retained', 2] } },
+      { modified: 'not-a-date' },
+      { settings: { captionStyle: 'unsupported' } },
+      { settings: { headingNumbering: true, unexpected: true } },
+      { template: { id: 'x'.repeat(129) } },
+      null,
+      [],
+    ];
+    const documentCandidates: unknown[] = [
+      { type: 'doc', content: [] },
+      {
+        type: 'doc',
+        content: Array.from({ length: 32 }, (_, index) => ({
+          type: 'paragraph',
+          attrs: { textAlign: index % 2 === 0 ? null : 'left' },
+          content: [{ type: 'text', text: `Paragraph ${index}` }],
+        })),
+      },
+      { type: 'doc', content: [{ type: 'heading', attrs: { level: 2 }, content: [] }] },
+      { type: 'doc', content: [{ type: 'script' }] },
+      { type: 'doc', content: [{ type: 'paragraph', attrs: { unexpected: true } }] },
+      { type: 'doc', content: 'not-an-array' },
+      { type: 'paragraph', content: [] },
+      null,
+    ];
+    const accepts = (operation: () => void): boolean => {
+      try {
+        operation();
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
+    for (const meta of metadataCandidates) {
+      const fullWithCachedValidDoc = accepts(() => assertPersistedDocument({
+        sdoc: '1.0', meta, doc: { type: 'doc', content: [] },
+      }));
+      expect(
+        accepts(() => assertPersistedDocumentMetadata(meta)),
+        `metadata-only: ${JSON.stringify(meta)}`,
+      ).toBe(fullWithCachedValidDoc);
+      for (const doc of documentCandidates) {
+        const full = accepts(() => assertPersistedDocument({ sdoc: '1.0', meta, doc }));
+        const components = accepts(() => assertPersistedDocumentComponents(meta, doc));
+        expect(components, JSON.stringify({ meta, doc })).toBe(full);
+      }
+    }
+  });
+
   it('accepts canonical single-line endnotes and rejects malformed bodies', () => {
     const documentWithEndnote = (attrs: Record<string, unknown>): unknown => wrapSdoc({
       type: 'doc',

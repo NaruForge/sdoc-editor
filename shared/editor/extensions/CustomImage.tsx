@@ -1,5 +1,6 @@
 import { Image } from '@tiptap/extension-image';
 import { NOOP_EDITOR_EXTENSION_RUNTIME, type EditorExtensionOptions } from '../extensionRuntime';
+import { areNodeViewAttributesEqual } from './nodeViewUpdate';
 
 /**
  * Legacy fallback: reconstruct the "./images/..." or "./drawio/..." relative path from an
@@ -118,6 +119,8 @@ export const CustomImage = Image.extend<EditorExtensionOptions>({
 
       const img = document.createElement('img');
       img.setAttribute('draggable', 'false');
+      img.loading = 'lazy';
+      img.decoding = 'async';
       imageContainer.appendChild(alignToolbar);
       imageContainer.appendChild(img);
 
@@ -403,6 +406,10 @@ export const CustomImage = Image.extend<EditorExtensionOptions>({
 
         update(updatedNode) {
           if (updatedNode.type !== currentNode.type) return false;
+          if (areNodeViewAttributesEqual(currentNode.attrs, updatedNode.attrs)) {
+            currentNode = updatedNode;
+            return true;
+          }
           currentNode = updatedNode;
           refreshCaption();
           refreshImage();

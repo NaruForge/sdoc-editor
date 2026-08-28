@@ -3,6 +3,7 @@ import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import highlight from 'highlight.js/lib/core';
 import { isPlainParagraphTextTransaction } from '../structureIndex';
+import { measureEditorPerformanceProbe } from '../performanceInstrumentation';
 
 // Highlight-tree compatibility follows @tiptap/extension-code-block-lowlight
 // 3.30.2 (MIT, Copyright 2025 Tiptap GmbH); see THIRD_PARTY_NOTICES.md.
@@ -123,14 +124,18 @@ export const createOptimizedLowlightPlugin = (
         if (!transaction.docChanged) return previous;
         if (isPlainParagraphTextTransaction(transaction)) {
           return {
-            decorations: previous.decorations.map(transaction.mapping, transaction.doc),
+            decorations: measureEditorPerformanceProbe(
+              'lowlight-decoration-map',
+              () => previous.decorations.find().length,
+              () => previous.decorations.map(transaction.mapping, transaction.doc),
+            ),
             documentScanCount: previous.documentScanCount,
           };
         }
-        return {
+        return measureEditorPerformanceProbe('lowlight-rebuild', transaction.doc.nodeSize, () => ({
           decorations: buildLowlightDecorations(transaction.doc, options),
           documentScanCount: previous.documentScanCount + 1,
-        };
+        }));
       },
     },
     props: {

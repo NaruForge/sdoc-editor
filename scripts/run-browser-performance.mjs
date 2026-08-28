@@ -8,7 +8,13 @@ const playwrightCli = require.resolve('@playwright/test/cli');
 const corpusArgument = process.argv.find((argument) => argument.startsWith('--corpus='));
 const corpus = corpusArgument?.slice('--corpus='.length) || 'text-5k';
 const port = process.env.SDOC_BROWSER_PERF_PORT || '4407';
-const supportedCorpora = new Set(['text-5k', 'text-10k', 'structure-10k']);
+const supportedCorpora = new Set([
+  'text-5k',
+  'text-10k',
+  'structure-10k',
+  'rich-mixed-5k',
+  'rich-balanced-5k',
+]);
 if (!supportedCorpora.has(corpus)) {
   throw new Error(`Unsupported browser performance corpus: ${corpus}`);
 }

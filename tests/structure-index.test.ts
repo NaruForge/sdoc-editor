@@ -1,6 +1,6 @@
 import { Extension, Node, getSchema } from '@tiptap/core';
 import { StarterKit } from '@tiptap/starter-kit';
-import { EditorState, type Transaction } from '@tiptap/pm/state';
+import { EditorState, TextSelection, type Transaction } from '@tiptap/pm/state';
 import type { EditorView, PluginView } from '@tiptap/pm/view';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { resolveEditorSettings } from '../shared/settingsResolver';
@@ -9,11 +9,15 @@ import { NOOP_EDITOR_EXTENSION_RUNTIME } from '../shared/editor/extensionRuntime
 import {
   STRUCTURE_INDEX_REBUILD_DELAY_MS,
   createDocumentStructureIndexPlugin,
+  documentStructureIndexKey,
   ensureStructureIndexFresh,
   getDocumentStructureIndexState,
+  isPlainParagraphTextTransaction,
   requestStructureIndexSettingsRefresh,
+  resolveStructurePosition,
   subscribeToDocumentStructureIndex,
 } from '../shared/editor/structureIndex';
+import { installTestOnlyEditorPerformanceProbe } from '../shared/editor/performanceInstrumentation';
 
 const createState = () => {
   const schema = getSchema([StarterKit]);
@@ -33,6 +37,136 @@ describe('document structure index', () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
+  });
+
+  it('classifies only one direct text-only paragraph ReplaceStep and shares the result', () => {
+    const state = createState();
+    let paragraphPos = -1;
+    state.doc.descendants((node, pos) => {
+      if (paragraphPos < 0 && node.type.name === 'paragraph') paragraphPos = pos;
+    });
+    const transaction = state.tr.insertText('x', paragraphPos + 2);
+    const samples: string[] = [];
+    const uninstall = installTestOnlyEditorPerformanceProbe((sample) => samples.push(sample.name));
+
+    expect(isPlainParagraphTextTransaction(transaction)).toBe(true);
+    expect(isPlainParagraphTextTransaction(transaction)).toBe(true);
+    expect(isPlainParagraphTextTransaction(transaction)).toBe(true);
+    expect(samples.filter((name) => name === 'structure-index-classifier')).toHaveLength(1);
+
+    uninstall();
+  });
+
+  it('rejects multi-step, split, mark, rich-inline, and structural paragraph changes', () => {
+    const state = createState();
+    let paragraphPos = -1;
+    state.doc.descendants((node, pos) => {
+      if (paragraphPos < 0 && node.type.name === 'paragraph') paragraphPos = pos;
+    });
+    const textPos = paragraphPos + 2;
+    expect(isPlainParagraphTextTransaction(
+      state.tr.insertText('x', textPos).insertText('y', textPos + 1),
+    )).toBe(false);
+    expect(isPlainParagraphTextTransaction(state.tr.split(textPos))).toBe(false);
+    expect(isPlainParagraphTextTransaction(state.tr.addMark(
+      textPos,
+      textPos + 1,
+      state.schema.marks.bold.create(),
+    ))).toBe(false);
+    expect(isPlainParagraphTextTransaction(state.tr.setBlockType(
+      paragraphPos + 1,
+      paragraphPos + 2,
+      state.schema.nodes.heading,
+      { level: 2 },
+    ))).toBe(false);
+    expect(isPlainParagraphTextTransaction(
+      state.tr.setSelection(TextSelection.create(state.doc, textPos)),
+    )).toBe(false);
+
+    const joinedDoc = state.schema.node('doc', null, [
+      state.schema.node('paragraph', null, state.schema.text('One')),
+      state.schema.node('paragraph', null, state.schema.text('Two')),
+    ]);
+    const joinedState = EditorState.create({ schema: state.schema, doc: joinedDoc });
+    expect(isPlainParagraphTextTransaction(joinedState.tr.join(joinedDoc.child(0).nodeSize))).toBe(false);
+
+    const nestedDoc = state.schema.node('doc', null, [
+      state.schema.node('blockquote', null, [
+        state.schema.node('paragraph', null, state.schema.text('Nested')),
+      ]),
+    ]);
+    const nestedState = EditorState.create({ schema: state.schema, doc: nestedDoc });
+    expect(isPlainParagraphTextTransaction(nestedState.tr.insertText('x', 2))).toBe(false);
+
+    const linkedDoc = state.schema.node('doc', null, [
+      state.schema.node('paragraph', null, state.schema.text(
+        'Linked',
+        [state.schema.marks.link.create({ href: '#heading-one' })],
+      )),
+    ]);
+    const linkedState = EditorState.create({ schema: state.schema, doc: linkedDoc });
+    expect(isPlainParagraphTextTransaction(linkedState.tr.insertText('x', 2))).toBe(false);
+
+    const paragraphIds = Extension.create({
+      name: 'paragraphIds',
+      addGlobalAttributes() {
+        return [{ types: ['paragraph'], attributes: { id: { default: null } } }];
+      },
+    });
+    const idSchema = getSchema([StarterKit, paragraphIds]);
+    const idState = EditorState.create({
+      schema: idSchema,
+      doc: idSchema.node('doc', null, [
+        idSchema.node('paragraph', { id: 'stable' }, idSchema.text('Body')),
+      ]),
+    });
+    expect(isPlainParagraphTextTransaction(idState.tr.insertText('x', 2))).toBe(true);
+    expect(isPlainParagraphTextTransaction(idState.tr.setNodeMarkup(
+      0,
+      undefined,
+      { id: 'changed' },
+    ))).toBe(false);
+
+    const richDoc = state.schema.node('doc', null, [
+      state.schema.node('paragraph', null, [
+        state.schema.text('before'),
+        state.schema.node('hardBreak'),
+        state.schema.text('after'),
+      ]),
+    ]);
+    const richState = EditorState.create({ schema: state.schema, doc: richDoc });
+    expect(isPlainParagraphTextTransaction(richState.tr.insertText('x', 2))).toBe(false);
+  });
+
+  it('reuses semantic projection identity and lazily resolves shifted positions', () => {
+    const schema = getSchema([StarterKit, Extension.create({
+      name: 'stableHeadingIds',
+      addGlobalAttributes() {
+        return [{ types: ['heading'], attributes: { id: { default: null } } }];
+      },
+    })]);
+    const settings = resolveEditorSettings();
+    const plugin = createDocumentStructureIndexPlugin({ getSettings: () => settings });
+    let state = EditorState.create({
+      schema,
+      plugins: [plugin],
+      doc: schema.node('doc', null, [
+        schema.node('paragraph', null, schema.text('Body')),
+        schema.node('heading', { level: 1, id: 'later' }, schema.text('Later')),
+      ]),
+    });
+    const initialRaw = documentStructureIndexKey.getState(state)!;
+    const initialPosition = resolveStructurePosition(state, 'later')!;
+
+    state = state.apply(state.tr.insertText('x', 2));
+    const nextRaw = documentStructureIndexKey.getState(state)!;
+
+    expect(nextRaw.entries).toBe(initialRaw.entries);
+    expect(nextRaw.headings).toBe(initialRaw.headings);
+    expect(nextRaw.byId).toBe(initialRaw.byId);
+    expect(nextRaw.semanticRevision).toBe(initialRaw.semanticRevision);
+    expect(resolveStructurePosition(state, 'later')).toBe(initialPosition + 1);
+    expect(getDocumentStructureIndexState(state).headings[0]?.pos).toBe(initialPosition + 1);
   });
 
   it('marks heading changes dirty and ensureFresh synchronously rebuilds the projection', () => {

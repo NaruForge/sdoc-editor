@@ -14,6 +14,7 @@ import type {
 import type { TemplateDescriptor, TemplateStructuralPreview } from '../template';
 import type { TemplateCatalogDiagnosticView } from '../template/catalogView';
 import type {
+  DocumentComponentRevisions,
   DocumentMutation,
   DocumentMutationErrorCode,
 } from '../persistence/DocumentSyncCoordinator';
@@ -352,6 +353,14 @@ export interface TestApplyLocalizedMutationMessage {
   blockIndex: number;
 }
 
+/** Extension-host test seam; ignored unless the webview was initialized in test mode. */
+export interface TestApplyMetadataMutationMessage {
+  type: 'testApplyMetadataMutation';
+  sessionId: string;
+  documentId: string;
+  title: string;
+}
+
 export interface FileOperationPreflightMessage {
   type: 'fileOperationPreflight';
   requestId: FileOperationRequestId;
@@ -457,6 +466,7 @@ export type ExtensionToWebviewMessage =
   | DrawioFileUpdatedMessage
   | RequestFlushMessage
   | TestApplyLocalizedMutationMessage
+  | TestApplyMetadataMutationMessage
   | FileOperationPreflightMessage
   | FileOperationStatusMessage
   | FileOperationResultActionStatusMessage
@@ -577,6 +587,7 @@ export interface EditMessage {
   editId: string;
   baseRevision: number;
   localGeneration: number;
+  componentRevisions: DocumentComponentRevisions;
   flushRequestId?: string;
   mutation: DocumentMutation;
 }

@@ -2,10 +2,13 @@ import { describe, expect, it, vi } from 'vitest';
 import { Extension, getSchema } from '@tiptap/core';
 import { StarterKit } from '@tiptap/starter-kit';
 import { EditorState, type Transaction } from '@tiptap/pm/state';
+import { history, redo, undo } from '@tiptap/pm/history';
 import type { EditorView, PluginView } from '@tiptap/pm/view';
 import {
   buildOutlinePresentationIndex,
+  buildDocumentStructureIndex,
   createDocumentStructureIndexPlugin,
+  documentStructureIndexKey,
   findActivePosition,
   getDocumentStructureIndexState,
   resolveStructurePosition,
@@ -73,8 +76,54 @@ describe('large document structure lookup', () => {
     expect(resolveStructurePosition(state, 'stable-heading')).toBe(initialPosition! + 100);
     expect(resolveStructurePosition(state, 'stable-endnote')).toBe(initialEndnotePosition! + 100);
 
+    const oracle = buildDocumentStructureIndex(state.doc, settings);
+    expect(current.entries).toEqual(oracle.entries);
+    expect([...current.byId]).toEqual([...oracle.byId]);
+    expect(documentStructureIndexKey.getState(state)?.pendingPositionMapCount).toBeLessThanOrEqual(32);
+
     unsubscribe();
     pluginView?.destroy?.();
+  });
+
+  it('keeps lazy structure positions exact through composition, selection, undo, and redo', () => {
+    const stableHeadingIds = Extension.create({
+      name: 'stableHeadingIdsForHistory',
+      addGlobalAttributes() {
+        return [{ types: ['heading'], attributes: { id: { default: null } } }];
+      },
+    });
+    const schema = getSchema([StarterKit, stableHeadingIds]);
+    const settings = resolveEditorSettings();
+    const plugin = createDocumentStructureIndexPlugin({ getSettings: () => settings });
+    let state = EditorState.create({
+      schema,
+      plugins: [history(), plugin],
+      doc: schema.node('doc', null, [
+        schema.node('paragraph', null, schema.text('Body')),
+        schema.node('heading', { level: 1, id: 'target' }, schema.text('Target')),
+      ]),
+    });
+    const initialPosition = resolveStructurePosition(state, 'target')!;
+    const initialProjection = documentStructureIndexKey.getState(state)!;
+
+    state = state.apply(state.tr.insertText('한', 2).setMeta('composition', 1));
+    expect(resolveStructurePosition(state, 'target')).toBe(initialPosition + 1);
+    expect(documentStructureIndexKey.getState(state)?.entries).toBe(initialProjection.entries);
+
+    const afterSelection = state.apply(state.tr.setSelection(state.selection));
+    expect(documentStructureIndexKey.getState(afterSelection))
+      .toBe(documentStructureIndexKey.getState(state));
+    state = afterSelection;
+
+    expect(undo(state, (transaction) => { state = state.apply(transaction); })).toBe(true);
+    expect(resolveStructurePosition(state, 'target')).toBe(initialPosition);
+    expect(getDocumentStructureIndexState(state).entries)
+      .toEqual(buildDocumentStructureIndex(state.doc, settings).entries);
+
+    expect(redo(state, (transaction) => { state = state.apply(transaction); })).toBe(true);
+    expect(resolveStructurePosition(state, 'target')).toBe(initialPosition + 1);
+    expect(getDocumentStructureIndexState(state).entries)
+      .toEqual(buildDocumentStructureIndex(state.doc, settings).entries);
   });
 
   it('finds active structural entries without rescanning document nodes', () => {

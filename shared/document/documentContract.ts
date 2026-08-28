@@ -4,6 +4,7 @@ import { migrateAttributes } from './migrations';
 import {
   validateDoc,
   validateEnvelope,
+  validateMetadataSchema,
   validateSettingsSchema,
 } from './generated/documentValidators.js';
 import { MAX_DOCUMENT_BYTES } from '../resourceLimits';
@@ -230,6 +231,35 @@ export function assertPersistedDocument(value: unknown): asserts value is SdocEn
       .join('; ');
     throw new Error(`Document violates sdoc.schema.json: ${detail}`);
   }
+}
+
+/**
+ * Equivalent validation for a host-constructed `{ sdoc: '1.0', meta, doc }`
+ * envelope whose root shape and version are constants. This allows an exact,
+ * previously validated document component to be reused while validating only
+ * changed metadata, without weakening either component schema.
+ */
+export function assertPersistedDocumentComponents(meta: unknown, doc: unknown): void {
+  const metaValid = validateMetadataSchema(meta);
+  const metaErrors = metaValid ? [] : diagnostics(validateMetadataSchema.errors)
+    .map((item) => ({ ...item, path: `/meta${item.path === '/' ? '' : item.path}` }));
+  const docValid = validateDoc(doc);
+  const docErrors = docValid ? [] : diagnostics(validateDoc.errors)
+    .map((item) => ({ ...item, path: `/doc${item.path === '/' ? '' : item.path}` }));
+  if (metaValid && docValid) return;
+  const detail = [...metaErrors, ...docErrors]
+    .map((diagnostic) => `${diagnostic.path}: ${diagnostic.message}`)
+    .join('; ');
+  throw new Error(`Document violates sdoc.schema.json: ${detail}`);
+}
+
+/** Validate metadata when the host retains an exact previously validated doc. */
+export function assertPersistedDocumentMetadata(meta: unknown): asserts meta is SdocMeta {
+  if (validateMetadataSchema(meta)) return;
+  const detail = diagnostics(validateMetadataSchema.errors)
+    .map((diagnostic) => `/meta${diagnostic.path === '/' ? '' : diagnostic.path}: ${diagnostic.message}`)
+    .join('; ');
+  throw new Error(`Document violates sdoc.schema.json: ${detail}`);
 }
 
 export function preserveMeta(value: unknown): SdocMeta {

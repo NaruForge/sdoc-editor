@@ -408,7 +408,7 @@ export function useEditorMessages({
             documentId: message.documentId,
             revision: message.revision,
           },
-          send: ({ componentRevisions: _componentRevisions, ...request }) => {
+          send: (request) => {
             if (performanceEnabledRef.current) {
               editPerformanceStartsRef.current.set(request.editId, {
                 startedAt: performance.now(),
@@ -630,6 +630,16 @@ export function useEditorMessages({
         if (!block.isTextblock) break;
         const insertAt = blockStart + 1 + block.content.size;
         ed.view.dispatch(ed.state.tr.insertText(' [localized-vscode-perf]', insertAt));
+        break;
+      }
+      case 'testApplyMetadataMutation': {
+        const session = persistenceSessionRef.current;
+        const coordinator = syncCoordinatorRef.current;
+        const current = coordinator?.state.localMutation;
+        if (!performanceEnabledRef.current || !session || !coordinator || !current
+          || message.sessionId !== session.sessionId
+          || message.documentId !== session.documentId) break;
+        coordinator.submitMetadata({ ...current.meta, title: message.title });
         break;
       }
       case 'editAcknowledged':

@@ -1,6 +1,7 @@
 import { Node, mergeAttributes, InputRule } from '@tiptap/core';
-import katex from 'katex';
 import { NOOP_EDITOR_EXTENSION_RUNTIME, type EditorExtensionOptions } from '../extensionRuntime';
+import { renderKatexCached as renderKatex } from './katexRenderCache';
+import { areNodeViewAttributesEqual } from './nodeViewUpdate';
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
@@ -41,6 +42,7 @@ export const MathInline = Node.create<EditorExtensionOptions>({
   addNodeView() {
     const runtime = this.options.runtime;
     return ({ node, getPos, editor }) => {
+      let currentNode = node;
       let currentLatex = node.attrs.latex;
       let isEditing = false;
 
@@ -97,18 +99,6 @@ export const MathInline = Node.create<EditorExtensionOptions>({
       dialogBtn.textContent = `⬒ ${runtime.translate('math.dialog')}`;
       dialogBtn.title = runtime.translate('math.editDialog');
       toolbar.appendChild(dialogBtn);
-
-      const renderKatex = (latex: string, target: HTMLElement, displayMode: boolean) => {
-        try {
-          katex.render(latex || '\\square', target, {
-            throwOnError: false,
-            displayMode,
-            output: 'htmlAndMathml',
-          });
-        } catch {
-          target.textContent = latex;
-        }
-      };
 
       const stripDelimiters = (raw: string): string => {
         const v = raw.trim();
@@ -249,7 +239,12 @@ export const MathInline = Node.create<EditorExtensionOptions>({
       return {
         dom,
         update(updatedNode) {
-          if (updatedNode.type !== node.type) return false;
+          if (updatedNode.type !== currentNode.type) return false;
+          if (areNodeViewAttributesEqual(currentNode.attrs, updatedNode.attrs)) {
+            currentNode = updatedNode;
+            return true;
+          }
+          currentNode = updatedNode;
           currentLatex = updatedNode.attrs.latex;
           if (!isEditing) renderKatex(currentLatex, rendered, false);
           return true;

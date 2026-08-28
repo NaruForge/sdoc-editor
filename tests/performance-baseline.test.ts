@@ -41,7 +41,7 @@ describe('performance baseline corpora', () => {
       expect(first.envelope.doc.content).toHaveLength(first.topLevelBlocks);
       expect(parsed.ok).toBe(true);
     }
-  });
+  }, 15_000); // Rich 5k fixtures are generated twice and fully schema-validated on CI.
 
   it('keeps text, structure, and rich axes distinguishable by node operations', () => {
     const text = createAcceptedPerformanceCorpus('text-5k');
@@ -54,6 +54,37 @@ describe('performance baseline corpora', () => {
     expect(new Set([text.axis, structure.axis, rich.axis])).toEqual(
       new Set(['text', 'structure', 'rich']),
     );
+  });
+
+  it('keeps the two 5k rich browser corpora reproducible without weakening their mix', () => {
+    const mixed = createAcceptedPerformanceCorpus('rich-mixed-5k');
+    const balanced = createAcceptedPerformanceCorpus('rich-balanced-5k');
+    const countTypes = (corpus: typeof mixed): Map<string, number> => {
+      const counts = new Map<string, number>();
+      for (const node of corpus.envelope.doc.content ?? []) {
+        counts.set(node.type, (counts.get(node.type) ?? 0) + 1);
+      }
+      return counts;
+    };
+
+    expect(mixed.topLevelBlocks).toBe(5_000);
+    expect(countTypes(mixed)).toEqual(new Map([
+      ['paragraph', 3_500], ['heading', 500], ['codeBlock', 250], ['mathBlock', 200],
+      ['image', 150], ['table', 100], ['diagram', 100], ['callout', 150],
+      ['blockquote', 50],
+    ]));
+    const mixedParagraphChildren = (mixed.envelope.doc.content ?? [])
+      .filter((node) => node.type === 'paragraph')
+      .flatMap((node) => node.content ?? []);
+    expect(mixedParagraphChildren.filter((node) => node.type === 'mathInline')).toHaveLength(300);
+    expect(mixedParagraphChildren.filter((node) => node.type === 'endnote')).toHaveLength(200);
+    expect(balanced.topLevelBlocks).toBe(5_000);
+    expect(countTypes(balanced).get('paragraph')).toBe(1_000);
+    for (const type of ['heading', 'image', 'mathBlock', 'codeBlock', 'diagram', 'table', 'callout', 'blockquote']) {
+      expect(countTypes(balanced).get(type), type).toBe(500);
+    }
+    expect(createAcceptedPerformanceCorpus('rich-mixed-5k').text).toBe(mixed.text);
+    expect(createAcceptedPerformanceCorpus('rich-balanced-5k').text).toBe(balanced.text);
   });
 
   it('keeps rejection fixtures out of accepted corpora and exercises each guardrail', () => {

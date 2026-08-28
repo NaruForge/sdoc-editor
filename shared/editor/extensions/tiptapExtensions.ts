@@ -53,6 +53,10 @@ import {
   type DocumentStructureIndex,
   type DocumentStructureIndexState,
 } from '../structureIndex';
+import {
+  measureEditorPerformanceProbe,
+  recordEditorPerformanceProbe,
+} from '../performanceInstrumentation';
 
 /* ===== Section Fold (Collapse) ===== */
 export interface SectionFoldState {
@@ -202,15 +206,19 @@ const rebuildSectionFoldState = (
   runtime: EditorExtensionRuntime,
   rebuildCount: number,
   controls?: Map<string, HTMLElement>,
-): SectionFoldState => {
+): SectionFoldState => measureEditorPerformanceProbe(
+  'section-fold-rebuild',
+  doc.childCount,
+  () => {
   const { collapsed, anonymousHeadingPositions } = normalizeCollapsedFoldTargets(doc, candidates);
-  return {
+    return {
     collapsed,
     decorations: buildSectionFoldDecorations(doc, collapsed, runtime, controls),
     anonymousHeadingPositions,
     rebuildCount,
-  };
-};
+    };
+  },
+);
 
 export const createSectionFoldPlugin = (runtime: EditorExtensionRuntime): Plugin<SectionFoldState> => {
   const controls = new Map<string, HTMLElement>();
@@ -260,7 +268,11 @@ export const createSectionFoldPlugin = (runtime: EditorExtensionRuntime): Plugin
         return rebuildSectionFoldState(state.doc, new Set(), runtime, 1, controls);
       },
       apply(tr, previous): SectionFoldState {
-        const mappedCollapsed = mapCollapsedFoldTargets(previous.collapsed, tr);
+        const mappedCollapsed = measureEditorPerformanceProbe(
+          'section-fold-map',
+          previous.collapsed.size + previous.anonymousHeadingPositions.size,
+          () => mapCollapsedFoldTargets(previous.collapsed, tr),
+        );
         const meta = tr.getMeta(sectionFoldKey) as unknown;
         if (typeof meta === 'number') {
           const heading = tr.doc.nodeAt(meta);
@@ -282,7 +294,11 @@ export const createSectionFoldPlugin = (runtime: EditorExtensionRuntime): Plugin
           && !anonymousHeadingPositionChanged(previous.anonymousHeadingPositions, tr)) {
           return {
             collapsed: mappedCollapsed,
-            decorations: previous.decorations.map(tr.mapping, tr.doc),
+            decorations: measureEditorPerformanceProbe(
+              'section-fold-decoration-map',
+              () => previous.decorations.find().length,
+              () => previous.decorations.map(tr.mapping, tr.doc),
+            ),
             anonymousHeadingPositions: previous.anonymousHeadingPositions,
             rebuildCount: previous.rebuildCount,
           };
@@ -506,17 +522,27 @@ const BlockIdentity = Extension.create({
       appendTransaction(transactions, _oldState, newState) {
         if (!transactions.some((transaction) => transaction.docChanged)) return null;
         if (transactions.filter((transaction) => transaction.docChanged)
-          .every(isPlainIdentityTextTransaction)) return null;
+          .every(isPlainIdentityTextTransaction)) {
+          recordEditorPerformanceProbe('block-identity-id-scan', 0);
+          return null;
+        }
 
-        const seenIds = new Set<string>();
-        const duplicates: Array<{ node: ProseMirrorNode; pos: number }> = [];
-        newState.doc.descendants((node, pos) => {
-          if (!ID_COLLISION_NODE_TYPES.has(node.type.name)) return;
-          const id = node.attrs.id;
-          if (typeof id !== 'string' || !id) return;
-          if (seenIds.has(id)) duplicates.push({ node, pos });
-          else seenIds.add(id);
-        });
+        const duplicates = measureEditorPerformanceProbe(
+          'block-identity-id-scan',
+          newState.doc.nodeSize,
+          () => {
+            const seenIds = new Set<string>();
+            const found: Array<{ node: ProseMirrorNode; pos: number }> = [];
+            newState.doc.descendants((node, pos) => {
+              if (!ID_COLLISION_NODE_TYPES.has(node.type.name)) return;
+              const id = node.attrs.id;
+              if (typeof id !== 'string' || !id) return;
+              if (seenIds.has(id)) found.push({ node, pos });
+              else seenIds.add(id);
+            });
+            return found;
+          },
+        );
 
         if (duplicates.length === 0) return null;
         const transaction = newState.tr;
@@ -538,17 +564,23 @@ const PersistentNodeIds = Extension.create({
       appendTransaction(transactions, _oldState, newState) {
         if (!transactions.some((transaction) => transaction.docChanged)) return null;
         if (transactions.filter((transaction) => transaction.docChanged)
-          .every(isPlainParagraphTextTransaction)) return null;
-        const normalized = assignAutoIds(newState.doc.toJSON());
-        const ids: string[] = [];
-        const collect = (node: ReturnType<typeof newState.doc.toJSON>): void => {
-          if ((REFERENCEABLE_NODE_TYPES.has(node.type) || REQUIRED_IDENTITY_NODE_TYPES.has(node.type))
-            && typeof node.attrs?.id === 'string') {
-            ids.push(node.attrs.id);
-          }
-          node.content?.forEach(collect);
-        };
-        collect(normalized);
+          .every(isPlainParagraphTextTransaction)) {
+          recordEditorPerformanceProbe('persistent-id-scan', 0);
+          return null;
+        }
+        const ids = measureEditorPerformanceProbe('persistent-id-scan', newState.doc.nodeSize, () => {
+          const normalized = assignAutoIds(newState.doc.toJSON());
+          const collected: string[] = [];
+          const collect = (node: ReturnType<typeof newState.doc.toJSON>): void => {
+            if ((REFERENCEABLE_NODE_TYPES.has(node.type) || REQUIRED_IDENTITY_NODE_TYPES.has(node.type))
+              && typeof node.attrs?.id === 'string') {
+              collected.push(node.attrs.id);
+            }
+            node.content?.forEach(collect);
+          };
+          collect(normalized);
+          return collected;
+        });
 
         let index = 0;
         let changed = false;
@@ -647,6 +679,16 @@ const SemanticNumbering = Extension.create<EditorExtensionOptions>({
           };
         },
         apply(transaction, previous, _oldState, newState): SemanticNumberingState {
+          if (transaction.docChanged && isPlainParagraphTextTransaction(transaction)) {
+            return {
+              decorations: measureEditorPerformanceProbe(
+                'semantic-numbering-decoration-map',
+                () => previous.decorations.find().length,
+                () => previous.decorations.map(transaction.mapping, newState.doc),
+              ),
+              semanticRevision: previous.semanticRevision,
+            };
+          }
           const managedIndex = documentStructureIndexKey.getState(newState);
           if (!managedIndex) {
             const fallback = buildDocumentStructureIndex(newState.doc, runtime.getSettings());
@@ -660,14 +702,22 @@ const SemanticNumbering = Extension.create<EditorExtensionOptions>({
           if (previous.semanticRevision === semanticRevision) {
             if (!transaction.docChanged) return previous;
             return {
-              decorations: previous.decorations.map(transaction.mapping, newState.doc),
+              decorations: measureEditorPerformanceProbe(
+                'semantic-numbering-decoration-map',
+                () => previous.decorations.find().length,
+                () => previous.decorations.map(transaction.mapping, newState.doc),
+              ),
               semanticRevision: previous.semanticRevision,
             };
           }
-          return {
-            decorations: buildSemanticNumberingDecorations(newState.doc, index),
-            semanticRevision,
-          };
+          return measureEditorPerformanceProbe(
+            'semantic-numbering-rebuild',
+            index.headings.length,
+            () => ({
+              decorations: buildSemanticNumberingDecorations(newState.doc, index),
+              semanticRevision,
+            }),
+          );
         },
       },
       props: {

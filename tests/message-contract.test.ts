@@ -29,6 +29,18 @@ describe('editor host message boundary', () => {
       documentId: 'doc-a',
       blockIndex: 2.5,
     })).toBe(false);
+    expect(isHostToEditorMessage({
+      type: 'testApplyMetadataMutation',
+      sessionId: 'session-1',
+      documentId: 'doc-a',
+      title: 'Measured metadata',
+    })).toBe(true);
+    expect(isHostToEditorMessage({
+      type: 'testApplyMetadataMutation',
+      sessionId: 'session-1',
+      documentId: 'doc-a',
+      title: 42,
+    })).toBe(false);
   });
 
   it('narrows the test-only webview performance round-trip without accepting unsafe values', () => {
@@ -223,12 +235,27 @@ describe('editor host message boundary', () => {
       editId: 'edit-1',
       baseRevision: 1,
       localGeneration: 2,
+      componentRevisions: { content: 2, metadata: 1, settings: 0 },
       mutation: {
         content: { type: 'doc', content: [] },
         meta: {},
         documentSettings: null,
       },
     })).toBe(true);
+    expect(isEditorToHostMessage({
+      type: 'edit',
+      sessionId: 'session-1',
+      documentId: 'doc-a',
+      editId: 'edit-2',
+      baseRevision: 1,
+      localGeneration: 3,
+      componentRevisions: { content: 2, metadata: -1, settings: 0 },
+      mutation: {
+        content: { type: 'doc', content: [] },
+        meta: {},
+        documentSettings: null,
+      },
+    })).toBe(false);
     expect(isEditorToHostMessage({ type: 'selectCssFile', target: 'html' })).toBe(true);
     expect(isEditorToHostMessage({
       type: 'requestTemplateCatalog',

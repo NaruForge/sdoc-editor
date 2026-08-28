@@ -2,6 +2,7 @@ import { Extension } from '@tiptap/core';
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
 import { Plugin, PluginKey, type EditorState, type Transaction } from '@tiptap/pm/state';
 import type { EditorView } from '@tiptap/pm/view';
+import { Mapping, ReplaceStep, type StepMap } from '@tiptap/pm/transform';
 import {
   buildNumberingIndex,
   type NumberedEntry,
@@ -12,8 +13,10 @@ import {
   NOOP_EDITOR_EXTENSION_RUNTIME,
   type EditorExtensionOptions,
 } from './extensionRuntime';
+import { measureEditorPerformanceProbe } from './performanceInstrumentation';
 
 export const STRUCTURE_INDEX_REBUILD_DELAY_MS = 75;
+export const STRUCTURE_INDEX_MAX_PENDING_POSITION_MAPS = 32;
 export const STRUCTURE_INDEX_REFERENCE_SYNC_META = 'structureIndexReferenceSync';
 export const STRUCTURE_INDEX_SETTINGS_REFRESH_META = 'crossRefResync';
 
@@ -54,6 +57,8 @@ export interface DocumentStructureIndexState extends DocumentStructureIndex {
   invalidationRevision: number;
   settingsKey: string;
   pendingSettings: ResolvedEditorSettings;
+  pendingPositionMapCount: number;
+  positionMaps: readonly StepMap[];
 }
 
 interface StructureIndexPluginOptions {
@@ -113,120 +118,213 @@ export function buildDocumentStructureIndex(
   doc: ProseMirrorNode,
   settings: ResolvedEditorSettings,
 ): DocumentStructureIndex {
-  const numbering = buildNumberingIndex(doc.toJSON() as TiptapNode, settings);
-  const entries: DocumentStructureEntry[] = [];
-  const references: DocumentReferenceEntry[] = [];
-  let numberedIndex = 0;
+  return measureEditorPerformanceProbe('structure-index-build', doc.nodeSize, () => {
+    const numbering = buildNumberingIndex(doc.toJSON() as TiptapNode, settings);
+    const entries: DocumentStructureEntry[] = [];
+    const references: DocumentReferenceEntry[] = [];
+    let numberedIndex = 0;
 
-  doc.descendants((node, pos) => {
-    if (isNumberedNode(node)) {
-      const numbered = numbering.entries[numberedIndex++];
-      if (numbered) entries.push(toStructureEntry(numbered, pos));
+    doc.descendants((node, pos) => {
+      if (isNumberedNode(node)) {
+        const numbered = numbering.entries[numberedIndex++];
+        if (numbered) entries.push(toStructureEntry(numbered, pos));
+      }
+      if (!node.isText) return;
+      const link = node.marks.find((mark) =>
+        mark.type.name === 'link'
+        && typeof mark.attrs.href === 'string'
+        && mark.attrs.href.startsWith('#'));
+      if (link) {
+        references.push({
+          targetId: (link.attrs.href as string).slice(1),
+          from: pos,
+          to: pos + node.nodeSize,
+        });
+      }
+    });
+
+    const byId = new Map<string, DocumentStructureEntry>();
+    for (const entry of entries) {
+      if (entry.id) byId.set(entry.id, entry);
     }
-    if (!node.isText) return;
-    const link = node.marks.find((mark) =>
-      mark.type.name === 'link'
-      && typeof mark.attrs.href === 'string'
-      && mark.attrs.href.startsWith('#'));
-    if (link) {
-      references.push({
-        targetId: (link.attrs.href as string).slice(1),
-        from: pos,
-        to: pos + node.nodeSize,
-      });
-    }
+    return {
+      entries,
+      headings: entries.filter((entry) => entry.kind === 'heading'),
+      figures: entries.filter((entry) => entry.kind === 'figure'),
+      tables: entries.filter((entry) => entry.kind === 'table'),
+      equations: entries.filter((entry) => entry.kind === 'equation'),
+      endnotes: entries.filter((entry) => entry.kind === 'endnote'),
+      references,
+      byId,
+    };
   });
-
-  const byId = new Map<string, DocumentStructureEntry>();
-  for (const entry of entries) {
-    if (entry.id) byId.set(entry.id, entry);
-  }
-  return {
-    entries,
-    headings: entries.filter((entry) => entry.kind === 'heading'),
-    figures: entries.filter((entry) => entry.kind === 'figure'),
-    tables: entries.filter((entry) => entry.kind === 'table'),
-    equations: entries.filter((entry) => entry.kind === 'equation'),
-    endnotes: entries.filter((entry) => entry.kind === 'endnote'),
-    references,
-    byId,
-  };
 }
 
 const mapStructureIndex = (
   current: DocumentStructureIndex,
-  transaction: Transaction,
-): DocumentStructureIndex => {
-  const entries = current.entries.map((entry) => ({
-    ...entry,
-    pos: transaction.mapping.map(entry.pos, 1),
-  }));
-  const references = current.references.map((reference) => ({
-    ...reference,
-    from: transaction.mapping.map(reference.from, 1),
-    to: transaction.mapping.map(reference.to, -1),
-  }));
-  const byId = new Map<string, DocumentStructureEntry>();
-  for (const entry of entries) {
-    if (entry.id) byId.set(entry.id, entry);
+  mapping: Mapping,
+): DocumentStructureIndex | undefined => measureEditorPerformanceProbe(
+  'structure-index-map',
+  current.entries.length + current.references.length,
+  () => {
+    const entries: DocumentStructureEntry[] = [];
+    for (const entry of current.entries) {
+      const mapped = mapping.mapResult(entry.pos, 1);
+      if (mapped.deleted) return undefined;
+      entries.push({ ...entry, pos: mapped.pos });
+    }
+    const references: DocumentReferenceEntry[] = [];
+    for (const reference of current.references) {
+      const from = mapping.mapResult(reference.from, 1);
+      const to = mapping.mapResult(reference.to, -1);
+      if (from.deleted || to.deleted || from.pos > to.pos) return undefined;
+      references.push({ ...reference, from: from.pos, to: to.pos });
+    }
+    const byId = new Map<string, DocumentStructureEntry>();
+    for (const entry of entries) {
+      if (entry.id) byId.set(entry.id, entry);
+    }
+    return {
+      entries,
+      headings: entries.filter((entry) => entry.kind === 'heading'),
+      figures: entries.filter((entry) => entry.kind === 'figure'),
+      tables: entries.filter((entry) => entry.kind === 'table'),
+      equations: entries.filter((entry) => entry.kind === 'equation'),
+      endnotes: entries.filter((entry) => entry.kind === 'endnote'),
+      references,
+      byId,
+    };
+  },
+);
+
+const mappingFrom = (maps: readonly StepMap[]): Mapping => new Mapping([...maps]);
+
+interface DirectPlainParagraph {
+  readonly node: ProseMirrorNode;
+  readonly childIndex: number;
+  readonly start: number;
+}
+
+const plainParagraphTransactionCache = new WeakMap<Transaction, boolean>();
+
+const directPlainParagraphAt = (
+  doc: ProseMirrorNode,
+  position: number,
+): DirectPlainParagraph | undefined => {
+  if (position < 0 || position > doc.content.size) return undefined;
+  const resolved = doc.resolve(position);
+  if (resolved.depth !== 1 || resolved.parent.type.name !== 'paragraph') return undefined;
+  if (!resolved.parent.content.content.every((child) => child.isText && child.marks.length === 0)) {
+    return undefined;
   }
   return {
-    entries,
-    headings: entries.filter((entry) => entry.kind === 'heading'),
-    figures: entries.filter((entry) => entry.kind === 'figure'),
-    tables: entries.filter((entry) => entry.kind === 'table'),
-    equations: entries.filter((entry) => entry.kind === 'equation'),
-    endnotes: entries.filter((entry) => entry.kind === 'endnote'),
-    references,
-    byId,
+    node: resolved.parent,
+    childIndex: resolved.index(0),
+    start: resolved.before(1),
   };
 };
 
-const hasInternalLink = (node: ProseMirrorNode): boolean =>
-  node.isText && node.marks.some((mark) =>
-    mark.type.name === 'link'
-    && typeof mark.attrs.href === 'string'
-    && mark.attrs.href.startsWith('#'));
-
-const isPlainParagraphRange = (doc: ProseMirrorNode, from: number, to: number): boolean => {
-  const safeFrom = Math.max(0, Math.min(from, doc.content.size));
-  const safeTo = Math.max(safeFrom, Math.min(to, doc.content.size));
-  if (doc.resolve(safeFrom).parent.type.name !== 'paragraph') return false;
-  if (doc.resolve(safeTo).parent.type.name !== 'paragraph') return false;
-  let plain = true;
-  doc.nodesBetween(safeFrom, safeTo, (node) => {
-    if (hasInternalLink(node)) plain = false;
-    if (!node.isText && node.type.name !== 'paragraph') plain = false;
-    return plain;
+/**
+ * Accepts exactly one direct, unmarked paragraph text replacement. Split/join,
+ * marks, inline rich nodes, IDs/attrs, semantic ancestors, and multi-step edits
+ * fail closed. The WeakMap shares this proof across every editor plugin.
+ */
+const computeIsPlainParagraphTextTransaction = (transaction: Transaction): boolean => {
+  if (!transaction.docChanged || transaction.steps.length !== 1) return false;
+  const step = transaction.steps[0];
+  if (!(step instanceof ReplaceStep)
+    || (step as unknown as { structure?: boolean }).structure === true) return false;
+  if (step.slice.openStart !== 0 || step.slice.openEnd !== 0) return false;
+  let insertedTextOnly = true;
+  step.slice.content.forEach((node) => {
+    if (!node.isText || node.marks.length > 0) insertedTextOnly = false;
   });
-  return plain;
+  if (!insertedTextOnly) return false;
+
+  const before = transaction.docs[0];
+  const after = transaction.doc;
+  if (!before.sameMarkup(after) || before.childCount !== after.childCount) return false;
+  let changedRange: readonly [number, number, number, number] | undefined;
+  step.getMap().forEach((oldStart, oldEnd, newStart, newEnd) => {
+    if (changedRange) {
+      changedRange = undefined;
+      insertedTextOnly = false;
+      return;
+    }
+    changedRange = [oldStart, oldEnd, newStart, newEnd];
+  });
+  if (!insertedTextOnly || !changedRange) return false;
+  const [oldStart, oldEnd, newStart, newEnd] = changedRange;
+  const oldFrom = directPlainParagraphAt(before, oldStart);
+  const oldTo = directPlainParagraphAt(before, oldEnd);
+  const newFrom = directPlainParagraphAt(after, newStart);
+  const newTo = directPlainParagraphAt(after, newEnd);
+  if (!oldFrom || !oldTo || !newFrom || !newTo) return false;
+  if (oldFrom.start !== oldTo.start || newFrom.start !== newTo.start) return false;
+  if (oldFrom.childIndex !== oldTo.childIndex
+    || oldFrom.childIndex !== newFrom.childIndex
+    || newFrom.childIndex !== newTo.childIndex) return false;
+  if (!oldFrom.node.sameMarkup(newFrom.node)) return false;
+  for (let index = 0; index < before.childCount; index += 1) {
+    if (index !== oldFrom.childIndex && before.child(index) !== after.child(index)) return false;
+  }
+  return true;
 };
 
-/** True only for transactions proven not to affect structure, numbering, captions, or internal refs. */
 export function isPlainParagraphTextTransaction(transaction: Transaction): boolean {
-  if (!transaction.docChanged || transaction.steps.length === 0) return false;
-  let changedRangeCount = 0;
-  for (let stepIndex = 0; stepIndex < transaction.steps.length; stepIndex += 1) {
-    const oldDoc = transaction.docs[stepIndex];
-    const step = transaction.steps[stepIndex];
-    const map = step.getMap();
-    map.forEach((oldStart, oldEnd, newStart, newEnd) => {
-      changedRangeCount += 1;
-      if (!isPlainParagraphRange(oldDoc, oldStart, oldEnd)
-        || !isPlainParagraphRange(transaction.doc, newStart, newEnd)) {
-        changedRangeCount = Number.NEGATIVE_INFINITY;
-      }
-    });
-    if (changedRangeCount < 0) return false;
-  }
-  return changedRangeCount > 0;
+  const cached = plainParagraphTransactionCache.get(transaction);
+  if (cached !== undefined) return cached;
+  const result = measureEditorPerformanceProbe(
+    'structure-index-classifier',
+    transaction.steps.length,
+    () => computeIsPlainParagraphTextTransaction(transaction),
+  );
+  plainParagraphTransactionCache.set(transaction, result);
+  return result;
 }
 
 const withStateFields = (
   index: DocumentStructureIndex,
   fields: Pick<DocumentStructureIndexState,
-    'dirty' | 'rebuildCount' | 'semanticRevision' | 'invalidationRevision' | 'settingsKey' | 'pendingSettings'>,
-): DocumentStructureIndexState => ({ ...index, ...fields });
+    'dirty' | 'rebuildCount' | 'semanticRevision' | 'invalidationRevision' | 'settingsKey' | 'pendingSettings' | 'positionMaps'>,
+): DocumentStructureIndexState => ({
+  ...index,
+  ...fields,
+  pendingPositionMapCount: fields.positionMaps.length,
+});
+
+const rawDocumentStructureIndexState = (state: EditorState): DocumentStructureIndexState => {
+  const index = documentStructureIndexKey.getState(state);
+  if (!index) throw new Error('Document structure index plugin is not registered');
+  return index;
+};
+
+const materializedStructureIndexCache = new WeakMap<
+  DocumentStructureIndexState,
+  DocumentStructureIndexState
+>();
+
+const materializeStructureIndexState = (
+  current: DocumentStructureIndexState,
+  doc: ProseMirrorNode,
+): DocumentStructureIndexState => {
+  if (current.positionMaps.length === 0) return current;
+  const cached = materializedStructureIndexCache.get(current);
+  if (cached) return cached;
+  const mapped = mapStructureIndex(current, mappingFrom(current.positionMaps))
+    ?? buildDocumentStructureIndex(doc, current.pendingSettings);
+  const materialized = withStateFields(mapped, {
+    dirty: current.dirty,
+    rebuildCount: current.rebuildCount,
+    semanticRevision: current.semanticRevision,
+    invalidationRevision: current.invalidationRevision,
+    settingsKey: current.settingsKey,
+    pendingSettings: current.pendingSettings,
+    positionMaps: [],
+  });
+  materializedStructureIndexCache.set(current, materialized);
+  return materialized;
+};
 
 export function createDocumentStructureIndexPlugin(options: StructureIndexPluginOptions): Plugin {
   return new Plugin<DocumentStructureIndexState>({
@@ -241,6 +339,7 @@ export function createDocumentStructureIndexPlugin(options: StructureIndexPlugin
           invalidationRevision: 0,
           settingsKey: documentStructureSettingsKey(settings),
           pendingSettings: settings,
+          positionMaps: [],
         });
       },
       apply(transaction, previous) {
@@ -255,21 +354,63 @@ export function createDocumentStructureIndexPlugin(options: StructureIndexPlugin
             invalidationRevision: previous.invalidationRevision,
             settingsKey: documentStructureSettingsKey(meta.settings),
             pendingSettings: meta.settings,
+            positionMaps: [],
           });
         }
 
-        const mapped = transaction.docChanged
-          ? mapStructureIndex(previous, transaction)
-          : previous;
         const settingsChanged = nextSettingsKey !== previous.settingsKey;
+        const ordinaryParagraphChange = transaction.docChanged
+          && isPlainParagraphTextTransaction(transaction);
         const semanticChange = transaction.docChanged
           && !transaction.getMeta(STRUCTURE_INDEX_REFERENCE_SYNC_META)
-          && !isPlainParagraphTextTransaction(transaction);
+          && !ordinaryParagraphChange;
         const invalidated = meta?.kind === 'invalidate'
           || Boolean(transaction.getMeta(STRUCTURE_INDEX_SETTINGS_REFRESH_META))
           || settingsChanged
           || semanticChange;
         if (!invalidated && !transaction.docChanged) return previous;
+
+        if (ordinaryParagraphChange && !invalidated) {
+          const positionMaps = [...previous.positionMaps, ...transaction.mapping.maps];
+          const deletesContent = transaction.steps.some((step) =>
+            step instanceof ReplaceStep && step.from < step.to);
+          if (!deletesContent
+            && positionMaps.length <= STRUCTURE_INDEX_MAX_PENDING_POSITION_MAPS) {
+            return {
+              ...previous,
+              pendingSettings: settings,
+              positionMaps,
+              pendingPositionMapCount: positionMaps.length,
+            };
+          }
+          const compacted = mapStructureIndex(previous, mappingFrom(positionMaps));
+          if (compacted) {
+            return withStateFields(compacted, {
+              dirty: previous.dirty,
+              rebuildCount: previous.rebuildCount,
+              semanticRevision: previous.semanticRevision,
+              invalidationRevision: previous.invalidationRevision,
+              settingsKey: previous.settingsKey,
+              pendingSettings: settings,
+              positionMaps: [],
+            });
+          }
+          return withStateFields(buildDocumentStructureIndex(transaction.doc, settings), {
+            dirty: false,
+            rebuildCount: previous.rebuildCount + 1,
+            semanticRevision: previous.semanticRevision + 1,
+            invalidationRevision: previous.invalidationRevision,
+            settingsKey: nextSettingsKey,
+            pendingSettings: settings,
+            positionMaps: [],
+          });
+        }
+
+        const currentProjection = materializeStructureIndexState(previous, transaction.docs[0] ?? transaction.doc);
+        const mapped = transaction.docChanged
+          ? mapStructureIndex(currentProjection, transaction.mapping)
+            ?? buildDocumentStructureIndex(transaction.doc, settings)
+          : currentProjection;
 
         return withStateFields(mapped, {
           dirty: previous.dirty || invalidated,
@@ -280,11 +421,12 @@ export function createDocumentStructureIndexPlugin(options: StructureIndexPlugin
             : previous.invalidationRevision,
           settingsKey: previous.settingsKey,
           pendingSettings: settings,
+          positionMaps: [],
         });
       },
     },
     view(view) {
-      let lastSemanticRevision = getDocumentStructureIndexState(view.state).semanticRevision;
+      let lastSemanticRevision = rawDocumentStructureIndexState(view.state).semanticRevision;
       let lastInvalidationRevision = -1;
       const scheduler = createTrailingStructureIndexScheduler(() => {
         ensureStructureIndexFresh(view);
@@ -298,7 +440,7 @@ export function createDocumentStructureIndexPlugin(options: StructureIndexPlugin
       structureIndexControllers.set(view, controller);
 
       const update = (nextView: EditorView) => {
-        const state = getDocumentStructureIndexState(nextView.state);
+        const state = rawDocumentStructureIndexState(nextView.state);
         if (state.dirty && state.invalidationRevision !== lastInvalidationRevision) {
           lastInvalidationRevision = state.invalidationRevision;
           scheduler.request();
@@ -323,18 +465,24 @@ export function createDocumentStructureIndexPlugin(options: StructureIndexPlugin
 }
 
 export function getDocumentStructureIndexState(state: EditorState): DocumentStructureIndexState {
-  const index = documentStructureIndexKey.getState(state);
-  if (!index) throw new Error('Document structure index plugin is not registered');
-  return index;
+  return materializeStructureIndexState(rawDocumentStructureIndexState(state), state.doc);
 }
 
 export function resolveStructurePosition(state: EditorState, stableId: string): number | undefined {
-  return getDocumentStructureIndexState(state).byId.get(stableId)?.pos;
+  const current = rawDocumentStructureIndexState(state);
+  const entry = current.byId.get(stableId);
+  if (!entry) return undefined;
+  if (current.positionMaps.length === 0) return entry.pos;
+  const mapped = mappingFrom(current.positionMaps).mapResult(entry.pos, 1);
+  if (!mapped.deleted) return mapped.pos;
+  return materializeStructureIndexState(current, state.doc).byId.get(stableId)?.pos;
 }
 
 export function ensureStructureIndexFresh(host: StructureIndexHost): DocumentStructureIndexState {
-  const current = getDocumentStructureIndexState(host.state);
-  if (!current.dirty && current.settingsKey === documentStructureSettingsKey(current.pendingSettings)) return current;
+  const current = rawDocumentStructureIndexState(host.state);
+  if (!current.dirty && current.settingsKey === documentStructureSettingsKey(current.pendingSettings)) {
+    return materializeStructureIndexState(current, host.state.doc);
+  }
   const index = buildDocumentStructureIndex(host.state.doc, current.pendingSettings);
   host.dispatch(host.state.tr.setMeta(documentStructureIndexKey, {
     kind: 'rebuild',

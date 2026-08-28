@@ -16,10 +16,11 @@ ajv.addSchema(schema);
 
 const generated = `${standaloneCode(ajv, {
   validateEnvelope: schema.$id,
+  validateMetadataSchema: `${schema.$id}#/definitions/metadata`,
   validateDoc: `${schema.$id}#/definitions/docNode`,
   validateSettingsSchema: `${schema.$id}#/definitions/documentSettings`,
 })}\n`;
-const declaration = `import type { ErrorObject } from 'ajv';\nimport type { DocumentSettings, SdocEnvelope, TiptapNode } from '../../types';\n\ninterface DocumentValidator<T> {\n  (value: unknown): value is T;\n  errors?: ErrorObject[] | null;\n}\n\nexport const validateEnvelope: DocumentValidator<SdocEnvelope>;\nexport const validateDoc: DocumentValidator<TiptapNode>;\nexport const validateSettingsSchema: DocumentValidator<Partial<DocumentSettings>>;\n`;
+const declaration = `import type { ErrorObject } from 'ajv';\nimport type { DocumentSettings, SdocEnvelope, SdocMeta, TiptapNode } from '../../types';\n\ninterface DocumentValidator<T> {\n  (value: unknown): value is T;\n  errors?: ErrorObject[] | null;\n}\n\nexport const validateEnvelope: DocumentValidator<SdocEnvelope>;\nexport const validateMetadataSchema: DocumentValidator<SdocMeta>;\nexport const validateDoc: DocumentValidator<TiptapNode>;\nexport const validateSettingsSchema: DocumentValidator<Partial<DocumentSettings>>;\n`;
 
 if (process.argv.includes('--check')) {
   const current = readFileSync(outputPath, 'utf8');

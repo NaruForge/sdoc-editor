@@ -115,6 +115,47 @@ JS heap을 기록합니다. 기본 corpus는 `text-5k`이며 `text-10k`와
 `tests/ui/artifacts/performance/browser.json`에 기록됩니다. 기본 포트가 충돌하면
 `SDOC_BROWSER_PERF_PORT`로 전용 포트를 지정합니다.
 
+`rich-mixed-5k`는 release corpus입니다. top-level block은 paragraph 3,500,
+heading 500, code 250, block math 200, image 150, table 100, diagram 100,
+callout 150, blockquote 50의 정확한 5,000개이며, paragraph 안에 inline math
+300개와 endnote 200개를 결정적으로 포함합니다. 3회 open과 각 5회의 실제
+input·scroll·navigation을 반복하고 phase별 Long Task, DOM breakdown, GC 뒤
+retained heap을 기록합니다. release budget은 editable p95 2,000 ms, input p95
+50 ms/max 100 ms 미만, scroll p95 50 ms, navigation p95 100 ms, DOM 50,000개,
+retained heap 128 MiB입니다. `rich-balanced-5k`는 각 rich 유형을 500개 규모로
+균등하게 배치하는 별도 stress corpus이며 open 5,000 ms, DOM 75,000개, heap
+192 MiB의 capacity budget을 사용합니다. corpus 개수와 seed 재현성은 일반
+테스트에서도 고정합니다.
+
+한 Windows x64 / Chromium 151의 `rich-mixed-5k` run에서 inactive code language
+option materialization, attrs-equal rich NodeView no-op, bounded KaTeX cache,
+block-math-only viewport materialization, image browser lazy loading을 적용한 뒤
+open p95 2,189.8 ms, input p95/max 134.5 ms, scroll p95 52.5 ms, navigation p95
+131.4 ms, DOM 40,697개, retained heap 55.55 MB였습니다. DOM과 heap은 통과했지만
+open, input, scroll, navigation은 release budget에 미달합니다. input의 editor
+dispatch CPU도 별도 기록하며 이 run은 median 30.2 ms, p95 87.1 ms였습니다.
+절대 예산이나 corpus를 완화하지 않으며, virtualization 또는 Worker는 이 결과를
+근거로 별도 Phase 3 architecture gate에서 검토합니다.
+
+Phase 3의 typed browser probe는 key dispatch를 `editor-state-apply-plugins-cpu`,
+`editor-view-update-state-cpu`, `editor-post-update-cpu`로 나누고 structure,
+fold, numbering, Lowlight, ID scan, NodeView update counter를 additive schema-v1
+measurement로 기록합니다. strict ordinary paragraph projection 적용 전 dispatch
+median/p95는 30.1/55.9 ms였고 매 sample의 full structure build가 11.3/17.6 ms로
+가장 컸습니다. 적용 후 15회 입력의 full build는 0회, classifier는 transaction당
+1회가 되었으며 dispatch median/p95는 11.7/18.4 ms로 20 ms 목표를 통과했습니다.
+key-to-next-paint는 median/p95/max 44.7/59.8/59.8 ms여서 max 100 ms 미만은
+통과했지만 p95 50 ms는 여전히 미달합니다. 같은 run의 open p95는 2,329.1 ms,
+scroll p95 59.9 ms, navigation p95 99.9 ms, DOM 40,573개, retained heap 55.6
+MB였습니다. generic numbering decoration map보다 느렸던 specialized mapper는
+되돌렸고, Worker·editable virtualization·production leaf-text protocol은
+[ADR 0021](docs/adr/0021-bound-ordinary-editor-projections-and-defer-broader-runtime-changes.md)의
+조건 없이 진행하지 않습니다.
+느린 numbering 실험을 제거한 최종 repeat에서도 full structure build는 0회이고
+dispatch median/p95는 12.2/16.5 ms였지만, key-to-next-paint p95 71.1 ms,
+open p95 2,237.6 ms, scroll p95 56.0 ms, navigation p95 104.4 ms로 browser
+paint 변동성과 release budget 미달이 다시 확인됐습니다.
+
 키 입력 측정은 capture phase에서 시작하므로 ProseMirror transaction, plugin과
 DOM 갱신을 포함합니다. 300ms debounce가 끝날 때까지의 `debounced-update-wait`와
 실제 `getJSON`·immutable mutation snapshot·submit callback 한 회의 CPU 작업인
@@ -148,6 +189,29 @@ lexical scanner를 사용했는지를 0/1 operation count로 기록합니다.
 Host 검증은 cold 1회와 warm 7회의 counter 분포, 매 mutation의 exact revision과
 2-range reconstruction, one-step Undo/Redo를 확인하고, 같은 프로세스의 warm planner
 median이 cold sample보다 50% 이상 낮은지도 확인합니다.
+
+같은 보고서의 `canonical-persistence-cache-hit`,
+`canonical-metadata-reused`, `canonical-settings-reused`,
+`canonical-content-reused`는 exact session, live `TextDocument`, host revision에
+묶인 canonical component 재사용 여부를 0/1로 기록합니다. 재사용된 기존 JSON
+parse, settings resolve, asset dehydration, normalization 또는 full-document
+validation phase는 기존 phase 이름을 유지하면서 operation count 0으로 남깁니다.
+`validate-persisted-metadata`는 이전에 full validation을 통과한 canonical document를
+재사용한 metadata-only mutation에서 작은 metadata component 검사만 수행했음을
+기록합니다. 새 content, import, reload, external change, Undo/Redo와 cache miss는
+계속 전체 persisted document validation을 수행합니다.
+
+한 Windows x64 / VS Code 1.135.0 / Node.js 24.18.1의 동일 5k localized run에서
+Phase 1 적용 후 warm content median은 source parse 0 ms, normalize 7.49 ms, full
+validation 64.55 ms, serialization 3.62 ms, planner 11.31 ms, applyEdit 5.89 ms,
+update total 92.66 ms, host ACK 94.22 ms였습니다. 이전 관측값의 update total
+156.7 ms와 비교하면 약 40.9% 감소했지만, full validation 자체는 줄지 않아
+pre-apply 및 validation 50% 목표에는 미달합니다. 같은 canonical 5k의
+metadata-only 경로는 parse·dehydrate·resolve·normalize·full validation이 각각
+0회이고 metadata validation 0.88 ms, update total 68.07 ms였습니다. 이 절대
+시간은 일반 CI gate가 아니며, ordinary content validation을 더 줄이려면 bounded
+operation/changed-subtree protocol 또는 Worker 비용을 이후 architecture gate에서
+별도로 검증해야 합니다.
 
 세 보고서는 모두 `shared/performance/instrumentation.ts`의 schema version 1,
 monotonic millisecond 형식을 사용합니다. 문서 내용, URI, 사용자 경로와 wall-clock

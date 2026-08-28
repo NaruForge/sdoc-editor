@@ -9,7 +9,9 @@ export type AcceptedPerformanceCorpusName =
   | 'text-10k'
   | 'text-25k'
   | 'structure-10k'
-  | 'rich-2k';
+  | 'rich-2k'
+  | 'rich-mixed-5k'
+  | 'rich-balanced-5k';
 
 export interface AcceptedPerformanceCorpus {
   name: AcceptedPerformanceCorpusName;
@@ -38,6 +40,8 @@ const corpusDefinitions: ReadonlyArray<{
   { name: 'text-25k', axis: 'text', topLevelBlocks: 25_000, seedOffset: 25 },
   { name: 'structure-10k', axis: 'structure', topLevelBlocks: 10_000, seedOffset: 110 },
   { name: 'rich-2k', axis: 'rich', topLevelBlocks: 2_000, seedOffset: 202 },
+  { name: 'rich-mixed-5k', axis: 'rich', topLevelBlocks: 5_000, seedOffset: 216 },
+  { name: 'rich-balanced-5k', axis: 'rich', topLevelBlocks: 5_000, seedOffset: 217 },
 ];
 
 const words = [
@@ -115,9 +119,8 @@ const table = (next: () => number, index: number): TiptapNode => ({
   })),
 });
 
-const createRichBlocks = (count: number, next: () => number): TiptapNode[] =>
-  Array.from({ length: count }, (_, index) => {
-    switch (index % 10) {
+const createRichBlock = (next: () => number, index: number): TiptapNode => {
+  switch (index % 10) {
       case 0:
         return {
           type: 'heading',
@@ -137,7 +140,7 @@ const createRichBlocks = (count: number, next: () => number): TiptapNode[] =>
           type: 'image',
           attrs: {
             id: `image-${index}`,
-            src: `./images/performance-${index}.png`,
+            src: './performance-image.svg',
             alt: `Performance fixture ${index}`,
             caption: seededText(next, index, 4),
             align: 'center',
@@ -188,8 +191,92 @@ const createRichBlocks = (count: number, next: () => number): TiptapNode[] =>
           attrs: { id: `quote-${index}` },
           content: [paragraph(seededText(next, index, 6))],
         };
-    }
-  });
+  }
+};
+
+const createRichBlocks = (count: number, next: () => number): TiptapNode[] =>
+  Array.from({ length: count }, (_, index) => createRichBlock(next, index));
+
+const createMixedRichBlock = (next: () => number, index: number): TiptapNode => {
+  const slot = index % 100;
+  if (slot < 60) return paragraph(seededText(next, index));
+  if (slot < 66) {
+    return {
+      type: 'paragraph',
+      content: [
+        { type: 'text', text: seededText(next, index, 3) },
+        { type: 'mathInline', attrs: { latex: `x_${index} + y_${next() % 97}` } },
+      ],
+    };
+  }
+  if (slot < 70) {
+    return {
+      type: 'paragraph',
+      content: [
+        { type: 'text', text: seededText(next, index, 4) },
+        { type: 'endnote', attrs: { id: `mixed-endnote-${index}`, body: `Generated note ${index}` } },
+      ],
+    };
+  }
+  if (slot < 80) {
+    return {
+      type: 'heading',
+      attrs: { level: index % 6 + 1, id: `mixed-heading-${index}` },
+      content: [{ type: 'text', text: seededText(next, index, 4) }],
+    };
+  }
+  if (slot < 85) {
+    return {
+      type: 'codeBlock',
+      attrs: { language: 'typescript', id: `mixed-code-${index}` },
+      content: [{ type: 'text', text: `export const mixed${index} = ${next() % 10_000};` }],
+    };
+  }
+  if (slot < 89) {
+    return {
+      type: 'mathBlock',
+      attrs: { id: `mixed-equation-${index}`, latex: `E_${index} = m c^2` },
+    };
+  }
+  if (slot < 92) {
+    return {
+      type: 'image',
+      attrs: {
+        id: `mixed-image-${index}`,
+        src: './performance-image.svg',
+        alt: `Performance fixture ${index}`,
+        caption: seededText(next, index, 4),
+        align: 'center',
+      },
+    };
+  }
+  if (slot < 94) return table(next, index);
+  if (slot < 96) {
+    return {
+      type: 'diagram',
+      attrs: {
+        id: `mixed-diagram-${index}`,
+        language: 'mermaid',
+        code: `flowchart LR\n  n${index}[Start] --> n${index + 1}[End]`,
+      },
+    };
+  }
+  if (slot < 99) {
+    return {
+      type: 'callout',
+      attrs: { id: `mixed-callout-${index}`, variant: 'info' },
+      content: [paragraph(seededText(next, index, 7))],
+    };
+  }
+  return {
+    type: 'blockquote',
+    attrs: { id: `mixed-quote-${index}` },
+    content: [paragraph(seededText(next, index, 6))],
+  };
+};
+
+const createMixedRichBlocks = (count: number, next: () => number): TiptapNode[] =>
+  Array.from({ length: count }, (_, index) => createMixedRichBlock(next, index));
 
 export const countTiptapNodes = (root: TiptapNode): number => {
   let count = 0;
@@ -213,7 +300,9 @@ export function createAcceptedPerformanceCorpus(
     ? createTextBlocks(definition.topLevelBlocks, next)
     : definition.axis === 'structure'
       ? createStructureBlocks(definition.topLevelBlocks, next)
-      : createRichBlocks(definition.topLevelBlocks, next);
+      : definition.name === 'rich-mixed-5k'
+        ? createMixedRichBlocks(definition.topLevelBlocks, next)
+        : createRichBlocks(definition.topLevelBlocks, next);
   const envelope: SdocEnvelope = {
     sdoc: '1.0',
     meta: {

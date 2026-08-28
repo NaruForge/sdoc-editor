@@ -1,6 +1,11 @@
 import { Node, mergeAttributes, InputRule } from '@tiptap/core';
-import katex from 'katex';
 import { NOOP_EDITOR_EXTENSION_RUNTIME, type EditorExtensionOptions } from '../extensionRuntime';
+import { renderKatexCached as renderKatex } from './katexRenderCache';
+import { areNodeViewAttributesEqual } from './nodeViewUpdate';
+import {
+  attachMaterializationTriggers,
+  createViewportMaterializer,
+} from './viewportMaterializer';
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
@@ -45,6 +50,7 @@ export const MathBlock = Node.create<EditorExtensionOptions>({
   addNodeView() {
     const runtime = this.options.runtime;
     return ({ node, getPos, editor }) => {
+      let currentNode = node;
       let currentLatex = node.attrs.latex;
       let isEditing = false;
 
@@ -111,16 +117,23 @@ export const MathBlock = Node.create<EditorExtensionOptions>({
       livePreview.classList.add('math-edit-preview', 'math-edit-preview--block');
       editContainer.appendChild(livePreview);
 
-      const renderKatex = (latex: string, target: HTMLElement, displayMode: boolean) => {
-        try {
-          katex.render(latex || '\\square', target, {
-            throwOnError: false,
-            displayMode,
-            output: 'htmlAndMathml',
-          });
-        } catch {
-          target.textContent = latex;
-        }
+      const updateStableGeometry = () => {
+        const sourceLines = Math.max(1, currentLatex.split('\n').length);
+        const intrinsicHeightRem = Math.min(12, 1.5 + sourceLines * 1.5);
+        rendered.style.minHeight = `${intrinsicHeightRem}rem`;
+        rendered.style.containIntrinsicBlockSize = `${intrinsicHeightRem}rem`;
+      };
+
+      const showSourcePlaceholder = () => {
+        updateStableGeometry();
+        rendered.classList.add('math-block-render-placeholder');
+        rendered.textContent = currentLatex || '\\square';
+      };
+
+      const materializeRenderedMath = () => {
+        updateStableGeometry();
+        rendered.classList.remove('math-block-render-placeholder');
+        renderKatex(currentLatex, rendered, true);
       };
 
       const stripDelimiters = (raw: string): string => {
@@ -133,7 +146,17 @@ export const MathBlock = Node.create<EditorExtensionOptions>({
         renderKatex(stripDelimiters(textarea.value), livePreview, true);
       };
 
-      renderKatex(currentLatex, rendered, true);
+      showSourcePlaceholder();
+      const viewportMaterializer = createViewportMaterializer({
+        target: dom,
+        materialize: materializeRenderedMath,
+      });
+      const ensureMaterialized = () => viewportMaterializer.ensure();
+      const materializationTriggers = attachMaterializationTriggers(
+        dom,
+        typeof window === 'undefined' ? undefined : window,
+        ensureMaterialized,
+      );
 
       // Expose eq number setter directly on DOM for EquationNumbering plugin
       (dom as HTMLElement & { _setEqNumber?: (label: string | null) => void })._setEqNumber = (label) => {
@@ -152,7 +175,7 @@ export const MathBlock = Node.create<EditorExtensionOptions>({
         currentLatex = stripDelimiters(textarea.value);
         editContainer.style.display = 'none';
         rendered.style.display = '';
-        renderKatex(currentLatex, rendered, true);
+        materializeRenderedMath();
         if (typeof getPos === 'function') {
           const pos = getPos();
           if (pos != null) {
@@ -173,6 +196,7 @@ export const MathBlock = Node.create<EditorExtensionOptions>({
 
       const enterEditMode = () => {
         if (isEditing) return;
+        ensureMaterialized();
         isEditing = true;
         renderedWrapper.setAttribute('aria-expanded', 'true');
         textarea.value = `$$${currentLatex}$$`;
@@ -251,12 +275,24 @@ export const MathBlock = Node.create<EditorExtensionOptions>({
       return {
         dom,
         update(updatedNode) {
-          if (updatedNode.type !== node.type) return false;
+          if (updatedNode.type !== currentNode.type) return false;
+          if (areNodeViewAttributesEqual(currentNode.attrs, updatedNode.attrs)) {
+            currentNode = updatedNode;
+            return true;
+          }
+          currentNode = updatedNode;
           currentLatex = updatedNode.attrs.latex;
-          if (!isEditing) renderKatex(currentLatex, rendered, true);
+          if (!isEditing) {
+            if (viewportMaterializer.materialized) materializeRenderedMath();
+            else showSourcePlaceholder();
+          }
           return true;
         },
         stopEvent: () => true,
+        destroy() {
+          viewportMaterializer.destroy();
+          materializationTriggers.destroy();
+        },
       };
     };
   },

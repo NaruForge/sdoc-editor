@@ -164,6 +164,7 @@ async function run() {
       'structuredDocEditor.test.resetActivePerformanceReport',
       'structuredDocEditor.test.getActivePerformanceReport',
       'structuredDocEditor.test.applyActiveLocalizedMutation',
+      'structuredDocEditor.test.applyActiveMetadataMutation',
       'structuredDocEditor.test.getActiveBookFileOperation',
       'structuredDocEditor.test.prepareActiveBookExport',
       'structuredDocEditor.test.confirmActiveBookFileOperation',
@@ -575,6 +576,11 @@ async function run() {
       'workspace-edit-content-change-count',
       'workspace-edit-modified-token-cache-hit',
       'workspace-edit-modified-token-fallback',
+      'canonical-persistence-cache-hit',
+      'canonical-metadata-reused',
+      'canonical-settings-reused',
+      'canonical-content-reused',
+      'validate-persisted-metadata',
       'workspace-apply-edit',
       'save-flush-barrier',
       'save-lifecycle-to-did-save',
@@ -808,6 +814,14 @@ async function run() {
     const applyEdits = mutationMeasurements('workspace-apply-edit');
     const cacheHits = mutationMeasurements('workspace-edit-modified-token-cache-hit');
     const fallbacks = mutationMeasurements('workspace-edit-modified-token-fallback');
+    const canonicalCacheHits = mutationMeasurements('canonical-persistence-cache-hit');
+    const metadataReuse = mutationMeasurements('canonical-metadata-reused');
+    const settingsReuse = mutationMeasurements('canonical-settings-reused');
+    const contentReuse = mutationMeasurements('canonical-content-reused');
+    const parseExisting = mutationMeasurements('parse-existing-envelope');
+    const resolveSettings = mutationMeasurements('resolve-document-settings');
+    const normalizeDocuments = mutationMeasurements('normalize-document');
+    const validateDocuments = mutationMeasurements('validate-persisted-document');
     const plannerSamples = mutationMeasurements('plan-minimal-document-edit');
     for (let index = 0; index < mutationCount; index += 1) {
       const observedChanges = observedChangeSets[index].changes;
@@ -849,12 +863,115 @@ async function run() {
       [1, ...Array(mutationCount - 1).fill(0)],
       'Only the first actual Host plan may use the lexical fallback.',
     );
+    assert.deepEqual(
+      canonicalCacheHits.map((measurement) => measurement.operationCount),
+      Array(mutationCount).fill(1),
+      'Every ordinary content edit must be authorized by the exact host baseline revision.',
+    );
+    assert.deepEqual(
+      metadataReuse.map((measurement) => measurement.operationCount),
+      Array(mutationCount).fill(1),
+    );
+    assert.deepEqual(
+      settingsReuse.map((measurement) => measurement.operationCount),
+      Array(mutationCount).fill(1),
+    );
+    assert.deepEqual(
+      contentReuse.map((measurement) => measurement.operationCount),
+      Array(mutationCount).fill(0),
+      'Changed editor content must still cross normalization and full validation.',
+    );
+    assert.deepEqual(
+      parseExisting.map((measurement) => measurement.operationCount),
+      Array(mutationCount).fill(0),
+      'The host-owned metadata snapshot must remove the repeated source JSON parse.',
+    );
+    assert.deepEqual(
+      resolveSettings.map((measurement) => measurement.operationCount),
+      [1, ...Array(mutationCount - 1).fill(0)],
+      'Standalone settings resolve once and must be reused while its revision is unchanged.',
+    );
+    assert.deepEqual(
+      normalizeDocuments.map((measurement) => measurement.operationCount),
+      Array(mutationCount).fill(blockCount),
+    );
+    assert.deepEqual(
+      validateDocuments.map((measurement) => measurement.operationCount),
+      Array(mutationCount).fill(blockCount),
+      'Ordinary content edits retain full persisted-document validation.',
+    );
     const warmPlannerMedian = median(
       plannerSamples.slice(1).map((measurement) => measurement.durationMs),
     );
     assert.ok(
       warmPlannerMedian < plannerSamples[0].durationMs * 0.5,
       `Warm Host planner median ${warmPlannerMedian}ms must beat cold ${plannerSamples[0].durationMs}ms by 50%.`,
+    );
+
+    await vscode.commands.executeCommand('structuredDocEditor.test.resetActivePerformanceReport');
+    const beforeMetadataText = document.getText();
+    const beforeMetadataEnvelope = JSON.parse(beforeMetadataText);
+    const beforeMetadataRevision = document.version;
+    const measuredTitle = 'Localized 5k metadata cache measurement';
+    assert.equal(
+      await vscode.commands.executeCommand(
+        'structuredDocEditor.test.applyActiveMetadataMutation',
+        measuredTitle,
+      ),
+      true,
+      'The test-only metadata mutation must be delivered.',
+    );
+    await waitFor(
+      () => document.version === beforeMetadataRevision + 1,
+      'The metadata-only mutation did not create exactly one host revision.',
+    );
+    await waitFor(async () => {
+      const state = await vscode.commands.executeCommand(
+        'structuredDocEditor.test.getActivePersistenceState',
+      );
+      return state.phase === 'dirty' && state.revision === document.version;
+    }, 'The metadata-only mutation did not complete its ACK path.');
+    const metadataText = document.getText();
+    const metadataEnvelope = JSON.parse(metadataText);
+    assert.equal(metadataEnvelope.meta.title, measuredTitle);
+    assert.deepEqual(
+      metadataEnvelope.doc,
+      beforeMetadataEnvelope.doc,
+      'Metadata-only persistence must reuse the exact canonical document semantics.',
+    );
+    const metadataReport = await vscode.commands.executeCommand(
+      'structuredDocEditor.test.getActivePerformanceReport',
+    );
+    const metadataOperation = (name) => {
+      const matches = metadataReport.measurements.filter((measurement) => measurement.name === name);
+      assert.equal(matches.length, 1, `Expected one metadata-only ${name} sample.`);
+      return matches[0].operationCount;
+    };
+    assert.equal(metadataOperation('canonical-persistence-cache-hit'), 1);
+    assert.equal(metadataOperation('canonical-metadata-reused'), 0);
+    assert.equal(metadataOperation('canonical-settings-reused'), 1);
+    assert.equal(metadataOperation('canonical-content-reused'), 1);
+    assert.equal(metadataOperation('parse-existing-envelope'), 0);
+    assert.equal(metadataOperation('dehydrate-document-assets'), 0);
+    assert.equal(metadataOperation('resolve-document-settings'), 0);
+    assert.equal(metadataOperation('normalize-document'), 0);
+    assert.equal(metadataOperation('validate-persisted-document'), 0);
+    assert.equal(metadataOperation('validate-persisted-metadata'), 1);
+
+    await vscode.commands.executeCommand('undo');
+    await waitFor(
+      () => document.getText() === beforeMetadataText && !document.isDirty,
+      'One native Undo must restore the saved pre-metadata snapshot.',
+    );
+    await vscode.commands.executeCommand('redo');
+    await waitFor(
+      () => document.getText() === metadataText && document.isDirty,
+      'One native Redo must restore the metadata-only product mutation.',
+    );
+    await vscode.commands.executeCommand('undo');
+    await waitFor(
+      () => document.getText() === beforeMetadataText && !document.isDirty,
+      'The metadata probe must return to the saved content baseline.',
     );
 
     await vscode.commands.executeCommand('undo');
@@ -871,7 +988,10 @@ async function run() {
     const reportPath = process.env.SDOC_VSCODE_PERF_REPORT;
     if (reportPath) {
       await fs.mkdir(path.dirname(reportPath), { recursive: true });
-      await fs.writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
+      await fs.writeFile(reportPath, `${JSON.stringify({
+        ...report,
+        measurements: [...report.measurements, ...metadataReport.measurements],
+      }, null, 2)}\n`, 'utf8');
     }
     await closeActiveEditor();
   });
@@ -1019,6 +1139,20 @@ async function run() {
           .map((measurement) => measurement.operationCount),
         [1],
         'The post-format import must use one fail-closed lexical plan.',
+      );
+      assert.deepEqual(
+        postFormatReport.measurements
+          .filter((measurement) => measurement.name === 'canonical-persistence-cache-hit')
+          .map((measurement) => measurement.operationCount),
+        [0],
+        'Formatting and explicit import must revoke canonical component reuse authority.',
+      );
+      assert.deepEqual(
+        postFormatReport.measurements
+          .filter((measurement) => measurement.name === 'validate-persisted-document')
+          .map((measurement) => measurement.operationCount > 0),
+        [true],
+        'An explicit import must retain full persisted-document validation.',
       );
       await vscode.commands.executeCommand('workbench.action.files.save');
       await waitFor(

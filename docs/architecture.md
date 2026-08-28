@@ -145,6 +145,40 @@ for outline, figures, tables, equations, endnotes, numbering, and internal refer
 Ordinary paragraph edits map positions without rebuilding or notifying semantic
 subscribers; structural edits coalesce into one trailing rebuild.
 
+Large rich documents keep authored editor semantics while avoiding passive DOM
+work. An inactive code-block language selector owns only its selected option;
+the complete language list is materialized on focus and collapsed on blur.
+Math, image, table, and diagram NodeViews skip their DOM update when node
+attributes are shallow-equal, while KaTeX rendering uses a bounded cache keyed
+by source and display mode with trust disabled. Block math alone may defer
+rendering outside a generous viewport margin, with stable source-derived
+placeholder geometry and immediate focus/print materialization; inline math
+remains eager so line wrapping and selection geometry cannot change. Missing
+`IntersectionObserver` support falls back to eager rendering. Images request
+browser-native lazy loading and asynchronous decoding without changing export
+or persisted data.
+
+The Chromium release harness fixes the exact `rich-mixed-5k` composition and
+measures three opens plus repeated paragraph input, bidirectional scrolling,
+and navigation, including phase Long Tasks, DOM breakdown, and retained heap.
+It also exercises code contentDOM editing, composition, language selection,
+Undo/Redo, read-only behavior, focus-driven option materialization, and block
+math focus materialization. Current DOM and heap budgets pass, but open and
+interaction latency budgets do not; virtualization and Worker ownership remain
+outside this phase and require the later architecture gate rather than a
+weaker corpus or budget.
+
+Ordinary paragraph transactions use a shared, cached proof limited to one
+direct, unmarked text-only `ReplaceStep`. A proven edit retains the immutable
+structure semantic projection and appends only a bounded position mapping;
+semantic arrays, `byId`, semantic revision, and subscribers remain unchanged.
+Position lookup materializes the mapping lazily. Deletion, ambiguous or deleted
+targets, rich or structural edits, settings changes, and chain compaction take
+the exact eager mapping or rebuild path. Numbering decorations continue to use
+the generic ProseMirror mapper after a correct specialized mapper regressed in
+the actual browser. See
+[ADR 0021](adr/0021-bound-ordinary-editor-projections-and-defer-broader-runtime-changes.md).
+
 The `EditorHostBridge` and discriminated unions in
 `shared/types/messages.ts` define communication between the VS Code webview and
 extension host. JSON entering the webview boundary is narrowed with runtime
@@ -208,6 +242,27 @@ the exact consumed `source revision + 1` document-change event. A source race,
 an unexpected extra revision, or a mismatching final snapshot is rejected as a
 stale conflict rather than a retryable write failure; it never silently retries
 over the newer host state.
+
+The persistence host also keeps one canonical component snapshot scoped to the
+exact editor session, live `TextDocument` object, and acknowledged host
+revision. Webview content, metadata, and settings revisions are change hints;
+they do not authorize reuse by themselves. When the host authority matches, an
+unchanged component is taken from the host-owned snapshot rather than from the
+incoming message. Ordinary content edits can therefore reuse canonical
+metadata and resolved settings, but they still dehydrate, normalize, and fully
+validate the changed document tree. After one fully validated mutation, a
+metadata-only edit can reuse the exact normalized document graph and validate
+only metadata; generated component validators are tested bidirectionally
+against the complete envelope validator. The exact envelope already produced
+by the mutation is also adopted directly after the own change event, avoiding
+a second parse and AJV pass inside `workspace.applyEdit`.
+
+Any external or representation-only content event, explicit import, reload or
+template replacement, native Undo/Redo, recovery, stale revision, failed
+apply, disposal, or different live document identity clears this component
+authority. A miss follows the complete parse, normalization, and validation
+path. Persisted bytes, `meta.modified`, two-range planning, exact revision,
+Undo, and conflict semantics are unchanged.
 
 The editor starts read-only and crosses
 `shared/editor/documentReplacement.ts` exactly once for initial hydration.

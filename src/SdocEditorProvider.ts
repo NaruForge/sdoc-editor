@@ -34,6 +34,7 @@ import {
 } from '../shared/settingsResolver';
 import type {
   DocumentSettings,
+  SdocEnvelope,
   SdocMeta,
   TiptapNode,
 } from '../shared/types';
@@ -58,11 +59,13 @@ import {
 import { RecoverableSerialQueue } from '../shared/persistence/RecoverableSerialQueue';
 import {
   readDocumentMutationBestEffort,
+  type DocumentComponentRevisions,
   type DocumentMutation,
 } from '../shared/persistence/DocumentSyncCoordinator';
 import { areDocumentMutationsSemanticallyEqual } from '../shared/editor/externalChanges/mutationDiff';
 import {
   assertPersistedDocument,
+  assertPersistedDocumentMetadata,
   parseDocumentContract,
   parseDocumentTextContract,
   readDocumentSettings,
@@ -135,6 +138,7 @@ import {
   recoverFromUiLanguageWriteFailure,
   updateUiLanguagePreference,
 } from './uiLanguagePreferenceUpdate';
+import { RevisionBoundCanonicalPersistenceCache } from './utils/canonicalPersistenceSnapshot';
 
 type HostFileOperationPayload =
   | {
@@ -157,6 +161,11 @@ type HostFileOperationArtifact =
     intent: Extract<FileOperationIntent, { kind: 'import' }>;
     expectedCurrentFingerprint: string;
   };
+
+interface PersistedDocumentUpdateResult {
+  modified: string;
+  envelope: SdocEnvelope;
+}
 
 async function readBoundedWorkspaceFile(
   uri: vscode.Uri,
@@ -302,6 +311,21 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
               sessionId: session.sessionId,
               documentId: session.document.uri.toString(),
               blockIndex,
+            });
+          },
+        ),
+        vscode.commands.registerCommand(
+          'structuredDocEditor.test.applyActiveMetadataMutation',
+          (title: string) => {
+            if (typeof title !== 'string' || title.length === 0 || title.length > 200) {
+              throw new Error('The metadata test title is invalid.');
+            }
+            const session = provider.getActiveTestSession();
+            return session.panel.webview.postMessage({
+              type: 'testApplyMetadataMutation',
+              sessionId: session.sessionId,
+              documentId: session.document.uri.toString(),
+              title,
             });
           },
         ),
@@ -528,10 +552,15 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     const documentId = document.uri.toString();
     const editorIdentity = { sessionId, documentId };
     const modifiedTokenCache = new RevisionBoundSdocModifiedTokenCache();
+    const canonicalPersistenceCache = new RevisionBoundCanonicalPersistenceCache();
     const modifiedTokenAuthority: SdocModifiedTokenCacheAuthority = {
       sessionId,
       documentId,
       documentIdentity: document,
+    };
+    const invalidatePersistenceCaches = (): void => {
+      modifiedTokenCache.invalidate();
+      canonicalPersistenceCache.invalidate();
     };
     let latestFileOperationState: FileOperationState = { phase: 'idle' };
     let latestFileOperationPlan: FileOperationPlanView | undefined;
@@ -968,7 +997,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
 
     // Send initial document content with image paths converted
     const sendUpdate = () => {
-      modifiedTokenCache.invalidate();
+      invalidatePersistenceCaches();
       const contract = parseDocumentTextContract(document.getText());
       if (!contract.ok) {
         writeBlockedReason = contractFailureDetail(contract);
@@ -996,6 +1025,12 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
         writeBlockedReason = undefined;
         hasLoadedValidDocument = true;
         const snapshot = mutationFromEnvelope(contract.envelope);
+        canonicalPersistenceCache.adopt(modifiedTokenAuthority, {
+          revision: document.version,
+          componentRevisions: { content: 0, metadata: 0, settings: 0 },
+          metadata: snapshot.meta,
+          documentSettings: snapshot.documentSettings,
+        });
         lastLocalMutation = snapshot;
         void webviewPanel.webview.postMessage({
           type: 'init',
@@ -1022,7 +1057,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       readDocumentMutationBestEffort(readCurrentMutation);
 
     const postExternalChange = (): void => {
-      modifiedTokenCache.invalidate();
+      invalidatePersistenceCaches();
       const contract = parseDocumentTextContract(document.getText());
       if (!contract.ok) {
         if (!hasLoadedValidDocument) {
@@ -1068,7 +1103,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     const postExplicitReplacement = (
       reason: 'user-reload' | 'confirmed-template',
     ): void => {
-      modifiedTokenCache.invalidate();
+      invalidatePersistenceCaches();
       const snapshot = readCurrentMutation();
       lastLocalMutation = snapshot;
       webviewPanel.webview.postMessage({
@@ -1496,7 +1531,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
                 if (registered.payload.kind === 'import') {
                   signal.throwIfAborted();
                   report('Applying imported body…');
-                  modifiedTokenCache.invalidate();
+                  invalidatePersistenceCaches();
                   this.fileOperations.markCommitStarted(
                     sessionId, message.requestId, message.planId,
                   );
@@ -1773,7 +1808,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
                   stage: 'Restoring previous body…',
                 };
                 const applied = waitForImportApplied(message.actionRequestId);
-                modifiedTokenCache.invalidate();
+                invalidatePersistenceCaches();
                 const delivered = await webviewPanel.webview.postMessage({
                   type: 'importContent', requestId: message.actionRequestId, sessionId, documentId,
                   confirmation: 'preflight-confirmed', content: artifact.mutation.content,
@@ -2029,7 +2064,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
           case 'externalChangeAdopted': {
             if (message.sessionId !== sessionId || message.documentId !== documentId
               || message.revision !== document.version) break;
-            modifiedTokenCache.invalidate();
+            invalidatePersistenceCaches();
             const snapshot = tryReadCurrentMutation();
             if (snapshot) lastLocalMutation = snapshot;
             break;
@@ -2077,13 +2112,15 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
               break;
             }
             try {
-              modifiedTokenCache.invalidate();
-              const modified = await this.updateDocument(
+              invalidatePersistenceCaches();
+              const update = await this.updateDocument(
                 document,
                 message.mutation,
                 modifiedTokenCache,
                 modifiedTokenAuthority,
+                canonicalPersistenceCache,
               );
+              lastLocalMutation = mutationFromEnvelope(update.envelope);
               writeBlockedReason = undefined;
               readOnlyWarningShown = false;
               hasLoadedValidDocument = true;
@@ -2094,7 +2131,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
                 documentId,
                 result: 'recovered',
                 revision: document.version,
-                modified,
+                modified: update.modified,
               });
             } catch (error) {
               await rejectRecovery(error instanceof Error ? error.message : String(error));
@@ -2281,7 +2318,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
           case 'edit':
             if (message.sessionId !== sessionId || message.documentId !== documentId
               || message.baseRevision !== document.version) {
-              modifiedTokenCache.invalidate();
+              invalidatePersistenceCaches();
               const hostSnapshot = tryReadCurrentMutation();
               webviewPanel.webview.postMessage({
                 type: 'editRejected',
@@ -2302,12 +2339,15 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
               'host-edit-received-to-ack-post',
             );
             try {
-              const modified = await this.updateDocument(
+              const update = await this.updateDocument(
                 document,
                 message.mutation,
                 modifiedTokenCache,
                 modifiedTokenAuthority,
+                canonicalPersistenceCache,
+                message.componentRevisions,
               );
+              lastLocalMutation = mutationFromEnvelope(update.envelope);
               latestSavePhase = 'dirty';
               latestSaveRevision = document.version;
               webviewPanel.webview.postMessage({
@@ -2316,7 +2356,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
                 documentId,
                 editId: message.editId,
                 revision: document.version,
-                modified,
+                modified: update.modified,
               });
               this.performanceProbe.finish(checkpointToAckSpan);
               if (message.flushRequestId) this.resolveFlush(message.flushRequestId, sessionId);
@@ -2504,7 +2544,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     const changeDocumentSubscription = vscode.workspace.onDidChangeTextDocument((e) => {
       if (e.document.uri.toString() === document.uri.toString()) {
         if (hasTextDocumentContentChanges(e.contentChanges)) {
-          modifiedTokenCache.invalidate();
+          invalidatePersistenceCaches();
         }
         // VS Code emits this event for dirty-state transitions during save too.
         // Only content changes can represent an editor or external mutation.
@@ -2521,8 +2561,6 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
               0,
               e.contentChanges.length,
             );
-            const snapshot = tryReadCurrentMutation();
-            if (snapshot) lastLocalMutation = snapshot;
           }
           return;
         }
@@ -2610,7 +2648,7 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       editorMessageSubscription.dispose();
       viewStateSubscription.dispose();
       this.expectedDocumentChanges.clear(document.uri.toString());
-      modifiedTokenCache.invalidate();
+      invalidatePersistenceCaches();
       for (const [requestId, pending] of this.pendingFlushResolvers) {
         if (pending.sessionId !== sessionId) continue;
         clearTimeout(pending.timer);
@@ -2625,7 +2663,9 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     mutation: DocumentMutation,
     modifiedTokenCache: RevisionBoundSdocModifiedTokenCache,
     modifiedTokenAuthority: SdocModifiedTokenCacheAuthority,
-  ): Promise<string> {
+    canonicalPersistenceCache: RevisionBoundCanonicalPersistenceCache,
+    componentRevisions?: DocumentComponentRevisions,
+  ): Promise<PersistedDocumentUpdateResult> {
     try {
       return await this.performanceProbe.measureAsync(
         'update-document-total',
@@ -2634,11 +2674,14 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
           mutation,
           modifiedTokenCache,
           modifiedTokenAuthority,
+          canonicalPersistenceCache,
+          componentRevisions,
         ),
         mutation.content.content?.length ?? 0,
       );
     } catch (error) {
       modifiedTokenCache.invalidate();
+      canonicalPersistenceCache.invalidate();
       throw error;
     }
   }
@@ -2648,61 +2691,112 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     mutation: DocumentMutation,
     modifiedTokenCache: RevisionBoundSdocModifiedTokenCache,
     modifiedTokenAuthority: SdocModifiedTokenCacheAuthority,
-  ): Promise<string> {
+    canonicalPersistenceCache: RevisionBoundCanonicalPersistenceCache,
+    componentRevisions?: DocumentComponentRevisions,
+  ): Promise<PersistedDocumentUpdateResult> {
     const source: DocumentTextEditSource = {
       version: document.version,
       text: document.getText(),
     };
-
-    // Convert webview URIs back to relative paths before saving
-    const convertedContent = this.performanceProbe.measure(
-      'dehydrate-document-assets',
-      () => dehydrateDocumentAssets(
-        convertWebviewUrisToRelativePaths(mutation.content),
-      ),
-      mutation.content.content?.length ?? 0,
+    const existingText = source.text;
+    const canonicalReuse = componentRevisions
+      ? canonicalPersistenceCache.resolve(
+        modifiedTokenAuthority,
+        source.version,
+        componentRevisions,
+      )
+      : undefined;
+    this.performanceProbe.record(
+      'canonical-persistence-cache-hit',
+      0,
+      canonicalReuse ? 1 : 0,
+    );
+    this.performanceProbe.record(
+      'canonical-metadata-reused',
+      0,
+      canonicalReuse?.reuse.metadata ? 1 : 0,
+    );
+    this.performanceProbe.record(
+      'canonical-settings-reused',
+      0,
+      canonicalReuse?.reuse.settings ? 1 : 0,
+    );
+    this.performanceProbe.record(
+      'canonical-content-reused',
+      0,
+      canonicalReuse?.reuse.normalizedContent ? 1 : 0,
     );
 
-    // Read existing file to preserve metadata
-    const existingText = source.text;
-    const existingMeta = this.performanceProbe.measure('parse-existing-envelope', () => {
-      try {
-        return sharedUnwrapSdoc(existingText.trim() ? JSON.parse(existingText) : {}).meta;
-      } catch {
-        // intentionally ignored: parse errors during editing
-        return {} satisfies SdocMeta;
-      }
-    }, existingText.length);
-
-    const nextMeta: SdocMeta = { ...existingMeta, ...mutation.meta };
-    if (mutation.documentSettings && Object.keys(mutation.documentSettings).length > 0) {
-      nextMeta.settings = mutation.documentSettings;
+    let existingMetadata: Partial<SdocMeta>;
+    if (canonicalReuse) {
+      this.performanceProbe.record('parse-existing-envelope', 0, 0);
+      existingMetadata = canonicalReuse.snapshot.metadata;
     } else {
-      delete nextMeta.settings;
+      existingMetadata = this.performanceProbe.measure('parse-existing-envelope', () => {
+        try {
+          const { settings: _settings, ...metadata } = sharedUnwrapSdoc(
+            existingText.trim() ? JSON.parse(existingText) : {},
+          ).meta;
+          return metadata;
+        } catch {
+          // intentionally ignored: parse errors during editing
+          return {} satisfies SdocMeta;
+        }
+      }, existingText.length);
+    }
+
+    const { settings: _incomingSettings, ...incomingMetadata } = mutation.meta;
+    const nextMetadata: Partial<SdocMeta> = canonicalReuse?.reuse.metadata
+      ? canonicalReuse.snapshot.metadata
+      : { ...existingMetadata, ...incomingMetadata };
+    const documentSettings = canonicalReuse?.reuse.settings
+      ? canonicalReuse.snapshot.documentSettings
+      : mutation.documentSettings;
+    const nextMeta: SdocMeta = { ...nextMetadata };
+    if (documentSettings && Object.keys(documentSettings).length > 0) {
+      nextMeta.settings = documentSettings;
     }
 
     // Persisted normalization is portable: document settings over versioned built-ins.
-    const resolved = this.performanceProbe.measure(
-      'resolve-document-settings',
-      () => resolveDocumentSettingsSnapshot({
+    const resolvedSnapshot = canonicalReuse?.reuse.resolvedSettings
+      ? (this.performanceProbe.record('resolve-document-settings', 0, 0),
+        canonicalReuse.snapshot.resolvedSettings!)
+      : this.performanceProbe.measure(
+        'resolve-document-settings',
+        () => resolveDocumentSettingsSnapshot({
         context: 'standalone',
         documentSettings: nextMeta.settings,
-      }).values,
-    );
+        }),
+      );
+    const resolved = resolvedSnapshot.values;
 
-    const synced = this.performanceProbe.measure('normalize-document', () =>
-      normalizeDocument(convertedContent, {
-        equationNumbering: resolved.equationNumbering,
-        captionStyle: resolved.captionStyle,
-        crossRefIncludeCaption: resolved.crossRefIncludeCaption,
-        captionNumbering: resolved.captionNumbering,
-        headingNumbering: resolved.headingNumbering,
-        headingStartNumber: resolved.headingStartNumber,
-      }), mutation.content.content?.length ?? 0);
+    let synced: TiptapNode;
+    if (canonicalReuse?.reuse.normalizedContent) {
+      this.performanceProbe.record('dehydrate-document-assets', 0, 0);
+      this.performanceProbe.record('normalize-document', 0, 0);
+      synced = canonicalReuse.snapshot.normalizedContent!;
+    } else {
+      const convertedContent = this.performanceProbe.measure(
+        'dehydrate-document-assets',
+        () => dehydrateDocumentAssets(
+          convertWebviewUrisToRelativePaths(mutation.content),
+        ),
+        mutation.content.content?.length ?? 0,
+      );
+      synced = this.performanceProbe.measure('normalize-document', () =>
+        normalizeDocument(convertedContent, {
+          equationNumbering: resolved.equationNumbering,
+          captionStyle: resolved.captionStyle,
+          crossRefIncludeCaption: resolved.crossRefIncludeCaption,
+          captionNumbering: resolved.captionNumbering,
+          headingNumbering: resolved.headingNumbering,
+          headingStartNumber: resolved.headingStartNumber,
+        }), mutation.content.content?.length ?? 0);
+    }
 
     // Wrap in sdoc envelope, preserving settings
     const modified = new Date().toISOString();
-    const sdocFile: Record<string, unknown> = {
+    const sdocFile: SdocEnvelope = {
       sdoc: SdocEditorProvider.SDOC_VERSION,
       meta: {
         ...nextMeta,
@@ -2717,11 +2811,26 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
       },
       doc: synced,
     };
-    this.performanceProbe.measure(
-      'validate-persisted-document',
-      () => assertPersistedDocument(sdocFile),
-      synced.content?.length ?? 0,
+    const metadataOnlyReuse = Boolean(
+      canonicalReuse?.reuse.normalizedContent
+      && canonicalReuse.changed.metadata
+      && !canonicalReuse.changed.content
+      && !canonicalReuse.changed.settings,
     );
+    if (metadataOnlyReuse) {
+      this.performanceProbe.record('validate-persisted-document', 0, 0);
+      this.performanceProbe.measure(
+        'validate-persisted-metadata',
+        () => assertPersistedDocumentMetadata(sdocFile.meta),
+      );
+    } else {
+      this.performanceProbe.measure(
+        'validate-persisted-document',
+        () => assertPersistedDocument(sdocFile),
+        synced.content?.length ?? 0,
+      );
+      this.performanceProbe.record('validate-persisted-metadata', 0, 0);
+    }
 
     // Pretty-print JSON for better git diffs
     const endOfLine = document.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n';
@@ -2856,7 +2965,20 @@ export class SdocEditorProvider implements vscode.CustomTextEditorProvider {
     )) {
       modifiedTokenCache.invalidate();
     }
-    return modified;
+    if (componentRevisions) {
+      const { settings: _persistedSettings, ...persistedMetadata } = sdocFile.meta;
+      canonicalPersistenceCache.adopt(modifiedTokenAuthority, {
+        revision: document.version,
+        componentRevisions,
+        metadata: persistedMetadata,
+        documentSettings,
+        resolvedSettings: resolvedSnapshot,
+        normalizedContent: synced,
+      });
+    } else {
+      canonicalPersistenceCache.invalidate();
+    }
+    return { modified, envelope: sdocFile };
   }
 
   private async applyExpectedEdit(

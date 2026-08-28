@@ -2798,6 +2798,16 @@ samp {
   text-align: center;
 }
 
+.math-block-render-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  color: var(--vscode-descriptionForeground);
+  font-family: var(--sdoc-font-mono);
+  white-space: pre-wrap;
+}
+
 .eq-number {
   flex-shrink: 0;
   min-width: 2.5em;

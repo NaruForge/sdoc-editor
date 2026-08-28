@@ -1,6 +1,7 @@
 import { Table } from '@tiptap/extension-table';
 import { TableMap } from '@tiptap/pm/tables';
 import { NOOP_EDITOR_EXTENSION_RUNTIME, type EditorExtensionOptions } from '../extensionRuntime';
+import { areNodeViewAttributesEqual } from './nodeViewUpdate';
 
 export const CustomTable = Table.extend<EditorExtensionOptions>({
   addOptions() {
@@ -241,6 +242,10 @@ export const CustomTable = Table.extend<EditorExtensionOptions>({
 
         update(updatedNode) {
           if (updatedNode.type !== currentNode.type) return false;
+          if (areNodeViewAttributesEqual(currentNode.attrs, updatedNode.attrs)) {
+            currentNode = updatedNode;
+            return true;
+          }
           currentNode = updatedNode;
           refreshCaption();
           refreshStyles();
