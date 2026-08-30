@@ -47,5 +47,6 @@ exists only in the `v0.7.8` tag and is not a build or verification target.
 - For issue creation or mutation, follow `.github/AI_ISSUE_REPORTING.md`; record
   confirmed causes, alternatives, strategy, decisions, and final verification
   on the implementation issue.
+- 실제 구현을 시작할 때 해당 이슈의 GitHub Project Status를 In Progress로 변경한다.
 - Contributor, packaging, and maintainer release procedures live in
   `CONTRIBUTING.md` rather than this always-loaded map.
