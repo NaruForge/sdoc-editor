@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
+import { closeHistory } from '@tiptap/pm/history';
 import { EditorContent } from '@tiptap/react';
 import type { PerformanceMeasurement, PerformanceReport } from '@shared/performance/instrumentation';
 import { NOOP_EDITOR_EXTENSION_RUNTIME } from '@shared/editor/extensionRuntime';
@@ -10,8 +11,12 @@ import {
   resetCodeBlockLanguageOperationCounters,
 } from '@shared/editor/extensions/CodeBlockView';
 import { DocumentSyncCoordinator } from '@shared/persistence/DocumentSyncCoordinator';
+import type { SdocEnvelope, TiptapNode } from '@shared/types';
 import {
+  countTiptapNodes,
   createAcceptedPerformanceCorpus,
+  PERFORMANCE_FIXTURE_SEED,
+  type AcceptedPerformanceCorpus,
   type AcceptedPerformanceCorpusName,
 } from '../../performance/fixtures';
 import '@shared/editor/styles/fonts.css';
@@ -32,7 +37,11 @@ type BrowserCorpusName = Extract<
   | 'structure-10k'
   | 'rich-mixed-5k'
   | 'rich-balanced-5k'
->;
+> | 'code-language-contract';
+
+type BrowserCorpus = Omit<AcceptedPerformanceCorpus, 'name'> & {
+  readonly name: BrowserCorpusName;
+};
 
 interface BrowserPerformanceHarness {
   armKeyToNextPaint(): void;
@@ -50,6 +59,7 @@ interface BrowserPerformanceHarness {
   redo(): boolean;
   deleteCodeBlock(index: number): boolean;
   replaceCodeBlockText(index: number): boolean;
+  closeHistoryGroup(): void;
   transactionCount(): number;
   transactionProbe(): readonly {
     readonly sequence: number;
@@ -76,6 +86,7 @@ const supportedCorpora: readonly BrowserCorpusName[] = [
   'structure-10k',
   'rich-mixed-5k',
   'rich-balanced-5k',
+  'code-language-contract',
 ];
 
 const readCorpus = (): BrowserCorpusName => {
@@ -83,6 +94,53 @@ const readCorpus = (): BrowserCorpusName => {
   return supportedCorpora.includes(value as BrowserCorpusName)
     ? value as BrowserCorpusName
     : 'text-5k';
+};
+
+const codeBlock = (id: string, language: string, text: string): TiptapNode => ({
+  type: 'codeBlock',
+  attrs: { id, language },
+  content: [{ type: 'text', text }],
+});
+
+const createCodeLanguageContractCorpus = (): BrowserCorpus => {
+  const envelope: SdocEnvelope = {
+    sdoc: '1.0',
+    meta: {
+      title: 'Code language interaction contract',
+      author: 'deterministic-fixture',
+      version: '1.0',
+      created: '2026-01-01T00:00:00.000Z',
+      modified: '2026-01-01T00:00:00.000Z',
+    },
+    doc: {
+      type: 'doc',
+      content: [
+        codeBlock('contract-code-null', 'null', 'export const literalNull = true;'),
+        codeBlock('contract-code-custom', 'custom:언어', 'custom code text'),
+        codeBlock('contract-code-empty', '', 'empty language text'),
+        {
+          type: 'paragraph',
+          content: [{ type: 'text', text: 'Ordinary input target' }],
+        },
+      ],
+    },
+  };
+  const text = JSON.stringify(envelope);
+  return {
+    name: 'code-language-contract',
+    axis: 'rich',
+    seed: PERFORMANCE_FIXTURE_SEED,
+    topLevelBlocks: envelope.doc.content?.length ?? 0,
+    nodeCount: countTiptapNodes(envelope.doc),
+    byteLength: new TextEncoder().encode(text).byteLength,
+    envelope,
+    text,
+  };
+};
+
+const createBrowserCorpus = (name: BrowserCorpusName): BrowserCorpus => {
+  if (name === 'code-language-contract') return createCodeLanguageContractCorpus();
+  return { ...createAcceptedPerformanceCorpus(name), name };
 };
 
 const afterNextPaint = (): Promise<void> => new Promise((resolve) => {
@@ -113,7 +171,7 @@ const durationBetweenMeasurement = (
 });
 
 function PerformanceEditor() {
-  const corpus = useMemo(() => createAcceptedPerformanceCorpus(readCorpus()), []);
+  const corpus = useMemo(() => createBrowserCorpus(readCorpus()), []);
   const measurements = useRef<PerformanceMeasurement[]>([]);
   const keyProbe = useRef<Promise<void> | null>(null);
   const debounceProbe = useRef<Promise<void> | null>(null);
@@ -443,6 +501,9 @@ function PerformanceEditor() {
           position + size - 1,
         ));
         return true;
+      },
+      closeHistoryGroup(): void {
+        editor.view.dispatch(closeHistory(editor.state.tr));
       },
       transactionCount(): number {
         return dispatchedTransactions;
