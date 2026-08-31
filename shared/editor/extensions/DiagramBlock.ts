@@ -121,6 +121,8 @@ export const DiagramBlock = Node.create<EditorExtensionOptions, DiagramBlockStor
             const image = document.createElement('img');
             image.src = state.output.dataUrl;
             image.alt = state.output.alt ?? `${state.language} diagram`;
+            image.setAttribute('width', String(state.output.width));
+            image.setAttribute('height', String(state.output.height));
             rendered.replaceChildren(image);
           }
           return;

@@ -1,6 +1,7 @@
 import { getMermaid } from '../utils/mermaid';
 import { isDiagramImageDataUrl } from '../../diagramRenderer';
 import type { KnownDiagramLanguage } from './languages';
+import { normalizeDiagramSvgSize } from './mediaSizing';
 import {
   DiagramRenderError,
   type DiagramRenderRequest,
@@ -17,7 +18,7 @@ const renderMermaid: DiagramRenderer = async ({ code, signal }) => {
     if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
     const { svg } = await mermaid.render(id, code);
     if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
-    return { kind: 'svg', markup: svg };
+    return { kind: 'svg', ...normalizeDiagramSvgSize(svg) };
   } catch (error: unknown) {
     document.getElementById(id)?.remove();
     if (error instanceof Error && error.name === 'AbortError') throw error;
@@ -29,7 +30,7 @@ const renderMermaid: DiagramRenderer = async ({ code, signal }) => {
 };
 
 export type HostDiagramRenderResult =
-  | { kind: 'image'; dataUrl: string; alt?: string }
+  | { kind: 'image'; dataUrl: string; width: number; height: number; alt?: string }
   | { kind: 'source-only'; reason?: string };
 
 export type HostDiagramRenderer = (

@@ -900,6 +900,8 @@ export function useEditorMessages({
           pending.resolve({
             kind: 'image',
             dataUrl: message.result.dataUrl,
+            width: message.result.width,
+            height: message.result.height,
           });
         } else {
           pending.reject(new DiagramRenderError(

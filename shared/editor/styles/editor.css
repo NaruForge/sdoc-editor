@@ -2740,7 +2740,9 @@ samp {
   overflow: auto;
 }
 
-.diagram-rendered svg {
+.diagram-rendered svg,
+.diagram-rendered img {
+  display: block;
   max-width: 100%;
   height: auto;
 }
@@ -2804,7 +2806,9 @@ samp {
   margin: 8px;
 }
 
-.diagram-preview-area svg {
+.diagram-preview-area svg,
+.diagram-preview-area img {
+  display: block;
   max-width: 100%;
   height: auto;
 }

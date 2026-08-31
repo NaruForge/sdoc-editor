@@ -324,6 +324,8 @@ export const DiagramDialog: React.FC<DiagramDialogProps> = ({
                 <img
                   src={renderState.output.dataUrl}
                   alt={renderState.output.alt ?? t('diagram.previewAlt', { language })}
+                  width={renderState.output.width}
+                  height={renderState.output.height}
                 />
               )}
               {!showConsent && renderState.status === 'error' && (

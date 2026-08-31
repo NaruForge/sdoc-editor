@@ -171,7 +171,9 @@ describe('DiagramRenderCoordinator', () => {
     vi.useFakeTimers();
     const retryableRender = vi.fn()
       .mockRejectedValueOnce(new DiagramRenderError('Timed out', true))
-      .mockResolvedValueOnce({ kind: 'image', dataUrl: 'data:image/png;base64,AA==' });
+      .mockResolvedValueOnce({
+        kind: 'image', dataUrl: 'data:image/png;base64,AA==', width: 1, height: 1,
+      });
     const coordinator = new DiagramRenderCoordinator({
       resolveRenderer: () => retryableRender,
       onStateChange: () => {},

@@ -570,6 +570,48 @@ Bob --> Alice: Response
 @enduml`);
   });
 
+  test('keeps Mermaid flowchart and class diagrams at their intrinsic SVG size', async ({ page }) => {
+    await openFixture(page, {
+      scene: 'diagram-error',
+      width: 1024,
+      height: 900,
+      theme: 'dark',
+      locale: 'en',
+    });
+
+    await page.locator('#diagram-language').selectOption('mermaid');
+    const preview = page.locator('.diagram-preview-area');
+    const svg = preview.locator('svg');
+
+    const expectIntrinsicSize = async () => {
+      await expect(svg).toBeVisible();
+      const layout = await svg.evaluate((element) => {
+        const bounds = element.getBoundingClientRect();
+        const container = element.closest('.diagram-preview-area');
+        const viewBox = element.viewBox.baseVal;
+        return {
+          widthAttribute: element.getAttribute('width'),
+          heightAttribute: element.getAttribute('height'),
+          expectedWidth: Math.ceil(viewBox.width),
+          expectedHeight: Math.ceil(viewBox.height),
+          renderedWidth: bounds.width,
+          renderedHeight: bounds.height,
+          availableWidth: container?.clientWidth ?? 0,
+        };
+      });
+      expect(layout.widthAttribute).toBe(String(layout.expectedWidth));
+      expect(layout.heightAttribute).toBe(String(layout.expectedHeight));
+      expect(layout.renderedWidth).toBeLessThanOrEqual(layout.expectedWidth + 1);
+      expect(layout.renderedHeight).toBeLessThanOrEqual(layout.expectedHeight + 1);
+      expect(layout.renderedWidth).toBeLessThanOrEqual(layout.availableWidth);
+    };
+
+    await expectIntrinsicSize();
+    await page.getByRole('button', { name: 'Class', exact: true }).click();
+    await expect(page.locator('#diagram-code')).toHaveValue(/classDiagram/);
+    await expectIntrinsicSize();
+  });
+
   test('traps focus, restores the invoker, and fits a 320px viewport', async ({ page }) => {
     await openFixture(page, {
       scene: 'diagram-error',

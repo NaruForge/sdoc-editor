@@ -117,6 +117,8 @@ describe('DiagramRenderIntentStore', () => {
     const renderDiagram = vi.fn(async () => ({
       kind: 'image' as const,
       dataUrl: 'data:image/svg+xml;base64,PHN2ZyB2aWV3Qm94PSIwIDAgMSAxIj48L3N2Zz4=',
+      width: 320,
+      height: 180,
     }));
     const explicit = createExtensionHarness(renderDiagram);
     const insertedContent = vi.fn(() => true);
@@ -142,10 +144,16 @@ describe('DiagramRenderIntentStore', () => {
       src: expect.stringMatching(/^data:image\/svg\+xml;base64,/),
       alt: 'd2 diagram',
     });
+    expect(rendered.children[0].attributes).toEqual(new Map([
+      ['width', '320'],
+      ['height', '180'],
+    ]));
 
     const passiveRenderer = vi.fn(async () => ({
       kind: 'image' as const,
       dataUrl: 'data:image/svg+xml;base64,PHN2Zy8+',
+      width: 1,
+      height: 1,
     }));
     const passive = createExtensionHarness(passiveRenderer);
     const passiveView = passive.createNodeView({
