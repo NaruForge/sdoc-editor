@@ -7,12 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-08-31
+
 ### Added
 - Added the built-in `builtin:feature-showcase` template so VS Code and CLI can create a self-contained tour of current document features (#139)
 - Made Templates create a new document by default, with an explicit current-document replace action, a rendered preview, empty/loading/failure next actions, and an empty-document start card (#139)
+- Added reproducible Node, Chromium, and VS Code Extension Host performance probes for representative large documents (#217, #220)
 
 ### Changed
 - Removed user-facing Experimental template wording and documented remaining template limits (no bundled images/Draw.io, no remote catalog) (#139)
+- Reduced large-document editor work with bounded ordinary-paragraph projections, lazy rich-node rendering, weighted KaTeX caching, and optimized syntax highlighting (#217, #220)
+- Replaced per-code-block React language controls with one editor-scoped accessible listbox while preserving keyboard, composition, read-only, print, and Undo/Redo behavior (#221)
+- Reduced VS Code persistence work with exact-revision canonical reuse, cached modified-token offsets, and bounded two-range text edits instead of routine whole-document replacement (#218, #219, #220)
+
+### Fixed
+- Prevented opening a valid document or changing editor access state from creating a false local mutation, updating `meta.modified`, or marking the VS Code text document dirty (#217)
+- Preserved native single-step Undo/Redo and rejected stale concurrent persistence updates while applying localized document changes (#218)
+- Made the packaged-VSIX Extension Host release smoke create the feature-showcase document through the bundled template catalog instead of reading source files excluded from the package (#224)
 
 ## [0.12.2] - 2026-08-21
 

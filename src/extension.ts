@@ -17,6 +17,7 @@ import {
   formatLegacySettingsPreview,
   type LegacySettingsScope,
 } from './legacySettingsCleanup';
+import { getBuiltInTemplates } from '../shared/template';
 
 const VIEW_CHANGELOG_ACTION = 'View Changelog';
 
@@ -54,10 +55,31 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(SdocEditorProvider.register(context));
   context.subscriptions.push(SdocBookProvider.register(context));
   if (process.env.SDOC_VSCODE_UI_TEST === '1') {
-    context.subscriptions.push(vscode.commands.registerCommand(
-      'structuredDocEditor.test.waitForEditorUiReady',
-      () => SdocEditorProvider.waitForActiveEditorUiReady(),
-    ));
+    context.subscriptions.push(
+      vscode.commands.registerCommand(
+        'structuredDocEditor.test.waitForEditorUiReady',
+        () => SdocEditorProvider.waitForActiveEditorUiReady(),
+      ),
+      vscode.commands.registerCommand(
+        'structuredDocEditor.test.writeBuiltInTemplateDocument',
+        async (templateId: unknown, targetUri: unknown) => {
+          if (typeof templateId !== 'string' || !(targetUri instanceof vscode.Uri)) {
+            throw new Error('The built-in template test command requires a template ID and target URI.');
+          }
+          const template = getBuiltInTemplates()
+            .find((candidate) => candidate.descriptor.id === templateId);
+          if (!template) throw new Error(`Unknown built-in template: ${templateId}`);
+          await vscode.workspace.fs.writeFile(
+            targetUri,
+            Buffer.from(`${JSON.stringify(template.envelope, null, 2)}\n`, 'utf8'),
+          );
+          return {
+            templateId: template.descriptor.id,
+            title: template.envelope.meta.title,
+          };
+        },
+      ),
+    );
   }
   const templateOutputChannel = vscode.window.createOutputChannel('Structured Doc Templates');
   context.subscriptions.push(templateOutputChannel);

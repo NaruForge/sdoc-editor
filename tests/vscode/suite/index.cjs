@@ -156,6 +156,7 @@ async function run() {
       'structuredDocEditor.exportToSlides',
       'structuredDocEditor.cleanUpLegacySettings',
       'structuredDocEditor.test.waitForEditorUiReady',
+      'structuredDocEditor.test.writeBuiltInTemplateDocument',
       'structuredDocEditor.test.getActivePersistenceState',
       'structuredDocEditor.test.getActiveFileOperation',
       'structuredDocEditor.test.prepareActiveImport',
@@ -176,15 +177,19 @@ async function run() {
   });
 
   await scenario('keeps valid documents stable on open without a false external change on save', async () => {
-    const showcaseSource = vscode.Uri.file(path.join(
-      extension.extensionPath,
-      'shared',
-      'template',
-      'builtins',
-      'feature-showcase.sdoc.json',
-    ));
     const copiedShowcase = vscode.Uri.joinPath(workspace.uri, 'copied-feature-showcase.sdoc');
-    await vscode.workspace.fs.writeFile(copiedShowcase, await readBytes(showcaseSource));
+    assert.deepEqual(
+      await vscode.commands.executeCommand(
+        'structuredDocEditor.test.writeBuiltInTemplateDocument',
+        'builtin:feature-showcase',
+        copiedShowcase,
+      ),
+      {
+        templateId: 'builtin:feature-showcase',
+        title: '기능 둘러보기',
+      },
+      'The packaged extension must expose the bundled feature showcase to the test seam.',
+    );
 
     for (const fileName of ['valid.sdoc', 'copied-feature-showcase.sdoc']) {
       const uri = vscode.Uri.joinPath(workspace.uri, fileName);
