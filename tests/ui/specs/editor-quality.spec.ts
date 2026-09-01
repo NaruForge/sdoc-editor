@@ -612,6 +612,64 @@ Bob --> Alice: Response
     await expectIntrinsicSize();
   });
 
+  test('keeps Mermaid graph geometry stable outside transformed application content', async ({ page }) => {
+    await openFixture(page, {
+      scene: 'diagram-error',
+      width: 1024,
+      height: 900,
+      theme: 'dark',
+      locale: 'en',
+    });
+
+    await page.locator('#diagram-language').selectOption('mermaid');
+    const svg = page.locator('.diagram-preview-area svg');
+    const examples = [
+      'Flowchart',
+      'Sequence',
+      'Class',
+      'State',
+      'ER diagram',
+      'Gantt',
+    ] as const;
+
+    const readViewBox = async () => {
+      await expect(svg).toBeVisible();
+      return svg.evaluate((element) => {
+        const { x, y, width, height } = element.viewBox.baseVal;
+        return { x, y, width, height };
+      });
+    };
+
+    const selectExample = async (name: typeof examples[number]) => {
+      const previousId = await svg.getAttribute('id');
+      await page.getByRole('button', { name, exact: true }).click();
+      await expect.poll(() => svg.getAttribute('id')).not.toBe(previousId);
+      return readViewBox();
+    };
+
+    const baseline = new Map<string, Awaited<ReturnType<typeof readViewBox>>>();
+    await expect(svg).toBeVisible();
+    await selectExample('Sequence');
+    for (const name of examples) {
+      baseline.set(name, await selectExample(name));
+    }
+
+    await page.evaluate(() => {
+      document.documentElement.style.transform = 'scale(1.25)';
+      document.documentElement.style.transformOrigin = 'top left';
+    });
+
+    for (const name of examples) {
+      const transformed = await selectExample(name);
+      const expected = baseline.get(name);
+      expect(expected).toBeDefined();
+      expect(transformed.x).toBeCloseTo(expected!.x, 3);
+      expect(transformed.y).toBeCloseTo(expected!.y, 3);
+      expect(transformed.width).toBeCloseTo(expected!.width, 3);
+      expect(transformed.height).toBeCloseTo(expected!.height, 3);
+    }
+  });
+
   test('traps focus, restores the invoker, and fits a 320px viewport', async ({ page }) => {
     await openFixture(page, {
       scene: 'diagram-error',

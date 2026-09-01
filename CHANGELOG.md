@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.2] - 2026-09-01
+
+### Fixed
+- Stabilized Mermaid HTML-label geometry across display and webview scaling so flowchart, class, state, and ER diagrams no longer inherit oversized renderer canvases (#227)
+
 ## [0.13.1] - 2026-09-01
 
 ### Fixed

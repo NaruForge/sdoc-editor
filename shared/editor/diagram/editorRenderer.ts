@@ -2,6 +2,7 @@ import { getMermaid } from '../utils/mermaid';
 import { isDiagramImageDataUrl } from '../../diagramRenderer';
 import type { KnownDiagramLanguage } from './languages';
 import { normalizeDiagramSvgSize } from './mediaSizing';
+import { createMermaidRenderSurface } from './mermaidRenderSurface';
 import {
   DiagramRenderError,
   type DiagramRenderRequest,
@@ -13,10 +14,12 @@ let mermaidRenderCounter = 0;
 
 const renderMermaid: DiagramRenderer = async ({ code, signal }) => {
   const id = `mermaid-render-${Date.now()}-${mermaidRenderCounter++}`;
+  let renderSurface: HTMLDivElement | undefined;
   try {
     const mermaid = await getMermaid();
     if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
-    const { svg } = await mermaid.render(id, code);
+    renderSurface = createMermaidRenderSurface(document);
+    const { svg } = await mermaid.render(id, code, renderSurface);
     if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
     return { kind: 'svg', ...normalizeDiagramSvgSize(svg) };
   } catch (error: unknown) {
@@ -26,6 +29,8 @@ const renderMermaid: DiagramRenderer = async ({ code, signal }) => {
       error instanceof Error ? error.message : 'Invalid Mermaid source.',
       false,
     );
+  } finally {
+    renderSurface?.remove();
   }
 };
 
