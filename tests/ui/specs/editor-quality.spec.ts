@@ -15,6 +15,7 @@ interface FixtureOptions {
   columns?: number;
   panel?: boolean;
   operation?: 'idle' | 'running' | 'failed' | 'succeeded-export' | 'succeeded-import';
+  disableAnimations?: boolean;
 }
 
 async function openFixture(page: Page, {
@@ -26,14 +27,17 @@ async function openFixture(page: Page, {
   columns = 8,
   panel = false,
   operation = 'idle',
+  disableAnimations = true,
 }: FixtureOptions): Promise<void> {
   await page.setViewportSize({ width, height });
   await page.goto(`/?theme=${theme}&locale=${locale}&scene=${scene}&columns=${columns}&panel=${panel ? '1' : '0'}&operation=${operation}`);
   await page.locator('.quality-harness[data-ready="true"]').waitFor();
   await page.evaluate(() => document.fonts.ready);
-  await page.addStyleTag({
-    content: '*, *::before, *::after { animation: none !important; transition: none !important; }',
-  });
+  if (disableAnimations) {
+    await page.addStyleTag({
+      content: '*, *::before, *::after { animation: none !important; transition: none !important; }',
+    });
+  }
   await page.evaluate(() => new Promise<void>(resolve => {
     requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
   }));
@@ -668,6 +672,70 @@ Bob --> Alice: Response
       expect(transformed.width).toBeCloseTo(expected!.width, 3);
       expect(transformed.height).toBeCloseTo(expected!.height, 3);
     }
+  });
+
+  test('keeps Mermaid graph geometry stable when reduced motion is requested', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    await openFixture(page, {
+      scene: 'diagram-error',
+      width: 1024,
+      height: 900,
+      theme: 'dark',
+      locale: 'en',
+      disableAnimations: false,
+    });
+
+    await page.locator('#diagram-language').selectOption('mermaid');
+    const svg = page.locator('.diagram-preview-area svg');
+    const examples = [
+      'Flowchart',
+      'Sequence',
+      'Class',
+      'State',
+      'ER diagram',
+      'Gantt',
+    ] as const;
+
+    const selectExample = async (name: typeof examples[number]) => {
+      const previousId = await svg.getAttribute('id');
+      await page.getByRole('button', { name, exact: true }).click();
+      await expect.poll(() => svg.getAttribute('id')).not.toBe(previousId);
+      return svg.evaluate((element) => {
+        const { x, y, width, height } = element.viewBox.baseVal;
+        return { x, y, width, height };
+      });
+    };
+
+    const baseline = new Map<string, Awaited<ReturnType<typeof selectExample>>>();
+    await expect(svg).toBeVisible();
+    await selectExample('Sequence');
+    for (const name of examples) {
+      baseline.set(name, await selectExample(name));
+    }
+    await selectExample('Flowchart');
+    const htmlLabel = page.locator('.diagram-preview-area svg foreignObject div').first();
+    await expect(htmlLabel).toBeAttached();
+    const baselineTransitionDuration = await htmlLabel.evaluate(
+      (element) => window.getComputedStyle(element).transitionDuration,
+    );
+    await selectExample('Sequence');
+
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+
+    for (const name of examples) {
+      const reducedMotion = await selectExample(name);
+      const expected = baseline.get(name);
+      expect(expected).toBeDefined();
+      expect(reducedMotion.x).toBeCloseTo(expected!.x, 3);
+      expect(reducedMotion.y).toBeCloseTo(expected!.y, 3);
+      expect(reducedMotion.width).toBeCloseTo(expected!.width, 3);
+      expect(reducedMotion.height).toBeCloseTo(expected!.height, 3);
+    }
+    await selectExample('Flowchart');
+    await expect(htmlLabel).toBeAttached();
+    expect(await htmlLabel.evaluate(
+      (element) => window.getComputedStyle(element).transitionDuration,
+    )).toBe(baselineTransitionDuration);
   });
 
   test('traps focus, restores the invoker, and fits a 320px viewport', async ({ page }) => {

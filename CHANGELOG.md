@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.3] - 2026-09-03
+
+### Fixed
+- Prevented reduced-motion accessibility styles from altering Mermaid HTML-label geometry while preserving motion reduction for editor-owned controls (#227)
+
 ## [0.13.2] - 2026-09-01
 
 ### Fixed
