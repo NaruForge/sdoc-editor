@@ -1203,11 +1203,13 @@ export class SdocBookProvider implements vscode.CustomTextEditorProvider {
     if (registeredSession?.panel === webviewPanel && registeredSession.sessionId === sessionId) {
       registeredSession.prepareFileOperation = async (format) => {
         const deadline = Date.now() + 10_000;
-        while (latestWorkspaceState?.status !== 'ready' && Date.now() < deadline) {
+        // The test command must wait for the UI just as a user-triggered export
+        // does. Composition can finish before the Book webview can receive status.
+        while ((!webviewReady || latestWorkspaceState?.status !== 'ready') && Date.now() < deadline) {
           await new Promise((resolve) => setTimeout(resolve, 25));
         }
         const ready = latestWorkspaceState?.status === 'ready' ? latestWorkspaceState : undefined;
-        if (!ready || !ready.canExport) {
+        if (!webviewReady || !ready || !ready.canExport) {
           throw new Error('The active Book is not ready for export.');
         }
         await beginBookExportPreflight(

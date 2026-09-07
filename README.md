@@ -33,7 +33,7 @@ VS Code 확장과 SDOC CLI는 같은 문서 계약을 사용합니다. VS Code�
 
 | 공식 배포면 | 이런 경우에 적합합니다 | 요구 사항 |
 |---|---|---|
-| [**VS Code 확장**](https://marketplace.visualstudio.com/items?itemName=swbaek.structured-doc-editor) | 코드와 기술 문서를 같은 workspace에서 시각적으로 작성 | VS Code 1.85 이상 |
+| [**VS Code 확장**](https://marketplace.visualstudio.com/items?itemName=swbaek.structured-doc-editor) | 코드와 기술 문서를 같은 workspace에서 시각적으로 작성 | VS Code 1.85 이상 (최소 버전·최신 stable CI 검증) |
 | [**SDOC CLI**](https://www.npmjs.com/package/sdoc-editor-cli) | AI·스크립트·CI에서 문서를 생성하고 검사·변경 | Node.js 22.22.2 이상 |
 
 ### VS Code

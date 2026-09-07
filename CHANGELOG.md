@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add target-free document-start/document-end CLI insertion for empty documents and first H1 sections, with capability discovery and atomic preview/write validation (#226)
 
 ### Changed
+- Verify the declared minimum VS Code version and latest stable with the same isolated Extension Host scenarios, including activation, editing, and saving (#249)
 - Record mixed-document browser budgets, environment, raw evidence, and explicit risk decisions before VS Code releases (#248)
 - Reuse syntax highlighting for unchanged code blocks during code and paragraph formatting edits, recalculating only affected blocks (#247)
 

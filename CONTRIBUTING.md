@@ -41,6 +41,8 @@ Windows·Linux CI는 build가 생성물을 갱신하기 전에 이 검사를 실
 | `npm run verify:build` | VS Code extension, webview, CLI build |
 | `npm run verify:ui` | Chromium 준비 후 Playwright의 UI 품질·접근성·visual·responsive/theme 검증 |
 | `npm run verify:vscode` | build 후 실제 VS Code Extension Host 통합 검증 |
+| `npm run verify:vscode:minimum` | manifest의 최소 지원 버전에서 build 후 동일한 전체 Host 통합 검증 |
+| `npm run verify:vscode:compatibility` | 한 번 build한 결과를 최소 버전·최신 stable의 독립 Host 세션에서 순차 검증 |
 | `npm run verify:package:vscode` | 의존성 고지 검사·version-checked VSIX 생성 후 필수 extension/webview asset과 canonical CSS 검증 |
 | `npm run verify:package:vscode:host` | 생성된 VSIX를 풀어 실제 Extension Host에서 실행하는 release smoke 검증 |
 | `npm run verify:package:cli` | 의존성 고지 검사·CLI `.tgz` 생성, contents·설치·UTF-8 smoke 검증; Windows에서는 PowerShell 7·5.1과 `cmd.exe` shim까지 검증 |
@@ -49,6 +51,21 @@ Windows·Linux CI는 build가 생성물을 갱신하기 전에 이 검사를 실
 작업 중에는 `verify:fast`와 영향받은 targeted command를 실행하고, material
 change를 완료하기 전에는 저장소 루트에서 `npm run verify:all`을 실행합니다.
 UI나 파일 I/O처럼 사람의 판단이 필요한 항목은 아래 수동 검증도 추가합니다.
+
+`verify:vscode`는 기본적으로 최신 stable을 실행합니다. 특정 버전을 진단할 때는
+`VSCODE_TEST_VERSION=1.85.0`처럼 환경 변수로 선택할 수 있으며, `minimum`은
+검증 대상 extension의 `package.json#engines.vscode`에서 하한을 읽습니다.
+현재 지원 범위는 `^1.85.0`입니다. 하한 선택기는 단일 `^major.minor.patch` 형식만
+허용하며, 범위 형식을 변경하면 추측하거나 stable로 대체하지 않고 실패합니다.
+
+Windows CI의 Host matrix는 `minimum`과 `stable`에서 같은 전체 시나리오를 실행합니다.
+`verify:all`도 `verify:vscode:compatibility`를 포함하므로 두 버전을 모두 확인하며,
+이 명령과 `verify:vscode:minimum`은 로컬 `VSCODE_TEST_VERSION` 설정보다 우선합니다.
+확장 활성화, 정상 문서 열기, 실제 webview 편집, dirty 상태와 저장 결과를 검증하고
+각 Host의 실제 VS Code·내장 Node 버전을 출력합니다. 고정 버전은 요청 버전과
+일치해야 합니다. 실행마다 workspace·user-data·extensions 폴더를 임시 생성해
+격리하며 다운로드·설치·실행 실패를 skip이나 성공으로 처리하지 않습니다.
+최신 stable의 전체 Host 검증 범위도 그대로 유지합니다.
 
 의존성이나 번들 자산을 변경했다면 `npm ci` 후 `npm run licenses:generate`로
 `THIRD_PARTY_NOTICES.md`를 재생성하고 diff를 함께 검토합니다. 일반 CI의
