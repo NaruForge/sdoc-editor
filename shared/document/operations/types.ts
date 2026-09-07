@@ -10,6 +10,9 @@ export type BlockDestination =
   | { position: 'before' | 'after'; target: NodeTarget }
   | { position: 'section-end'; target: NodeTarget };
 
+export type DocumentRootDestination = { position: 'document-start' | 'document-end' };
+export type BlockInsertionDestination = BlockDestination | DocumentRootDestination;
+
 export type PortableDocumentSettingKey = Exclude<
 keyof DocumentSettings,
   'slideCssPath' | 'htmlCssPath' | 'outputDir'
@@ -32,15 +35,16 @@ export type SdocOperation =
     patch: { author?: string | null; version?: string | null };
   }
   | { op: 'updateDocumentSettings'; patch: DocumentSettingsPatch }
-  | { op: 'insertBlock'; destination: BlockDestination; block: TiptapNode }
-  | {
+  | { op: 'insertBlock'; destination: BlockInsertionDestination; block: TiptapNode }
+  | ({
     op: 'insertSection';
-    target: NodeTarget;
     title: string;
     id?: string;
     blocks?: TiptapNode[];
-    position?: 'child' | 'before' | 'after';
-  }
+  } & (
+    | { target: NodeTarget; position?: 'child' | 'before' | 'after' }
+    | { destination: DocumentRootDestination }
+  ))
   | { op: 'replaceBlock'; target: NodeTarget; block: TiptapNode }
   | { op: 'updateBlockAttrs'; target: NodeTarget; attrs: Record<string, unknown> }
   | { op: 'moveBlock'; target: NodeTarget; destination: BlockDestination }

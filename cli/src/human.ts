@@ -173,6 +173,9 @@ export function renderHumanSuccess(value: Record<string, unknown>): string {
     if (Array.isArray(value.semanticOperations)) {
       lines.push(`Semantic operations: ${value.semanticOperations.join(', ')}`);
     }
+    if (Array.isArray(value.operationFeatures)) {
+      lines.push(`Operation features: ${value.operationFeatures.join(', ')}`);
+    }
     if (Array.isArray(value.projections)) lines.push(`Read projections: ${value.projections.join(', ')}`);
     if (Array.isArray(value.catalogKinds)) lines.push(`Catalog kinds: ${value.catalogKinds.join(', ')}`);
     if (Array.isArray(value.builtInTemplateIds)) {

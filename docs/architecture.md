@@ -347,6 +347,11 @@ limited to referenceable nodes. Targets are resolved before a batch starts, so
 an earlier insertion or move cannot redirect a later operation.
 
 Section operations use heading ranges in one parent content array. The core
+also accepts explicit document-start/document-end insertion destinations without
+an existing node target. These resolve against the current top-level content
+boundary at each operation's turn; root section insertion creates an H1.
+Target-based operations still resolve their handles before the batch starts.
+The core
 normalizes through resolved document settings, validates schema and
 reference/link/asset invariants, and returns a bounded semantic diff. Existing
 invariant violations are tracked as a baseline multiset; a batch may not add or
