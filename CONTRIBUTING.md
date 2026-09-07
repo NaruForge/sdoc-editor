@@ -52,6 +52,13 @@ Windows·Linux CI는 build가 생성물을 갱신하기 전에 이 검사를 실
 change를 완료하기 전에는 저장소 루트에서 `npm run verify:all`을 실행합니다.
 UI나 파일 I/O처럼 사람의 판단이 필요한 항목은 아래 수동 검증도 추가합니다.
 
+파일 symlink containment 테스트는 링크 생성 권한 또는 파일시스템 지원이 없으면
+오류 코드와 검증 미실행 이유를 출력하고 명시적으로 skip합니다. 그 밖의 생성 오류는
+실패로 처리합니다. Linux CI의 `verify:fast`는 `SDOC_REQUIRE_FILE_SYMLINK=1`로
+실행하므로 링크 생성과 containment assertion을 반드시 통과해야 합니다. 로컬에서도
+같은 환경 변수를 지정하면 skip 없이 실행을 요구할 수 있습니다. 실패 주입 테스트는
+별도 Vitest 프로세스에서 실제 skip/실패 집계와 종료 코드를 확인합니다.
+
 `verify:vscode`는 기본적으로 최신 stable을 실행합니다. 특정 버전을 진단할 때는
 `VSCODE_TEST_VERSION=1.85.0`처럼 환경 변수로 선택할 수 있으며, `minimum`은
 검증 대상 extension의 `package.json#engines.vscode`에서 하한을 읽습니다.
