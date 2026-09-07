@@ -28,18 +28,24 @@ npm ci
 
 | 명령 | 권위 있는 검증 범위 |
 |---|---|
-| `npm run verify:fast` | 반복 작업용: 버전·repository knowledge/architecture·디자인·생성 validator 계약, TypeScript, ESLint, Vitest |
+| `npm run verify:fast` | 반복 작업용: 버전·의존성 고지·repository knowledge/architecture·디자인·생성 validator 계약, TypeScript, ESLint, Vitest |
 | `npm run verify:build` | VS Code extension, webview, CLI build |
 | `npm run verify:ui` | Chromium 준비 후 Playwright의 UI 품질·접근성·visual·responsive/theme 검증 |
 | `npm run verify:vscode` | build 후 실제 VS Code Extension Host 통합 검증 |
-| `npm run verify:package:vscode` | version-checked VSIX 생성 후 필수 extension/webview asset과 canonical CSS 검증 |
+| `npm run verify:package:vscode` | 의존성 고지 검사·version-checked VSIX 생성 후 필수 extension/webview asset과 canonical CSS 검증 |
 | `npm run verify:package:vscode:host` | 생성된 VSIX를 풀어 실제 Extension Host에서 실행하는 release smoke 검증 |
-| `npm run verify:package:cli` | CLI `.tgz` 생성, contents·설치·UTF-8 smoke 검증; Windows에서는 PowerShell 7·5.1과 `cmd.exe` shim까지 검증 |
+| `npm run verify:package:cli` | 의존성 고지 검사·CLI `.tgz` 생성, contents·설치·UTF-8 smoke 검증; Windows에서는 PowerShell 7·5.1과 `cmd.exe` shim까지 검증 |
 | `npm run verify:all` | material change 완료 전 현재 OS에서 실행 가능한 reusable deterministic surface 전체 |
 
 작업 중에는 `verify:fast`와 영향받은 targeted command를 실행하고, material
 change를 완료하기 전에는 저장소 루트에서 `npm run verify:all`을 실행합니다.
 UI나 파일 I/O처럼 사람의 판단이 필요한 항목은 아래 수동 검증도 추가합니다.
+
+의존성이나 번들 자산을 변경했다면 `npm ci` 후 `npm run licenses:generate`로
+`THIRD_PARTY_NOTICES.md`를 재생성하고 diff를 함께 검토합니다. 일반 CI의
+`verify:fast`와 `package`·`package:cli` 진입점은 같은 `licenses:check`를 실행합니다.
+고지가 없거나 오래됐으면 패키지 생성 전에 실패하며 자동으로 고치지 않습니다.
+릴리스 workflow도 이 패키징 진입점을 사용합니다.
 
 ## 작업 흐름
 
