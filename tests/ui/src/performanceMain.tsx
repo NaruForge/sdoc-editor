@@ -48,6 +48,7 @@ interface BrowserPerformanceHarness {
   readKeyToNextPaint(): Promise<void>;
   readDebouncedUpdate(): Promise<void>;
   focusInputTarget(target?: 'top' | 'middle' | 'bottom'): string;
+  focusLowlightTarget(target: 'code' | 'marked' | 'bold'): string;
   resetCodeBlockLanguageOperations(): void;
   measureSyncCheckpoint(): void;
   measureScroll(edge: 'start' | 'end'): Promise<void>;
@@ -404,6 +405,24 @@ function PerformanceEditor() {
         inputTargetLabel = target;
         inputTargetPosition = inputTargets[target];
         editor.chain().setTextSelection(inputTargetPosition).focus().run();
+        return editor.state.selection.$from.parent.type.name;
+      },
+      focusLowlightTarget(target): string {
+        const positions: number[] = [];
+        editor.state.doc.forEach((node, pos) => {
+          if (node.type.name === (target === 'code' ? 'codeBlock' : 'paragraph')
+            && node.textContent.length > 4) positions.push(pos + 1);
+        });
+        const pos = positions[Math.floor(positions.length / 2)];
+        if (pos === undefined) throw new Error('missing lowlight target');
+        inputTargetPosition = pos;
+        if (target === 'marked') {
+          editor.chain().setTextSelection({ from: pos, to: pos + 4 }).setBold().run();
+          editor.chain().setTextSelection(pos + 2).focus().run();
+        } else {
+          editor.chain().setTextSelection(target === 'bold' ? { from: pos, to: pos + 4 } : pos + 2)
+            .focus().run();
+        }
         return editor.state.selection.$from.parent.type.name;
       },
       resetCodeBlockLanguageOperations(): void {

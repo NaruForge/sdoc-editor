@@ -117,8 +117,16 @@ index plugin만 측정하며 warmup과 각 sample의 `EditorState`를 같은 fix
 ```powershell
 npm run perf:browser
 npm run perf:browser -- --corpus=text-10k
+npm run perf:browser -- --scenario=lowlight
 npm run perf:vscode
 ```
+
+`--scenario=lowlight`는 고정 `rich-mixed-5k` corpus의 코드 블록 250개에서
+코드 입력, 서식 있는 문단 입력, 문단 굵게 적용을 실제 키보드로 측정합니다.
+각 시나리오는 2회 준비 입력 후 7개 표본을 수집하고
+`tests/ui/artifacts/performance/lowlight.json`에 dispatch CPU, key-to-next-paint,
+plugin 시간과 강조 호출 횟수를 저장합니다. 코드 입력은 1회, 문단 편집은
+0회 호출을 검증하며 시간은 비교용으로 기록합니다.
 
 `perf:browser`는 Playwright의 실제 Chromium에서 제품과 같은
 `useTiptapEditor` 및 공용 extension set을 실행합니다. 고정 corpus를 초기
