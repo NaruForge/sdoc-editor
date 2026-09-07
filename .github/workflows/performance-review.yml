@@ -21,6 +21,9 @@ on:
         required: false
         default: ''
     outputs:
+      commit:
+        description: Exact clean checkout commit measured by this review
+        value: ${{ jobs.review.outputs.commit }}
       status:
         description: within-budget, below-budget, risk-accepted, or measurement-error
         value: ${{ jobs.review.outputs.status }}
@@ -34,6 +37,7 @@ jobs:
     runs-on: windows-2025
     timeout-minutes: 20
     outputs:
+      commit: ${{ steps.measure.outputs.commit }}
       status: ${{ steps.measure.outputs.status || 'measurement-error' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

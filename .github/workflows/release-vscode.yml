@@ -43,10 +43,18 @@ jobs:
     environment: vscode-marketplace
 
     steps:
+      - name: Require the exact reviewed commit
+        shell: pwsh
+        env:
+          REVIEWED_COMMIT: ${{ needs.performance-review.outputs.commit }}
+        run: |
+          if ($env:REVIEWED_COMMIT -notmatch '^[0-9a-f]{40}$') {
+            throw 'Performance review did not provide an exact clean commit; refusing to resolve the release tag again.'
+          }
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.release_tag || github.ref }}
+          ref: ${{ needs.performance-review.outputs.commit }}
 
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
