@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { expect, test } from '@playwright/test';
+import { assessRichBrowserBudget } from '../../../shared/performance/browserReleaseReview';
 import type { PerformanceReport } from '../../../shared/performance/instrumentation';
 
 interface BrowserPerformanceWindow {
@@ -62,6 +63,21 @@ const maximumContextValue = (
   const value = report.context[key];
   return typeof value === 'number' ? value : 0;
 }));
+
+test.afterEach(async ({ page }, testInfo) => {
+  if (testInfo.status === testInfo.expectedStatus) return;
+  // A failure before a complete run still leaves the samples collected so far.
+  // This file is explicitly incomplete and is never used for a release verdict.
+  try {
+    const partial = await page.evaluate(() => window.__sdocBrowserPerformance?.report());
+    if (!partial) return;
+    const directory = path.resolve('tests/ui/artifacts/performance');
+    await mkdir(directory, { recursive: true });
+    await writeFile(path.join(directory, 'browser-incomplete.json'), `${JSON.stringify(partial, null, 2)}\n`, 'utf8');
+  } catch {
+    // A crashed/closed page has no readable samples; Playwright retains its trace.
+  }
+});
 
 test('measures the real Chromium editor path and enforces the accepted rich-document budgets', async ({ page }) => {
   // Three rich 5k mounts plus behavior probes exceed the default test timeout on
@@ -149,6 +165,9 @@ test('measures the real Chromium editor path and enforces the accepted rich-docu
     expect(report).toBeDefined();
     if (!report) throw new Error('browser performance report was not published');
     reports.push(report);
+    const rawDirectory = path.resolve('tests/ui/artifacts/performance');
+    await mkdir(rawDirectory, { recursive: true });
+    await writeFile(path.join(rawDirectory, `browser-run-${run}.json`), `${JSON.stringify(report, null, 2)}\n`, 'utf8');
 
   }
 
@@ -311,6 +330,19 @@ test('measures the real Chromium editor path and enforces the accepted rich-docu
     measurements: pooledMeasurements,
   };
 
+  const artifactDirectory = path.resolve('tests/ui/artifacts/performance');
+  await mkdir(artifactDirectory, { recursive: true });
+  await writeFile(
+    path.join(artifactDirectory, 'browser.json'),
+    `${JSON.stringify(report, null, 2)}\n`,
+    'utf8',
+  );
+  await writeFile(
+    path.join(artifactDirectory, `browser-${corpus}.json`),
+    `${JSON.stringify(report, null, 2)}\n`,
+    'utf8',
+  );
+
   expect(report).toMatchObject({
     schemaVersion: 1,
     clock: 'monotonic',
@@ -371,39 +403,23 @@ test('measures the real Chromium editor path and enforces the accepted rich-docu
     expect(measurement.outcome).toBe('ok');
   }
 
-  const artifactDirectory = path.resolve('tests/ui/artifacts/performance');
-  await mkdir(artifactDirectory, { recursive: true });
-  await writeFile(
-    path.join(artifactDirectory, 'browser.json'),
-    `${JSON.stringify(report, null, 2)}\n`,
-    'utf8',
-  );
-  await writeFile(
-    path.join(artifactDirectory, `browser-${corpus}.json`),
-    `${JSON.stringify(report, null, 2)}\n`,
-    'utf8',
-  );
-
   const openDurations = durations(report, 'open-to-editable-next-paint');
-  const inputDurations = durations(report, 'key-to-next-paint');
   if (corpus === 'rich-mixed-5k') {
     for (const position of ['top', 'middle', 'bottom']) {
       const positioned = durations(report, `key-to-next-paint-${position}`);
       expect(positioned).toHaveLength(10);
     }
   }
-  const scrollDurations = durations(report, 'scroll-next-paint');
-  const navigationDurations = durations(report, 'navigate-next-paint');
   const domNodeCount = Number(report.context.domNodeCount);
   const retainedJsHeapBytes = Number(report.context.retainedJsHeapBytes);
   if (corpus === 'rich-mixed-5k') {
-    expect(percentile95(openDurations), 'mixed editable p95').toBeLessThanOrEqual(2_000);
-    expect(percentile95(inputDurations), 'mixed input p95').toBeLessThanOrEqual(50);
-    expect(Math.max(...inputDurations), 'mixed input max').toBeLessThan(100);
-    expect(percentile95(scrollDurations), 'mixed scroll p95').toBeLessThanOrEqual(50);
-    expect(percentile95(navigationDurations), 'mixed navigation p95').toBeLessThanOrEqual(100);
-    expect(domNodeCount, 'mixed DOM nodes').toBeLessThanOrEqual(50_000);
-    expect(retainedJsHeapBytes, 'mixed retained heap').toBeLessThanOrEqual(128 * 1024 * 1024);
+    const assessment = assessRichBrowserBudget(report);
+    await writeFile(path.join(artifactDirectory, 'browser-budget.json'), `${JSON.stringify(assessment, null, 2)}\n`);
+    // Release review keeps functional assertions above, then records budget misses
+    // separately. The direct perf:browser command retains the strict gate.
+    if (process.env.SDOC_BROWSER_PERF_REVIEW !== '1') {
+      expect(assessment.metrics.filter((metric) => !metric.passed), 'mixed browser budgets').toEqual([]);
+    }
   } else if (corpus === 'rich-balanced-5k') {
     expect(percentile95(openDurations), 'balanced editable p95').toBeLessThanOrEqual(5_000);
     expect(domNodeCount, 'balanced DOM nodes').toBeLessThanOrEqual(75_000);

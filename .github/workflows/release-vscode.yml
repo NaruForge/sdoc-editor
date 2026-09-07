@@ -12,6 +12,10 @@ on:
         description: Existing v* tag to build and publish
         required: true
         type: string
+      performance_risk_acceptance_reason:
+        description: Optional rationale for accepting this run's rich-browser budget misses
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -22,17 +26,35 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  performance-review:
+    name: Rich browser release evidence
+    uses: ./.github/workflows/performance-review.yml
+    permissions:
+      contents: read
+    with:
+      ref: ${{ inputs.release_tag || github.ref }}
+      risk_acceptance_reason: ${{ inputs.performance_risk_acceptance_reason || '' }}
+
   publish:
     name: Package and publish VSIX
+    needs: performance-review
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: vscode-marketplace
 
     steps:
+      - name: Require the exact reviewed commit
+        shell: pwsh
+        env:
+          REVIEWED_COMMIT: ${{ needs.performance-review.outputs.commit }}
+        run: |
+          if ($env:REVIEWED_COMMIT -notmatch '^[0-9a-f]{40}$') {
+            throw 'Performance review did not provide an exact clean commit; refusing to resolve the release tag again.'
+          }
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.release_tag || github.ref }}
+          ref: ${{ needs.performance-review.outputs.commit }}
 
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0

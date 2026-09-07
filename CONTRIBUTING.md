@@ -68,6 +68,7 @@ UI나 파일 I/O처럼 사람의 판단이 필요한 항목은 아래 수동 검
 | `npm run perf:baseline:quick` | 고정 seed의 소형 성능 baseline smoke 측정 |
 | `npm run perf:baseline` | 5k/10k/25k 및 구조·리치 corpus의 전체 성능 baseline 측정 |
 | `npm run perf:baseline:json` | 동등한 하드웨어에서 비교할 원시 sample·요약 JSON 출력 |
+| `npm run perf:review` | 고정 rich corpus의 릴리스 성능 검토·판정·환경·실패 증거 보존 |
 | `npm run perf:browser` | 실제 Chromium 공유 편집기의 open·입력·paint·scroll/navigation·DOM·heap 보고서 |
 | `npm run perf:vscode` | build와 실제 Extension Host mutation/ACK·저장 lifecycle 보고서 |
 | `npm run build:cli` | Node.js CLI 단일 ESM bundle 빌드 |
@@ -279,6 +280,76 @@ OIDC로 npm에 패키지를 게시한 뒤 GitHub Release에 같은 패키지를 
 검증한 뒤 Visual Studio Marketplace에 게시합니다. 이 워크플로는 GitHub
 OIDC와 Microsoft Entra 관리 ID를 사용하며 PAT 또는 장기 보관 클라이언트
 비밀을 사용하지 않습니다.
+
+### 릴리스 성능 검토
+
+일반 UI CI의 성공과 rich 문서 성능 예산 충족은 별개입니다. VS Code 릴리스는
+[performance-review workflow](.github/workflows/performance-review.yml)를 먼저
+실행하고, 측정 증거가 만들어진 뒤 패키징·게시로 진행합니다. 게시 checkout은 측정한
+clean commit SHA에 고정하며 태그를 다시 해석하지 않습니다. SHA가 없으면
+기본 ref로 대신 게시하지 않고 실패합니다. CLI 게시에는
+브라우저 예산을 적용하지 않습니다. 워크플로를 수동 실행하면 게시 없이도
+선택한 커밋이나 태그를 검토할 수 있습니다.
+
+```powershell
+npm ci
+npm run verify:ui:browser
+npm run perf:review
+```
+
+`perf:review`는 `npm run perf:browser -- --corpus=rich-mixed-5k`를 review 모드로
+실행합니다. 3회 open, 총 30회 입력, scroll/navigation 각 15회, worker 1개,
+retry 0회를 강제합니다. 기존 `perf:browser`의 기본 모드는 계속 예산 위반 시
+실패합니다. 두 경로는 같은 예산 정의를 사용하며 corpus와 capture point를
+줄이거나 바꾸지 않습니다. review 모드는 기능 assertion을 그대로 실행한 뒤
+시간·DOM·heap 예산 판정만 별도로 기록합니다.
+
+| 검토 상태 | 의미 | 명령 종료 코드 / 릴리스 정책 |
+|---|---|---|
+| `within-budget` | 모든 예산 충족 | 0 / 계속 진행 |
+| `below-budget` | 측정 완료, 하나 이상의 예산 미달, 명시적 수용 없음 | 0 / 경고와 미달 지표를 기록하고 계속 진행 |
+| `risk-accepted` | 예산 미달과 이번 실행의 검토자·수용 사유를 함께 기록 | 0 / 계속 진행; 측정 판정은 여전히 `below-budget` |
+| `measurement-error` | setup·기능 검사 실패, 손상·누락·불완전한 결과 | 1 / 게시 선행 검토 실패; 위험 수용으로 우회 불가 |
+
+절대 시간 미달은 **advisory**입니다. 매 PR을 새 시간 hard gate로 막지 않으며,
+[#216의 종료 결정](https://github.com/NaruForge/sdoc-editor/issues/216#issuecomment-5447837216)을
+재개하거나 기존 50 ms 입력 예산을 완화하지 않습니다. 그때의 위험 수용을
+새 커밋에 자동 적용하지도 않습니다. `below-budget`는 예산 통과나 묵시적
+수용을 뜻하지 않습니다. 유지보수자는 릴리스 검토에서 해당 상태와 원시
+표본을 확인하고, 수용할 경우 이번 실행에 사유를 직접 남깁니다.
+
+수동 workflow의 `risk_acceptance_reason`, VS Code 릴리스 재실행의
+`performance_risk_acceptance_reason`에 사유를 입력하면 GitHub 실행자와 실제
+checkout SHA에 연결해 기록합니다. GitHub의 Re-run은 입력 사유를 상속하지만
+새 측정의 위험 수용으로 재사용하지 않습니다. 최초 실행자, 재실행자,
+run ID/attempt와 무시한 사유를 기록하며, 새 결과를 수용하려면 새 수동
+workflow dispatch를 시작해 사유를 직접 입력합니다. 로컬에서는 `SDOC_PERF_ACCEPT_REASON`과
+`SDOC_PERF_REVIEWER`를 함께 지정합니다. 사유에는 비밀 정보나 개인 데이터를
+넣지 않습니다. 이 입력은 오류나 기능 실패를 성공으로 바꾸지 않습니다.
+
+워크플로는 `windows-2025`, `.node-version`, lockfile의 Playwright/Chromium을
+사용합니다. hosted runner의 CPU와 이미지 개정까지 동일하다고 가정하지
+않으며 OS·CPU·메모리·Node·npm·이미지 정보, lockfile hash와 실행 커밋을
+`tests/ui/artifacts/performance-release/review.json`에 남깁니다. 요약은 같은
+디렉터리의 `summary.md`와 GitHub job summary에, 실행 로그는
+`measurement.log`에 즉시 기록합니다. 실행 도중의 stdout/stderr도 보존합니다. 원시 pooled JSON과 완료한 run별 JSON은
+`tests/ui/artifacts/performance/`에 남습니다. 시작 전 이전 원시 결과를
+지우므로 실행 실패가 지난 성공 결과를 재사용하지 않습니다.
+
+실패·취소 시에도 가능한 증거를 `rich-browser-review-<run>-<attempt>`
+artifact로 업로드하며 보존 기간은 30일입니다. setup 단계에서 실패하면
+측정 성공을 꾸미지 않고 `measurement-error` 요약을 남깁니다. 장기간 유지할
+릴리스 판단에는 artifact 만료 전에 결과를 보관하고 검토 기록을 연결합니다.
+전후 비교는 동일한 corpus·capture point·Node/Chromium·CPU·전원 조건으로 하며,
+재실행으로 유리한 표본만 고르지 말고 각 실행의 결과를 따로 남깁니다.
+
+현재 결과는 **Vite 개발용 harness**의 수치입니다. 생산 번들에서 같은 corpus와
+capture point를 측정하는 비교는 별도 단계이며 아직 제공하지 않습니다.
+추가할 때는 번들 종류와 환경·capture point 차이를 명시한 별도 결과로
+보존하고, 개발용 결과나 예산을 지워 통과로 바꾸지 않습니다. 보고서의
+monotonic 원시 측정 형식은 그대로이며, 검토 envelope만 실행 시각과 환경·결정을
+추가합니다.
+
 
 ## 코드 구조와 경계
 
