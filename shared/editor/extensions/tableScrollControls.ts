@@ -13,6 +13,7 @@ export function attachTableScrollControls(
   editor: Editor,
   view: EditorView,
   translate: EditorTranslator,
+  focusFallback: () => void,
 ) {
   const controls = document.createElement('div');
   controls.className = 'table-scroll-controls';
@@ -57,6 +58,9 @@ export function attachTableScrollControls(
     const offset = Math.max(0, Math.min(maximum, container.scrollLeft));
     const atStart = offset <= 1;
     const atEnd = maximum - offset <= 1;
+    if (!overflow && controls.contains(document.activeElement)) focusFallback();
+    else if (overflow && ((atStart && document.activeElement === left)
+      || (atEnd && document.activeElement === right))) controls.focus({ preventScroll: true });
     controls.hidden = !overflow;
     wrapper.classList.toggle('table-has-overflow', overflow);
     left.disabled = atStart;
@@ -112,7 +116,10 @@ export function attachTableScrollControls(
       else return;
     } else if (event.key === 'Escape' && view.hasFocus()
       && table.contains(view.domAtPos(editor.state.selection.from).node) && !controls.hidden) {
+      const horizontalOffset = container.scrollLeft;
       controls.focus({ preventScroll: true });
+      controls.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      container.scrollLeft = horizontalOffset;
     } else return;
     event.preventDefault();
     event.stopPropagation();

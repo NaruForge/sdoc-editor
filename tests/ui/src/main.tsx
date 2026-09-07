@@ -192,6 +192,7 @@ function createEditorMock(tableActive: boolean): Editor {
 
 function ActualTable({ columns, locale }: { columns: number; locale: Locale }) {
   const editingFixture = new URLSearchParams(window.location.search).get('tableEditable') === '1';
+  const rowCount = Number(queryValue('tableRows', ['3', '30'] as const, '3'));
   const headers = Array.from({ length: columns }, (_, index) =>
     locale === 'ko' ? `열 ${index + 1}` : `Column ${index + 1}`);
   const text = locale === 'ko'
@@ -232,7 +233,7 @@ function ActualTable({ columns, locale }: { columns: number; locale: Locale }) {
               content: [{ type: 'paragraph', content: [{ type: 'text', text: header }] }],
             })),
           },
-          ...[1, 2, 3].map((row) => ({
+          ...Array.from({ length: rowCount }, (_, index) => index + 1).map((row) => ({
             type: 'tableRow',
             content: headers.map((_header, column) => ({
               type: 'tableCell',

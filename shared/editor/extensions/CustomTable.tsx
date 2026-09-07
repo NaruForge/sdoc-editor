@@ -86,7 +86,10 @@ export const CustomTable = Table.extend<EditorExtensionOptions>({
 
       const tbody = document.createElement('tbody');
       table.appendChild(tbody);
-      const scrollControls = attachTableScrollControls(wrapper, tableContainer, table, editor, view, runtime.translate);
+      const scrollControls = attachTableScrollControls(
+        wrapper, tableContainer, table, editor, view, runtime.translate,
+        () => captionDisplay.focus(),
+      );
 
       // === Helper: update caption display ===
       function refreshCaption() {

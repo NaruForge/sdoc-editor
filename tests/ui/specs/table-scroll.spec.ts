@@ -1,10 +1,11 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
+import type { Editor } from '@tiptap/core';
 
-async function openTable(page: Page, options: { width?: number; columns?: number; theme?: string; locale?: string; editable?: boolean } = {}) {
-  const { width = 320, columns = 8, theme = 'light', locale = 'en', editable = false } = options;
+async function openTable(page: Page, options: { width?: number; columns?: number; theme?: string; locale?: string; editable?: boolean; rows?: 3 | 30 } = {}) {
+  const { width = 320, columns = 8, theme = 'light', locale = 'en', editable = false, rows = 3 } = options;
   await page.setViewportSize({ width, height: 900 });
-  await page.goto(`/?theme=${theme}&locale=${locale}&columns=${columns}&tableEditable=${editable ? '1' : '0'}`);
+  await page.goto(`/?theme=${theme}&locale=${locale}&columns=${columns}&tableEditable=${editable ? '1' : '0'}&tableRows=${rows}`);
   await page.locator('.quality-harness[data-ready="true"]').waitFor();
   await page.evaluate(() => document.fonts.ready);
   await page.addStyleTag({ content: '.host-badge { display: none; }' });
@@ -97,6 +98,47 @@ test('table column edits update sizing and overflow without remounting', async (
   await page.getByRole('button', { name: 'Delete test column', exact: true }).click();
   await expect(wrapper.locator('th')).toHaveCount(3);
   await expect(controls).toBeHidden();
+});
+
+test('Escape from a tall table visibly restores controls without losing horizontal position', async ({ page }) => {
+  const { wrapper, region } = await openTable(page, { editable: true, rows: 30 });
+  const lastCell = wrapper.locator('td').last();
+  await lastCell.click();
+  await expect.poll(() => lastCell.evaluate(cell => {
+    const { view } = (cell.closest('.ProseMirror') as HTMLElement & { editor: Editor }).editor;
+    return cell.contains(view.domAtPos(view.state.selection.from).node);
+  })).toBe(true);
+  const container = wrapper.locator('.table-container');
+  const offset = await container.evaluate(element => element.scrollLeft);
+  expect(offset).toBeGreaterThan(0);
+  await page.keyboard.press('Escape');
+  await expect(region).toBeFocused();
+  await expect(region).toBeInViewport();
+  await expect.poll(() => container.evaluate(element => element.scrollLeft)).toBe(offset);
+});
+
+test('fitting a focused table transfers focus to its visible caption', async ({ page }) => {
+  const { wrapper, controls } = await openTable(page, { columns: 5 });
+  await controls.getByRole('button', { name: 'Scroll table right' }).focus();
+  await page.setViewportSize({ width: 800, height: 900 });
+  await expect(controls).toBeHidden();
+  const caption = wrapper.locator('.table-caption-display');
+  await expect(caption).toBeFocused();
+  await expect(caption).toBeInViewport();
+});
+
+test('keyboard focus survives when a scroll button reaches either edge', async ({ page }) => {
+  const { controls } = await openTable(page);
+  for (const direction of ['left', 'right']) {
+    await controls.focus();
+    await page.keyboard.press(direction === 'right' ? 'End' : 'Home');
+    await page.keyboard.press(direction === 'right' ? 'ArrowLeft' : 'ArrowRight');
+    const button = controls.getByRole('button', { name: `Scroll table ${direction}` });
+    await button.focus();
+    await page.keyboard.press('Enter');
+    await expect(button).toBeDisabled();
+    await expect(controls).toBeFocused();
+  }
 });
 
 for (const theme of ['light', 'dark', 'hc']) {
