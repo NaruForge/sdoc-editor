@@ -1,0 +1,2 @@
+# Generated validators are compared byte-for-byte with LF generator output.
+/shared/document/generated/** text eol=lf
