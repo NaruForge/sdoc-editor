@@ -18,7 +18,10 @@ jobs:
           node-version-file: .node-version
           cache: npm
       - run: npm ci
-      - run: npm run verify:fast
+      - name: Verify fast checks with required file symlink coverage
+        run: npm run verify:fast
+        env:
+          SDOC_REQUIRE_FILE_SYMLINK: '1'
       - run: npm run verify:build
       - run: npm run verify:package:vscode
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
