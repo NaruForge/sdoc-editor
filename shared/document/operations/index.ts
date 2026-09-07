@@ -23,7 +23,8 @@ import { MAX_DOCUMENT_BYTES } from '../../resourceLimits';
 import { computeRevision, decodeUtf8, encodeUtf8 } from './sha256';
 import { decodeReadCursor, encodeReadCursor, MAX_READ_CURSOR_LENGTH } from './readCursor';
 import type {
-  ApplyOperationResult, ApplyOptions, BlockDestination, InspectDocumentResult, InspectOptions,
+  ApplyOperationResult, ApplyOptions, BlockDestination, BlockInsertionDestination,
+  DocumentRootDestination, InspectDocumentResult, InspectOptions,
   CatalogReadData, NodeTarget, OperationDiagnostic, OperationFailure, ProjectDocumentRequest,
   ProjectDocumentResult, ReadBudget, ReadPage, ReadProjection, SemanticDiffEvent,
   ReadFailure, SdocOperation, SdocOperationRequest, Sha256Digest, ValidateDocumentResult,
@@ -391,6 +392,12 @@ function narrowDestination(value: unknown): BlockDestination | undefined {
   return target ? { position: value.position, target } : undefined;
 }
 
+function narrowRootDestination(value: unknown): DocumentRootDestination | undefined {
+  if (!isRecord(value) || !hasOnlyKeys(value, new Set(['position']))
+    || (value.position !== 'document-start' && value.position !== 'document-end')) return undefined;
+  return { position: value.position };
+}
+
 function isNode(value: unknown): value is TiptapNode {
   return isRecord(value) && typeof value.type === 'string' && value.type.length > 0
     && (value.content === undefined
@@ -446,7 +453,7 @@ function narrowOperation(value: unknown): SdocOperation | undefined {
     updateDocumentMetadata: new Set(['op', 'patch']),
     updateDocumentSettings: new Set(['op', 'patch']),
     insertBlock: new Set(['op', 'destination', 'block']),
-    insertSection: new Set(['op', 'target', 'title', 'id', 'blocks', 'position']),
+    insertSection: new Set(['op', 'target', 'destination', 'title', 'id', 'blocks', 'position']),
     replaceBlock: new Set(['op', 'target', 'block']),
     updateBlockAttrs: new Set(['op', 'target', 'attrs']),
     moveBlock: new Set(['op', 'target', 'destination']),
@@ -500,19 +507,27 @@ function narrowOperation(value: unknown): SdocOperation | undefined {
     return { op: value.op, patch: clone(value.patch) };
   }
   if (value.op === 'insertBlock') {
-    const destination = narrowDestination(value.destination);
+    const destination = narrowRootDestination(value.destination) ?? narrowDestination(value.destination);
     if (destination && isNode(value.block)) return { op: value.op, destination, block: value.block };
   }
-  if (value.op === 'insertSection' && target && typeof value.title === 'string'
+  if (value.op === 'insertSection' && typeof value.title === 'string'
     && (value.id === undefined || typeof value.id === 'string')
-    && (value.blocks === undefined || (Array.isArray(value.blocks) && value.blocks.every(isNode)))
-    && (value.position === undefined || value.position === 'child' || value.position === 'before' || value.position === 'after')) {
-    return {
-      op: value.op, target, title: value.title,
+    && (value.blocks === undefined || (Array.isArray(value.blocks) && value.blocks.every(isNode)))) {
+    const content = {
+      title: value.title,
       ...(typeof value.id === 'string' ? { id: value.id } : {}),
       ...(Array.isArray(value.blocks) ? { blocks: value.blocks } : {}),
-      ...(typeof value.position === 'string' ? { position: value.position } : {}),
     };
+    if ('destination' in value) {
+      const destination = narrowRootDestination(value.destination);
+      if (destination && !('target' in value) && !('position' in value)) {
+        return { ...content, op: 'insertSection', destination };
+      }
+    } else if (target && (value.position === undefined || value.position === 'child'
+      || value.position === 'before' || value.position === 'after')) {
+      return { ...content, op: 'insertSection', target,
+        ...(value.position === undefined ? {} : { position: value.position }) };
+    }
   }
   if (value.op === 'replaceBlock' && target && isNode(value.block)) {
     return { op: value.op, target, block: value.block };
@@ -893,6 +908,17 @@ function destinationIndex(
   };
 }
 
+function insertionIndex(
+  root: TiptapNode, destination: BlockInsertionDestination, targets: Map<NodeTarget, TiptapNode>,
+): { parent: TiptapNode; index: number } | OperationFailure {
+  if (!('target' in destination)) {
+    return { parent: root, index: destination.position === 'document-start' ? 0 : (root.content?.length ?? 0) };
+  }
+  const target = targets.get(destination.target);
+  return target ? destinationIndex(root, destination, target)
+    : failure('conflict', 'TARGET_REMOVED', 'destination is unavailable');
+}
+
 function operationEvent(op: SdocOperation, before?: string, after?: string): SemanticDiffEvent {
   const kinds: Record<SdocOperation['op'], SemanticDiffEvent['kind']> = {
     renameHeading: 'heading-renamed', insertBlock: 'block-inserted',
@@ -979,9 +1005,7 @@ function applyOne(
     return operationEvent(op, before, attributeDiffSummary(envelope.meta.settings, keys));
   }
   if (op.op === 'insertBlock') {
-    const destinationTarget = targets.get(op.destination.target);
-    if (!destinationTarget) return failure('conflict', 'TARGET_REMOVED', 'destination is unavailable');
-    const destination = destinationIndex(root, op.destination, destinationTarget);
+    const destination = insertionIndex(root, op.destination, targets);
     if ('ok' in destination) return destination;
     const block = clone(op.block);
     if (block.type === 'heading') {
@@ -992,14 +1016,24 @@ function applyOne(
     return operationEvent(op, undefined, summary(block));
   }
   if (op.op === 'insertSection') {
-    if (!target) return failure('conflict', 'TARGET_REMOVED', 'parent section is unavailable');
-    const range = sectionRange(root, target);
-    if ('ok' in range) return range;
-    const level = Number(target.attrs?.level);
-    const position = op.position ?? 'child';
-    const newLevel = position === 'child' ? level + 1 : level;
-    if (position === 'child' && level >= 6) {
-      return failure('argument', 'H6_CHILD_SECTION', 'cannot insert a child section below H6');
+    let newLevel = 1;
+    let destination: { parent: TiptapNode; index: number };
+    if ('destination' in op) {
+      const rootDestination = insertionIndex(root, op.destination, targets);
+      if ('ok' in rootDestination) return rootDestination;
+      destination = rootDestination;
+    } else {
+      if (!target) return failure('conflict', 'TARGET_REMOVED', 'parent section is unavailable');
+      const range = sectionRange(root, target);
+      if ('ok' in range) return range;
+      const level = Number(target.attrs?.level);
+      const position = op.position ?? 'child';
+      newLevel = position === 'child' ? level + 1 : level;
+      if (position === 'child' && level >= 6) {
+        return failure('argument', 'H6_CHILD_SECTION', 'cannot insert a child section below H6');
+      }
+      // Child and after both append at the section end; their heading level differs.
+      destination = { parent: range.parent, index: position === 'before' ? range.start : range.end };
     }
     if (newLevel < 1 || newLevel > 6) {
       return failure('argument', 'INVALID_HEADING_LEVEL', `resulting heading level ${newLevel} is out of range 1-6`);
@@ -1016,13 +1050,8 @@ function applyOne(
       return failure('argument', 'SECTION_OPERATION_REQUIRED',
         'insertSection blocks cannot contain sibling headings');
     }
-    range.parent.content ??= [];
-    if (position === 'before') {
-      range.parent.content.splice(range.start, 0, heading, ...(op.blocks ?? []).map(clone));
-    } else {
-      // 'child' appends at section end (inside), 'after' appends at section end (outside)
-      range.parent.content.splice(range.end, 0, heading, ...(op.blocks ?? []).map(clone));
-    }
+    destination.parent.content ??= [];
+    destination.parent.content.splice(destination.index, 0, heading, ...(op.blocks ?? []).map(clone));
     return operationEvent(op, undefined, summary(heading));
   }
   if (op.op === 'replaceBlock') {
@@ -1547,7 +1576,7 @@ export function applyOperationRequest(
     if (op.op === 'setDocumentTitle' && op.headingTarget) {
       requestedTargets.push(op.headingTarget);
     }
-    if ('destination' in op) requestedTargets.push(op.destination.target);
+    if ('destination' in op && 'target' in op.destination) requestedTargets.push(op.destination.target);
     for (const target of requestedTargets) {
       const resolved = resolveTarget(envelope.doc, target, index);
       if ('ok' in resolved) return resolved;

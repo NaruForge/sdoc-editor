@@ -120,7 +120,7 @@ Failures always include `category` and a non-empty `diagnostics` array:
 ### `capabilities`
 
 Reports the installed CLI version, supported contracts and commands, semantic
-operation names, safety limits, read projections/catalog kinds, and built-in
+operation names and features, safety limits, read projections/catalog kinds, and built-in
 template IDs. It does not accept a document path. JSON is the default:
 
 ```powershell
@@ -150,6 +150,10 @@ sdoc capabilities --human
 
 The actual result also includes `semanticOperations` and numeric `limits`;
 query it instead of hard-coding the installed package's capabilities.
+`operationFeatures` contains `"document-root-insertion"` when target-free block
+and H1 section insertion is supported. Older installations may omit this array;
+treat an absent feature as unsupported rather than inferring it from
+`sdoc.operations/1` or the presence of `insertSection` alone.
 
 ### `inspect`
 
@@ -426,9 +430,10 @@ Snapshot targets and provisional IDs are revision-scoped. Re-inspect after any
 source-byte change. A batch resolves all targets before applying its first
 operation, so earlier operations cannot redirect later targets.
 
-Destinations are `{ "position": "before"|"after", "target": ... }` or
+Target-based destinations are `{ "position": "before"|"after", "target": ... }` or
 `{ "position": "section-end", "target": ... }`. `section-end` targets a
-heading and appends inside that section.
+heading and appends inside that section. Insertion also supports the target-free
+document boundaries described below.
 
 ### The 14 operations
 
@@ -438,7 +443,7 @@ Each operation below has a complete file in `dist/examples/operations/`:
 |---|---|---|
 | `renameHeading` | `target`, `title` | Rename a heading; optional `discardFormatting` permits replacing rich heading content |
 | `insertBlock` | `destination`, `block` | Insert a non-heading Tiptap block |
-| `insertSection` | `target`, `title` | Insert a child section by default, or a same-level sibling with `position: "before"|"after"`; optional `id` and `blocks` |
+| `insertSection` | `title`, either `target` or root `destination` | Insert a child/sibling of a target heading, or an H1 at the document boundary; optional `id` and `blocks` |
 | `replaceBlock` | `target`, `block` | Replace a block with the same node type while preserving identity |
 | `updateBlockAttrs` | `target`, `attrs` | Merge block attributes |
 | `moveBlock` | `target`, `destination` | Move a non-heading block |
@@ -461,13 +466,58 @@ changed by these operations. Portable settings are:
 `slideTransition`, and `showTitleSlide`. Local path settings
 `slideCssPath`, `htmlCssPath`, and `outputDir` are deliberately excluded.
 
-`insertSection` keeps its existing child behavior when `position` is omitted or
+With a `target`, `insertSection` keeps its existing child behavior when `position` is omitted or
 set to `"child"`: the new heading is one level deeper and is appended at the
 target section boundary. Set `position` to `"before"` or `"after"` to insert a
 same-level sibling before the target heading or after its complete descendant
 section. This is the supported CLI route for building several peer H1 sections
 without editing raw JSON; the new heading receives the target heading's level
 and its requested persistent ID.
+
+For empty or headingless documents, `insertBlock` and `insertSection` also
+accept `"destination": { "position": "document-start" }` or
+`"destination": { "position": "document-end" }`, without a target. A root
+`insertSection` always creates an H1 followed by its optional non-heading
+`blocks`; omit `target`, the operation-level `position`, and `level`. Mixing
+the root and target forms is an argument error. A root `insertBlock` still
+rejects headings. Move operations retain their existing target-based destinations.
+
+Root positions refer to the current top-level content array at each operation's
+turn in the batch. Repeated `document-end` insertions append in request order;
+repeated `document-start` insertions place each new item before the previous
+one. Existing nodes retain their order and heading levels. Section membership
+continues to follow heading ranges: adding an H1 at the start can place a
+following prologue or lower-level headings inside that section. A block appended
+at the document end remains inside the last section when one exists. No
+existing content is moved or wrapped automatically.
+
+These destinations work after deleting the final block, in the same batch or
+after re-inspecting the resulting empty document. Exact revision, preview-first
+execution, pre-resolved existing targets, atomic writes, IDs, and final document
+validation still apply. New IDs cannot be targeted later in the same batch.
+
+For example, create a blank document and add its first heading in PowerShell:
+
+```powershell
+sdoc create ./new.sdoc --template builtin:blank
+$inspection = sdoc inspect ./new.sdoc --json | ConvertFrom-Json
+@{
+  contract = 'sdoc.operations/1'
+  expected = @{ revision = $inspection.revision }
+  operations = @(@{
+    op = 'insertSection'
+    destination = @{ position = 'document-start' }
+    title = 'First section'
+    id = 'first-section'
+  })
+} | ConvertTo-Json -Depth 10 | Set-Content -Encoding utf8 ./operations.json
+sdoc apply ./new.sdoc --operations ./operations.json
+sdoc apply ./new.sdoc --operations ./operations.json --write
+```
+
+The packaged [root block](../examples/operations/insert-root-block.json) and
+[root section](../examples/operations/insert-root-section.json) examples use a
+placeholder revision; replace it with the current `inspect` result before use.
 
 `setHeadingLevel` changes an existing heading to level 1-6 without changing its
 persistent ID. Every descendant heading in that section moves by the same

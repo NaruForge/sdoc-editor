@@ -383,6 +383,12 @@
           "uniqueItems": true,
           "items": { "type": "string", "minLength": 1 }
         },
+        "operationFeatures": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Additive operation extensions supported by this installation. Absent on older clients; document-root-insertion enables target-free insertBlock and H1 insertSection destinations."
+        },
         "semanticOperations": {
           "type": "array",
           "minItems": 1,

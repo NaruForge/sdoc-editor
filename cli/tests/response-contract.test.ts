@@ -247,6 +247,7 @@ describe('sdoc.cli.response/1', () => {
         'setHeadingLevel',
         'renameBlockId',
       ],
+      operationFeatures: ['document-root-insertion'],
       limits: {
         documentBytes: 32 * 1024 * 1024,
         operationInputBytes: 4 * 1024 * 1024,
@@ -261,6 +262,17 @@ describe('sdoc.cli.response/1', () => {
       catalogKinds: ['blocks', 'outline', 'references', 'referenceables', 'endnotes'],
       builtInTemplateIds: getBuiltInTemplates().map((template) => template.descriptor.id),
     });
+  });
+
+  it('keeps feature discovery optional for older responses and validates it when present', async () => {
+    const result = await execute(['capabilities']);
+    expect(validateResponse(result.json)).toBe(true);
+    const older = { ...result.json };
+    delete older.operationFeatures;
+    expect(validateResponse(older)).toBe(true);
+    expect(validateResponse({ ...older, operationFeatures: 'document-root-insertion' })).toBe(false);
+    expect(validateResponse({ ...older, operationFeatures: ['document-root-insertion', 'document-root-insertion'] }))
+      .toBe(false);
   });
 
   it.each([
@@ -314,6 +326,7 @@ describe('sdoc.cli.response/1', () => {
     const human = await execute(['capabilities', '--human']);
     expect(human.exitCode).toBe(0);
     expect(human.stdout).toContain('SDOC CLI capabilities');
+    expect(human.stdout).toContain('Operation features: document-root-insertion');
     expect(human.stdout).toContain('sdoc.cli.response/1');
     expect(human.stdout.trimStart().startsWith('{')).toBe(false);
     expect(human.json).toBeUndefined();

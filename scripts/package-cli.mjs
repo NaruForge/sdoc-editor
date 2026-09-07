@@ -38,6 +38,8 @@ const expectedFiles = [
   'dist/examples/operations/delete-section.json',
   'dist/examples/operations/insert-block.json',
   'dist/examples/operations/insert-section.json',
+  'dist/examples/operations/insert-root-block.json',
+  'dist/examples/operations/insert-root-section.json',
   'dist/examples/operations/move-block.json',
   'dist/examples/operations/move-section.json',
   'dist/examples/operations/rename-block-id.json',

@@ -97,7 +97,7 @@ npm install --save-dev sdoc-editor-cli@latest
 | 문서 연결 | 제목·그림·표·수식 교차 참조, 문서 끝 각주, 안정적인 ID, 참조 번호 자동 동기화 |
 | 편집 경험 | 탐색·디자인·템플릿·파일 허브, 커서 이동 기록, 60–200% 확대/축소, 문서별 테마·폰트·사용자 CSS |
 | 재사용과 출판 | 팀·개인 template, `.sdocbook`, Markdown·HTML import, HTML·PDF·Markdown·AsciiDoc·Slides export |
-| 자동화 | 문서 생성·검사·검증, bounded semantic read, preview-first 의미 연산, versioned JSON response |
+| 자동화 | 문서 생성·검사·검증, 빈 문서의 첫 블록·섹션 삽입, bounded semantic read, preview-first 의미 연산, versioned JSON response |
 
 ### 배포면별 지원
 
