@@ -39,6 +39,12 @@ SDOC CLI ─ filesystem boundary ─ shared/document/operations
   TypeScript behavior.
 - `shared/document/documentContract.ts` narrows external JSON, rejects
   unsupported versions, and validates persisted output with AJV.
+- `shared/document/documentValidation.ts` first runs a generated fail-fast
+  validator. Invalid values run the existing detailed validator so diagnostic
+  order, limits, and public errors remain unchanged. Both are generated from
+  the same schema with no runtime compilation; migrations and resource limits
+  remain at the document boundary. The tradeoff is an additional generated
+  module and a second validation pass for invalid input.
 - `shared/document/runtimeAssets.ts` separates host hydration from portable
   persistence dehydration.
 - Save and mutation protocols carry document identity, base revision, edit

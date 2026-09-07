@@ -12,7 +12,7 @@ const generatedValidatorBrowserRuntime = (): Plugin => ({
   name: 'generated-validator-browser-runtime',
   enforce: 'pre',
   transform(code, id) {
-    if (!id.replaceAll('\\', '/').endsWith('/shared/document/generated/documentValidators.js')) {
+    if (!/\/shared\/document\/generated\/(?:documentValidators|fastDocumentValidators)\.js$/.test(id.replaceAll('\\', '/'))) {
       return undefined;
     }
     return code

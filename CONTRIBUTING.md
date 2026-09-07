@@ -74,6 +74,14 @@ UI나 파일 I/O처럼 사람의 판단이 필요한 항목은 아래 수동 검
 
 ### 성능 baseline
 
+스키마 검증의 빠른 판정과 상세 진단을 비교하려면 `npm run build:cli` 후
+`node scripts/run-validation-performance.mjs`를 실행합니다. 고정된 네 corpus에서
+각각 warmup 2회·측정 7회의 검증 CPU 시간, GC 전후 heap 변화, 실제 CLI
+`validate --json` 프로세스 시간과 peak RSS를 기록합니다. 변경 전 CLI bundle을
+보존했다면 `--cli-before=<bundle 경로>`로 같은 입력의 전후 결과를 얻을 수 있습니다.
+원시 결과는 `output/validation-performance/report.json`에 저장됩니다.
+heap 변화는 프로세스 peak와 다르며, 절대 시간은 일반 검증의 합격 기준이 아닙니다.
+
 성능 baseline은 `verify:fast`의 합격 시간 기준이 아닙니다. 머신·전원 상태에
 따른 편차 때문에 시간 임계값으로 일반 검증을 실패시키지 않고, 고정 seed와
 고정 반복 횟수로 생성한 같은 입력을 동등한 하드웨어에서 비교합니다. 일반
