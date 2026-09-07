@@ -194,7 +194,7 @@ test.describe('table behavior', () => {
       await openFixture(page, { width: 480, columns });
       const container = page.locator('.fixture-table-region .table-container');
       await expect(page.getByTestId('actual-table-editor')).toBeVisible();
-      await expect(container).toHaveAttribute('role', 'region');
+      await expect(page.locator('.fixture-table-region .table-scroll-controls')).toHaveAttribute('role', 'region');
       const inlineLayout = await container.evaluate(element => {
         const table = element.querySelector('table');
         return {
