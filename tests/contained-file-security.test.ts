@@ -54,15 +54,24 @@ describe('contained regular files', () => {
     })).rejects.toMatchObject<Partial<ContainedFileError>>({ code: 'FILE_TOO_LARGE' });
   });
 
-  it('rejects a symlink that escapes the approved root', async () => {
+  it('rejects a symlink that escapes the approved root', async (context) => {
     const { root, outside } = await fixture();
     const target = path.join(outside, 'secret.css');
     await writeFile(target, 'secret');
     const link = path.join(root, 'linked.css');
     try {
       await symlink(target, link, 'file');
-    } catch {
-      return;
+    } catch (error: unknown) {
+      const code = typeof error === 'object' && error !== null && 'code' in error
+        ? error.code : undefined;
+      const unavailable = typeof code === 'string'
+        && ['EPERM', 'EACCES', 'ENOSYS', 'ENOTSUP'].includes(code);
+      if (!unavailable || process.env.SDOC_REQUIRE_FILE_SYMLINK === '1') {
+        throw error;
+      }
+      const reason = `File symlink unavailable (${code}); containment assertion not executed`;
+      console.warn(reason);
+      context.skip(reason);
     }
     await expect(resolveContainedRegularFile(root, './linked.css', {
       extension: '.css', maximumBytes: 1024,
