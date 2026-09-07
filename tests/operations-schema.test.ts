@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import Ajv from 'ajv';
 import type { ErrorObject } from 'ajv';
 import { describe, expect, it } from 'vitest';
+import { applyOperationRequest, computeRevision } from '../shared/document/operations';
 
 interface JsonSchema {
   $id?: string;
@@ -32,6 +33,7 @@ const exampleNames = [
   'update-document-metadata.json',
   'update-document-settings.json',
 ] as const;
+const rootExampleNames = ['insert-root-block.json', 'insert-root-section.json'];
 
 const parseJson = async (path: string): Promise<unknown> =>
   JSON.parse(await readFile(path, 'utf8')) as unknown;
@@ -44,10 +46,49 @@ describe('public operation contract', () => {
     ajv.addSchema(documentSchema);
     const validate = ajv.compile(operationSchema);
 
-    for (const name of exampleNames) {
+    for (const name of [...exampleNames, ...rootExampleNames]) {
       const example = await parseJson(join(exampleDirectory, name));
       const valid = validate(example);
       expect(valid, `${name}: ${formatErrors(validate.errors)}`).toBe(true);
+    }
+  });
+
+  it('keeps root insertion selectors aligned with runtime narrowing', async () => {
+    const documentSchema = await parseJson(join(root, 'sdoc.schema.json')) as JsonSchema;
+    const operationSchema = await parseJson(join(root, 'sdoc.operations.schema.json')) as JsonSchema;
+    const ajv = new Ajv({ allErrors: true, strict: false });
+    ajv.addSchema(documentSchema);
+    const validate = ajv.compile(operationSchema);
+    const text = JSON.stringify({ sdoc: '1.0', meta: {}, doc: { type: 'doc', content: [] } });
+    const request = (operation: unknown) => ({
+      contract: 'sdoc.operations/1', expected: { revision: computeRevision(text) }, operations: [operation],
+    });
+    const target = { kind: 'id', id: 'old' };
+    for (const position of ['document-start', 'document-end']) {
+      for (const operation of [
+        { op: 'insertBlock', destination: { position }, block: { type: 'paragraph' } },
+        { op: 'insertSection', destination: { position }, title: 'First', id: 'first' },
+      ]) {
+        expect(validate(request(operation)), formatErrors(validate.errors)).toBe(true);
+        expect(applyOperationRequest(text, request(operation)).ok).toBe(true);
+      }
+      for (const operation of [
+        { op: 'insertBlock', destination: { position, target }, block: { type: 'paragraph' } },
+        { op: 'insertBlock', destination: { position, extra: true }, block: { type: 'paragraph' } },
+        { op: 'insertSection', destination: { position }, target, title: 'First' },
+        { op: 'insertSection', destination: { position }, position: 'child', title: 'First' },
+        { op: 'insertSection', destination: { position }, level: 2, title: 'First' },
+        { op: 'moveBlock', target, destination: { position } },
+        { op: 'moveSection', target, destination: { position } },
+      ]) {
+        expect(validate(request(operation)), JSON.stringify(operation)).toBe(false);
+        expect(applyOperationRequest(text, request(operation)))
+          .toMatchObject({ ok: false, category: 'argument' });
+      }
+    }
+    for (const name of rootExampleNames) {
+      const example = await parseJson(join(exampleDirectory, name)) as { operations: unknown[] };
+      expect(applyOperationRequest(text, request(example.operations[0])).ok, name).toBe(true);
     }
   });
 

@@ -34,6 +34,7 @@ export function capabilitiesRecord(cliVersion: string): OutputRecord {
     },
     commands: [...COMMAND_NAMES],
     semanticOperations: Object.keys(SEMANTIC_OPERATION_NAMES),
+    operationFeatures: ['document-root-insertion'],
     limits: {
       documentBytes: MAX_DOCUMENT_BYTES,
       operationInputBytes: MAX_OPERATIONS_BYTES,

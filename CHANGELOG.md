@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Add target-free document-start/document-end CLI insertion for empty documents and first H1 sections, with capability discovery and atomic preview/write validation (#226)
+
 ### Changed
 - Record mixed-document browser budgets, environment, raw evidence, and explicit risk decisions before VS Code releases (#248)
 - Reuse syntax highlighting for unchanged code blocks during code and paragraph formatting edits, recalculating only affected blocks (#247)

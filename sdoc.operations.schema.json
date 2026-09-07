@@ -89,6 +89,21 @@
         }
       ]
     },
+    "documentRootDestination": {
+      "type": "object",
+      "required": ["position"],
+      "properties": {
+        "position": { "enum": ["document-start", "document-end"] }
+      },
+      "additionalProperties": false,
+      "description": "The current top-level content boundary at this operation's turn in the atomic batch; insertion only."
+    },
+    "insertionDestination": {
+      "oneOf": [
+        { "$ref": "#/definitions/destination" },
+        { "$ref": "#/definitions/documentRootDestination" }
+      ]
+    },
     "operation": {
       "oneOf": [
         { "$ref": "#/definitions/renameHeading" },
@@ -123,17 +138,25 @@
       "required": ["op", "destination", "block"],
       "properties": {
         "op": { "const": "insertBlock" },
-        "destination": { "$ref": "#/definitions/destination" },
+        "destination": { "$ref": "#/definitions/insertionDestination" },
         "block": { "$ref": "https://sdoc.dev/schema/v1.0.json#/definitions/anyNode" }
       },
       "additionalProperties": false
     },
     "insertSection": {
       "type": "object",
-      "required": ["op", "target", "title"],
+      "required": ["op", "title"],
+      "oneOf": [
+        { "required": ["target"], "not": { "required": ["destination"] } },
+        {
+          "required": ["destination"],
+          "not": { "anyOf": [{ "required": ["target"] }, { "required": ["position"] }] }
+        }
+      ],
       "properties": {
         "op": { "const": "insertSection" },
         "target": { "$ref": "#/definitions/target" },
+        "destination": { "$ref": "#/definitions/documentRootDestination" },
         "title": { "type": "string" },
         "id": { "$ref": "#/definitions/authoredPersistentId" },
         "position": { "enum": ["child", "before", "after"] },
