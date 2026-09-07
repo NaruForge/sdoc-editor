@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-09-08
+
 ### Added
 - Show hidden-column directions and horizontal position for overflowing tables, with keyboard scrolling and return to cell editing (#147)
 - Add target-free document-start/document-end CLI insertion for empty documents and first H1 sections, with capability discovery and atomic preview/write validation (#226)
@@ -16,6 +18,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Verify the declared minimum VS Code version and latest stable with the same isolated Extension Host scenarios, including activation, editing, and saving (#249)
 - Record mixed-document browser budgets, environment, raw evidence, and explicit risk decisions before VS Code releases (#248)
 - Reuse syntax highlighting for unchanged code blocks during code and paragraph formatting edits, recalculating only affected blocks (#247)
+- Precompile document schema validators to reduce validation overhead while preserving validation results (#246)
+- Verify third-party dependency notices during VS Code and CLI packaging (#244)
+- Update development dependencies and pinned GitHub Actions
+
+### Fixed
+- Generate schema validators with consistent LF line endings across Windows and Linux (#245)
 
 ## [0.13.3] - 2026-09-03
 
