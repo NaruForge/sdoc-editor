@@ -118,6 +118,11 @@ async function openCustomEditor(workspace, fileName, viewType, expectStandaloneU
 }
 
 async function run() {
+  console.log(`VS Code runtime: ${vscode.version}; Node: ${process.versions.node}`);
+  const expectedVersion = process.env.SDOC_EXPECTED_VSCODE_VERSION;
+  if (expectedVersion) {
+    assert.equal(vscode.version, expectedVersion, 'The actual Host must match the requested VS Code version.');
+  }
   let passed = 0;
   const scenario = async (name, callback) => {
     console.log(`  → ${name}`);
