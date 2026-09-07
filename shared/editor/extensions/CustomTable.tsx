@@ -2,6 +2,7 @@ import { Table } from '@tiptap/extension-table';
 import { TableMap } from '@tiptap/pm/tables';
 import { NOOP_EDITOR_EXTENSION_RUNTIME, type EditorExtensionOptions } from '../extensionRuntime';
 import { areNodeViewAttributesEqual } from './nodeViewUpdate';
+import { attachTableScrollControls } from './tableScrollControls';
 
 export const CustomTable = Table.extend<EditorExtensionOptions>({
   addOptions() {
@@ -45,7 +46,7 @@ export const CustomTable = Table.extend<EditorExtensionOptions>({
 
   addNodeView() {
     const runtime = this.options.runtime;
-    return ({ node, getPos, editor }) => {
+    return ({ node, getPos, editor, view }) => {
       let currentNode = node;
       let isEditingCaption = false;
 
@@ -78,9 +79,6 @@ export const CustomTable = Table.extend<EditorExtensionOptions>({
       // -- Table container (width & alignment) --
       const tableContainer = document.createElement('div');
       tableContainer.classList.add('table-container');
-      tableContainer.tabIndex = 0;
-      tableContainer.setAttribute('role', 'region');
-      tableContainer.setAttribute('aria-label', runtime.translate('table.scrollRegion'));
       wrapper.appendChild(tableContainer);
 
       const table = document.createElement('table');
@@ -88,6 +86,7 @@ export const CustomTable = Table.extend<EditorExtensionOptions>({
 
       const tbody = document.createElement('tbody');
       table.appendChild(tbody);
+      const scrollControls = attachTableScrollControls(wrapper, tableContainer, table, editor, view, runtime.translate);
 
       // === Helper: update caption display ===
       function refreshCaption() {
@@ -242,13 +241,15 @@ export const CustomTable = Table.extend<EditorExtensionOptions>({
 
         update(updatedNode) {
           if (updatedNode.type !== currentNode.type) return false;
-          if (areNodeViewAttributesEqual(currentNode.attrs, updatedNode.attrs)) {
+          if (areNodeViewAttributesEqual(currentNode.attrs, updatedNode.attrs)
+            && TableMap.get(currentNode).width === TableMap.get(updatedNode).width) {
             currentNode = updatedNode;
             return true;
           }
           currentNode = updatedNode;
           refreshCaption();
           refreshStyles();
+          scrollControls.schedule();
           return true;
         },
 
@@ -268,7 +269,7 @@ export const CustomTable = Table.extend<EditorExtensionOptions>({
           return !tbody.contains(target);
         },
 
-        destroy() {},
+        destroy() { scrollControls.destroy(); },
       };
     };
   },

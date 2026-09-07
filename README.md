@@ -114,6 +114,8 @@ npm install --save-dev sdoc-editor-cli@latest
 
 편집기에서 `@`를 입력하면 제목·그림·표·수식 참조를 삽입할 수 있고, 클립보드 이미지는 붙여 넣은 뒤 캡션과 정렬을 지정할 수 있습니다. Mermaid는 로컬에서 렌더링합니다. PlantUML·D2·Graphviz 온라인 미리보기는 전송할 원문과 endpoint를 알리고 동의를 받은 뒤에만 사용합니다. Draw.io 편집에는 [Draw.io Integration](https://marketplace.visualstudio.com/items?itemName=hediet.vscode-drawio)이 필요합니다.
 
+표가 편집 창보다 넓으면 표 위에 숨은 열의 방향과 가로 위치가 표시됩니다. 이동 영역에 초점을 두고 `←`·`→` 또는 `Home`·`End`로 이동할 수 있습니다. `Enter`는 보이는 셀의 편집을 시작하고, 셀에서 `Escape`를 누르면 이동 영역으로 돌아옵니다. 읽기 전용 표에서는 이동만 가능합니다.
+
 `Insert / 삽입 → 각주`는 본문에 자동 번호 표시를 넣고 문서 끝에서 한 줄 일반 텍스트로 본문을 편집합니다. 표시와 각주 항목은 클릭과 키보드로 양방향 이동할 수 있고 HTML·PDF·Markdown·AsciiDoc 내보내기에서 문서 끝 목록으로 남습니다. 각주가 있는 문서의 Slides 내보내기와 `.sdocbook` 합성은 배치 정책이 정해질 때까지 명시적으로 차단됩니다.
 
 ## `.sdoc` 형식과 데이터 안전성

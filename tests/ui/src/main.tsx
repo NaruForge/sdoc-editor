@@ -191,6 +191,7 @@ function createEditorMock(tableActive: boolean): Editor {
 }
 
 function ActualTable({ columns, locale }: { columns: number; locale: Locale }) {
+  const editingFixture = new URLSearchParams(window.location.search).get('tableEditable') === '1';
   const headers = Array.from({ length: columns }, (_, index) =>
     locale === 'ko' ? `열 ${index + 1}` : `Column ${index + 1}`);
   const text = locale === 'ko'
@@ -208,7 +209,7 @@ function ActualTable({ columns, locale }: { columns: number; locale: Locale }) {
       TableHeader,
       TableCell,
     ],
-    editable: false,
+    editable: editingFixture,
     editorProps: {
       attributes: {
         'aria-label': locale === 'ko' ? '품질 검증 표 문서' : 'Quality fixture table document',
@@ -248,6 +249,11 @@ function ActualTable({ columns, locale }: { columns: number; locale: Locale }) {
 
   return (
     <section className="fixture-table-region" aria-label={locale === 'ko' ? '표 실제 구현' : 'Real table implementation'}>
+      {editingFixture && <div data-testid="table-fixture-actions">
+        <button onClick={() => editor?.chain().focus().addColumnAfter().run()}>Add test column</button>
+        <button onClick={() => editor?.chain().focus().deleteColumn().run()}>Delete test column</button>
+        <button onClick={() => editor?.setEditable(!editor.isEditable)}>Toggle test read only</button>
+      </div>}
       <EditorContent editor={editor} data-testid="actual-table-editor" />
     </section>
   );

@@ -810,9 +810,59 @@ samp {
   max-width: 100%;
   overflow-x: auto;
   overflow-y: hidden;
-  scrollbar-gutter: stable;
   overscroll-behavior-inline: contain;
 }
+
+.table-scroll-controls {
+  position: sticky;
+  left: 0;
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px;
+  color: var(--vscode-editor-foreground);
+  background: var(--vscode-editor-background);
+  border: 1px solid var(--vscode-panel-border);
+  font-family: var(--vscode-font-family);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.table-scroll-controls[hidden] { display: none; }
+.table-scroll-controls:focus-visible { outline: 2px solid var(--vscode-focusBorder); outline-offset: -2px; }
+.table-scroll-status { flex: 1; min-width: 0; text-align: center; overflow-wrap: anywhere; }
+.table-scroll-controls button {
+  flex: none;
+  min-width: 28px;
+  min-height: 28px;
+  padding: 2px 6px;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  color: var(--vscode-editor-foreground);
+  background: var(--vscode-editor-background);
+  font: inherit;
+  cursor: pointer;
+}
+.table-scroll-controls button:disabled { opacity: 0.4; cursor: default; }
+.table-scroll-controls button:focus-visible { outline: 2px solid var(--vscode-focusBorder); outline-offset: 2px; }
+.table-scroll-controls button:not(:disabled):hover { background: var(--vscode-toolbar-hoverBackground); }
+.table-scroll-instructions {
+  position: sticky;
+  left: 0;
+  width: 100%;
+  box-sizing: border-box;
+  display: none;
+  padding: 6px;
+  color: var(--vscode-editor-foreground);
+  background: var(--vscode-editor-background);
+  font-family: var(--vscode-font-family);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.table-has-overflow:focus-within .table-scroll-instructions { display: block; }
 
 .ProseMirror table {
   min-width: min(100%, var(--sdoc-table-min-width, 100%));

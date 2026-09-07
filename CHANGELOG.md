@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Show hidden-column directions and horizontal position for overflowing tables, with keyboard scrolling and return to cell editing (#147)
 - Add target-free document-start/document-end CLI insertion for empty documents and first H1 sections, with capability discovery and atomic preview/write validation (#226)
 
 ### Changed
