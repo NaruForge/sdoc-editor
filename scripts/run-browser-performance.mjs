@@ -6,7 +6,13 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const playwrightCli = require.resolve('@playwright/test/cli');
 const corpusArgument = process.argv.find((argument) => argument.startsWith('--corpus='));
-const corpus = corpusArgument?.slice('--corpus='.length) || 'text-5k';
+const scenarioArgument = process.argv.find((argument) => argument.startsWith('--scenario='));
+const scenario = scenarioArgument?.slice('--scenario='.length) || 'ordinary';
+if (!['ordinary', 'lowlight'].includes(scenario)) throw new Error(`Unsupported scenario: ${scenario}`);
+const corpus = corpusArgument?.slice('--corpus='.length) || (scenario === 'lowlight' ? 'rich-mixed-5k' : 'text-5k');
+if (scenario === 'lowlight' && corpus !== 'rich-mixed-5k') {
+  throw new Error('The lowlight scenario uses the fixed rich-mixed-5k corpus');
+}
 const port = process.env.SDOC_BROWSER_PERF_PORT || '4407';
 const supportedCorpora = new Set([
   'text-5k',
@@ -25,7 +31,7 @@ const exitCode = await new Promise((resolve, reject) => {
     'test',
     '--config',
     'tests/ui/playwright.config.ts',
-    'editor-performance.spec.ts',
+    scenario === 'lowlight' ? 'editor-lowlight-performance.spec.ts' : 'editor-performance.spec.ts',
   ], {
     cwd: process.cwd(),
     env: {
@@ -41,5 +47,5 @@ const exitCode = await new Promise((resolve, reject) => {
 
 if (exitCode !== 0) process.exit(exitCode);
 
-const reportPath = path.resolve('tests/ui/artifacts/performance/browser.json');
+const reportPath = path.resolve(`tests/ui/artifacts/performance/${scenario === 'lowlight' ? 'lowlight' : 'browser'}.json`);
 process.stdout.write(await readFile(reportPath, 'utf8'));

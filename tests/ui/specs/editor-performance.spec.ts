@@ -8,6 +8,7 @@ interface BrowserPerformanceWindow {
   readKeyToNextPaint(): Promise<void>;
   readDebouncedUpdate(): Promise<void>;
   focusInputTarget(target?: 'top' | 'middle' | 'bottom'): string;
+  focusLowlightTarget(target: 'code' | 'marked' | 'bold'): string;
   resetCodeBlockLanguageOperations(): void;
   measureSyncCheckpoint(): void;
   measureScroll(edge: 'start' | 'end'): Promise<void>;
