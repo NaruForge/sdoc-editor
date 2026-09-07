@@ -21,6 +21,15 @@
 npm ci
 ```
 
+생성 validator(`shared/document/generated/`)는 `.gitattributes`의 `text eol=lf`
+규칙으로 저장·checkout 줄바꿈을 LF로 고정합니다. Windows의
+`core.autocrlf=true`에서도 새 checkout은 재생성 없이 `npm run validators:check`를
+통과해야 합니다. 기존 작업 폴더에 CRLF 파일이 남아 있다면
+`npm run validators:generate`로 갱신하고 `npm run validators:check`로 확인합니다.
+생성 파일은 직접 편집하지 않으며, schema 변경 후에는 생성기로 갱신합니다.
+검사는 줄바꿈을 정규화하지 않고 정확히 비교하므로 오래된 생성물도 계속 거부합니다.
+Windows·Linux CI는 build가 생성물을 갱신하기 전에 이 검사를 실행합니다.
+
 ## Verification contract
 
 `package.json`의 `verify:*` script가 로컬과 CI가 공유하는 검증 계약입니다.
