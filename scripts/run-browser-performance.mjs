@@ -32,6 +32,7 @@ const exitCode = await new Promise((resolve, reject) => {
     '--config',
     'tests/ui/playwright.config.ts',
     scenario === 'lowlight' ? 'editor-lowlight-performance.spec.ts' : 'editor-performance.spec.ts',
+    ...(process.env.SDOC_BROWSER_PERF_REVIEW === '1' ? ['--workers=1', '--retries=0'] : []),
   ], {
     cwd: process.cwd(),
     env: {

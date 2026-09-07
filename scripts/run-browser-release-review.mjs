@@ -1,0 +1,10 @@
+import { build } from 'esbuild';
+
+const result = await build({
+  entryPoints: ['tests/performance/runReleaseReview.ts'],
+  absWorkingDir: process.cwd(), bundle: true, platform: 'node', target: 'node22',
+  format: 'esm', write: false, logLevel: 'warning',
+});
+const output = result.outputFiles?.[0];
+if (!output) throw new Error('browser release review bundle was not produced');
+await import(`data:text/javascript;base64,${Buffer.from(output.contents).toString('base64')}`);

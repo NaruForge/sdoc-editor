@@ -1,0 +1,87 @@
+name: Rich browser release review
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Commit or release tag to measure (defaults to the selected workflow ref)
+        type: string
+        required: false
+      risk_acceptance_reason:
+        description: Optional maintainer rationale for accepting budget misses in this run
+        type: string
+        required: false
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        required: true
+      risk_acceptance_reason:
+        type: string
+        required: false
+        default: ''
+    outputs:
+      commit:
+        description: Exact clean checkout commit measured by this review
+        value: ${{ jobs.review.outputs.commit }}
+      status:
+        description: within-budget, below-budget, risk-accepted, or measurement-error
+        value: ${{ jobs.review.outputs.status }}
+
+permissions:
+  contents: read
+
+jobs:
+  review:
+    name: Measure rich corpus (advisory budgets)
+    runs-on: windows-2025
+    timeout-minutes: 20
+    outputs:
+      commit: ${{ steps.measure.outputs.commit }}
+      status: ${{ steps.measure.outputs.status || 'measurement-error' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci
+      - run: npm run verify:ui:browser
+      - name: Measure and record review
+        id: measure
+        env:
+          SDOC_REVIEW_REF: ${{ inputs.ref || github.sha }}
+          SDOC_PERF_ACCEPT_REASON: ${{ inputs.risk_acceptance_reason }}
+        run: npm run perf:review
+      - name: Record setup failures without claiming a measurement
+        if: always()
+        shell: pwsh
+        env:
+          REVIEW_STATUS: ${{ steps.measure.outputs.status }}
+        run: |
+          $directory = 'tests/ui/artifacts/performance-release'
+          if (-not (Test-Path -LiteralPath "$directory/review.json")) {
+            New-Item -ItemType Directory -Force $directory | Out-Null
+            @{ schemaVersion = 1; status = 'measurement-error'; error = 'Setup or review command failed before producing evidence.' } |
+              ConvertTo-Json | Set-Content -LiteralPath "$directory/review.json" -Encoding utf8
+            'Rich browser release review: **measurement-error**. No valid measurement was produced; see workflow logs.' |
+              Set-Content -LiteralPath "$directory/summary.md" -Encoding utf8
+          }
+          if ($env:REVIEW_STATUS -eq '') {
+            Get-Content -LiteralPath "$directory/summary.md" -Raw |
+              Out-File -Append -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8
+          }
+      - name: Preserve performance evidence even on failure
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: rich-browser-review-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            tests/ui/artifacts/performance-release/
+            tests/ui/artifacts/performance/
+            tests/ui/artifacts/test-results/
+            tests/ui/artifacts/report/
+          if-no-files-found: error
+          retention-days: 30
