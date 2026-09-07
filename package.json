@@ -241,6 +241,7 @@
     "perf:baseline:quick": "node scripts/run-performance-baseline.mjs --quick",
     "perf:baseline:json": "node scripts/run-performance-baseline.mjs --json",
     "perf:browser": "node scripts/run-browser-performance.mjs",
+    "perf:review": "node scripts/run-browser-release-review.mjs",
     "perf:vscode": "node scripts/run-vscode-performance.mjs",
     "version:check": "node scripts/check-versions.mjs",
     "repo:check": "node scripts/check-repository-harness.mjs",

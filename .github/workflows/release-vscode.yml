@@ -12,6 +12,10 @@ on:
         description: Existing v* tag to build and publish
         required: true
         type: string
+      performance_risk_acceptance_reason:
+        description: Optional rationale for accepting this run's rich-browser budget misses
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -22,8 +26,18 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  performance-review:
+    name: Rich browser release evidence
+    uses: ./.github/workflows/performance-review.yml
+    permissions:
+      contents: read
+    with:
+      ref: ${{ inputs.release_tag || github.ref }}
+      risk_acceptance_reason: ${{ inputs.performance_risk_acceptance_reason || '' }}
+
   publish:
     name: Package and publish VSIX
+    needs: performance-review
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: vscode-marketplace
