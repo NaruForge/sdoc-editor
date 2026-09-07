@@ -10,7 +10,16 @@ const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 const filename = `structured-doc-editor-${pkg.version}.vsix`;
 const artifactPath = join(outputDir, filename);
 const vsceCli = join(root, 'node_modules', '@vscode', 'vsce', 'vsce');
+const npmCli = process.env.npm_execpath;
 
+if (!npmCli) {
+  throw new Error('npm_execpath is unavailable; run package through npm');
+}
+
+execFileSync(process.execPath, [npmCli, 'run', 'licenses:check'], {
+  cwd: root,
+  stdio: 'inherit',
+});
 mkdirSync(outputDir, { recursive: true });
 execFileSync(
   process.execPath,

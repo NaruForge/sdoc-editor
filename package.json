@@ -245,7 +245,7 @@
     "version:check": "node scripts/check-versions.mjs",
     "repo:check": "node scripts/check-repository-harness.mjs",
     "design:check": "designmd lint DESIGN.md && node scripts/check-design-contract.mjs",
-    "verify:fast": "npm run version:check && npm run repo:check && npm run design:check && npm run validators:check && npm run typecheck && npm run lint && npm test",
+    "verify:fast": "npm run version:check && npm run licenses:check && npm run repo:check && npm run design:check && npm run validators:check && npm run typecheck && npm run lint && npm test",
     "verify:build": "npm run build:all",
     "verify:ui:browser": "playwright install chromium",
     "verify:ui": "npm run verify:ui:browser && npm run test:ui",

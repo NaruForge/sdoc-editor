@@ -14,6 +14,10 @@ if (!npmCli) {
   throw new Error('npm_execpath is unavailable; run package:cli through npm');
 }
 
+execFileSync(process.execPath, [npmCli, 'run', 'licenses:check'], {
+  cwd: root,
+  stdio: 'inherit',
+});
 mkdirSync(outputDir, { recursive: true });
 execFileSync(process.execPath, [npmCli, 'run', 'build', '--workspace=sdoc-editor-cli'], {
   cwd: root,
