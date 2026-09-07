@@ -6,7 +6,7 @@ import {
   validateEnvelope,
   validateMetadataSchema,
   validateSettingsSchema,
-} from './generated/documentValidators.js';
+} from './documentValidation';
 import { MAX_DOCUMENT_BYTES } from '../resourceLimits';
 import {
   analyzeLegacyTitleMigration,

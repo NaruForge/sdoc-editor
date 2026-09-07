@@ -183,10 +183,9 @@ describe('sdoc envelope', () => {
   });
 
   it('uses precompiled validators without runtime code generation', () => {
-    const source = readFileSync(
-      new URL('../shared/document/documentContract.ts', import.meta.url),
-      'utf8',
-    );
+    const source = ['documentContract.ts', 'documentValidation.ts'].map((file) => readFileSync(
+      new URL(`../shared/document/${file}`, import.meta.url), 'utf8',
+    )).join('\n');
     const generated = readFileSync(
       new URL('../shared/document/generated/documentValidators.js', import.meta.url),
       'utf8',
@@ -194,6 +193,10 @@ describe('sdoc envelope', () => {
     expect(source).not.toMatch(/import\s+(?!type\b)[^;]+from ['"]ajv['"]/);
     expect(source).toContain("from './generated/documentValidators.js'");
     expect(generated).not.toMatch(/\b(?:eval|Function)\s*\(/);
+    const fast = readFileSync(
+      new URL('../shared/document/generated/fastDocumentValidators.js', import.meta.url), 'utf8',
+    );
+    expect(fast).not.toMatch(/\b(?:eval|Function)\s*\(/);
   });
 
   it('deduplicates React when shared editor modules are bundled', () => {
