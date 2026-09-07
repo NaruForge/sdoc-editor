@@ -9,6 +9,8 @@ export type EditorPerformanceProbeName =
   | 'semantic-numbering-rebuild'
   | 'lowlight-decoration-map'
   | 'lowlight-rebuild'
+  | 'lowlight-highlight'
+  | 'lowlight-incremental-update'
   | 'block-identity-id-scan'
   | 'persistent-id-scan'
   | 'node-view-update-props';

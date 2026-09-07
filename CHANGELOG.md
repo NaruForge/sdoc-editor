@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Reuse syntax highlighting for unchanged code blocks during code and paragraph formatting edits, recalculating only affected blocks (#247)
+
 ## [0.13.3] - 2026-09-03
 
 ### Fixed
