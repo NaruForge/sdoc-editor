@@ -16,7 +16,7 @@ describe('packaged read contract', () => {
     expect(packageJson.files).toContain('dist/schemas/*.json');
     expect(packageJson.bin).toEqual({ sdoc: 'bin/sdoc.js' });
     expect(packageJson.files).toContain('bin/sdoc.js');
-    expect(packageJson.repository.url).toBe('git+https://github.com/SWBaek/sdoc-editor.git');
+    expect(packageJson.repository.url).toBe('git+https://github.com/NaruForge/sdoc-editor.git');
     expect(build).toContain("new URL('../sdoc.read.schema.json', import.meta.url)");
     expect(build).toContain("new URL('./schemas/sdoc.read.schema.json', dist)");
     expect(pack).toContain("'dist/schemas/sdoc.read.schema.json'");

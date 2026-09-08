@@ -63,7 +63,7 @@ manifest and lockfile.
 ### Version-pinned GitHub Release fallback
 
 Every tagged release also attaches a versioned `sdoc-editor-cli-*.tgz` to
-[GitHub Releases](https://github.com/SWBaek/sdoc-editor/releases/latest). Use
+[GitHub Releases](https://github.com/NaruForge/sdoc-editor/releases/latest). Use
 this path when an installation must be pinned to a downloaded release asset.
 After downloading the selected tarball, install it from the project that owns
 the dependency:
