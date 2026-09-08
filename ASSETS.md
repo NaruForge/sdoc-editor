@@ -59,17 +59,6 @@ Provenance and redistribution record:
   rights to Microsoft trademarks. README screenshots remain remote GitHub
   assets and are intentionally excluded from the VSIX payload.
 
-## Temporarily retained restricted assets
-
-The following legacy assets are present in the source tree pending a separate cleanup:
-
-- `media/LG-MAGNA-LOGO.png`
-- `media/fonts/`
-
-These files are **not licensed under the repository's MIT License**. Their presence does not grant permission to copy, modify, redistribute, or use the associated trademarks or typefaces. Downstream distributors must omit them unless they have independently obtained the necessary rights.
-
-The VS Code packaging rules exclude the restricted `media/` paths; only `media/sdoc-editor-icon.png` is included from `media/`. The historical desktop icon files are generated derivatives of that project icon and are not restricted legacy assets. Contributors must not add new references to the restricted assets.
-
 ## Bundled open-source fonts
 
 The editor embeds the following WOFF2 files for offline use. Both fonts are
