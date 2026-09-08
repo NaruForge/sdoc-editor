@@ -4,7 +4,7 @@
 
 ## 이슈와 보안 보고
 
-버그와 재현 가능한 기능 제안은 [GitHub Issues](https://github.com/SWBaek/sdoc-editor/issues)에 해당 양식을 선택해 작성해 주세요. 현재 동작, 기대 동작, 재현 절차, 대상(VS Code/CLI), 운영체제와 가능하다면 최소 fixture를 포함하면 분석이 빨라집니다. AI 에이전트가 이슈를 생성하거나 수정할 때는 [AI 이슈 작성 가이드](.github/AI_ISSUE_REPORTING.md)도 따라야 합니다.
+버그와 재현 가능한 기능 제안은 [GitHub Issues](https://github.com/NaruForge/sdoc-editor/issues)에 해당 양식을 선택해 작성해 주세요. 현재 동작, 기대 동작, 재현 절차, 대상(VS Code/CLI), 운영체제와 가능하다면 최소 fixture를 포함하면 분석이 빨라집니다. AI 에이전트가 이슈를 생성하거나 수정할 때는 [AI 이슈 작성 가이드](.github/AI_ISSUE_REPORTING.md)도 따라야 합니다.
 
 이슈 종류는 `bug` 또는 `enhancement`로 분류하고 영향받는 배포면에 따라 `area: cli`와 `area: vscode`를 적용합니다. CLI 버그 양식은 `area: cli`를 자동으로 추가하며, 범용 기능 요청과 VS Code 버그는 작성자나 유지보수자가 선택한 대상에 맞춰 영역 라벨을 추가합니다. EOL Desktop에서만 재현되는 문제는 지원 범위 밖이며, 현재 공용 코드에도 영향을 주는 경우에만 지원 배포면 기준으로 보고합니다.
 
@@ -345,7 +345,7 @@ retry 0회를 강제합니다. 기존 `perf:browser`의 기본 모드는 계속 
 | `measurement-error` | setup·기능 검사 실패, 손상·누락·불완전한 결과 | 1 / 게시 선행 검토 실패; 위험 수용으로 우회 불가 |
 
 절대 시간 미달은 **advisory**입니다. 매 PR을 새 시간 hard gate로 막지 않으며,
-[#216의 종료 결정](https://github.com/SWBaek/sdoc-editor/issues/216#issuecomment-5447837216)을
+[#216의 종료 결정](https://github.com/NaruForge/sdoc-editor/issues/216#issuecomment-5447837216)을
 재개하거나 기존 50 ms 입력 예산을 완화하지 않습니다. 그때의 위험 수용을
 새 커밋에 자동 적용하지도 않습니다. `below-budget`는 예산 통과나 묵시적
 수용을 뜻하지 않습니다. 유지보수자는 릴리스 검토에서 해당 상태와 원시

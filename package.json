@@ -7,11 +7,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/SWBaek/sdoc-editor.git"
+    "url": "https://github.com/NaruForge/sdoc-editor.git"
   },
-  "homepage": "https://github.com/SWBaek/sdoc-editor#readme",
+  "homepage": "https://github.com/NaruForge/sdoc-editor#readme",
   "bugs": {
-    "url": "https://github.com/SWBaek/sdoc-editor/issues"
+    "url": "https://github.com/NaruForge/sdoc-editor/issues"
   },
   "keywords": [
     "sdoc",

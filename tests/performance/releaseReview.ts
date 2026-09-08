@@ -60,7 +60,7 @@ function summary(review: RichBrowserReview, commit: string, dirty: boolean, acce
   if (acceptanceNote) lines.push(acceptanceNote, '');
   lines.push(
     'Artifacts: review.json (environment, source, decision), measurement.log, raw browser JSON and per-run samples; Playwright failure evidence when available.', '',
-    '[Prior #216 decision](https://github.com/SWBaek/sdoc-editor/issues/216#issuecomment-5447837216) is historical context, not automatic acceptance of this result.',
+    '[Prior #216 decision](https://github.com/NaruForge/sdoc-editor/issues/216#issuecomment-5447837216) is historical context, not automatic acceptance of this result.',
     'This is not production-bundle latency evidence. Production comparisons must retain the corpus/capture points and be labeled separately.', '',
   );
   return lines.join('\n');

@@ -12,7 +12,7 @@ Do not disclose a suspected vulnerability in a public issue, discussion, or pull
 
 Use GitHub's private vulnerability reporting page:
 
-<https://github.com/SWBaek/sdoc-editor/security/advisories/new>
+<https://github.com/NaruForge/sdoc-editor/security/advisories/new>
 
 Include as much of the following as possible:
 
@@ -41,4 +41,4 @@ Examples of issues that should be reported privately include:
 - data loss caused by save races, stale document identity or malformed input
 - unsafe handling of untrusted `.sdoc`, `.tiptap.json`, `.sdocbook`, HTML or Markdown
 
-General crashes, rendering bugs, and feature requests without a security impact belong in [GitHub Issues](https://github.com/SWBaek/sdoc-editor/issues).
+General crashes, rendering bugs, and feature requests without a security impact belong in [GitHub Issues](https://github.com/NaruForge/sdoc-editor/issues).

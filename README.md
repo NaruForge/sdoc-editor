@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/SWBaek/sdoc-editor/main/media/sdoc-editor-icon.png" alt="Structured Doc Editor" width="112" height="112">
+  <img src="https://raw.githubusercontent.com/NaruForge/sdoc-editor/main/media/sdoc-editor-icon.png" alt="Structured Doc Editor" width="112" height="112">
 </p>
 
 <h1 align="center">Structured Doc Editor</h1>
@@ -12,8 +12,8 @@
 <p align="center">
   <a href="https://marketplace.visualstudio.com/items?itemName=swbaek.structured-doc-editor"><img src="https://img.shields.io/visual-studio-marketplace/v/swbaek.structured-doc-editor?style=flat-square&label=VS%20Code" alt="VS Code Marketplace 버전"></a>
   <a href="https://www.npmjs.com/package/sdoc-editor-cli"><img src="https://img.shields.io/npm/v/sdoc-editor-cli?style=flat-square&label=npm" alt="npm 패키지 버전"></a>
-  <a href="https://github.com/SWBaek/sdoc-editor/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/SWBaek/sdoc-editor/ci.yml?branch=main&style=flat-square&label=CI" alt="CI 상태"></a>
-  <a href="https://github.com/SWBaek/sdoc-editor/blob/main/LICENSE"><img src="https://img.shields.io/github/license/SWBaek/sdoc-editor?style=flat-square" alt="MIT License"></a>
+  <a href="https://github.com/NaruForge/sdoc-editor/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/NaruForge/sdoc-editor/ci.yml?branch=main&style=flat-square&label=CI" alt="CI 상태"></a>
+  <a href="https://github.com/NaruForge/sdoc-editor/blob/main/LICENSE"><img src="https://img.shields.io/github/license/NaruForge/sdoc-editor?style=flat-square" alt="MIT License"></a>
 </p>
 
 <p align="center">
@@ -172,14 +172,14 @@ npm install --save-dev sdoc-editor-cli@latest
 
 ## 지원 정책과 알아둘 점
 
-- 공식 배포면은 [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=swbaek.structured-doc-editor)와 [npm의 `sdoc-editor-cli`](https://www.npmjs.com/package/sdoc-editor-cli)입니다. [GitHub Releases](https://github.com/SWBaek/sdoc-editor/releases/latest)는 버전이 고정된 CLI tgz를 제공하며, VSIX 공개 배포는 Marketplace를 사용합니다.
+- 공식 배포면은 [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=swbaek.structured-doc-editor)와 [npm의 `sdoc-editor-cli`](https://www.npmjs.com/package/sdoc-editor-cli)입니다. [GitHub Releases](https://github.com/NaruForge/sdoc-editor/releases/latest)는 버전이 고정된 CLI tgz를 제공하며, VSIX 공개 배포는 Marketplace를 사용합니다.
 - UI 언어와 외부 renderer 같은 host 설정은 사용자 환경에, 제목·캡션·폰트·색상·테마·슬라이드 설정은 `.sdoc`의 `meta.settings`에 저장됩니다.
 - VS Code는 확장을 제거해도 `settings.json`을 자동 삭제하지 않습니다. v0.7.4 이하 설정이 남아 있으면 명령 팔레트에서 `Structured Doc Editor: Clean Up Legacy Settings`를 실행하세요.
-- Windows Desktop은 **v0.7.8을 마지막으로 지원이 종료(EOL)** 됐습니다. [v0.7.8 릴리스](https://github.com/SWBaek/sdoc-editor/releases/tag/v0.7.8)의 바이너리는 기록 보존용이며 보안 수정이나 호환성 지원을 받지 않습니다. 기존 `.sdoc`과 `~/.sdoc/templates/` 데이터는 백업한 뒤 현재 VS Code 확장에서 사용할 수 있습니다.
+- Windows Desktop은 **v0.7.8을 마지막으로 지원이 종료(EOL)** 됐습니다. [v0.7.8 릴리스](https://github.com/NaruForge/sdoc-editor/releases/tag/v0.7.8)의 바이너리는 기록 보존용이며 보안 수정이나 호환성 지원을 받지 않습니다. 기존 `.sdoc`과 `~/.sdoc/templates/` 데이터는 백업한 뒤 현재 VS Code 확장에서 사용할 수 있습니다.
 
 ## 기여하기
 
-버그 제보와 기능 제안은 [GitHub Issues](https://github.com/SWBaek/sdoc-editor/issues)에 남겨 주세요. 코드 기여 전에는 [CONTRIBUTING.md](CONTRIBUTING.md)의 개발 환경, 아키텍처 경계와 검증 절차를 확인해 주세요. 보안 취약점은 공개 이슈로 올리지 말고 [SECURITY.md](SECURITY.md)의 비공개 절차를 사용합니다.
+버그 제보와 기능 제안은 [GitHub Issues](https://github.com/NaruForge/sdoc-editor/issues)에 남겨 주세요. 코드 기여 전에는 [CONTRIBUTING.md](CONTRIBUTING.md)의 개발 환경, 아키텍처 경계와 검증 절차를 확인해 주세요. 보안 취약점은 공개 이슈로 올리지 말고 [SECURITY.md](SECURITY.md)의 비공개 절차를 사용합니다.
 
 AI 에이전트가 이슈를 생성하거나 수정할 때는 [AI 에이전트용 이슈 작성 가이드](.github/AI_ISSUE_REPORTING.md)와 해당 Issue Form을 따라야 합니다.
 

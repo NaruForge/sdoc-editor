@@ -120,4 +120,4 @@ Structured Doc Editor가 다음 조건을 꾸준히 만족할 때 제품 방향�
 
 ## 의사 결정과 참여
 
-기능 요청과 버그는 [GitHub Issues](https://github.com/SWBaek/sdoc-editor/issues), 구현 제안은 Pull Request로 논의합니다. 장기간 유지해야 하는 구조적 결정은 `docs/adr/`에 기록합니다. 보안 문제는 공개 이슈 대신 [SECURITY.md](SECURITY.md)의 비공개 신고 절차를 사용해 주세요.
+기능 요청과 버그는 [GitHub Issues](https://github.com/NaruForge/sdoc-editor/issues), 구현 제안은 Pull Request로 논의합니다. 장기간 유지해야 하는 구조적 결정은 `docs/adr/`에 기록합니다. 보안 문제는 공개 이슈 대신 [SECURITY.md](SECURITY.md)의 비공개 신고 절차를 사용해 주세요.
