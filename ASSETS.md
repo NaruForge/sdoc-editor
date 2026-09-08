@@ -8,7 +8,7 @@ The root [MIT License](LICENSE) applies to project source code and documentation
 
 Provenance record:
 
-- Added by the repository owner in commit `7bd03990325fb54d03574cd9fec93aa042b45ee2` on 2026-07-20 and described in the project changelog as an original structured-document symbol.
+- Added by the repository owner in commit `2753f6b2422cca6de58b68b272f9776c3b052c2e` on 2026-07-20 and described in the project changelog as an original structured-document symbol.
 - SHA-256: `a617a044d72b155947a5b5c4a39843cc5b1a777086b4a7ef23952d192d838925`.
 - No separate editable source file or embedded PNG authorship metadata is retained. Future replacements must preserve their editable source and creation/license record.
 
@@ -30,7 +30,7 @@ current Files workflow.
 Provenance and redistribution record:
 
 - Author/source: captured for this project on 2026-08-07 from repository commit
-  `dd337f07d06155e94ed39fdd950a0589b822aa24`, Structured Doc Editor v0.8.3,
+  `298bdcbcc5370aac9e47a9627a6ec8ff5354a065`, Structured Doc Editor v0.8.3,
   with the repository owner authorizing this documentation update.
 - Runtime: VS Code 1.132.0 on Windows, launched with this repository as
   `--extensionDevelopmentPath` and isolated temporary user-data and extension
